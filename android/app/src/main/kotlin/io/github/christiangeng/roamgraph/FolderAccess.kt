@@ -25,9 +25,9 @@ import java.util.concurrent.Executors
  * Methods on the channel:
  * - savedFolder() -> {uri, name, hasAccess} or null if none was ever chosen
  * - pickFolder() -> {uri, name, hasAccess} or null if the user cancelled
- * - listFiles({uri, skipDirs}) -> [{path, uri, modified, size}] for every
- *   file below the folder, with paths relative to it, not entering
- *   directories whose name is in skipDirs
+ * - listFiles({uri, skipDirs}) -> [{path, uri, directory, modified, size}]
+ *   for every file and directory below the folder, with paths relative to
+ *   it, leaving out (and not entering) directories named in skipDirs
  */
 class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHandler {
     companion object {
@@ -91,24 +91,34 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
         }
     }
 
-    /** Returns true if the result was for the folder picker. */
+    /**
+     * Returns true if the result was for the folder picker.
+     *
+     * If Android recreated the activity while the picker was open, the Dart
+     * call that opened it is gone (no pending result). The choice is still
+     * taken and saved; the Dart side reads it with savedFolder() when the
+     * app resumes.
+     */
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
         if (requestCode != REQUEST_PICK) return false
-        val result = pendingPick ?: return true
+        val result = pendingPick
         pendingPick = null
 
         val uri = data?.data
         if (resultCode != Activity.RESULT_OK || uri == null) {
-            result.success(null)
+            result?.success(null)
             return true
         }
         val resolver = activity.contentResolver
         try {
             resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         } catch (e: SecurityException) {
-            result.error("no_permission", e.message, null)
+            result?.error("no_permission", e.message, null)
             return true
         }
+        // Save the new folder durably before releasing the old one, so the
+        // saved folder never points at a released permission.
+        prefs.edit().putString(KEY_URI, uri.toString()).commit()
         // Keep only the folder just chosen: Android limits how many
         // persisted permissions an app may hold.
         for (permission in resolver.persistedUriPermissions) {
@@ -123,8 +133,7 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                 }
             }
         }
-        prefs.edit().putString(KEY_URI, uri.toString()).apply()
-        result.success(savedFolder())
+        result?.success(savedFolder())
         return true
     }
 
@@ -165,18 +174,19 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                 val name = c.getString(1)
                 if (id != null && name != null) {
                     val path = if (prefix.isEmpty()) name else "$prefix/$name"
-                    if (c.getString(2) == Document.MIME_TYPE_DIR) {
-                        if (name !in skipDirs) subdirectories.add(id to path)
-                    } else {
+                    val isDirectory = c.getString(2) == Document.MIME_TYPE_DIR
+                    if (!(isDirectory && name in skipDirs)) {
                         out.add(
                             mapOf(
                                 "path" to path,
                                 "uri" to DocumentsContract.buildDocumentUriUsingTree(tree, id)
                                     .toString(),
+                                "directory" to isDirectory,
                                 "modified" to (if (c.isNull(3)) 0L else c.getLong(3)),
                                 "size" to (if (c.isNull(4)) 0L else c.getLong(4)),
                             ),
                         )
+                        if (isDirectory) subdirectories.add(id to path)
                     }
                 }
             }

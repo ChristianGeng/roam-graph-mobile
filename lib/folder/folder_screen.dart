@@ -22,7 +22,8 @@ class FolderScreen extends StatefulWidget {
 
 enum _Status { loading, noFolder, accessLost, indexed, failed }
 
-class _FolderScreenState extends State<FolderScreen> {
+class _FolderScreenState extends State<FolderScreen>
+    with WidgetsBindingObserver {
   _Status _status = _Status.loading;
   ChosenFolder? _folder;
   int _fileCount = 0;
@@ -31,7 +32,38 @@ class _FolderScreenState extends State<FolderScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _start();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _checkSavedFolder();
+  }
+
+  /// When the app comes back, the saved folder may have changed: a folder
+  /// chosen while Android recreated the app, or a permission revoked in the
+  /// system settings. Re-index only if it did.
+  Future<void> _checkSavedFolder() async {
+    if (_status == _Status.loading) return;
+    try {
+      final saved = await widget.folderAccess.savedFolder();
+      if (saved == null || !mounted || _status == _Status.loading) return;
+      final current = _folder;
+      if (current == null ||
+          saved.uri != current.uri ||
+          saved.hasAccess != current.hasAccess) {
+        await _guard(() => _index(saved));
+      }
+    } on PlatformException {
+      // Keep what is shown; the next action reports the error.
+    }
   }
 
   /// On start: index the folder chosen earlier, if there is one.
@@ -70,7 +102,7 @@ class _FolderScreenState extends State<FolderScreen> {
       return;
     }
     final files = await widget.folderAccess.listFiles(folder);
-    _show(_Status.indexed, folder, selectRoamFiles(files).length);
+    _show(_Status.indexed, folder, selectRoamFiles(folder.name, files).length);
   }
 
   /// Shows the spinner while [work] runs, and an error if it fails.

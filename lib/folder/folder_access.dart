@@ -31,7 +31,8 @@ abstract interface class FolderAccess {
   /// Opens Android's folder picker. Null if the user cancelled.
   Future<ChosenFolder?> pickFolder();
 
-  /// Every file below [folder], except inside [skippedDirectories].
+  /// Every file and directory below [folder], except [skippedDirectories]
+  /// and what they contain.
   Future<List<FolderFile>> listFiles(ChosenFolder folder);
 }
 
@@ -61,6 +62,7 @@ class PlatformFolderAccess implements FolderAccess {
         FolderFile(
           path: e['path']! as String,
           uri: e['uri']! as String,
+          isDirectory: (e['directory'] as bool?) ?? false,
           modified: (e['modified'] as int?) ?? 0,
           size: (e['size'] as int?) ?? 0,
         ),

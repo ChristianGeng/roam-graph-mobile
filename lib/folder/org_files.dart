@@ -4,11 +4,13 @@
 /// unit-tested.
 library;
 
-/// A file below the chosen folder, as the folder access lists it.
+/// A file or directory below the chosen folder, as the folder access lists
+/// it.
 class FolderFile {
   const FolderFile({
     required this.path,
     required this.uri,
+    this.isDirectory = false,
     this.modified = 0,
     this.size = 0,
   });
@@ -18,6 +20,9 @@ class FolderFile {
 
   /// Android content URI to read the file.
   final String uri;
+
+  /// True for a directory.
+  final bool isDirectory;
 
   /// Last change, in milliseconds since the epoch (0 if unknown).
   final int modified;
@@ -33,20 +38,36 @@ const skippedDirectories = {'.stfolder', '.stversions'};
 /// The folder that org-roam indexes (`org-roam-directory`).
 const roamDirectory = 'roam';
 
+/// The path prefix of `roam/` inside the chosen folder.
+///
+/// - The chosen folder is `roam/` itself (its name is `roam`): no prefix,
+///   even if it contains another directory named `roam`.
+/// - It contains a `roam` directory: the org root, so `roam/`. This holds
+///   even when `roam/` is empty.
+/// - Neither: treated as `roam/` itself, so a renamed roam folder works.
+String roamPrefix(String folderName, Iterable<FolderFile> entries) {
+  if (folderName == roamDirectory) return '';
+  final hasRoam = entries.any((e) => e.isDirectory && e.path == roamDirectory);
+  return hasRoam ? '$roamDirectory/' : '';
+}
+
 /// The files of the graph: the `.org` files in `roam/`, recursively.
 ///
-/// The chosen folder can be the org root (which contains `roam/`) or
-/// `roam/` itself. Paths in the result stay relative to the chosen folder.
-List<FolderFile> selectRoamFiles(Iterable<FolderFile> files) {
-  final all = files.toList();
-  final prefix = all.any((f) => f.path.startsWith('$roamDirectory/'))
-      ? '$roamDirectory/'
-      : '';
+/// [folderName] is the name of the chosen folder, which can be the org root
+/// (containing `roam/`) or `roam/` itself; see [roamPrefix]. Paths in the
+/// result stay relative to the chosen folder.
+List<FolderFile> selectRoamFiles(
+  String folderName,
+  Iterable<FolderFile> entries,
+) {
+  final all = entries.toList();
+  final prefix = roamPrefix(folderName, all);
   return [
-    for (final file in all)
-      if (file.path.startsWith(prefix) &&
-          isRoamFile(file.path.substring(prefix.length)))
-        file,
+    for (final entry in all)
+      if (!entry.isDirectory &&
+          entry.path.startsWith(prefix) &&
+          isRoamFile(entry.path.substring(prefix.length)))
+        entry,
   ];
 }
 
