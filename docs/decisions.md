@@ -87,15 +87,31 @@ devices through Syncthing.
 14. **No real notes in the repo.** The repo is public. Tests use synthetic
     org files; the comparison with my real data is a local script.
 
+15. **Stack: Flutter** (#1), decided on 2026-10-11. `org_parser` and
+    `org_flutter` are the parser and the renderer Orgro uses, by the same
+    author, so my files are already known to parse and render correctly with
+    them. Graph in a WebView with Cytoscape.js, algorithms with `graphology`
+    in the same WebView. The alternatives were Kotlin with Jetpack Compose
+    (org rendering via `uniorg` in a WebView, algorithms with JGraphT) and a
+    PWA; "Flutter or PWA" below says why Flutter won.
+
+16. **Flutter is pinned** in the build workflow (3.47.7 at the start). The
+    files under `android/` come from that version's `flutter create`
+    templates, so the Android Gradle Plugin, Kotlin and Gradle versions match
+    what that Flutter expects. Update Flutter and the `android/` files
+    together. As in Flutter's own template, `gradlew` and
+    `gradle-wrapper.jar` are not committed: `flutter build` creates them, so
+    a fresh clone builds with only Flutter installed.
+
+17. **Application ID `io.github.christiangeng.roamgraph`.** Android treats a
+    different ID as a different app, so it never changes.
+
+18. **Release versions are `0.1.<run number>`**, with the workflow run
+    number as the version code, so every release installs as an update.
+
 ## Recommended, not decided
 
-- **Stack: Flutter** (#1). `org_parser` and `org_flutter` are the parser and
-  the renderer Orgro uses, by the same author, so my files are already known
-  to parse and render correctly with them. Graph in a WebView with
-  Cytoscape.js, algorithms with `graphology` in the same WebView.
-  Alternatives: Kotlin with Jetpack Compose, org rendering via `uniorg` in a
-  WebView, algorithms with JGraphT; or a PWA (below). Decide this first:
-  everything else depends on it.
+Nothing at the moment.
 
 ### Flutter or PWA
 

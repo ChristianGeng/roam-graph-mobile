@@ -21,8 +21,8 @@ folder is the only connection.
 
 ## How we work
 
-- **Spec before code.** The next step is to decide the stack (#1), then
-  write the spec to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`,
+- **Spec before code.** The stack is decided (Flutter, #1) and the build
+  skeleton exists (#2). The next step is to write the spec to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`,
   then an implementation plan. No product code before the spec is approved.
 - **Never put my real notes in the repo.** It is public. Tests use synthetic
   org files under the test directory. Comparisons with my real data are
