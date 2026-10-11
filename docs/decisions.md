@@ -1,0 +1,122 @@
+# Decisions so far
+
+Input for the spec, not the spec itself. Collected in the brainstorming
+session of 2026-10-11, which also created the issues. Each decision has its
+reason, so a later session can tell a deliberate choice from an accident.
+Change a decision here, with its new reason, before building against a
+different one.
+
+## What the app is for
+
+I keep my knowledge graph in org-roam, in Emacs on my laptop. I want to
+browse that graph on my Android tablet and phone without the laptop, and in
+v2 extend it there: create new nodes. The org files already reach both
+devices through Syncthing.
+
+## Decided
+
+1. **A native Android app**, not Emacs on Android and not Python in Termux
+   with a browser. Both alternatives work in principle but feel clumsy on a
+   touchscreen.
+
+2. **Entirely Emacs-free on the device.** The app parses the org files
+   itself, keeps its own database and renders nodes itself. The only link to
+   the laptop is the Syncthing folder: Emacs edits files on the laptop, the
+   app reads them, and from v2 it also writes new ones. The laptop builds its
+   own `org-roam.db` from the same files. No Emacs is reached remotely.
+
+3. **The device has no `org-roam.db`.** It lives in the Emacs cache on the
+   laptop (`~/doom-emacs/.local/cache/org-roam.db`), outside the synced
+   folder, and is a cache only Emacs maintains. So the app must build the
+   graph from the files.
+
+4. **Index `roam/` only.** That is `org-roam-directory`. Journals are left
+   out on purpose, although the laptop database also lists `journal/` files.
+   Hundreds of other org files carry `:ID:` (`.archive/`, `ref.org`, ...) and
+   are not part of the graph.
+
+5. **Store the graph in org-roam's SQLite schema and encoding.** Tables
+   `files`, `nodes`, `aliases`, `citations`, `refs`, `tags`, `links`.
+   org-roam stores every value as an Emacs Lisp string, quotation marks
+   included: an ID is `"37c2520b-..."` with the quotes. Matching both means
+   the queries of my org-roam MCP server (`cgeng-ai-skills`,
+   `mcps/org_roam`) work on the app's database unchanged.
+
+6. **Render nodes in the app, plus "Open in Orgro".** I already read org on
+   the phone with Orgro. Checked in Orgro's source (commit 53f6398):
+   - It opens a file sent by another app (`ACTION_VIEW`).
+   - It has no external way to jump to a heading. Its `org-protocol` handles
+     only `capture`. It has `narrowByFragment`, but only for web documents.
+   - Its FAQ says `id:` links between files do not resolve in a file that
+     another app opened.
+
+   So the app renders the node itself, with tappable `id:` links and
+   backlinks, and offers "Open in Orgro" at file level for full reading and
+   editing. This loses little: 451 of my 452 nodes are whole files.
+
+7. **The graph view mirrors my `org-roam-graph` settings.** Only `id:` links
+   are edges. `file`, `https`, `http`, `fuzzy` and `mailto` links are hidden
+   (`org-roam-graph-link-hidden-types`). Layout `circo`, plus a
+   force-directed one.
+
+8. **Graph algorithms as views:** neighbourhood, communities (Louvain),
+   importance (PageRank, degree), shortest path. My MCP server computes the
+   same with `networkx`, so its results are the reference.
+
+9. **v1 is read-only. Capture is v2.** Read-only cannot damage my notes.
+   Capture brings org-roam-compatible file names and IDs and Syncthing
+   conflicts, which deserve their own milestone.
+
+10. **v2 capture writes only new files**, never into existing ones. A new
+    node links to the current node from inside the new file, so it shows up
+    as a backlink. Editing an existing file risks a Syncthing conflict with
+    the laptop. File names follow my capture template, which is org-roam's
+    default: `roam/<%Y%m%d%H%M%S>-<slug>.org`.
+
+11. **AI input through Android's share menu, not MCP.** The Claude Android
+    app cannot write to device storage, but it can share text. The app
+    accepts shared text as a new node (#15).
+
+12. **Tablet and phone layouts differ** (#16): graph and node side by side
+    on the tablet in landscape, one screen at a time on the phone.
+
+13. **APK from GitHub Actions, installed with Obtainium.** One stable signing
+    key as a repository secret, so updates install over the old version.
+    Obtainium installs and updates from the GitHub releases.
+
+14. **No real notes in the repo.** The repo is public. Tests use synthetic
+    org files; the comparison with my real data is a local script.
+
+## Recommended, not decided
+
+- **Stack: Flutter** (#1). `org_parser` and `org_flutter` are the parser and
+  the renderer Orgro uses, by the same author, so my files are already known
+  to parse and render correctly with them. Graph in a WebView with
+  Cytoscape.js, algorithms with `graphology` in the same WebView.
+  Alternative: Kotlin with Jetpack Compose, org rendering via `uniorg` in a
+  WebView, algorithms with JGraphT. Decide this first: everything else
+  depends on it.
+
+## Open
+
+- **MCP on the device** (#14). Adding nodes needs no MCP (see 11). MCP would
+  only matter if an AI on the device had to read or query the graph without
+  the laptop, and it needs a client there. The Claude Android app only
+  connects to remote MCP servers. Possibly never needed.
+- **The 28 files in `roam/` that are not nodes** (485 files, 457 in the
+  database). Find out why each is skipped, so the parser skips them the same
+  way.
+
+## My data, for checks
+
+From the laptop `org-roam.db`, `roam/` only, on 2026-10-11:
+
+| What | Count |
+|---|---|
+| `.org` files in `roam/` | 485 |
+| Files in the database | 457 |
+| Nodes | 452 (451 files, 1 heading) |
+| `id:` links | 2519 |
+| Tags | 192 |
+| Refs | 125 |
+| Aliases | 2 |
