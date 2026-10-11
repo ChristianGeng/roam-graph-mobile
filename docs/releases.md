@@ -27,7 +27,7 @@ error that names each missing secret.
 Only code that is already on `main` sees the key. Pull requests and manual
 runs on other branches build with the debug key, with read-only permissions,
 and publish nothing. A separate release job, the only one allowed to write,
-publishes the APK; re-running it reuses the release and replaces the APK.
+publishes the APK. A new release stays a draft until its APK is attached, so Obtainium never sees a release without one; re-running the job reuses the release and replaces the APK.
 
 ## Install with Obtainium
 

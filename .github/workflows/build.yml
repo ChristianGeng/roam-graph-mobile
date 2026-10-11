@@ -138,17 +138,23 @@ jobs:
           name: apk
 
       - name: Publish the GitHub release
-        # Safe to re-run: an existing release is reused and its APK replaced.
+        # A new release starts as a draft with the APK attached and is
+        # published only after that, so Obtainium never sees a release
+        # without an APK. Safe to re-run: an existing release (draft or
+        # published) is reused, its APK replaced, and then published.
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: v${{ needs.build.outputs.version }}
           APK: roam-graph-${{ needs.build.outputs.version }}.apk
         run: |
-          if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" \
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" \
+              --draft \
               --target "${{ github.sha }}" \
               --title "$TAG" \
               --notes "Built from ${{ github.sha }}."
           fi
-          gh release upload "$TAG" "$APK" --clobber
+          gh release edit "$TAG" --draft=false
