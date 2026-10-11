@@ -38,30 +38,33 @@ const skippedDirectories = {'.stfolder', '.stversions'};
 /// The folder that org-roam indexes (`org-roam-directory`).
 const roamDirectory = 'roam';
 
-/// The path prefix of `roam/` inside the chosen folder.
+/// The path prefix of `roam/` inside the chosen folder, or null if the
+/// chosen folder is neither.
 ///
 /// - The chosen folder is `roam/` itself (its name is `roam`): no prefix,
 ///   even if it contains another directory named `roam`.
 /// - It contains a `roam` directory: the org root, so `roam/`. This holds
 ///   even when `roam/` is empty.
-/// - Neither: treated as `roam/` itself, so a renamed roam folder works.
-String roamPrefix(String folderName, Iterable<FolderFile> entries) {
+/// - Neither: null. Its notes are not the graph, so nothing is counted;
+///   for example the org root before Syncthing has created `roam/`.
+String? roamPrefix(String folderName, Iterable<FolderFile> entries) {
   if (folderName == roamDirectory) return '';
   final hasRoam = entries.any((e) => e.isDirectory && e.path == roamDirectory);
-  return hasRoam ? '$roamDirectory/' : '';
+  return hasRoam ? '$roamDirectory/' : null;
 }
 
 /// The files of the graph: the `.org` files in `roam/`, recursively.
 ///
 /// [folderName] is the name of the chosen folder, which can be the org root
-/// (containing `roam/`) or `roam/` itself; see [roamPrefix]. Paths in the
-/// result stay relative to the chosen folder.
-List<FolderFile> selectRoamFiles(
+/// (containing `roam/`) or `roam/` itself; see [roamPrefix]. Null if it is
+/// neither. Paths in the result stay relative to the chosen folder.
+List<FolderFile>? selectRoamFiles(
   String folderName,
   Iterable<FolderFile> entries,
 ) {
   final all = entries.toList();
   final prefix = roamPrefix(folderName, all);
+  if (prefix == null) return null;
   return [
     for (final entry in all)
       if (!entry.isDirectory &&

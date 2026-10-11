@@ -20,7 +20,7 @@ class FolderScreen extends StatefulWidget {
   State<FolderScreen> createState() => _FolderScreenState();
 }
 
-enum _Status { loading, noFolder, accessLost, indexed, failed }
+enum _Status { loading, noFolder, accessLost, noRoam, indexed, failed }
 
 class _FolderScreenState extends State<FolderScreen>
     with WidgetsBindingObserver {
@@ -101,8 +101,15 @@ class _FolderScreenState extends State<FolderScreen>
       _show(_Status.accessLost, folder, 0);
       return;
     }
-    final files = await widget.folderAccess.listFiles(folder);
-    _show(_Status.indexed, folder, selectRoamFiles(folder.name, files).length);
+    final files = selectRoamFiles(
+      folder.name,
+      await widget.folderAccess.listFiles(folder),
+    );
+    if (files == null) {
+      _show(_Status.noRoam, folder, 0);
+    } else {
+      _show(_Status.indexed, folder, files.length);
+    }
   }
 
   /// Shows the spinner while [work] runs, and an error if it fails.
@@ -186,6 +193,17 @@ class _FolderScreenState extends State<FolderScreen>
             'Choose the folder again.',
             textAlign: TextAlign.center,
           ),
+          chooseButton,
+        ]);
+      case _Status.noRoam:
+        return _column([
+          Text('No roam/ folder here', style: text.titleLarge),
+          Text(
+            '"${_folder?.name}" has no roam/ folder and is not roam/ itself. '
+            'Choose the org folder that contains roam/, or roam/ itself.',
+            textAlign: TextAlign.center,
+          ),
+          OutlinedButton(onPressed: _rescan, child: const Text('Scan again')),
           chooseButton,
         ]);
       case _Status.indexed:

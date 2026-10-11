@@ -116,7 +116,10 @@ devices through Syncthing.
     no dependency. Which files belong to the graph is decided in Dart
     (`lib/folder/org_files.dart`), so those rules are unit-tested. The app
     remembers the chosen folder, so it can tell "never chosen" from
-    "permission lost" and ask again in the second case.
+    "permission lost" and ask again in the second case. The chosen folder
+    must be `roam/` itself (by its name) or contain `roam/`; any other
+    folder counts nothing and the app says so, so notes outside `roam/`
+    never enter the graph.
 
 ## Recommended, not decided
 

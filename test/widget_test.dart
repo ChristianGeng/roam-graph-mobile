@@ -122,6 +122,19 @@ void main() {
     expect(find.text('files indexed in roam/'), findsNothing);
   });
 
+  testWidgets('a folder without roam/ is not counted', (tester) async {
+    await start(
+      tester,
+      FakeFolderAccess(saved: org, files: [
+        const FolderFile(path: 'ref.org', uri: 'content://ref'),
+      ]),
+    );
+
+    expect(find.text('No roam/ folder here'), findsOneWidget);
+    expect(find.text('files indexed in roam/'), findsNothing);
+    expect(find.text('Choose org folder'), findsOneWidget);
+  });
+
   testWidgets('cancelling the picker keeps the current folder', (tester) async {
     final access = FakeFolderAccess(saved: org, files: someFiles());
     await start(tester, access);

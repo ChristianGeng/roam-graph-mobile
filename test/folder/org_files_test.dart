@@ -14,8 +14,8 @@ List<FolderFile> entries(List<String> paths) => [
             : FolderFile(path: p, uri: 'content://test/$p'),
     ];
 
-List<String> selected(String folderName, List<String> paths) =>
-    selectRoamFiles(folderName, entries(paths)).map((f) => f.path).toList();
+List<String>? selected(String folderName, List<String> paths) =>
+    selectRoamFiles(folderName, entries(paths))?.map((f) => f.path).toList();
 
 void main() {
   group('selectRoamFiles', () {
@@ -55,11 +55,14 @@ void main() {
       );
     });
 
-    test('a folder without roam/ is taken as roam/ itself', () {
+    test('a folder that is neither the org root nor roam/ gives null', () {
+      // For example the org root before Syncthing has created roam/: its
+      // other notes must not be counted as the graph.
       expect(
-        selected('notes', ['a.org', 'sub/', 'sub/b.org']),
-        ['a.org', 'sub/b.org'],
+        selected('org', ['ref.org', 'journal/', 'journal/2024.org']),
+        isNull,
       );
+      expect(selected('notes', ['a.org']), isNull);
     });
 
     test('does not take a folder that only starts with "roam"', () {
@@ -85,14 +88,14 @@ void main() {
         uri: 'content://test/roam',
         isDirectory: true,
       );
-      final result = selectRoamFiles('org', [roam, file]).single;
+      final result = selectRoamFiles('org', [roam, file])!.single;
       expect(result.uri, 'content://test/a');
       expect(result.modified, 42);
       expect(result.size, 7);
     });
 
-    test('an empty folder gives no files', () {
-      expect(selected('org', []), isEmpty);
+    test('an empty roam/ folder gives no files', () {
+      expect(selected('roam', []), isEmpty);
     });
   });
 

@@ -35,11 +35,16 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
         private const val REQUEST_PICK = 4201
         private const val PREFS = "folder_access"
         private const val KEY_URI = "tree_uri"
+
+        // One scan thread for the whole process, shared by every instance,
+        // so a recreated activity does not leave idle threads behind.
+        private val executor = Executors.newSingleThreadExecutor { task ->
+            Thread(task, "roam-graph-folder-scan").apply { isDaemon = true }
+        }
+        private val mainThread = Handler(Looper.getMainLooper())
     }
 
     private val prefs get() = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    private val executor = Executors.newSingleThreadExecutor()
-    private val mainThread = Handler(Looper.getMainLooper())
     private var pendingPick: MethodChannel.Result? = null
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -110,6 +115,7 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
             return true
         }
         val resolver = activity.contentResolver
+        val heldBefore = resolver.persistedUriPermissions.any { it.uri == uri }
         try {
             resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         } catch (e: SecurityException) {
@@ -117,8 +123,22 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
             return true
         }
         // Save the new folder durably before releasing the old one, so the
-        // saved folder never points at a released permission.
-        prefs.edit().putString(KEY_URI, uri.toString()).commit()
+        // saved folder never points at a released permission. If saving
+        // fails, keep the old folder and give back the new permission.
+        if (!prefs.edit().putString(KEY_URI, uri.toString()).commit()) {
+            if (!heldBefore) {
+                try {
+                    resolver.releasePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                    )
+                } catch (_: SecurityException) {
+                    // Nothing to give back.
+                }
+            }
+            result?.error("save_failed", "Could not save the chosen folder. Try again.", null)
+            return true
+        }
         // Keep only the folder just chosen: Android limits how many
         // persisted permissions an app may hold.
         for (permission in resolver.persistedUriPermissions) {
