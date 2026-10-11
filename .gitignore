@@ -1,2 +1,14 @@
 # Worktrees that coding assistants create inside the checkout.
 .claude/worktrees/
+
+# Flutter and Dart build output.
+.dart_tool/
+build/
+.flutter-plugins-dependencies
+*.iml
+.idea/
+
+# Signing keys never go into the repo (it is public).
+*.jks
+*.keystore
+key.properties

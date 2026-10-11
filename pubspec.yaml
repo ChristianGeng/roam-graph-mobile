@@ -1,0 +1,22 @@
+name: roam_graph_mobile
+description: Browse my org-roam node graph on Android, offline and without Emacs.
+publish_to: 'none'
+
+# The release workflow overrides this with --build-name and --build-number,
+# so every APK it builds has a higher version than the one before.
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
