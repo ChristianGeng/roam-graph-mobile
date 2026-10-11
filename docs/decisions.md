@@ -109,6 +109,18 @@ devices through Syncthing.
 18. **Release versions are `0.1.<run number>`**, with the workflow run
     number as the version code, so every release installs as an update.
 
+19. **Folder access through Android's Storage Access Framework, called
+    directly** (#3). A small Kotlin class (`FolderAccess.kt`) opens the
+    folder picker, takes a persistable read permission and lists files over
+    a method channel. No plugin: the APIs are stable and short, and it adds
+    no dependency. Which files belong to the graph is decided in Dart
+    (`lib/folder/org_files.dart`), so those rules are unit-tested. The app
+    remembers the chosen folder, so it can tell "never chosen" from
+    "permission lost" and ask again in the second case. The chosen folder
+    must be `roam/` itself (by its name) or contain `roam/`; any other
+    folder counts nothing and the app says so, so notes outside `roam/`
+    never enter the graph.
+
 ## Recommended, not decided
 
 Nothing at the moment.
