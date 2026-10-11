@@ -63,6 +63,8 @@ class _FolderScreenState extends State<FolderScreen> {
   }
 
   Future<void> _index(ChosenFolder folder) async {
+    // Remember the folder first, so "Try again" works if listing fails.
+    _folder = folder;
     if (!folder.hasAccess) {
       _show(_Status.accessLost, folder, 0);
       return;
