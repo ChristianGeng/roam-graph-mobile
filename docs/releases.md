@@ -21,8 +21,13 @@ The key is never in the repo; the repo is public. Keep a private copy of the
 `.jks` file and the password. If the key is lost, the app cannot be updated
 any more; it must be uninstalled and installed again with a new key.
 
-Without the secrets, the build on `main` fails with an error that names the
-missing secret.
+The build on `main` checks all four before Gradle runs and fails with an
+error that names each missing secret.
+
+Only code that is already on `main` sees the key. Pull requests and manual
+runs on other branches build with the debug key, with read-only permissions,
+and publish nothing. A separate release job, the only one allowed to write,
+publishes the APK; re-running it reuses the release and replaces the APK.
 
 ## Install with Obtainium
 

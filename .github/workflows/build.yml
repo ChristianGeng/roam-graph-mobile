@@ -1,9 +1,11 @@
 # Tests and builds the app.
 #
-# - Pull requests: run the tests and build a debug-signed APK, to check that
-#   the change builds. Nothing is published.
-# - Push to main: build a release APK signed with the release key and publish
-#   it as a GitHub release. Obtainium installs and updates from these releases.
+# - Pull requests, and any branch other than main: run the tests and build a
+#   debug-signed APK, to check that the change builds. Nothing is published,
+#   and the release key is never loaded.
+# - main (push, or a manual run on main): build a release APK signed with the
+#   release key and publish it as a GitHub release. Obtainium installs and
+#   updates from these releases.
 #
 # The release key comes from four repository secrets:
 #   ANDROID_KEYSTORE_BASE64   the .jks file, base64-encoded
@@ -12,6 +14,10 @@
 #   ANDROID_KEY_PASSWORD
 # Every release must be signed with the same key, or Android refuses to
 # install an update over the old version.
+#
+# Actions are pinned to full commit SHAs (the comment names the release), so
+# a moved tag cannot run new code next to the signing key. Update them on
+# purpose.
 
 name: Build
 
@@ -21,8 +27,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Read-only by default. Only the release job below may write.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: build-${{ github.ref }}
@@ -32,19 +39,26 @@ env:
   # Pinned so the Android project files match the Flutter that builds them.
   # Update the two together.
   FLUTTER_VERSION: 3.47.7
+  # True only for code that is already on main. Branch and pull request code
+  # never sees the release key.
+  IS_RELEASE: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.name }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: '21'
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
@@ -62,28 +76,37 @@ jobs:
       - name: Set the version
         id: version
         # The run number grows with every run, so each release has a higher
-        # version code and installs as an update.
+        # version code and installs as an update. A re-run keeps its number.
         run: |
           echo "name=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
           echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Load the release key
-        if: github.event_name != 'pull_request'
+        if: env.IS_RELEASE == 'true'
         env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::The repository secret ANDROID_KEYSTORE_BASE64 is missing. See docs/releases.md."
-            exit 1
-          fi
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD \
+                      ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The repository secret $name is missing. See docs/releases.md."
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Build the APK
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          # Empty outside main, so Gradle falls back to the debug key.
+          ANDROID_KEYSTORE_PASSWORD: ${{ env.IS_RELEASE == 'true' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ env.IS_RELEASE == 'true' && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ env.IS_RELEASE == 'true' && secrets.ANDROID_KEY_PASSWORD || '' }}
         run: |
           flutter build apk --release \
             --build-name=${{ steps.version.outputs.name }} \
@@ -92,19 +115,40 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk \
             "roam-graph-${{ steps.version.outputs.name }}.apk"
 
+      - name: Remove the release key from the runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
       - name: Keep the APK as a build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: roam-graph-${{ steps.version.outputs.name }}
+          name: apk
           path: roam-graph-*.apk
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: apk
 
       - name: Publish the GitHub release
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        # Safe to re-run: an existing release is reused and its APK replaced.
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: v${{ needs.build.outputs.version }}
+          APK: roam-graph-${{ needs.build.outputs.version }}.apk
         run: |
-          gh release create "v${{ steps.version.outputs.name }}" \
-            "roam-graph-${{ steps.version.outputs.name }}.apk" \
-            --target "${{ github.sha }}" \
-            --title "v${{ steps.version.outputs.name }}" \
-            --notes "Built from ${{ github.sha }}."
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" \
+              --target "${{ github.sha }}" \
+              --title "$TAG" \
+              --notes "Built from ${{ github.sha }}."
+          fi
+          gh release upload "$TAG" "$APK" --clobber

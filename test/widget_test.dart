@@ -6,6 +6,8 @@ void main() {
     await tester.pumpWidget(const RoamGraphApp());
 
     expect(find.text('Roam Graph'), findsWidgets);
-    expect(find.textContaining('Version'), findsOneWidget);
+    // Tests run without --dart-define=APP_VERSION, so the version is "dev".
+    expect(appVersion, 'dev');
+    expect(find.text('Version dev'), findsOneWidget);
   });
 }
