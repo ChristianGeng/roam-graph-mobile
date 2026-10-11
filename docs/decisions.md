@@ -93,9 +93,37 @@ devices through Syncthing.
   the renderer Orgro uses, by the same author, so my files are already known
   to parse and render correctly with them. Graph in a WebView with
   Cytoscape.js, algorithms with `graphology` in the same WebView.
-  Alternative: Kotlin with Jetpack Compose, org rendering via `uniorg` in a
-  WebView, algorithms with JGraphT. Decide this first: everything else
-  depends on it.
+  Alternatives: Kotlin with Jetpack Compose, org rendering via `uniorg` in a
+  WebView, algorithms with JGraphT; or a PWA (below). Decide this first:
+  everything else depends on it.
+
+### Flutter or PWA
+
+A PWA was also suggested. Two common objections to it do not hold:
+
+- **Graph size is not a reason against a PWA.** 452 nodes and 2519 edges
+  are small for browser graph libraries (Cytoscape.js, Sigma.js with WebGL),
+  and the Flutter design runs the graph in a WebView, i.e. the same browser
+  engine.
+- **Folder access is not a reason either.** Chrome for Android supports
+  `showDirectoryPicker` since version 132 (MDN `browser-compat-data`,
+  `api/Window.json`), so a PWA can read the Syncthing folder.
+
+The real differences:
+
+| | PWA | Flutter (APK) |
+|---|---|---|
+| Graph and algorithms | Cytoscape.js or Sigma.js and `graphology` directly in the page | the same libraries, inside a WebView |
+| Org parser and renderer | `uniorg` (JS), new to my files | `org_parser` and `org_flutter`, Orgro's own, already proven on my files |
+| "Open in Orgro" | hard: a web page cannot hand a local file to another app; the share menu reaches only Orgro's capture | `ACTION_VIEW`, which Orgro accepts (see 6) |
+| Folder access | Chrome 132+; unverified whether the permission survives a restart on Android | Android's folder permission is kept permanently |
+| AI input via the share menu (#15) | possible (Web Share Target) | possible |
+| Distribution | GitHub Pages; no APK, no signing key | APK from GitHub Actions, installed with Obtainium |
+| Also runs on the laptop | yes, in the browser | no |
+
+So the Orgro research decides it, not performance: "Open in Orgro" and the
+parser Orgro has proven on my files favour Flutter. The PWA's strengths
+matter less here, because the laptop has Emacs.
 
 ## Open
 
