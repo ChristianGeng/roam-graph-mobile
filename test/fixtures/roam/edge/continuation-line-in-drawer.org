@@ -1,0 +1,6 @@
+:PROPERTIES:
+:ID: qf
+:ROAM_ALIASES: A
+  B [[id:x4]]
+:END:
+[[id:x5]]

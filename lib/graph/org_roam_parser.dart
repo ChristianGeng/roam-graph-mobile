@@ -32,13 +32,22 @@ const defaultLinkTypes = [
 ];
 
 /// Parses one file. [path] is relative to `roam/` and is stored as given.
+///
+/// A file org-roam fails on, such as one with an unterminated quote in
+/// `ROAM_ALIASES`, gives no nodes and links but an [RoamFileData.error]:
+/// org-roam skips such a file entirely.
 RoamFileData parseRoamFile(
   String path,
   String text, {
   List<String> todoKeywords = doomTodoKeywords,
   List<String> linkTypes = defaultLinkTypes,
-}) =>
-    _FileParser(path, text, todoKeywords, linkTypes).parse();
+}) {
+  try {
+    return _FileParser(path, text, todoKeywords, linkTypes).parse();
+  } on FormatException catch (e) {
+    return RoamFileData(path: path, error: e.message);
+  }
+}
 
 // Line patterns.
 final _heading = RegExp(r'^(\*+) (.*)$');
@@ -51,6 +60,7 @@ final _planning = RegExp(r'^[ \t]*(?:SCHEDULED|DEADLINE|CLOSED):');
 // The key is greedy, as in Org: `#+filetags::x:` has the key `filetags::x`.
 final _keyword = RegExp(r'^[ \t]*#\+(\S+):[ \t]*(.*?)[ \t]*$');
 final _blockBegin = RegExp(r'^[ \t]*#\+begin_(\S+)', caseSensitive: false);
+final _blockEnd = RegExp(r'^[ \t]*#\+end_(\S+)[ \t]*$', caseSensitive: false);
 final _tableRow = RegExp(r'^[ \t]*\|');
 final _nonSpace = RegExp(r'\S');
 final _whitespace = RegExp(r'\s+');
@@ -102,6 +112,12 @@ class _FileParser {
   late final List<_Kind> kind = List.filled(lines.length, _Kind.text);
   final headings = <_Heading>[];
   List<_Property>? fileProperties;
+
+  /// For each line, the heading it belongs to (null above the first).
+  late final List<_Heading?> _headingOfLine = _computeHeadingOfLine();
+
+  /// The link source of each heading, computed once.
+  final _sourceOfHeading = <_Heading, String?>{};
 
   RoamFileData parse() {
     final headingLines = <int>[
@@ -214,29 +230,43 @@ class _FileParser {
       );
 
   /// Marks blocks closed before the next heading. Org does not parse a
-  /// block without its end line, and a heading ends any block.
+  /// block without its end line, and a heading ends any block, even one
+  /// inside a block (org-roam then sees a heading there).
+  ///
+  /// Linear: each line is looked at a fixed number of times.
   void _markBlocks() {
+    // Where each block name ends, in line order, and where the next
+    // heading after each line is.
+    final ends = <String, List<int>>{};
+    for (var i = 0; i < lines.length; i++) {
+      final end = _blockEnd.firstMatch(lines[i]);
+      if (end != null) ends.putIfAbsent(end.group(1)!.toLowerCase(), () => []).add(i);
+    }
+    final nextHeading = List.filled(lines.length + 1, lines.length);
+    for (var i = lines.length - 1; i >= 0; i--) {
+      nextHeading[i] = kind[i] == _Kind.heading ? i : nextHeading[i + 1];
+    }
+    final used = <String, int>{};
     var i = 0;
     while (i < lines.length) {
       final match = kind[i] == _Kind.text ? _blockBegin.firstMatch(lines[i]) : null;
       if (match != null) {
         final name = match.group(1)!.toLowerCase();
-        final end = RegExp(
-          '^[ \\t]*#\\+end_${_escape(name)}[ \\t]*\$',
-          caseSensitive: false,
-        );
-        var j = i + 1;
-        while (j < lines.length &&
-            kind[j] != _Kind.heading &&
-            !end.hasMatch(lines[j])) {
-          j++;
+        // The first end line of this name after line i. Lines are visited
+        // in order, so the search resumes where it stopped last time.
+        final candidates = ends[name] ?? const <int>[];
+        var k = used[name] ?? 0;
+        while (k < candidates.length && candidates[k] <= i) {
+          k++;
         }
-        if (j < lines.length && kind[j] != _Kind.heading) {
+        used[name] = k;
+        final j = k < candidates.length ? candidates[k] : lines.length;
+        if (j < nextHeading[i + 1]) {
           kind[i] = _Kind.delimiter;
           kind[j] = _Kind.delimiter;
           if (_hiddenBlocks.contains(name)) {
-            for (var k = i + 1; k < j; k++) {
-              kind[k] = _Kind.hidden;
+            for (var line = i + 1; line < j; line++) {
+              kind[line] = _Kind.hidden;
             }
           }
           i = j + 1;
@@ -285,14 +315,15 @@ class _FileParser {
         }
         return properties;
       }
+      // Org's `org-property-drawer-re`: a drawer holds only property lines.
+      // Any other line, even a blank one, and it is no property drawer.
       final match = _propertyLine.firstMatch(lines[j]);
-      if (match != null) {
-        properties.add(_Property(
-          match.group(1)!.toUpperCase(),
-          match.group(2) != null,
-          match.group(3) ?? '',
-        ));
-      }
+      if (match == null) return null;
+      properties.add(_Property(
+        match.group(1)!.toUpperCase(),
+        match.group(2) != null,
+        match.group(3) ?? '',
+      ));
     }
     return null;
   }
@@ -325,22 +356,42 @@ class _FileParser {
     );
   }
 
+  List<_Heading?> _computeHeadingOfLine() {
+    final result = List<_Heading?>.filled(lines.length, null);
+    var next = 0;
+    _Heading? current;
+    for (var i = 0; i < lines.length; i++) {
+      if (next < headings.length && headings[next].line == i) {
+        current = headings[next++];
+      }
+      result[i] = current;
+    }
+    return result;
+  }
+
   /// `org-roam-id-at-point`: the nearest heading at or above [line] that is
   /// a node; above the first heading, the file node.
   String? _sourceAt(int line) {
-    _Heading? heading;
-    for (final h in headings) {
-      if (h.line > line) break;
-      heading = h;
-    }
-    while (heading != null) {
-      if (heading.id != null) return heading.id;
+    final heading = _headingOfLine[line];
+    if (heading == null) return _topSource();
+    if (_sourceOfHeading.containsKey(heading)) return _sourceOfHeading[heading];
+    final String? source;
+    if (heading.id != null) {
+      source = heading.id;
+    } else if (heading.line == 0) {
       // A heading on the first line is the top: org-roam stops there.
-      if (heading.line == 0) return null;
-      heading = heading.parent;
+      source = null;
+    } else {
+      final parent = heading.parent;
+      source = parent == null ? _topSource() : _sourceAt(parent.line);
     }
-    // At the top of the file: org-roam checks the first line, which may be
-    // a heading itself.
+    _sourceOfHeading[heading] = source;
+    return source;
+  }
+
+  /// At the top of the file, org-roam checks the first line, which may be a
+  /// heading itself; otherwise the file node.
+  String? _topSource() {
     if (headings.isNotEmpty && headings.first.line == 0) return headings.first.id;
     return _nodeId(fileProperties);
   }
@@ -467,14 +518,17 @@ List<String> _dedupKeepLast(List<String> tags) {
 }
 
 /// Emacs's `split-string-and-unquote`: splits at whitespace, but
-/// `"two words"` is one item.
+/// `"two words"` is one item. A backslash outside quotes is kept, as in
+/// Emacs: `A\ B` gives `A\` and `B`.
+///
+/// Throws a [FormatException] for an unterminated quote, where Emacs
+/// signals an error and org-roam skips the whole file.
 List<String> splitStringAndUnquote(String value) {
   final quote = value.indexOf('"');
   if (quote < 0) return _splitWhitespace(value);
   final string = RegExp(r'"((?:[^"\\]|\\[\s\S])*)"').matchAsPrefix(value, quote);
   if (string == null) {
-    // Unterminated quote: Emacs signals an error; keep the words.
-    return _splitWhitespace(value);
+    throw FormatException('Unterminated quote in a property value: $value');
   }
   return [
     ..._splitWhitespace(value.substring(0, quote)),
@@ -640,13 +694,13 @@ class _LinkSyntax {
   }
 
   /// The target of the first link in [text], as org-roam's ref parsing
-  /// takes it: the path of a bracket link, or the whole angle or plain
-  /// link.
+  /// takes it: the path of a bracket link, or the whole plain link.
   String? firstLinkTarget(String text) {
     final bracket = _bracketLink.firstMatch(text);
     if (bracket != null) return bracket.group(1);
-    final angle = _angle.firstMatch(text);
-    if (angle != null) return angle.group(0);
+    // org-roam stores nothing for an angle link like <https://…>: it hands
+    // the whole link, brackets included, to `url-generic-parse-url`.
+    if (_angle.hasMatch(text)) return null;
     for (final m in _plain.allMatches(text)) {
       if (m.start > 0 && _wordChar.hasMatch(text[m.start - 1])) continue;
       final plain = _plainAt(text, m.start);

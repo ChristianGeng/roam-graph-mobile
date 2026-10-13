@@ -203,6 +203,26 @@ void main() {
 
     expect(stat(tester, 'files'), '1');
     expect(stat(tester, 'unreadable'), '1');
+    // Named, relative to roam/, so it can be found.
+    expect(find.text('b.org'), findsOneWidget);
+  });
+
+  testWidgets('a file org-roam skips is counted and named', (tester) async {
+    await start(
+      tester,
+      FakeFolderAccess(
+        saved: org,
+        files: someFiles(),
+        texts: {
+          'roam/a.org': someTexts['roam/a.org']!,
+          'roam/b.org': ':PROPERTIES:\n:ID: b\n:ROAM_ALIASES: "open\n:END:\n',
+        },
+      ),
+    );
+
+    expect(stat(tester, 'files'), '1');
+    expect(stat(tester, 'skipped'), '1');
+    expect(find.textContaining('b.org: Unterminated quote'), findsOneWidget);
   });
 
   testWidgets('an ID used twice is reported', (tester) async {

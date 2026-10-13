@@ -43,8 +43,18 @@ void main() {
       );
     });
 
-    test('an empty ID is no ID', () {
+    test('an empty ID, or nil, is no ID', () {
       expect(parse(':PROPERTIES:\n:ID:\n:END:\n').nodes, isEmpty);
+      expect(parse(':PROPERTIES:\n:ID: nil\n:END:\n').nodes, isEmpty);
+    });
+
+    test('a drawer with a line that is no property is no drawer', () {
+      expect(parse(':PROPERTIES:\n:ID: x\n\n:END:\n').nodes, isEmpty);
+      expect(parse(':PROPERTIES:\n:ID: x\n# note\n:END:\n').nodes, isEmpty);
+      expect(
+        parse(':PROPERTIES:\n:ID: x\n:ROAM_ALIASES: A\n  B\n:END:\n').nodes,
+        isEmpty,
+      );
     });
 
     test('CRLF line endings work', () {
@@ -100,6 +110,17 @@ void main() {
       expect(parse('* H\n\n:PROPERTIES:\n:ID: h\n:END:\n').nodes, isEmpty);
     });
 
+    test('a tab after the stars is no heading', () {
+      expect(parse('*\tTab\n:PROPERTIES:\n:ID: h\n:END:\n').nodes, isEmpty);
+    });
+
+    test('a heading inside a block is still a heading', () {
+      final file = parse('$drawer#+begin_src\n* Inside\n'
+          ':PROPERTIES:\n:ID: h\n:END:\n[[id:a]]\n#+end_src\n');
+      expect([for (final n in file.nodes) n.id], ['file-id', 'h']);
+      expect(file.links.single.source, 'h');
+    });
+
     test('a heading without a title is not a node', () {
       expect(parse('* :tag:\n:PROPERTIES:\n:ID: h\n:END:\n').nodes, isEmpty);
     });
@@ -118,6 +139,17 @@ void main() {
       expect(splitStringAndUnquote('a "b c" d"e f"g'),
           ['a', 'b c', 'd', 'e f', 'g']);
       expect(splitStringAndUnquote(''), isEmpty);
+      // A backslash outside quotes is kept, as in Emacs.
+      expect(splitStringAndUnquote(r'A\ B'), [r'A\', 'B']);
+      expect(() => splitStringAndUnquote('"open'), throwsFormatException);
+    });
+
+    test('an unterminated quote makes org-roam skip the file', () {
+      final file = parse(':PROPERTIES:\n:ID: x\n:ROAM_ALIASES: "A B\n:END:\n'
+          '[[id:y]]\n');
+      expect(file.nodes, isEmpty);
+      expect(file.links, isEmpty);
+      expect(file.error, contains('Unterminated quote'));
     });
 
     test('refs are read like org-roam reads them', () {
@@ -149,6 +181,8 @@ void main() {
       // Not a registered link type, or not a link: org-roam skips them.
       expect(refs('cite:key'), isEmpty);
       expect(refs('nonsense'), isEmpty);
+      // org-roam stores nothing for an angle link.
+      expect(refs('<https://example.com>'), isEmpty);
     });
   });
 
@@ -250,6 +284,15 @@ void main() {
       expect([for (final l in graph.danglingLinks) l.dest], ['missing']);
       expect(graph.tagCount, 2);
       expect(graph.duplicateIds, isEmpty);
+    });
+
+    test('leaves out files org-roam skips, and reports them', () {
+      final graph = RoamGraph.fromFiles([
+        file('a.org', ['a'], []),
+        const RoamFileData(path: 'bad.org', error: 'Unterminated quote'),
+      ]);
+      expect(graph.files, ['a.org']);
+      expect(graph.failedFiles, {'bad.org': 'Unterminated quote'});
     });
 
     test('reports IDs used twice and keeps the first by path', () {

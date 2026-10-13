@@ -92,12 +92,17 @@ class RoamFileData {
     required this.path,
     this.nodes = const [],
     this.links = const [],
+    this.error,
   });
 
   /// Path relative to `roam/`.
   final String path;
   final List<RoamNode> nodes;
   final List<RoamLink> links;
+
+  /// Why org-roam would skip this file, or null. A skipped file has no
+  /// nodes and links.
+  final String? error;
 }
 
 /// The whole graph.
@@ -109,6 +114,7 @@ class RoamGraph {
     required this.danglingLinks,
     required this.duplicateIds,
     required this.allNodes,
+    required this.failedFiles,
   });
 
   /// Builds the graph from parsed files.
@@ -117,7 +123,11 @@ class RoamGraph {
   /// and is reported in [duplicateIds]. org-roam also keeps only one of
   /// them, but which one depends on the order it reads the files.
   factory RoamGraph.fromFiles(Iterable<RoamFileData> files) {
-    final sorted = files.toList()..sort((a, b) => a.path.compareTo(b.path));
+    final all = files.toList()..sort((a, b) => a.path.compareTo(b.path));
+    final sorted = [
+      for (final file in all)
+        if (file.error == null) file,
+    ];
     final nodes = <String, RoamNode>{};
     final idFiles = <String, List<String>>{};
     final allNodes = <RoamNode>[];
@@ -143,11 +153,19 @@ class RoamGraph {
           if (entry.value.length > 1) entry.key: entry.value,
       },
       allNodes: allNodes,
+      failedFiles: {
+        for (final file in all)
+          if (file.error case final error?) file.path: error,
+      },
     );
   }
 
-  /// Paths of the parsed files, relative to `roam/`.
+  /// Paths of the parsed files, relative to `roam/`. Without [failedFiles],
+  /// which org-roam does not store either.
   final List<String> files;
+
+  /// Files org-roam would skip, with the reason.
+  final Map<String, String> failedFiles;
 
   /// Nodes by ID.
   final Map<String, RoamNode> nodes;
@@ -203,5 +221,6 @@ class RoamGraph {
           for (final l in danglingLinks) [l.source, l.dest, l.file, l.line],
         ],
         'duplicate_ids': duplicateIds,
+        'failed_files': failedFiles,
       };
 }
