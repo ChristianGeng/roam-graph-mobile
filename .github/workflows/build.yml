@@ -173,7 +173,7 @@ jobs:
         run: git diff --exit-code test/fixtures/org_roam_expected.json
 
   release:
-    needs: build
+    needs: [build, org-roam]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
