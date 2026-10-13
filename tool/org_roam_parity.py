@@ -109,9 +109,14 @@ def export(db_path, roam_dir):
                 if values[0] in node_file:
                     yield values
 
-        links = list(rows(
-            "SELECT source, dest FROM links WHERE type = '\"id\"'"
-        ))
+        links = []
+        link_locations = []
+        for source, dest, pos in rows(
+            "SELECT source, dest, pos FROM links WHERE type = '\"id\"'"
+        ):
+            links.append([source, dest])
+            file = node_file[source]
+            link_locations.append([source, dest, file, _line_of(roam, file, pos)])
         tags = list(rows("SELECT node_id, tag FROM tags"))
         aliases = list(rows("SELECT node_id, alias FROM aliases"))
         refs = list(rows("SELECT node_id, ref, type FROM refs"))
@@ -125,7 +130,49 @@ def export(db_path, roam_dir):
         "tags": sorted(tags),
         "aliases": sorted(aliases),
         "refs": sorted(refs),
+        "link_locations": sorted(link_locations),
     }
+
+
+_texts = {}
+
+
+def _text(roam, file):
+    """The text of FILE under ROAM as Emacs sees it (newlines as \\n)."""
+    path = os.path.join(roam, file)
+    if path not in _texts:
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                _texts[path] = f.read()
+        except OSError:
+            _texts[path] = ""
+    return _texts[path]
+
+
+def _line_of(roam, file, pos):
+    """The line, from 1, of the 1-based character position POS in FILE."""
+    if not isinstance(pos, int):
+        return 0
+    return _text(roam, file).count("\n", 0, max(pos - 1, 0)) + 1
+
+
+def _show_locations(out, expected, actual, link, roam):
+    """Print where the link SOURCE -> DEST is on one side but not the other,
+    with the lines around it."""
+    def places(data):
+        return collections.Counter(
+            (r[2], r[3]) for r in data.get("link_locations", [])
+            if tuple(r[:2]) == tuple(link)
+        )
+    exp, act = places(expected), places(actual)
+    for side, here in (("only in org-roam", exp - act), ("only in the app", act - exp)):
+        for file, line in sorted(here.elements())[:MAX_SHOWN]:
+            out.write("      %s at %s:%s\n" % (side, file, line))
+            if roam and line:
+                lines = _text(roam, file).split("\n")
+                for n in range(max(line - 3, 1), min(line + 1, len(lines)) + 1):
+                    mark = ">" if n == line else " "
+                    out.write("        %s%5d | %s\n" % (mark, n, lines[n - 1]))
 
 
 NO_DART = """No `dart` command found. The check runs the app's own parser, which
@@ -175,8 +222,13 @@ def _key(category, row):
     return row[0] if category == "nodes" else tuple(row) if isinstance(row, list) else row
 
 
-def compare(expected, actual, out=sys.stdout):
-    """Print the differences. Returns True if there are none."""
+def compare(expected, actual, out=sys.stdout, roam_dir=None):
+    """Print the differences. Returns True if there are none.
+
+    For a link that differs, it also prints where that link is on each
+    side; with ROAM_DIR, with the lines around it.
+    """
+    roam = os.path.realpath(os.path.expanduser(roam_dir)) if roam_dir else None
     same = True
     out.write("%-8s %10s %10s\n" % ("", "org-roam", "app"))
     for category in CATEGORIES:
@@ -202,6 +254,10 @@ def compare(expected, actual, out=sys.stdout):
             act_count = collections.Counter(_key(category, r) for r in act)
             missing = sorted((exp_count - act_count).elements())
             extra = sorted((act_count - exp_count).elements())
+            if category == "links":
+                # Each differing link once; its places follow it.
+                missing = sorted(set(missing))
+                extra = sorted(set(extra))
             changed = []
 
         if missing or extra or changed:
@@ -212,6 +268,8 @@ def compare(expected, actual, out=sys.stdout):
                     out.write("  %s (%d):\n" % (label, len(items)))
                     for item in items[:MAX_SHOWN]:
                         out.write("    %s\n" % (json.dumps(item, ensure_ascii=False),))
+                        if category == "links":
+                            _show_locations(out, expected, actual, item, roam)
                     if len(items) > MAX_SHOWN:
                         out.write("    ... %d more\n" % (len(items) - MAX_SHOWN))
             if changed:
@@ -238,7 +296,8 @@ def main(argv):
             if not os.path.exists(os.path.expanduser(path)):
                 sys.stderr.write("No such %s: %s\n" % (what, path))
                 return 2
-        same = compare(export(argv[2], argv[3]), run_parser(argv[3]))
+        same = compare(export(argv[2], argv[3]), run_parser(argv[3]),
+                       roam_dir=argv[3])
         return 0 if same else 1
     if len(argv) == 4 and argv[1] == "export":
         json.dump(export(argv[2], argv[3]), sys.stdout, ensure_ascii=False, indent=1)

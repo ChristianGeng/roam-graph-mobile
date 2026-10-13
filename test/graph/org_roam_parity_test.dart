@@ -36,6 +36,8 @@ void main() {
       'tags',
       'aliases',
       'refs',
+      // Each link's file and line, so the check can point to it.
+      'link_locations',
     ]) {
       expect(
         rows(actual[category]),

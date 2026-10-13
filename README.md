@@ -27,7 +27,8 @@ python3 tool/org_roam_parity.py check \
 ```
 
 It prints the counts of files, nodes, `id:` links, tags, aliases and refs on
-both sides, and every difference. Nothing leaves the laptop. CI runs the
+both sides, and every difference; for a link, also the file and line where
+only one side finds it, with the lines around it. Nothing leaves the laptop. CI runs the
 same comparison on the sample files in `test/fixtures/roam/`, against a
 database real org-roam built from them
 (`tool/org_roam_parity/build-fixture-expectations.sh`).

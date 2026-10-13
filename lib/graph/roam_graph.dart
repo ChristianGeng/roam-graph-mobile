@@ -217,6 +217,9 @@ class RoamGraph {
           for (final n in allNodes)
             for (final r in n.refs) [n.id, r.ref, r.type],
         ],
+        'link_locations': [
+          for (final l in links) [l.source, l.dest, l.file, l.line],
+        ],
         'dangling_links': [
           for (final l in danglingLinks) [l.source, l.dest, l.file, l.line],
         ],
