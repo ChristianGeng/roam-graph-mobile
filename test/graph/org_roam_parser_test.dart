@@ -124,6 +124,25 @@ void main() {
     test('a heading without a title is not a node', () {
       expect(parse('* :tag:\n:PROPERTIES:\n:ID: h\n:END:\n').nodes, isEmpty);
     });
+
+    test('links under a heading without a title are dropped', () {
+      final links = parse('$drawer[[id:a]]\n'
+              '* TODO\n:PROPERTIES:\n:ID: h\n:END:\n[[id:b]]\n'
+              '** Child\n[[id:c]]\n'
+              '* Titled\n:PROPERTIES:\n:ID: t\n:END:\n[[id:d]]\n')
+          .links;
+      expect([for (final l in links) '${l.source}>${l.dest}'],
+          ['file-id>a', 't>d']);
+    });
+
+    test('a hyphen is no tag character, and a tab no separator', () {
+      final nodes = parse('* Project :long-term:\n:PROPERTIES:\n:ID: p\n:END:\n'
+              '* TODO\tPlan\n:PROPERTIES:\n:ID: q\n:END:\n')
+          .nodes;
+      expect([for (final n in nodes) n.title],
+          ['Project :long-term:', 'TODO\tPlan']);
+      expect(nodes.first.tags, isEmpty);
+    });
   });
 
   group('aliases and refs', () {

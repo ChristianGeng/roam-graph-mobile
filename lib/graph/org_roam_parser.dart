@@ -397,12 +397,18 @@ class _FileParser {
   }
 
   List<RoamLink> _links() {
+    // A heading with an ID but no title is a link source for org-roam, but
+    // it stores no node for it, and then no links from it either.
+    final untitled = {
+      for (final h in headings)
+        if (h.id != null && h.title == null) h.id,
+    };
     final links = <RoamLink>[];
     for (final piece in _linkablePieces()) {
       for (final found in syntax.findIdLinks(piece.text)) {
         final line = piece.line + _countNewlines(piece.text, found.offset);
         final source = _sourceAt(line);
-        if (source == null) continue;
+        if (source == null || untitled.contains(source)) continue;
         links.add(RoamLink(
           source: source,
           dest: found.dest,

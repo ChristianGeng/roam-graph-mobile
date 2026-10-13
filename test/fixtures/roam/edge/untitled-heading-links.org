@@ -1,0 +1,16 @@
+:PROPERTIES:
+:ID: de
+:END:
+Before [[id:t1]]
+* TODO
+:PROPERTIES:
+:ID: de-h
+:END:
+Inside [[id:t2]]
+** Child without id
+Also inside [[id:t3]]
+* Titled
+:PROPERTIES:
+:ID: de-t
+:END:
+After [[id:t4]]

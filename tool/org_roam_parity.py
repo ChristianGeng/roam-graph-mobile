@@ -54,7 +54,23 @@ def lisp_string(value):
     match = _LISP_STRING.search(value)
     if not match:
         return value
-    return re.sub(r"\\(.)", r"\1", match.group(1), flags=re.S)
+    return _ESCAPE.sub(_unescape, match.group(1))
+
+
+# emacsql prints strings with `print-escape-control-characters' and
+# `print-escape-newlines': a tab is \11 (octal), a newline \n.
+_ESCAPE = re.compile(r"\\(x[0-9A-Fa-f]+|[0-7]{1,3}|.)", re.S)
+_NAMED = {"n": "\n", "t": "\t", "f": "\f", "r": "\r", "e": "\x1b", "a": "\a",
+          "b": "\b", "v": "\v"}
+
+
+def _unescape(match):
+    code = match.group(1)
+    if code[0] == "x":
+        return chr(int(code[1:], 16))
+    if code[0] in "01234567":
+        return chr(int(code, 8))
+    return _NAMED.get(code, code)
 
 
 def export(db_path, roam_dir):

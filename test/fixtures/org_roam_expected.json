@@ -24,15 +24,18 @@
   "edge/escaped-space-in-aliases.org",
   "edge/heading-inside-block.org",
   "edge/heading-titles.org",
+  "edge/hyphen-in-tag.org",
   "edge/id-nil.org",
   "edge/indented-drawer.org",
   "edge/junk-in-heading-drawer.org",
   "edge/linked-title.org",
   "edge/lowercase-drawer.org",
   "edge/mode-line-before-drawer.org",
+  "edge/tab-after-keyword.org",
   "edge/tab-after-stars.org",
   "edge/tag-inheritance.org",
   "edge/title-without-space.org",
+  "edge/untitled-heading-links.org",
   "sub/20240108120000-theta.org"
  ],
  "nodes": [
@@ -155,6 +158,48 @@
    "sub/20240108120000-theta.org",
    1,
    "Theta heading ends the block"
+  ],
+  [
+   "da",
+   "edge/hyphen-in-tag.org",
+   0,
+   ""
+  ],
+  [
+   "da-h",
+   "edge/hyphen-in-tag.org",
+   1,
+   "Project :long-term:"
+  ],
+  [
+   "db",
+   "edge/tab-after-keyword.org",
+   0,
+   ""
+  ],
+  [
+   "db-h",
+   "edge/tab-after-keyword.org",
+   1,
+   "TODO\tPlan"
+  ],
+  [
+   "db-p",
+   "edge/tab-after-keyword.org",
+   1,
+   "[#A]\tPrioritized"
+  ],
+  [
+   "de",
+   "edge/untitled-heading-links.org",
+   0,
+   ""
+  ],
+  [
+   "de-t",
+   "edge/untitled-heading-links.org",
+   1,
+   "Titled"
   ],
   [
    "qa",
@@ -425,6 +470,14 @@
   [
    "11111111-1111-4111-8111-000000000081",
    "11111111-1111-4111-8111-000000000002"
+  ],
+  [
+   "de",
+   "t1"
+  ],
+  [
+   "de-t",
+   "t4"
   ],
   [
    "qa-fake",
