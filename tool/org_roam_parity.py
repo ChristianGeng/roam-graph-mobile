@@ -230,6 +230,14 @@ def compare(expected, actual, out=sys.stdout):
 
 def main(argv):
     if len(argv) == 4 and argv[1] == "check":
+        # Check what is needed before doing any work.
+        if find_dart() is None:
+            sys.stderr.write(NO_DART)
+            return 2
+        for path, what in ((argv[2], "database"), (argv[3], "roam folder")):
+            if not os.path.exists(os.path.expanduser(path)):
+                sys.stderr.write("No such %s: %s\n" % (what, path))
+                return 2
         same = compare(export(argv[2], argv[3]), run_parser(argv[3]))
         return 0 if same else 1
     if len(argv) == 4 and argv[1] == "export":
