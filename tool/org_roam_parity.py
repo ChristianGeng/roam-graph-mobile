@@ -32,6 +32,7 @@ import collections
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -127,11 +128,39 @@ def export(db_path, roam_dir):
     }
 
 
+NO_DART = """No `dart` command found. The check runs the app's own parser, which
+needs the Dart that comes with Flutter. Install the Flutter version CI uses:
+
+  git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git ~/flutter
+  export PATH="$HOME/flutter/bin:$PATH"
+  flutter --version
+
+Then run this check again.
+"""
+
+
+def find_dart():
+    """The `dart` command, also when only `flutter` is on the PATH."""
+    dart = shutil.which("dart")
+    if dart:
+        return dart
+    flutter = shutil.which("flutter")
+    if flutter:
+        candidate = os.path.join(os.path.dirname(os.path.realpath(flutter)), "dart")
+        if os.access(candidate, os.X_OK):
+            return candidate
+    return None
+
+
 def run_parser(roam_dir):
     """Run the app's parser on ROAM_DIR and return its normalized JSON."""
+    dart = find_dart()
+    if dart is None:
+        sys.stderr.write(NO_DART)
+        sys.exit(2)
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     result = subprocess.run(
-        ["dart", "run", "tool/roam_graph_dump.dart", os.path.expanduser(roam_dir)],
+        [dart, "run", "tool/roam_graph_dump.dart", os.path.expanduser(roam_dir)],
         cwd=repo,
         check=True,
         stdout=subprocess.PIPE,
