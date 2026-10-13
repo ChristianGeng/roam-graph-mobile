@@ -34,6 +34,10 @@ abstract interface class FolderAccess {
   /// Every file and directory below [folder], except [skippedDirectories]
   /// and what they contain.
   Future<List<FolderFile>> listFiles(ChosenFolder folder);
+
+  /// The text of each of [files], in the same order, read as UTF-8. Null
+  /// for a file that could not be read.
+  Future<List<String?>> readTexts(List<FolderFile> files);
 }
 
 /// [FolderAccess] through the Android code in `FolderAccess.kt`.
@@ -67,6 +71,15 @@ class PlatformFolderAccess implements FolderAccess {
           size: (e['size'] as int?) ?? 0,
         ),
     ];
+  }
+
+  @override
+  Future<List<String?>> readTexts(List<FolderFile> files) async {
+    final texts = await _channel.invokeListMethod<String?>(
+      'readFiles',
+      {'uris': [for (final file in files) file.uri]},
+    );
+    return texts ?? List.filled(files.length, null);
   }
 
   static ChosenFolder? _toFolder(Map<Object?, Object?>? map) {

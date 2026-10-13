@@ -1,0 +1,6 @@
+:PROPERTIES:
+:ID: v11
+:ROAM_ALIASES: a "b c" d"e f"g
+:ROAM_REFS: cite:k1 "https://x.org/a b" isbn:123 nonsense
+:END:
+#+filetags: a:b  c :a:

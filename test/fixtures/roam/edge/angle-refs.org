@@ -1,0 +1,4 @@
+:PROPERTIES:
+:ID: qc
+:ROAM_REFS: <https://example.com/angle> <doi:10.1/x>
+:END:

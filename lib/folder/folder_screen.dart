@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../graph/build_graph.dart';
+import '../graph/roam_graph.dart';
 import 'folder_access.dart';
 import 'org_files.dart';
 
-/// Lets the user choose the org folder and shows how many files of the
-/// graph it holds (#3).
+/// Lets the user choose the org folder (#3), reads the graph from it (#4)
+/// and shows what it found, to compare with org-roam on the laptop.
 class FolderScreen extends StatefulWidget {
   const FolderScreen({
     super.key,
     required this.folderAccess,
     required this.version,
+    this.graphBuilder = buildGraphInBackground,
   });
 
   final FolderAccess folderAccess;
   final String version;
+  final GraphBuilder graphBuilder;
 
   @override
   State<FolderScreen> createState() => _FolderScreenState();
@@ -22,12 +26,22 @@ class FolderScreen extends StatefulWidget {
 
 enum _Status { loading, noFolder, accessLost, noRoam, indexed, failed }
 
+/// What the screen shows after reading a folder: the graph, and the files
+/// that could not be read.
+typedef _Result = ({RoamGraph? graph, List<String> unreadable});
+
+const _noResult = (graph: null, unreadable: <String>[]);
+
 class _FolderScreenState extends State<FolderScreen>
     with WidgetsBindingObserver {
   _Status _status = _Status.loading;
   ChosenFolder? _folder;
-  int _fileCount = 0;
+  _Result _result = _noResult;
   String _error = '';
+
+  /// Counts operations; only the latest one may change what is shown, so a
+  /// slow, older scan cannot replace a newer result.
+  int _generation = 0;
 
   @override
   void initState() {
@@ -59,7 +73,7 @@ class _FolderScreenState extends State<FolderScreen>
       if (current == null ||
           saved.uri != current.uri ||
           saved.hasAccess != current.hasAccess) {
-        await _guard(() => _index(saved));
+        await _guard((generation) => _index(generation, saved));
       }
     } on PlatformException {
       // Keep what is shown; the next action reports the error.
@@ -67,76 +81,100 @@ class _FolderScreenState extends State<FolderScreen>
   }
 
   /// On start: index the folder chosen earlier, if there is one.
-  Future<void> _start() => _guard(() async {
+  Future<void> _start() => _guard((generation) async {
         final folder = await widget.folderAccess.savedFolder();
         if (folder == null) {
-          _show(_Status.noFolder, null, 0);
+          _show(generation, _Status.noFolder, null, _noResult);
         } else {
-          await _index(folder);
+          await _index(generation, folder);
         }
       });
 
   /// Opens the folder picker. If the user cancels, nothing changes.
   Future<void> _choose() {
-    final previous = (_status, _folder, _fileCount);
-    return _guard(() async {
+    final previous = (_status, _folder, _result);
+    return _guard((generation) async {
       final folder = await widget.folderAccess.pickFolder();
       if (folder == null) {
-        _show(previous.$1, previous.$2, previous.$3);
+        _show(generation, previous.$1, previous.$2, previous.$3);
       } else {
-        await _index(folder);
+        await _index(generation, folder);
       }
     });
   }
 
   Future<void> _rescan() async {
     final folder = _folder;
-    if (folder != null) await _guard(() => _index(folder));
+    if (folder != null) {
+      await _guard((generation) => _index(generation, folder));
+    }
   }
 
-  Future<void> _index(ChosenFolder folder) async {
+  Future<void> _index(int generation, ChosenFolder folder) async {
     // Remember the folder first, so "Try again" works if listing fails.
-    _folder = folder;
+    if (generation == _generation) _folder = folder;
     if (!folder.hasAccess) {
-      _show(_Status.accessLost, folder, 0);
+      _show(generation, _Status.accessLost, folder, _noResult);
       return;
     }
-    final files = selectRoamFiles(
-      folder.name,
-      await widget.folderAccess.listFiles(folder),
-    );
+    final entries = await widget.folderAccess.listFiles(folder);
+    final files = selectRoamFiles(folder.name, entries);
     if (files == null) {
-      _show(_Status.noRoam, folder, 0);
-    } else {
-      _show(_Status.indexed, folder, files.length);
+      _show(generation, _Status.noRoam, folder, _noResult);
+      return;
     }
+    // Paths in the graph are relative to roam/, as in org-roam.
+    final prefix = roamPrefix(folder.name, entries)!;
+    final texts = await widget.folderAccess.readTexts(files);
+    final sources = <SourceFile>[];
+    final unreadable = <String>[];
+    for (var i = 0; i < files.length; i++) {
+      final path = files[i].path.substring(prefix.length);
+      final text = i < texts.length ? texts[i] : null;
+      if (text == null) {
+        unreadable.add(path);
+      } else {
+        sources.add((path: path, text: text));
+      }
+    }
+    final graph = await widget.graphBuilder(sources);
+    _show(generation, _Status.indexed, folder,
+        (graph: graph, unreadable: unreadable));
   }
 
-  /// Shows the spinner while [work] runs, and an error if it fails.
-  Future<void> _guard(Future<void> Function() work) async {
+  /// Runs [work] with the spinner showing, and shows its error if it fails.
+  /// [work] gets the operation's generation: once a newer operation has
+  /// started, an older one can no longer change what is shown.
+  Future<void> _guard(Future<void> Function(int generation) work) async {
+    final generation = ++_generation;
     if (_status != _Status.loading) {
       setState(() => _status = _Status.loading);
     }
     try {
-      await work();
+      await work(generation);
     } on PlatformException catch (e) {
-      _fail(e.message ?? e.code);
+      _fail(generation, e.message ?? e.code);
     } catch (e) {
-      _fail('$e');
+      _fail(generation, '$e');
     }
   }
 
-  void _show(_Status status, ChosenFolder? folder, int count) {
-    if (!mounted) return;
+  void _show(
+    int generation,
+    _Status status,
+    ChosenFolder? folder,
+    _Result result,
+  ) {
+    if (!mounted || generation != _generation) return;
     setState(() {
       _status = status;
       _folder = folder;
-      _fileCount = count;
+      _result = result;
     });
   }
 
-  void _fail(String message) {
-    if (!mounted) return;
+  void _fail(int generation, String message) {
+    if (!mounted || generation != _generation) return;
     setState(() {
       _status = _Status.failed;
       _error = message;
@@ -149,7 +187,7 @@ class _FolderScreenState extends State<FolderScreen>
       appBar: AppBar(title: const Text('Roam Graph')),
       body: SafeArea(
         child: Center(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: _body(context),
           ),
@@ -208,8 +246,19 @@ class _FolderScreenState extends State<FolderScreen>
         ]);
       case _Status.indexed:
         return _column([
-          Text('$_fileCount', style: text.displayMedium),
-          Text('files indexed in roam/', style: text.titleMedium),
+          Text('Graph in roam/', style: text.titleLarge),
+          if (_result.graph case final graph?)
+            _GraphSummary(graph: graph, unreadable: _result.unreadable),
+          if (_result.graph case final graph? when graph.failedFiles.isNotEmpty)
+            _FileList(
+              title: 'Files org-roam skips',
+              files: [
+                for (final entry in graph.failedFiles.entries)
+                  '${entry.key}: ${entry.value}',
+              ],
+            ),
+          if (_result.unreadable.isNotEmpty)
+            _FileList(title: 'Unreadable files', files: _result.unreadable),
           Text('Folder: ${_folder?.name}'),
           OutlinedButton(onPressed: _rescan, child: const Text('Scan again')),
           TextButton(onPressed: _choose, child: const Text('Change folder')),
@@ -230,4 +279,82 @@ class _FolderScreenState extends State<FolderScreen>
         spacing: 16,
         children: children,
       );
+}
+
+/// The counts to compare with org-roam's database on the laptop.
+class _GraphSummary extends StatelessWidget {
+  const _GraphSummary({required this.graph, required this.unreadable});
+
+  final RoamGraph graph;
+  final List<String> unreadable;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = [
+      ('files', 'Files', graph.files.length),
+      ('nodes', 'Nodes', graph.nodes.length),
+      ('file-nodes', '  in files', graph.fileNodeCount),
+      ('heading-nodes', '  in headings', graph.headingNodeCount),
+      ('links', 'id: links', graph.links.length),
+      ('dangling', 'Links to missing notes', graph.danglingLinks.length),
+      ('tags', 'Tags', graph.tagCount),
+      ('refs', 'Refs', graph.refCount),
+      ('aliases', 'Aliases', graph.aliasCount),
+      if (graph.duplicateIds.isNotEmpty)
+        ('duplicates', 'IDs used twice', graph.duplicateIds.length),
+      if (graph.failedFiles.isNotEmpty)
+        ('skipped', 'Files org-roam skips', graph.failedFiles.length),
+      if (unreadable.isNotEmpty)
+        ('unreadable', 'Unreadable files', unreadable.length),
+    ];
+    final bold = Theme.of(context)
+        .textTheme
+        .bodyLarge
+        ?.copyWith(fontWeight: FontWeight.bold);
+    return Table(
+      defaultColumnWidth: const IntrinsicColumnWidth(),
+      children: [
+        for (final (key, label, value) in rows)
+          TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 4, 24, 4),
+                child: Text(label),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  '$value',
+                  key: ValueKey('stat-$key'),
+                  textAlign: TextAlign.end,
+                  style: bold,
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+/// Names of files with a problem, so they can be found and fixed.
+class _FileList extends StatelessWidget {
+  const _FileList({required this.title, required this.files});
+
+  static const _shown = 10;
+
+  final String title;
+  final List<String> files;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleSmall),
+        for (final file in files.take(_shown)) Text(file),
+        if (files.length > _shown) Text('and ${files.length - _shown} more'),
+      ],
+    );
+  }
 }

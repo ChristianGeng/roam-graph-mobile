@@ -1,0 +1,11 @@
+:PROPERTIES:
+:ID: qa
+:END:
+#+begin_src text
+* Fake heading
+:PROPERTIES:
+:ID: qa-fake
+:END:
+[[id:x1]]
+#+end_src
+[[id:x2]]

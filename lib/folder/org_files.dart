@@ -74,11 +74,21 @@ List<FolderFile>? selectRoamFiles(
   ];
 }
 
+/// My `org-roam-file-exclude-regexp` from the laptop's Emacs config:
+/// paths relative to `roam/` that org-roam does not index. `roam/daily` is
+/// the journal, which stays out of the graph (decision 4). Change this
+/// together with the Emacs setting.
+final roamExcludePatterns = [RegExp(r'^daily/')];
+
 /// Whether [path], relative to `roam/`, is a file org-roam would index.
 ///
-/// Skips Syncthing's files (`.stfolder`, `.stversions`,
-/// `*.sync-conflict-*`) and editor leftovers (`*~`, `.#*`, `#*#`).
+/// Skips what [roamExcludePatterns] excludes, Syncthing's files
+/// (`.stfolder`, `.stversions`, `*.sync-conflict-*`) and editor leftovers
+/// (`*~`, `.#*`, `#*#`).
 bool isRoamFile(String path) {
+  if (roamExcludePatterns.any((pattern) => pattern.hasMatch(path))) {
+    return false;
+  }
   final parts = path.split('/');
   if (parts.any(skippedDirectories.contains)) return false;
   final name = parts.last;

@@ -68,10 +68,34 @@ jobs:
         run: flutter pub get
 
       - name: Analyze
-        run: flutter analyze
+        # Issues are also reported as an annotation, so they show on the
+        # pull request without opening the log.
+        run: |
+          status=0
+          flutter analyze 2>&1 | tee "$RUNNER_TEMP/analyze.txt" || status=$?
+          if [ "$status" -ne 0 ]; then
+            issues=$(grep ' • ' "$RUNNER_TEMP/analyze.txt" | sed 's/^ *//' | head -50 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=flutter analyze::${issues:-see the log}"
+          fi
+          exit "$status"
 
       - name: Test
-        run: flutter test
+        run: |
+          status=0
+          flutter test 2>&1 | tee "$RUNNER_TEMP/test.txt" || status=$?
+          if [ "$status" -ne 0 ]; then
+            failures=$(grep -E -A 12 '══╡ EXCEPTION|^(Expected|  Actual|   Which):|\[E\]|Test failed' "$RUNNER_TEMP/test.txt" | head -80 | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=flutter test::${failures:-see the log}"
+          fi
+          exit "$status"
+
+      - name: Compare the parser with org-roam on the sample files
+        # The same check as on the laptop (tool/org_roam_parity.py), against
+        # the database org-roam built from test/fixtures/roam/.
+        run: |
+          dart run tool/roam_graph_dump.dart test/fixtures/roam > "$RUNNER_TEMP/graph.json"
+          python3 tool/org_roam_parity.py compare \
+            test/fixtures/org_roam_expected.json "$RUNNER_TEMP/graph.json"
 
       - name: Set the version
         id: version
@@ -126,8 +150,30 @@ jobs:
           path: roam-graph-*.apk
           if-no-files-found: error
 
+  org-roam:
+    # Rebuilds the expected data from the sample files with real org-roam
+    # and checks it matches the committed file, so the parser is compared
+    # with org-roam itself. Ubuntu 24.04 brings Emacs 29 and Org 9.6, the
+    # versions the expectations were made with.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Install Emacs
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends emacs-nox
+
+      - name: Rebuild the expected data with org-roam
+        run: tool/org_roam_parity/build-fixture-expectations.sh
+
+      - name: Check it matches the committed data
+        run: git diff --exit-code test/fixtures/org_roam_expected.json
+
   release:
-    needs: build
+    needs: [build, org-roam]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:

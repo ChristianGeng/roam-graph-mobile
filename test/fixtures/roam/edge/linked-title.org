@@ -1,0 +1,4 @@
+:PROPERTIES:
+:ID: v7
+:END:
+#+title: [[id:x][Linked]] title

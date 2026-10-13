@@ -121,6 +121,50 @@ devices through Syncthing.
     folder counts nothing and the app says so, so notes outside `roam/`
     never enter the graph.
 
+20. **The graph is read by a parser that reproduces org-roam's rules**
+    (#4), `lib/graph/org_roam_parser.dart`, not by walking `org_parser`'s
+    syntax tree. This differs from decision 15 for the graph only: matching
+    org-roam's counts is the goal, and org-roam's rules are partly its own,
+    not Org's syntax tree. It finds headings and properties by regular
+    expressions, searches the whole buffer for links and then excludes some
+    places, and reads `ROAM_REFS` and `ROAM_ALIASES` with Emacs's string
+    splitting. `org_parser` and `org_flutter` stay the plan for rendering a
+    node (#8). The rules are checked against real org-roam:
+    `tool/org_roam_parity/build-fixture-expectations.sh` builds an
+    `org-roam.db` from the sample files in `test/fixtures/roam/` with
+    org-roam itself, a test and a CI job compare the parser with it, and
+    `tool/org_roam_parity.py check` does the same with my real notes on the
+    laptop. Some rules this found:
+    - Only comment lines may come before a file's property drawer. One
+      blank line, or `#+title:` first, and the file is not a node.
+    - A file without `#+title:` gets an empty title in org-roam (its
+      `string-join` of nothing is `""`, not the file name). The app shows
+      the file name instead but stores the empty title.
+    - A plain `id:…` in text is a link, like `[[id:…]]`. Links in code,
+      verbatim, comments, and source, example, export and comment blocks are
+      not. Links in `#+title:`, other keywords and property values are,
+      except `ROAM_REFS` and `#+transclude:`.
+    - A link belongs to the nearest node above it. A link under a top-level
+      heading that is not a node goes to the file node; if the file starts
+      with a heading, to that first heading.
+
+21. **Two settings of my Emacs are assumed** (#4), since they change what
+    org-roam stores: Doom Emacs's default TODO keywords (`PROJ`, `WAIT`,
+    `[ ]`, …), which decide where a heading's title starts, and the link
+    types registered when org-roam is loaded, which decide which plain
+    links and `ROAM_REFS` count (`cite:key` does not; `@key` does). Both are
+    parameters of the parser. If my Emacs differs, the laptop comparison
+    shows it.
+
+22. **`roam/daily/` is not part of the graph** (#4). It is a symlink to the
+    journal folder (`../journal/`), so the dailies are the journal, which
+    decision 4 leaves out. My Emacs config excludes it with
+    `org-roam-file-exclude-regexp` (`"^daily/"`, relative to `roam/`), and
+    the app applies the same pattern (`roamExcludePatterns` in
+    `lib/folder/org_files.dart`). If the Emacs setting changes, change the
+    app with it; the laptop check (`tool/org_roam_parity.py check`) shows a
+    mismatch as files only one side has.
+
 ## Recommended, not decided
 
 Nothing at the moment.
@@ -159,9 +203,6 @@ matter less here, because the laptop has Emacs.
   only matter if an AI on the device had to read or query the graph without
   the laptop, and it needs a client there. The Claude Android app only
   connects to remote MCP servers. Possibly never needed.
-- **The 28 files in `roam/` that are not nodes** (485 files, 457 in the
-  database). Find out why each is skipped, so the parser skips them the same
-  way.
 
 ## My data, for checks
 

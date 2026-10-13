@@ -1,0 +1,63 @@
+:PROPERTIES:
+:ID:       11111111-1111-4111-8111-000000000001
+:ROAM_ALIASES: "Alpha One" A1
+:ROAM_REFS: https://example.com/alpha @smith2020 [cite:@jones2021;@lee2019] [[https://example.org/page][Example]] doi:10.1000/xyz
+:END:
+#+title: Alpha
+#+filetags: :project:Übung:
+
+Plain bracket link: [[id:11111111-1111-4111-8111-000000000002]].
+With a description: [[id:11111111-1111-4111-8111-000000000002][Beta]].
+A description that wraps onto the next line: [[id:11111111-1111-4111-8111-000000000004][the delta
+note]] continues here.
+A plain link id:11111111-1111-4111-8111-000000000005, and (id:11111111-1111-4111-8111-000000000005).
+An angle link <id:11111111-1111-4111-8111-000000000002>.
+With a search option: [[id:11111111-1111-4111-8111-000000000002::*Heading][Beta heading]].
+To a missing note: [[id:11111111-1111-4111-8111-999999999999][Gone]].
+Not an id link: [[https://example.com][web]] and [[file:other.org][file]].
+Bold keeps links: *see [[id:11111111-1111-4111-8111-000000000002]]*.
+Verbatim hides links: =[[id:11111111-1111-4111-8111-000000000002]]= and ~code [[id:11111111-1111-4111-8111-000000000002]] here~.
+A description with verbatim: [[id:11111111-1111-4111-8111-000000000002][=Beta=]].
+
+- A list item [[id:11111111-1111-4111-8111-000000000002][in a list]]
+  - nested id:11111111-1111-4111-8111-000000000004
+
+| Table | [[id:11111111-1111-4111-8111-000000000002][in a table]] |
+|-------+---------------------------------------------------|
+| row   | id:11111111-1111-4111-8111-000000000004             |
+
+#+begin_quote
+Quoted [[id:11111111-1111-4111-8111-000000000002]].
+#+end_quote
+
+#+BEGIN_VERSE
+Verse [[id:11111111-1111-4111-8111-000000000004]]
+#+END_VERSE
+
+#+begin_src emacs-lisp
+;; Source hides links: [[id:11111111-1111-4111-8111-000000000002]]
+#+end_src
+
+#+BEGIN_EXAMPLE
+Example hides links: [[id:11111111-1111-4111-8111-000000000002]]
+#+END_EXAMPLE
+
+#+begin_export html
+<a>[[id:11111111-1111-4111-8111-000000000002]]</a>
+#+end_export
+
+#+begin_comment
+Comment block: [[id:11111111-1111-4111-8111-000000000002]]
+#+end_comment
+
+# A comment line: [[id:11111111-1111-4111-8111-000000000002]]
+: Fixed width: [[id:11111111-1111-4111-8111-000000000002]]
+
+Inline source src_python{"[[id:11111111-1111-4111-8111-000000000002]]"} here.
+
+A footnote[fn:1].
+
+#+transclude: [[id:11111111-1111-4111-8111-000000000002]]
+#+related: [[id:11111111-1111-4111-8111-000000000004]]
+
+[fn:1] Footnote link [[id:11111111-1111-4111-8111-000000000004]].

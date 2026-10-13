@@ -1,0 +1,4 @@
+:PROPERTIES:
+:ID: qd
+:ROAM_ALIASES: Alpha\ Beta Gamma
+:END:

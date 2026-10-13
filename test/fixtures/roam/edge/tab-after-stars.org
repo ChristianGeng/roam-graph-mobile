@@ -1,0 +1,8 @@
+:PROPERTIES:
+:ID: qe
+:END:
+*	Tab heading
+:PROPERTIES:
+:ID: qe-tab
+:END:
+[[id:x3]]

@@ -1,0 +1,9 @@
+:PROPERTIES:
+:ID: qi
+:END:
+* H
+:PROPERTIES:
+:ID: qi-h
+not a property
+:END:
+[[id:x7]]

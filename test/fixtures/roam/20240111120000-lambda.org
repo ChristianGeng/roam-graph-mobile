@@ -1,0 +1,9 @@
+* First heading is a node :first:
+:PROPERTIES:
+:ID: 11111111-1111-4111-8111-000000000012
+:ROAM_REFS: "https://example.com/with space" cite:unregistered @key]
+:END:
+* Second heading without an id
+Attributed like org-roam does [[id:11111111-1111-4111-8111-000000000001]].
+A URL with an id inside https://example.com/?q=id:11111111-1111-4111-8111-000000000002 is not an id link.
+Also not: [[https://example.com/id:11111111-1111-4111-8111-000000000002][web]].
