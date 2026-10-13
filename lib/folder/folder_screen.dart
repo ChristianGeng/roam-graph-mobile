@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../graph/build_graph.dart';
+import '../graph/roam_graph.dart';
 import 'folder_access.dart';
 import 'org_files.dart';
 
-/// Lets the user choose the org folder and shows how many files of the
-/// graph it holds (#3).
+/// Lets the user choose the org folder (#3), reads the graph from it (#4)
+/// and shows what it found, to compare with org-roam on the laptop.
 class FolderScreen extends StatefulWidget {
   const FolderScreen({
     super.key,
     required this.folderAccess,
     required this.version,
+    this.graphBuilder = buildGraphInBackground,
   });
 
   final FolderAccess folderAccess;
   final String version;
+  final GraphBuilder graphBuilder;
 
   @override
   State<FolderScreen> createState() => _FolderScreenState();
@@ -22,11 +26,16 @@ class FolderScreen extends StatefulWidget {
 
 enum _Status { loading, noFolder, accessLost, noRoam, indexed, failed }
 
+/// What the screen shows after reading a folder.
+typedef _Result = ({RoamGraph? graph, int unreadable});
+
+const _noResult = (graph: null, unreadable: 0);
+
 class _FolderScreenState extends State<FolderScreen>
     with WidgetsBindingObserver {
   _Status _status = _Status.loading;
   ChosenFolder? _folder;
-  int _fileCount = 0;
+  _Result _result = _noResult;
   String _error = '';
 
   @override
@@ -70,7 +79,7 @@ class _FolderScreenState extends State<FolderScreen>
   Future<void> _start() => _guard(() async {
         final folder = await widget.folderAccess.savedFolder();
         if (folder == null) {
-          _show(_Status.noFolder, null, 0);
+          _show(_Status.noFolder, null, _noResult);
         } else {
           await _index(folder);
         }
@@ -78,7 +87,7 @@ class _FolderScreenState extends State<FolderScreen>
 
   /// Opens the folder picker. If the user cancels, nothing changes.
   Future<void> _choose() {
-    final previous = (_status, _folder, _fileCount);
+    final previous = (_status, _folder, _result);
     return _guard(() async {
       final folder = await widget.folderAccess.pickFolder();
       if (folder == null) {
@@ -98,18 +107,30 @@ class _FolderScreenState extends State<FolderScreen>
     // Remember the folder first, so "Try again" works if listing fails.
     _folder = folder;
     if (!folder.hasAccess) {
-      _show(_Status.accessLost, folder, 0);
+      _show(_Status.accessLost, folder, _noResult);
       return;
     }
-    final files = selectRoamFiles(
-      folder.name,
-      await widget.folderAccess.listFiles(folder),
-    );
+    final entries = await widget.folderAccess.listFiles(folder);
+    final files = selectRoamFiles(folder.name, entries);
     if (files == null) {
-      _show(_Status.noRoam, folder, 0);
-    } else {
-      _show(_Status.indexed, folder, files.length);
+      _show(_Status.noRoam, folder, _noResult);
+      return;
     }
+    // Paths in the graph are relative to roam/, as in org-roam.
+    final prefix = roamPrefix(folder.name, entries)!;
+    final texts = await widget.folderAccess.readTexts(files);
+    final sources = <SourceFile>[];
+    var unreadable = 0;
+    for (var i = 0; i < files.length; i++) {
+      final text = i < texts.length ? texts[i] : null;
+      if (text == null) {
+        unreadable++;
+      } else {
+        sources.add((path: files[i].path.substring(prefix.length), text: text));
+      }
+    }
+    final graph = await widget.graphBuilder(sources);
+    _show(_Status.indexed, folder, (graph: graph, unreadable: unreadable));
   }
 
   /// Shows the spinner while [work] runs, and an error if it fails.
@@ -126,12 +147,12 @@ class _FolderScreenState extends State<FolderScreen>
     }
   }
 
-  void _show(_Status status, ChosenFolder? folder, int count) {
+  void _show(_Status status, ChosenFolder? folder, _Result result) {
     if (!mounted) return;
     setState(() {
       _status = status;
       _folder = folder;
-      _fileCount = count;
+      _result = result;
     });
   }
 
@@ -149,7 +170,7 @@ class _FolderScreenState extends State<FolderScreen>
       appBar: AppBar(title: const Text('Roam Graph')),
       body: SafeArea(
         child: Center(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: _body(context),
           ),
@@ -208,8 +229,9 @@ class _FolderScreenState extends State<FolderScreen>
         ]);
       case _Status.indexed:
         return _column([
-          Text('$_fileCount', style: text.displayMedium),
-          Text('files indexed in roam/', style: text.titleMedium),
+          Text('Graph in roam/', style: text.titleLarge),
+          if (_result.graph case final graph?)
+            _GraphSummary(graph: graph, unreadable: _result.unreadable),
           Text('Folder: ${_folder?.name}'),
           OutlinedButton(onPressed: _rescan, child: const Text('Scan again')),
           TextButton(onPressed: _choose, child: const Text('Change folder')),
@@ -230,4 +252,57 @@ class _FolderScreenState extends State<FolderScreen>
         spacing: 16,
         children: children,
       );
+}
+
+/// The counts to compare with org-roam's database on the laptop.
+class _GraphSummary extends StatelessWidget {
+  const _GraphSummary({required this.graph, required this.unreadable});
+
+  final RoamGraph graph;
+  final int unreadable;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = [
+      ('files', 'Files', graph.files.length),
+      ('nodes', 'Nodes', graph.nodes.length),
+      ('file-nodes', '  in files', graph.fileNodeCount),
+      ('heading-nodes', '  in headings', graph.headingNodeCount),
+      ('links', 'id: links', graph.links.length),
+      ('dangling', 'Links to missing notes', graph.danglingLinks.length),
+      ('tags', 'Tags', graph.tagCount),
+      ('refs', 'Refs', graph.refCount),
+      ('aliases', 'Aliases', graph.aliasCount),
+      if (graph.duplicateIds.isNotEmpty)
+        ('duplicates', 'IDs used twice', graph.duplicateIds.length),
+      if (unreadable > 0) ('unreadable', 'Unreadable files', unreadable),
+    ];
+    final bold = Theme.of(context)
+        .textTheme
+        .bodyLarge
+        ?.copyWith(fontWeight: FontWeight.bold);
+    return Table(
+      defaultColumnWidth: const IntrinsicColumnWidth(),
+      children: [
+        for (final (key, label, value) in rows)
+          TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 4, 24, 4),
+                child: Text(label),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  '$value',
+                  key: ValueKey('stat-$key'),
+                  textAlign: TextAlign.end,
+                  style: bold,
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
 }

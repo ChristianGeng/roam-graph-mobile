@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'folder/folder_access.dart';
 import 'folder/folder_screen.dart';
+import 'graph/build_graph.dart';
 
 /// The version the release workflow builds, passed in with
 /// `--dart-define=APP_VERSION=...`. Local builds show "dev".
@@ -15,9 +16,11 @@ class RoamGraphApp extends StatelessWidget {
   const RoamGraphApp({
     super.key,
     this.folderAccess = const PlatformFolderAccess(),
+    this.graphBuilder = buildGraphInBackground,
   });
 
   final FolderAccess folderAccess;
+  final GraphBuilder graphBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +31,11 @@ class RoamGraphApp extends StatelessWidget {
         colorSchemeSeed: Colors.indigo,
         brightness: Brightness.dark,
       ),
-      home: FolderScreen(folderAccess: folderAccess, version: appVersion),
+      home: FolderScreen(
+        folderAccess: folderAccess,
+        version: appVersion,
+        graphBuilder: graphBuilder,
+      ),
     );
   }
 }

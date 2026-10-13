@@ -1,0 +1,24 @@
+:PROPERTIES:
+:ID: v13
+:END:
+* [#B] Only priority
+:PROPERTIES:
+:ID: v13a
+:END:
+* TODO
+:PROPERTIES:
+:ID: v13b
+:END:
+* PROJ Doom keyword
+:PROPERTIES:
+:ID: v13c
+:END:
+*    Spaces   
+:PROPERTIES:
+:ID: v13d
+:END:
+* Tags only, no title :t1:
+* :t2:
+:PROPERTIES:
+:ID: v13e
+:END:

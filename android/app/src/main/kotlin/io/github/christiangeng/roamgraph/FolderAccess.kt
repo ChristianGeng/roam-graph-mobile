@@ -28,6 +28,8 @@ import java.util.concurrent.Executors
  * - listFiles({uri, skipDirs}) -> [{path, uri, directory, modified, size}]
  *   for every file and directory below the folder, with paths relative to
  *   it, leaving out (and not entering) directories named in skipDirs
+ * - readFiles({uris}) -> [text or null] for each URI, read as UTF-8 on the
+ *   scan thread; null if a file cannot be read
  */
 class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHandler {
     companion object {
@@ -59,6 +61,14 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                 }
                 val skipDirs = call.argument<List<String>>("skipDirs") ?: emptyList()
                 listFiles(uri, skipDirs.toSet(), result)
+            }
+            "readFiles" -> {
+                val uris = call.argument<List<String>>("uris")
+                if (uris == null) {
+                    result.error("bad_args", "uris is missing", null)
+                    return
+                }
+                readFiles(uris, result)
             }
             else -> result.notImplemented()
         }
@@ -167,6 +177,22 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
             } catch (e: Exception) {
                 mainThread.post { result.error("list_failed", e.message, null) }
             }
+        }
+    }
+
+    private fun readFiles(uris: List<String>, result: MethodChannel.Result) {
+        executor.execute {
+            val resolver = activity.contentResolver
+            val texts = uris.map { uri ->
+                try {
+                    resolver.openInputStream(Uri.parse(uri))?.use {
+                        it.readBytes().toString(Charsets.UTF_8)
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            mainThread.post { result.success(texts) }
         }
     }
 
