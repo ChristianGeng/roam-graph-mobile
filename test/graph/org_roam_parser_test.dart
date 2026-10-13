@@ -115,7 +115,7 @@ void main() {
     });
 
     test('splitStringAndUnquote matches Emacs', () {
-      expect(splitStringAndUnquote(r'a "b c" d"e f"g'),
+      expect(splitStringAndUnquote('a "b c" d"e f"g'),
           ['a', 'b c', 'd', 'e f', 'g']);
       expect(splitStringAndUnquote(''), isEmpty);
     });
