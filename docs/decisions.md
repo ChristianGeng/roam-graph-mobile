@@ -156,6 +156,15 @@ devices through Syncthing.
     parameters of the parser. If my Emacs differs, the laptop comparison
     shows it.
 
+22. **`roam/daily/` is not part of the graph** (#4). It is a symlink to the
+    journal folder (`../journal/`), so the dailies are the journal, which
+    decision 4 leaves out. My Emacs config excludes it with
+    `org-roam-file-exclude-regexp` (`"^daily/"`, relative to `roam/`), and
+    the app applies the same pattern (`roamExcludePatterns` in
+    `lib/folder/org_files.dart`). If the Emacs setting changes, change the
+    app with it; the laptop check (`tool/org_roam_parity.py check`) shows a
+    mismatch as files only one side has.
+
 ## Recommended, not decided
 
 Nothing at the moment.
@@ -194,11 +203,6 @@ matter less here, because the laptop has Emacs.
   only matter if an AI on the device had to read or query the graph without
   the laptop, and it needs a client there. The Claude Android app only
   connects to remote MCP servers. Possibly never needed.
-- **The 28 files in `roam/` that are not in the database** (485 files, 457
-  in the database). `tool/org_roam_parity.py check` on the laptop lists them
-  under "files, only in the app". org-roam lists every `*.org` file and then
-  drops those matching `org-roam-file-exclude-regexp`, so my setting of that
-  variable is the likely reason.
 
 ## My data, for checks
 

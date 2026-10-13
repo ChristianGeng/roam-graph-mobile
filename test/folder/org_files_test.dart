@@ -122,6 +122,13 @@ void main() {
       );
     });
 
+    test('skips what org-roam-file-exclude-regexp excludes: daily/', () {
+      expect(isRoamFile('daily/2026-02-20.org'), isFalse);
+      expect(isRoamFile('daily/.archive/2025/2025-05-01.org'), isFalse);
+      expect(isRoamFile('notes/daily/x.org'), isTrue);
+      expect(isRoamFile('dailyish.org'), isTrue);
+    });
+
     test('skips editor leftovers', () {
       expect(isRoamFile('a.org~'), isFalse);
       expect(isRoamFile('.#a.org'), isFalse);
