@@ -81,9 +81,10 @@ class TestGraphIndex implements GraphIndex {
     required String folder,
     bool replace = false,
   }) async {
-    if (replace) rebuilds++;
-    final graph =
-        indexer.updateIndex(db, listing, contents, replace: replace);
+    final sameFolder = this.folder == folder;
+    if (replace || !sameFolder) rebuilds++;
+    final graph = indexer.updateIndex(db, listing, contents,
+        replace: replace || !sameFolder, keepUnreadable: sameFolder);
     this.folder = folder;
     return graph;
   }
@@ -385,6 +386,33 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+  });
+
+  testWidgets('a rebuild keeps a file it cannot read', (tester) async {
+    final access = withNotes(saved: org);
+    final index = await start(tester, access);
+
+    access.texts = {'roam/a.org': someTexts['roam/a.org']!};
+    await tester.tap(find.text('Rebuild index'));
+    await tester.pumpAndSettle();
+
+    expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+    expectSomeNotes(tester);
+  });
+
+  testWidgets('roam/ appearing later is found on resume', (tester) async {
+    final access = withNotes(saved: org);
+    final files = access.files;
+    access.files = [const FolderFile(path: 'ref.org', uri: 'content://ref')];
+    await start(tester, access);
+    expect(find.text('No roam/ folder here'), findsOneWidget);
+
+    access.files = files;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expectSomeNotes(tester);
   });
 
   testWidgets('another folder replaces the index, even with the same files',

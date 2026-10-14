@@ -144,6 +144,19 @@ void main() {
       updateIndex(db, {'b.org': 1}, {'b.org': bytes(b)}, replace: true);
       expect(db.storedFiles().keys, ['b.org']);
     });
+
+    test('a replacing update keeps an unreadable file, unless told not to',
+        () {
+      updateIndex(db, {'a.org': 1, 'b.org': 1},
+          {'a.org': bytes(a), 'b.org': bytes(b)});
+      updateIndex(db, {'a.org': 1, 'b.org': 1},
+          {'a.org': bytes(a), 'b.org': null}, replace: true);
+      expect(db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+      updateIndex(db, {'a.org': 1, 'b.org': 1},
+          {'a.org': bytes(a), 'b.org': null},
+          replace: true, keepUnreadable: false);
+      expect(db.storedFiles().keys, ['a.org']);
+    });
   });
 }
 

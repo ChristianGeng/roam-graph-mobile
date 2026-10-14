@@ -25,8 +25,11 @@ abstract interface class GraphIndex {
 
   /// Stores what changed and returns the graph. [contents] holds the bytes
   /// of the files read; null for a file that could not be read. [folder] is
-  /// the folder the files are from. With [replace], the index is rebuilt
-  /// from [contents] alone, in one transaction.
+  /// the folder the files are from.
+  ///
+  /// With [replace], or when the index holds another folder, the index is
+  /// rebuilt from [contents], in one transaction. In a rebuild of the same
+  /// folder, a file that could not be read keeps what is stored for it.
   Future<RoamGraph> update(
     indexer.Listing listing,
     Map<String, Uint8List?> contents, {
@@ -93,11 +96,18 @@ class SqliteGraphIndex implements GraphIndex {
     bool replace = false,
   }) =>
       _run((db, path) {
-        final graph =
-            indexer.updateIndex(db, listing, contents, replace: replace);
-        // Written after the database commits. If the app stops in between,
-        // the next start sees another folder and rebuilds, which is safe.
-        File('$path.folder').writeAsStringSync(folder);
+        final marker = File('$path.folder');
+        final sameFolder =
+            marker.existsSync() && marker.readAsStringSync() == folder;
+        // The marker is removed before the database changes and written
+        // again after it commits. If the app stops in between, there is no
+        // marker, and the next update rebuilds the whole index.
+        if (!sameFolder || replace) {
+          if (marker.existsSync()) marker.deleteSync();
+        }
+        final graph = indexer.updateIndex(db, listing, contents,
+            replace: replace || !sameFolder, keepUnreadable: sameFolder);
+        marker.writeAsStringSync(folder);
         return graph;
       });
 }

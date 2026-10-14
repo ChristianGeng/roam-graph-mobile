@@ -33,9 +33,11 @@ List<String> filesToRead(RoamDatabase db, Listing listing) {
 /// files read, null for a file that could not be read; a file that cannot
 /// be read keeps what is stored for it.
 ///
-/// With [replace], everything stored before is dropped first, in the same
+/// With [replace], what was stored before is dropped first, in the same
 /// transaction: a full rebuild, which leaves the old index in place if it
-/// fails. [contents] should then hold every file of [listing].
+/// fails. [contents] should then hold every file of [listing]. A file that
+/// could not be read still keeps what is stored for it, unless
+/// [keepUnreadable] is false: when the stored rows are another folder's.
 ///
 /// Returns the graph as stored, plus the files org-roam would skip.
 RoamGraph updateIndex(
@@ -43,11 +45,20 @@ RoamGraph updateIndex(
   Listing listing,
   Map<String, Uint8List?> contents, {
   bool replace = false,
+  bool keepUnreadable = true,
 }) {
   final failed = <RoamFileData>[];
   final duplicates = <String, List<String>>{};
   db.transaction(() {
-    if (replace) db.clear();
+    if (replace && !keepUnreadable) {
+      db.clear();
+    } else if (replace) {
+      for (final path in db.storedFiles().keys) {
+        final unreadable =
+            contents.containsKey(path) && contents[path] == null;
+        if (!unreadable) db.removeFile(path);
+      }
+    }
     final stored = db.storedFiles();
     for (final path in stored.keys) {
       if (!listing.containsKey(path)) db.removeFile(path);

@@ -64,8 +64,9 @@ class _FolderScreenState extends State<FolderScreen>
 
   /// When the app comes back, the saved folder may have changed: a folder
   /// chosen while Android recreated the app, or a permission revoked in the
-  /// system settings. Syncthing may also have brought new files. So index
-  /// again; unchanged files are not read again.
+  /// system settings. Syncthing may also have brought new files, or the
+  /// roam/ folder itself, and a failed scan may work now. So index again;
+  /// unchanged files are not read again.
   Future<void> _checkSavedFolder() async {
     if (_status == _Status.loading) return;
     try {
@@ -75,7 +76,9 @@ class _FolderScreenState extends State<FolderScreen>
       if (current == null ||
           saved.uri != current.uri ||
           saved.hasAccess != current.hasAccess ||
-          _status == _Status.indexed) {
+          _status == _Status.indexed ||
+          _status == _Status.noRoam ||
+          _status == _Status.failed) {
         await _guard((generation) => _index(generation, saved));
       }
     } on PlatformException {

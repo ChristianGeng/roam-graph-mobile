@@ -180,8 +180,11 @@ devices through Syncthing.
       by content hash (SHA-1, as org-roam). A file without a modification
       time is always read. A file that disappeared is removed. "Rebuild
       index" reads every file again and replaces the index in one
-      transaction, so a failed rebuild keeps the old one; choosing another
-      folder does the same. The app updates the index when it comes back
+      transaction, so a failed rebuild keeps the old one, and a file it
+      cannot read keeps its stored rows; choosing another folder replaces
+      the index too. The folder the index holds is kept in
+      `org-roam.db.folder`, removed before such a change and written after
+      it commits, so an interrupted change leads to a full rebuild. The app updates the index when it comes back
       to the foreground. Index updates run one at a time, in order.
     - `files.atime` holds the modification time: Android's folder access
       gives no access time.
