@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/services.dart';
 
 import 'org_files.dart';
@@ -35,9 +37,9 @@ abstract interface class FolderAccess {
   /// and what they contain.
   Future<List<FolderFile>> listFiles(ChosenFolder folder);
 
-  /// The text of each of [files], in the same order, read as UTF-8. Null
-  /// for a file that could not be read.
-  Future<List<String?>> readTexts(List<FolderFile> files);
+  /// The bytes of each of [files], in the same order. Null for a file that
+  /// could not be read.
+  Future<List<Uint8List?>> readFiles(List<FolderFile> files);
 }
 
 /// [FolderAccess] through the Android code in `FolderAccess.kt`.
@@ -74,12 +76,12 @@ class PlatformFolderAccess implements FolderAccess {
   }
 
   @override
-  Future<List<String?>> readTexts(List<FolderFile> files) async {
-    final texts = await _channel.invokeListMethod<String?>(
+  Future<List<Uint8List?>> readFiles(List<FolderFile> files) async {
+    final contents = await _channel.invokeListMethod<Uint8List?>(
       'readFiles',
       {'uris': [for (final file in files) file.uri]},
     );
-    return texts ?? List.filled(files.length, null);
+    return contents ?? List.filled(files.length, null);
   }
 
   static ChosenFolder? _toFolder(Map<Object?, Object?>? map) {

@@ -12,3 +12,6 @@ build/
 *.jks
 *.keystore
 key.properties
+
+# Python caches from running the tools.
+__pycache__/

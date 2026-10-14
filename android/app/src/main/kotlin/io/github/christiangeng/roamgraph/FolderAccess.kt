@@ -28,8 +28,8 @@ import java.util.concurrent.Executors
  * - listFiles({uri, skipDirs}) -> [{path, uri, directory, modified, size}]
  *   for every file and directory below the folder, with paths relative to
  *   it, leaving out (and not entering) directories named in skipDirs
- * - readFiles({uris}) -> [text or null] for each URI, read as UTF-8 on the
- *   scan thread; null if a file cannot be read
+ * - readFiles({uris}) -> [bytes or null] for each URI, read on the scan
+ *   thread; null if a file cannot be read
  */
 class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHandler {
     companion object {
@@ -185,9 +185,7 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
             val resolver = activity.contentResolver
             val texts = uris.map { uri ->
                 try {
-                    resolver.openInputStream(Uri.parse(uri))?.use {
-                        it.readBytes().toString(Charsets.UTF_8)
-                    }
+                    resolver.openInputStream(Uri.parse(uri))?.use { it.readBytes() }
                 } catch (_: Exception) {
                     null
                 }

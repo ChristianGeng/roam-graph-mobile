@@ -1,10 +1,15 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/folder/folder_access.dart';
 import 'package:roam_graph_mobile/folder/folder_screen.dart';
 import 'package:roam_graph_mobile/folder/org_files.dart';
-import 'package:roam_graph_mobile/graph/build_graph.dart';
+import 'package:roam_graph_mobile/graph/graph_index.dart';
+import 'package:roam_graph_mobile/graph/indexer.dart' as indexer;
+import 'package:roam_graph_mobile/graph/roam_db.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/main.dart';
 
@@ -26,6 +31,9 @@ class FakeFolderAccess implements FolderAccess {
   PlatformException? listError;
   int pickCalls = 0;
 
+  /// The paths of every file read, in order.
+  final readPaths = <String>[];
+
   @override
   Future<ChosenFolder?> savedFolder() async => saved;
 
@@ -43,13 +51,38 @@ class FakeFolderAccess implements FolderAccess {
   }
 
   @override
-  Future<List<String?>> readTexts(List<FolderFile> files) async =>
-      [for (final file in files) texts[file.path]];
+  Future<List<Uint8List?>> readFiles(List<FolderFile> files) async {
+    readPaths.addAll([for (final file in files) file.path]);
+    return [
+      for (final file in files)
+        if (texts[file.path] case final text?) utf8.encode(text) else null,
+    ];
+  }
 }
 
-/// Builds the graph right away; tests cannot wait for another isolate.
-Future<RoamGraph> buildGraphNow(List<SourceFile> sources) async =>
-    buildGraph(sources);
+/// A [GraphIndex] on a real org-roam database in memory, without another
+/// isolate, which tests cannot wait for.
+class TestGraphIndex implements GraphIndex {
+  final db = RoamDatabase.inMemory(root: '/roam');
+  int clears = 0;
+
+  @override
+  Future<List<String>> filesToRead(indexer.Listing listing) async =>
+      indexer.filesToRead(db, listing);
+
+  @override
+  Future<RoamGraph> update(
+    indexer.Listing listing,
+    Map<String, Uint8List?> contents,
+  ) async =>
+      indexer.updateIndex(db, listing, contents);
+
+  @override
+  Future<void> clear() async {
+    clears++;
+    db.clear();
+  }
+}
 
 const org = ChosenFolder(uri: 'content://tree/org', name: 'org', hasAccess: true);
 
@@ -78,11 +111,13 @@ FakeFolderAccess withNotes({ChosenFolder? saved, ChosenFolder? picked}) =>
       texts: someTexts,
     );
 
-Future<void> start(WidgetTester tester, FakeFolderAccess access) async {
+Future<TestGraphIndex> start(WidgetTester tester, FakeFolderAccess access) async {
+  final index = TestGraphIndex();
   await tester.pumpWidget(
-    RoamGraphApp(folderAccess: access, graphBuilder: buildGraphNow),
+    RoamGraphApp(folderAccess: access, graphIndex: index),
   );
   await tester.pumpAndSettle();
+  return index;
 }
 
 /// The value shown for one count, or null if it is not shown.
@@ -275,6 +310,84 @@ void main() {
     expect(access.pickCalls, 1);
     expectSomeNotes(tester);
     expect(find.text('Folder: org'), findsOneWidget);
+  });
+
+  testWidgets('a second scan reads only new and changed files',
+      (tester) async {
+    final access = withNotes(saved: org);
+    await start(tester, access);
+    expect(access.readPaths, ['roam/a.org', 'roam/b.org']);
+
+    // Nothing changed: nothing is read.
+    await tester.tap(find.text('Scan again'));
+    await tester.pumpAndSettle();
+    expect(access.readPaths, hasLength(2));
+    expectSomeNotes(tester);
+
+    // b.org changed: only b.org is read, and the change shows.
+    access
+      ..files = [
+        for (final f in someFiles())
+          f.path == 'roam/b.org'
+              ? FolderFile(path: f.path, uri: f.uri, modified: 1000)
+              : f,
+      ]
+      ..texts = {
+        ...someTexts,
+        'roam/b.org': ':PROPERTIES:\n:ID: b\n:END:\n#+title: B\n',
+      };
+    await tester.tap(find.text('Scan again'));
+    await tester.pumpAndSettle();
+    expect(access.readPaths.skip(2), ['roam/b.org']);
+    expect(stat(tester, 'nodes'), '2');
+    expect(stat(tester, 'refs'), '0');
+  });
+
+  testWidgets('a file that is gone leaves the graph', (tester) async {
+    final access = withNotes(saved: org);
+    await start(tester, access);
+
+    access.files = [
+      for (final f in someFiles())
+        if (f.path != 'roam/b.org') f,
+    ];
+    await tester.tap(find.text('Scan again'));
+    await tester.pumpAndSettle();
+
+    expect(stat(tester, 'files'), '1');
+    expect(stat(tester, 'nodes'), '1');
+  });
+
+  testWidgets('rebuilding the index reads every file again', (tester) async {
+    final access = withNotes(saved: org);
+    final index = await start(tester, access);
+
+    await tester.tap(find.text('Rebuild index'));
+    await tester.pumpAndSettle();
+
+    expect(index.clears, 1);
+    expect(access.readPaths, hasLength(4));
+    expectSomeNotes(tester);
+  });
+
+  testWidgets('coming back to the app indexes again', (tester) async {
+    final access = withNotes(saved: org);
+    await start(tester, access);
+
+    access.texts = {
+      ...someTexts,
+      'roam/c.org': ':PROPERTIES:\n:ID: c\n:END:\n',
+    };
+    access.files = [
+      ...someFiles(),
+      const FolderFile(path: 'roam/c.org', uri: 'content://e'),
+    ];
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(access.readPaths.last, 'roam/c.org');
+    expect(stat(tester, 'files'), '3');
   });
 
   testWidgets('a read error is shown, with a way to try again',

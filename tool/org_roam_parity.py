@@ -7,6 +7,12 @@ It needs only Python 3; `check` also needs Dart (Flutter) to run the parser.
 
 Commands:
 
+  check-db DB ROAM_DIR
+      Build the app's database from ROAM_DIR with the app's code
+      (`dart run tool/build_roam_db.dart`) and compare every table and
+      column with org-roam's database DB, except when files were read or
+      changed. Exit code 0 if there are no differences.
+
   check DB ROAM_DIR
       Read org-roam.db, run the app's parser on ROAM_DIR
       (`dart run tool/roam_graph_dump.dart ROAM_DIR`), and print the
@@ -18,6 +24,13 @@ Commands:
 
   compare EXPECTED.json ACTUAL.json
       Compare two normalized JSON files.
+
+  export-tables DB ROAM_DIR
+      Print every table of DB for the files under ROAM_DIR as JSON, with
+      paths below ROAM_DIR starting "{roam}/".
+
+  compare-tables EXPECTED.json APP_DB ROAM_DIR
+      Compare an export-tables file with the tables of APP_DB.
 
 Example, on the laptop:
 
@@ -199,6 +212,109 @@ def find_dart():
     return None
 
 
+# Columns that differ by nature between two databases of the same files:
+# when a file was last read or changed.
+_VOLATILE = {"files": ("atime", "mtime")}
+TABLES = ("files", "nodes", "aliases", "citations", "refs", "tags", "links")
+
+
+def dump_tables(db_path, roam_dir):
+    """Every table of the database at DB_PATH, for the files under ROAM_DIR,
+    as raw column values. Paths under ROAM_DIR become "{roam}/...", so two
+    databases of the same notes in different places compare equal."""
+    roots = {os.path.abspath(os.path.expanduser(roam_dir)),
+             os.path.realpath(os.path.expanduser(roam_dir))}
+    uri = "file:%s?mode=ro" % os.path.abspath(os.path.expanduser(db_path))
+    con = sqlite3.connect(uri, uri=True)
+
+    def neutral(value):
+        if isinstance(value, str):
+            for root in roots:
+                value = value.replace(root + "/", "{roam}/")
+        return value
+
+    try:
+        result = {}
+        files = set()
+        for table in TABLES:
+            columns = [row[1] for row in con.execute("PRAGMA table_info(%s)" % table)]
+            keep = [c for c in columns if c not in _VOLATILE.get(table, ())]
+            rows = [[neutral(v) for v in row]
+                    for row in con.execute("SELECT %s FROM %s" % (", ".join(keep), table))]
+            result[table] = {"columns": keep, "rows": rows}
+        # Only the files under ROAM_DIR, and the rows of their nodes.
+        file_rows = [r for r in result["files"]["rows"] if r[0].startswith('"{roam}/')]
+        files = {r[0] for r in file_rows}
+        result["files"]["rows"] = file_rows
+        node_rows = [r for r in result["nodes"]["rows"] if r[1] in files]
+        ids = {r[0] for r in node_rows}
+        result["nodes"]["rows"] = node_rows
+        for table, key in (("aliases", 0), ("citations", 0), ("refs", 0),
+                           ("tags", 0), ("links", 1)):
+            result[table]["rows"] = [r for r in result[table]["rows"] if r[key] in ids]
+        for table in result.values():
+            table["rows"].sort(key=lambda r: json.dumps(r, ensure_ascii=False))
+        return result
+    finally:
+        con.close()
+
+
+def compare_tables(expected, actual, out=sys.stdout):
+    """Print the differences between two dumps of all tables, column by
+    column. Returns True if there are none."""
+    same = True
+    out.write("%-10s %10s %10s\n" % ("", "org-roam", "app"))
+    for table in TABLES:
+        out.write("%-10s %10d %10d\n" % (table, len(expected[table]["rows"]),
+                                          len(actual[table]["rows"])))
+    for table in TABLES:
+        columns = expected[table]["columns"]
+        if columns != actual[table]["columns"]:
+            same = False
+            out.write("\n%s: different columns\n  org-roam: %s\n  app:      %s\n"
+                      % (table, columns, actual[table]["columns"]))
+            continue
+        key = (lambda r: r[0]) if table in ("files", "nodes") else None
+        exp_rows, act_rows = expected[table]["rows"], actual[table]["rows"]
+        if key:
+            exp_by, act_by = {key(r): r for r in exp_rows}, {key(r): r for r in act_rows}
+            missing = [exp_by[k] for k in sorted(exp_by.keys() - act_by.keys())]
+            extra = [act_by[k] for k in sorted(act_by.keys() - exp_by.keys())]
+            changed = [(exp_by[k], act_by[k]) for k in sorted(exp_by.keys() & act_by.keys())
+                       if exp_by[k] != act_by[k]]
+        else:
+            enc = lambda r: json.dumps(r, ensure_ascii=False)
+            exp_c = collections.Counter(enc(r) for r in exp_rows)
+            act_c = collections.Counter(enc(r) for r in act_rows)
+            missing = [json.loads(r) for r in sorted((exp_c - act_c).elements())]
+            extra = [json.loads(r) for r in sorted((act_c - exp_c).elements())]
+            changed = []
+        if not (missing or extra or changed):
+            continue
+        same = False
+        out.write("\n%s:\n" % table)
+        for label, rows in (("only in org-roam", missing), ("only in the app", extra)):
+            if rows:
+                out.write("  %s (%d):\n" % (label, len(rows)))
+                for row in rows[:MAX_SHOWN]:
+                    out.write("    %s\n" % json.dumps(row, ensure_ascii=False))
+                if len(rows) > MAX_SHOWN:
+                    out.write("    ... %d more\n" % (len(rows) - MAX_SHOWN))
+        if changed:
+            out.write("  different (%d):\n" % len(changed))
+            for exp_row, act_row in changed[:MAX_SHOWN]:
+                out.write("    %s\n" % json.dumps(exp_row[0], ensure_ascii=False))
+                for name, e, a in zip(columns, exp_row, act_row):
+                    if e != a:
+                        out.write("      %s:\n        org-roam: %s\n        app:      %s\n"
+                                  % (name, json.dumps(e, ensure_ascii=False),
+                                     json.dumps(a, ensure_ascii=False)))
+            if len(changed) > MAX_SHOWN:
+                out.write("    ... %d more\n" % (len(changed) - MAX_SHOWN))
+    out.write("\n%s\n" % ("No differences." if same else "Differences found."))
+    return same
+
+
 def run_parser(roam_dir):
     """Run the app's parser on ROAM_DIR and return its normalized JSON."""
     dart = find_dart()
@@ -286,7 +402,42 @@ def compare(expected, actual, out=sys.stdout, roam_dir=None):
     return same
 
 
+def build_app_db(roam_dir, out_path):
+    """Build the app's database from ROAM_DIR into OUT_PATH."""
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    subprocess.run(
+        [find_dart(), "run", "tool/build_roam_db.dart",
+         os.path.expanduser(roam_dir), out_path],
+        cwd=repo,
+        check=True,
+        stdout=sys.stderr,
+    )
+
+
 def main(argv):
+    if len(argv) == 4 and argv[1] == "check-db":
+        if find_dart() is None:
+            sys.stderr.write(NO_DART)
+            return 2
+        for path, what in ((argv[2], "database"), (argv[3], "roam folder")):
+            if not os.path.exists(os.path.expanduser(path)):
+                sys.stderr.write("No such %s: %s\n" % (what, path))
+                return 2
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            app_db = os.path.join(tmp, "app.db")
+            build_app_db(argv[3], app_db)
+            same = compare_tables(dump_tables(argv[2], argv[3]),
+                                  dump_tables(app_db, argv[3]))
+        return 0 if same else 1
+    if len(argv) == 4 and argv[1] == "export-tables":
+        json.dump(dump_tables(argv[2], argv[3]), sys.stdout, ensure_ascii=False, indent=1)
+        sys.stdout.write("\n")
+        return 0
+    if len(argv) == 5 and argv[1] == "compare-tables":
+        with open(argv[2], encoding="utf-8") as f:
+            expected = json.load(f)
+        return 0 if compare_tables(expected, dump_tables(argv[3], argv[4])) else 1
     if len(argv) == 4 and argv[1] == "check":
         # Check what is needed before doing any work.
         if find_dart() is None:

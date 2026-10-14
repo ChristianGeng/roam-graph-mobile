@@ -5,8 +5,11 @@ import 'package:roam_graph_mobile/graph/roam_graph.dart';
 RoamFileData parse(String text, {String path = 'note.org'}) =>
     parseRoamFile(path, text);
 
-List<String> dests(String text) =>
-    [for (final link in parse(text).links) link.dest];
+/// The destinations of the `id:` links.
+List<String> dests(String text) => [
+      for (final link in parse(text).links)
+        if (link.type == 'id') link.dest,
+    ];
 
 const drawer = ':PROPERTIES:\n:ID: file-id\n:END:\n';
 

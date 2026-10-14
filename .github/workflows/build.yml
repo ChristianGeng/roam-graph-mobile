@@ -67,6 +67,13 @@ jobs:
       - name: Get packages
         run: flutter pub get
 
+      - name: Install SQLite
+        # The database tests and tool/build_roam_db.dart run on this machine
+        # and load the system's libsqlite3.
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends libsqlite3-dev
+
       - name: Analyze
         # Issues are also reported as an annotation, so they show on the
         # pull request without opening the log.
@@ -96,6 +103,14 @@ jobs:
           dart run tool/roam_graph_dump.dart test/fixtures/roam > "$RUNNER_TEMP/graph.json"
           python3 tool/org_roam_parity.py compare \
             test/fixtures/org_roam_expected.json "$RUNNER_TEMP/graph.json"
+
+      - name: Compare the app's database with org-roam's on the sample files
+        # Every table, every column, as org-roam writes it.
+        run: |
+          dart run tool/build_roam_db.dart test/fixtures/roam "$RUNNER_TEMP/app.db"
+          python3 tool/org_roam_parity.py compare-tables \
+            test/fixtures/org_roam_expected_tables.json "$RUNNER_TEMP/app.db" \
+            test/fixtures/roam
 
       - name: Set the version
         id: version
@@ -170,7 +185,9 @@ jobs:
         run: tool/org_roam_parity/build-fixture-expectations.sh
 
       - name: Check it matches the committed data
-        run: git diff --exit-code test/fixtures/org_roam_expected.json
+        run: |
+          git diff --exit-code test/fixtures/org_roam_expected.json \
+            test/fixtures/org_roam_expected_tables.json
 
   release:
     needs: [build, org-roam]

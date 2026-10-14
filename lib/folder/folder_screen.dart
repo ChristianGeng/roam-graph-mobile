@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../graph/build_graph.dart';
+import '../graph/graph_index.dart';
 import '../graph/roam_graph.dart';
 import 'folder_access.dart';
 import 'org_files.dart';
 
-/// Lets the user choose the org folder (#3), reads the graph from it (#4)
-/// and shows what it found, to compare with org-roam on the laptop.
+/// Lets the user choose the org folder (#3), keeps the graph's database up
+/// to date with it (#4, #5) and shows what it holds, to compare with
+/// org-roam on the laptop.
 class FolderScreen extends StatefulWidget {
   const FolderScreen({
     super.key,
     required this.folderAccess,
     required this.version,
-    this.graphBuilder = buildGraphInBackground,
+    this.graphIndex = const SqliteGraphIndex(),
   });
 
   final FolderAccess folderAccess;
   final String version;
-  final GraphBuilder graphBuilder;
+  final GraphIndex graphIndex;
 
   @override
   State<FolderScreen> createState() => _FolderScreenState();
@@ -63,7 +64,8 @@ class _FolderScreenState extends State<FolderScreen>
 
   /// When the app comes back, the saved folder may have changed: a folder
   /// chosen while Android recreated the app, or a permission revoked in the
-  /// system settings. Re-index only if it did.
+  /// system settings. Syncthing may also have brought new files. So index
+  /// again; unchanged files are not read again.
   Future<void> _checkSavedFolder() async {
     if (_status == _Status.loading) return;
     try {
@@ -72,7 +74,8 @@ class _FolderScreenState extends State<FolderScreen>
       final current = _folder;
       if (current == null ||
           saved.uri != current.uri ||
-          saved.hasAccess != current.hasAccess) {
+          saved.hasAccess != current.hasAccess ||
+          _status == _Status.indexed) {
         await _guard((generation) => _index(generation, saved));
       }
     } on PlatformException {
@@ -110,6 +113,17 @@ class _FolderScreenState extends State<FolderScreen>
     }
   }
 
+  /// Forgets the database and indexes every file again.
+  Future<void> _rebuild() async {
+    final folder = _folder;
+    if (folder != null) {
+      await _guard((generation) async {
+        await widget.graphIndex.clear();
+        await _index(generation, folder);
+      });
+    }
+  }
+
   Future<void> _index(int generation, ChosenFolder folder) async {
     // Remember the folder first, so "Try again" works if listing fails.
     if (generation == _generation) _folder = folder;
@@ -125,19 +139,26 @@ class _FolderScreenState extends State<FolderScreen>
     }
     // Paths in the graph are relative to roam/, as in org-roam.
     final prefix = roamPrefix(folder.name, entries)!;
-    final texts = await widget.folderAccess.readTexts(files);
-    final sources = <SourceFile>[];
-    final unreadable = <String>[];
-    for (var i = 0; i < files.length; i++) {
-      final path = files[i].path.substring(prefix.length);
-      final text = i < texts.length ? texts[i] : null;
-      if (text == null) {
-        unreadable.add(path);
-      } else {
-        sources.add((path: path, text: text));
-      }
-    }
-    final graph = await widget.graphBuilder(sources);
+    final byPath = {
+      for (final file in files) file.path.substring(prefix.length): file,
+    };
+    final listing = {
+      for (final MapEntry(key: path, value: file) in byPath.entries)
+        path: file.modified,
+    };
+    // Read only what is new or changed since the last time.
+    final toRead = await widget.graphIndex.filesToRead(listing);
+    final bytes = await widget.folderAccess
+        .readFiles([for (final path in toRead) byPath[path]!]);
+    final contents = {
+      for (var i = 0; i < toRead.length; i++)
+        toRead[i]: i < bytes.length ? bytes[i] : null,
+    };
+    final graph = await widget.graphIndex.update(listing, contents);
+    final unreadable = [
+      for (final MapEntry(key: path, value: content) in contents.entries)
+        if (content == null) path,
+    ];
     _show(generation, _Status.indexed, folder,
         (graph: graph, unreadable: unreadable));
   }
@@ -261,6 +282,10 @@ class _FolderScreenState extends State<FolderScreen>
             _FileList(title: 'Unreadable files', files: _result.unreadable),
           Text('Folder: ${_folder?.name}'),
           OutlinedButton(onPressed: _rescan, child: const Text('Scan again')),
+          TextButton(
+            onPressed: _rebuild,
+            child: const Text('Rebuild index'),
+          ),
           TextButton(onPressed: _choose, child: const Text('Change folder')),
         ]);
       case _Status.failed:

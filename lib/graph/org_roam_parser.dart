@@ -1,16 +1,19 @@
-/// Reads org-roam nodes, tags, aliases, refs and `id:` links from one org
-/// file the way org-roam does (#4).
+/// Reads one org file the way org-roam does: nodes, titles, tags, aliases,
+/// refs and links (#4), and everything else org-roam's database stores
+/// about them: positions, TODO keywords, priorities, planning, Org's
+/// property lists, outline paths, links of every type and citations (#5).
 ///
 /// The rules follow org-roam's `org-roam-db-update-file` and the Org
 /// functions it calls (org-roam 2.3, Org 9.6). Each rule is checked against
 /// a database built by real org-roam from the sample files in
 /// `test/fixtures/roam/`; see `tool/org_roam_parity/`.
 ///
-/// Pure Dart (no Flutter), so `tool/roam_graph_dump.dart` can run it.
+/// Pure Dart (no Flutter), so the tools in `tool/` can run it.
 library;
 
 import 'dart:convert';
 
+import 'elisp.dart';
 import 'roam_graph.dart';
 
 /// Doom Emacs's default `org-todo-keywords`. They decide where a heading's
@@ -32,6 +35,8 @@ const defaultLinkTypes = [
 ];
 
 /// Parses one file. [path] is relative to `roam/` and is stored as given.
+/// [root] is the folder org-roam's absolute paths start with; it appears in
+/// Org's `FILE` property.
 ///
 /// A file org-roam fails on, such as one with an unterminated quote in
 /// `ROAM_ALIASES`, gives no nodes and links but an [RoamFileData.error]:
@@ -39,11 +44,12 @@ const defaultLinkTypes = [
 RoamFileData parseRoamFile(
   String path,
   String text, {
+  String root = '',
   List<String> todoKeywords = doomTodoKeywords,
   List<String> linkTypes = defaultLinkTypes,
 }) {
   try {
-    return _FileParser(path, text, todoKeywords, linkTypes).parse();
+    return _FileParser(path, text, root, todoKeywords, linkTypes).parse();
   } on FormatException catch (e) {
     return RoamFileData(path: path, error: e.message);
   }
@@ -53,20 +59,32 @@ RoamFileData parseRoamFile(
 final _heading = RegExp(r'^(\*+) (.*)$');
 final _comment = RegExp(r'^[ \t]*#(?: |$)');
 final _fixedWidth = RegExp(r'^[ \t]*:(?: |$)');
+final _clock = RegExp(r'^[ \t]*CLOCK:');
 final _propertiesStart = RegExp(r'^[ \t]*:PROPERTIES:[ \t]*$', caseSensitive: false);
 final _drawerEnd = RegExp(r'^[ \t]*:END:[ \t]*$', caseSensitive: false);
 final _propertyLine = RegExp(r'^[ \t]*:(\S+?)(\+)?:(?:[ \t]+(.*?))?[ \t]*$');
 final _planning = RegExp(r'^[ \t]*(?:SCHEDULED|DEADLINE|CLOSED):');
+final _planningItem =
+    RegExp(r'(CLOSED|DEADLINE|SCHEDULED):[ \t]*([<\[][^>\]\n]*[>\]])');
 // The key is greedy, as in Org: `#+filetags::x:` has the key `filetags::x`.
 final _keyword = RegExp(r'^[ \t]*#\+(\S+):[ \t]*(.*?)[ \t]*$');
 final _blockBegin = RegExp(r'^[ \t]*#\+begin_(\S+)', caseSensitive: false);
 final _blockEnd = RegExp(r'^[ \t]*#\+end_(\S+)[ \t]*$', caseSensitive: false);
 final _tableRow = RegExp(r'^[ \t]*\|');
+final _priorityCookie = RegExp(r'\[#([A-Z0-9]+)\]');
+final _statisticsCookie = RegExp(r'\[[0-9]*%\]|\[[0-9]*/[0-9]*\]');
 final _nonSpace = RegExp(r'\S');
 final _whitespace = RegExp(r'\s+');
 
 /// Blocks whose content Org does not parse, so links in them do not count.
 const _hiddenBlocks = {'src', 'example', 'export', 'comment'};
+
+/// Org's special properties; a drawer cannot set them.
+const _specialProperties = {
+  'ALLTAGS', 'BLOCKED', 'CLOCKSUM', 'CLOCKSUM_T', 'CLOSED', 'DEADLINE', //
+  'FILE', 'ITEM', 'PRIORITY', 'SCHEDULED', 'TAGS', 'TIMESTAMP', //
+  'TIMESTAMP_IA', 'TODO',
+};
 
 enum _Kind { text, heading, hidden, delimiter, property, keyword }
 
@@ -82,11 +100,15 @@ class _Property {
 }
 
 class _Heading {
-  _Heading(this.line, this.level, this.title, this.localTags, this.id,
-      this.properties);
+  _Heading(this.line, this.level, this.todo, this.priorityCookie, this.title,
+      this.localTags, this.id, this.properties);
 
   final int line;
   final int level;
+  final String? todo;
+
+  /// `[#A]`, if the heading has one where Org reads a priority.
+  final String? priorityCookie;
 
   /// Null if the heading has no title; org-roam then skips the node.
   final String? title;
@@ -96,14 +118,29 @@ class _Heading {
   final String? id;
   final List<_Property>? properties;
   _Heading? parent;
+
+  /// The headings above, outermost first.
+  List<_Heading> get ancestors {
+    final chain = <_Heading>[];
+    for (var p = parent; p != null; p = p.parent) {
+      chain.add(p);
+    }
+    return chain.reversed.toList();
+  }
 }
 
+/// A piece of text where Org parses objects, and whether it is ordinary
+/// text (paragraph, heading, table) rather than a keyword or property value.
+typedef _Piece = ({int line, String text, bool parsed});
+
 class _FileParser {
-  _FileParser(this.path, String text, this.defaultTodo, this.linkTypes)
-      : lines = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n'),
+  _FileParser(
+      this.path, String text, this.root, this.defaultTodo, this.linkTypes)
+      : lines = _normalize(text).split('\n'),
         syntax = _LinkSyntax.of(linkTypes);
 
   final String path;
+  final String root;
   final List<String> lines;
   final List<String> defaultTodo;
   final List<String> linkTypes;
@@ -112,12 +149,24 @@ class _FileParser {
   late final List<_Kind> kind = List.filled(lines.length, _Kind.text);
   final headings = <_Heading>[];
   List<_Property>? fileProperties;
+  final planningLine = <_Heading, int>{};
+  Map<String, List<String>> keywords = const {};
+  List<String> fileTags = const [];
+
+  /// For each line, its character position in the file, from 1, counting
+  /// characters as Emacs does (not UTF-16 units).
+  late final List<int> _lineStart = _computeLineStarts();
 
   /// For each line, the heading it belongs to (null above the first).
   late final List<_Heading?> _headingOfLine = _computeHeadingOfLine();
 
   /// The link source of each heading, computed once.
   final _sourceOfHeading = <_Heading, String?>{};
+
+  /// The timestamps of each line, found once.
+  final _timestampsOfLine = <int, List<_Timestamp>>{};
+
+  String get _filePath => root.isEmpty ? path : '$root/$path';
 
   RoamFileData parse() {
     final headingLines = <int>[
@@ -130,11 +179,17 @@ class _FileParser {
     _markBlocks();
     final startsWithHeading = headingLines.isNotEmpty && headingLines.first == 0;
     if (!startsWithHeading) _readFileDrawer();
-    final headingDrawers = <int, List<_Property>>{
-      for (final i in headingLines)
-        if (_readHeadingDrawer(i) case final drawer?) i: drawer,
-    };
-    final keywords = _readKeywords();
+    final planning = <int, int>{};
+    final headingDrawers = <int, List<_Property>>{};
+    for (final i in headingLines) {
+      var j = i + 1;
+      if (j < lines.length && kind[j] == _Kind.text && _planning.hasMatch(lines[j])) {
+        planning[i] = j;
+        j++;
+      }
+      if (_drawerAt(j) case final drawer?) headingDrawers[i] = drawer;
+    }
+    keywords = _readKeywords();
 
     // A file's own TODO keywords replace the defaults, as in Org.
     final fileTodo = [
@@ -147,7 +202,7 @@ class _FileParser {
         _headingPattern(fileTodo.isNotEmpty ? fileTodo : defaultTodo);
 
     // `org-file-tags`: every #+filetags value, split at spaces and colons.
-    final fileTags = [
+    fileTags = [
       for (final value in keywords['FILETAGS'] ?? const <String>[])
         for (final word in _splitWhitespace(value))
           for (final tag in word.split(':'))
@@ -161,6 +216,8 @@ class _FileParser {
       final heading = _Heading(
         i,
         match.group(1)!.length,
+        match.group(2),
+        match.group(3),
         match.group(4),
         [
           for (final tag in (match.group(5) ?? '').split(':'))
@@ -175,48 +232,97 @@ class _FileParser {
       heading.parent = stack.isEmpty ? null : stack.last;
       stack.add(heading);
       headings.add(heading);
+      if (planning[i] case final p?) planningLine[heading] = p;
     }
+
+    // `org-roam-db--file-title` joins the #+title values. Without one it
+    // yields "" (`string-join` of nil), not the file name.
+    final fileTitle = _displayFormat((keywords['TITLE'] ?? const []).join(' '));
 
     final nodes = <RoamNode>[];
     // `org-roam-db-insert-file-node`: only if the file does not start with a
     // heading.
     final fileId = startsWithHeading ? null : _nodeId(fileProperties);
     if (fileId != null) {
-      // `org-roam-db--file-title` joins the #+title values. Without one it
-      // yields "" (`string-join` of nil), not the file name.
-      final title = (keywords['TITLE'] ?? const []).join(' ');
-      nodes.add(_node(fileId, 0, _displayFormat(title), 1, fileTags,
-          fileProperties!));
+      nodes.add(_node(
+        id: fileId,
+        level: 0,
+        title: fileTitle,
+        line: 1,
+        pos: 1,
+        tags: fileTags,
+        properties: fileProperties!,
+        orgProperties: _entryProperties(null),
+      ));
     }
     // `org-roam-db-insert-node-data` and `org-roam-db-insert-tags`.
-    for (final heading in headings) {
+    for (final (index, heading) in headings.indexed) {
       final id = heading.id;
       final title = heading.title;
       if (id == null || title == null) continue;
-      final chain = <_Heading>[];
-      for (var p = heading.parent; p != null; p = p.parent) {
-        chain.add(p);
-      }
       final inherited = [
         ...fileTags,
-        for (final p in chain.reversed) ...p.localTags,
+        for (final p in heading.ancestors) ...p.localTags,
       ];
-      nodes.add(_node(id, heading.level, _displayFormat(title), heading.line + 1,
-          _dedupKeepLast([...inherited, ...heading.localTags]),
-          heading.properties!));
+      String? scheduled;
+      String? deadline;
+      if (planningLine[heading] case final p?) {
+        for (final m in _planningItem.allMatches(lines[p])) {
+          if (m.group(1) == 'SCHEDULED') scheduled = _isoTime(m.group(2)!);
+          if (m.group(1) == 'DEADLINE') deadline = _isoTime(m.group(2)!);
+        }
+      }
+      nodes.add(_node(
+        id: id,
+        level: heading.level,
+        title: _displayFormat(title),
+        line: heading.line + 1,
+        // org-map-region finds the first heading with a regexp search,
+        // which leaves point after the stars and the space.
+        pos: _lineStart[heading.line] + (index == 0 ? heading.level + 1 : 0),
+        tags: _dedupKeepLast([...inherited, ...heading.localTags]),
+        properties: heading.properties!,
+        orgProperties: _entryProperties(heading),
+        todo: heading.todo,
+        priority: heading.priorityCookie?.runes.elementAt(2),
+        scheduled: scheduled,
+        deadline: deadline,
+        olp: [for (final a in heading.ancestors) _outlineTitle(a)],
+      ));
     }
 
-    return RoamFileData(path: path, nodes: nodes, links: _links());
+    final (links, citations) = _linksAndCitations();
+    return RoamFileData(
+      path: path,
+      title: fileTitle,
+      nodes: nodes,
+      links: links,
+      citations: citations,
+    );
   }
 
-  RoamNode _node(String id, int level, String title, int line,
-          List<String> tags, List<_Property> properties) =>
+  RoamNode _node({
+    required String id,
+    required int level,
+    required String title,
+    required int line,
+    required int pos,
+    required List<String> tags,
+    required List<_Property> properties,
+    required String orgProperties,
+    String? todo,
+    int? priority,
+    String? scheduled,
+    String? deadline,
+    List<String> olp = const [],
+  }) =>
       RoamNode(
         id: id,
         file: path,
         level: level,
         title: title,
         line: line,
+        pos: pos,
         tags: tags,
         aliases: [
           if (_propertyValue(properties, 'ROAM_ALIASES') case final value?)
@@ -227,6 +333,12 @@ class _FileParser {
             for (final ref in splitStringAndUnquote(value))
               ...parseRoamRef(ref, linkTypes: linkTypes),
         ],
+        todo: todo,
+        priority: priority,
+        scheduled: scheduled,
+        deadline: deadline,
+        olp: olp,
+        properties: orgProperties,
       );
 
   /// Marks blocks closed before the next heading. Org does not parse a
@@ -289,15 +401,6 @@ class _FileParser {
     fileProperties = _drawerAt(first);
   }
 
-  /// A heading's drawer follows the heading line, or its planning line.
-  List<_Property>? _readHeadingDrawer(int heading) {
-    var j = heading + 1;
-    if (j < lines.length && kind[j] == _Kind.text && _planning.hasMatch(lines[j])) {
-      j++;
-    }
-    return _drawerAt(j);
-  }
-
   /// The properties of a drawer starting at [start], or null if there is
   /// none. Marks its lines as property lines.
   List<_Property>? _drawerAt(int start) {
@@ -356,6 +459,16 @@ class _FileParser {
     );
   }
 
+  List<int> _computeLineStarts() {
+    final starts = <int>[];
+    var pos = 1;
+    for (final line in lines) {
+      starts.add(pos);
+      pos += line.runes.length + 1;
+    }
+    return starts;
+  }
+
   List<_Heading?> _computeHeadingOfLine() {
     final result = List<_Heading?>.filled(lines.length, null);
     var next = 0;
@@ -396,7 +509,25 @@ class _FileParser {
     return _nodeId(fileProperties);
   }
 
-  List<RoamLink> _links() {
+  /// A heading's title in an outline path (`org-get-outline-path`): without
+  /// statistics cookies, links shown by their description, trimmed.
+  String _outlineTitle(_Heading heading) {
+    final title = heading.title;
+    if (title == null) return '';
+    return _displayFormat(title.replaceAll(_statisticsCookie, '')).trim();
+  }
+
+  /// The outline path at [line], including the heading the line is under.
+  List<String> _outlineAt(int line) {
+    final heading = _headingOfLine[line];
+    if (heading == null) return const [];
+    return [
+      for (final a in heading.ancestors) _outlineTitle(a),
+      _outlineTitle(heading),
+    ];
+  }
+
+  (List<RoamLink>, List<RoamCitation>) _linksAndCitations() {
     // A heading with an ID but no title is a link source for org-roam, but
     // it stores no node for it, and then no links from it either.
     final untitled = {
@@ -404,27 +535,54 @@ class _FileParser {
         if (h.id != null && h.title == null) h.id,
     };
     final links = <RoamLink>[];
+    final citations = <RoamCitation>[];
     for (final piece in _linkablePieces()) {
-      for (final found in syntax.findIdLinks(piece.text)) {
-        final line = piece.line + _countNewlines(piece.text, found.offset);
+      for (final object in syntax.findObjects(piece.text)) {
+        if (object is _Timestamp) continue;
+        final offset = object.offset;
+        final lineStartInPiece =
+            offset == 0 ? 0 : piece.text.lastIndexOf('\n', offset - 1) + 1;
+        final line = piece.line + _countNewlines(piece.text, offset);
+        final pos = _lineStart[line] +
+            piece.text.substring(lineStartInPiece, offset).runes.length;
         final source = _sourceAt(line);
         if (source == null || untitled.contains(source)) continue;
-        links.add(RoamLink(
-          source: source,
-          dest: found.dest,
-          file: path,
-          line: line + 1,
-        ));
+        switch (object) {
+          case _Link():
+            links.add(RoamLink(
+              source: source,
+              dest: object.path,
+              file: path,
+              line: line + 1,
+              type: object.type,
+              pos: pos,
+              outline: _outlineAt(line),
+              searchOption: object.option,
+            ));
+          case _Citation():
+            // org-roam takes citations from Org's syntax tree, which does
+            // not parse keyword and property values.
+            if (piece.parsed) {
+              citations.add(RoamCitation(
+                nodeId: source,
+                key: object.key,
+                pos: pos,
+                outline: _outlineAt(line),
+              ));
+            }
+          case _Timestamp():
+            break;
+        }
       }
     }
-    return links;
+    return (links, citations);
   }
 
   /// The text where org-roam finds links: paragraphs, headings, table rows,
   /// keyword values and property values. Not comments, fixed-width lines,
   /// hidden blocks, `ROAM_REFS` or `#+transclude:`
   /// (`org-roam-db-extra-links-exclude-keys`).
-  Iterable<({int line, String text})> _linkablePieces() sync* {
+  Iterable<_Piece> _linkablePieces() sync* {
     var i = 0;
     while (i < lines.length) {
       final line = lines[i];
@@ -438,18 +596,18 @@ class _FileParser {
                 key != 'ROAM_REFS' &&
                 key != 'PROPERTIES' &&
                 key != 'END') {
-              yield (line: i, text: line);
+              yield (line: i, text: line, parsed: false);
             }
             i++;
           }
         case _Kind.keyword:
           {
             final key = _keyword.firstMatch(line)!.group(1)!.toLowerCase();
-            if (key != 'transclude') yield (line: i, text: line);
+            if (key != 'transclude') yield (line: i, text: line, parsed: false);
             i++;
           }
         case _Kind.heading:
-          yield (line: i, text: line);
+          yield (line: i, text: line, parsed: true);
           i++;
         case _Kind.text:
           if (_comment.hasMatch(line) ||
@@ -457,7 +615,7 @@ class _FileParser {
               line.trim().isEmpty) {
             i++;
           } else if (_tableRow.hasMatch(line)) {
-            yield (line: i, text: line);
+            yield (line: i, text: line, parsed: true);
             i++;
           } else {
             // A paragraph: a link description may wrap onto the next line.
@@ -465,7 +623,11 @@ class _FileParser {
             while (j + 1 < lines.length && _continuesParagraph(j + 1)) {
               j++;
             }
-            yield (line: i, text: lines.sublist(i, j + 1).join('\n'));
+            yield (
+              line: i,
+              text: lines.sublist(i, j + 1).join('\n'),
+              parsed: true,
+            );
             i = j + 1;
           }
       }
@@ -481,6 +643,194 @@ class _FileParser {
         !_tableRow.hasMatch(line) &&
         !_blockBegin.hasMatch(line);
   }
+
+  // ---------------------------------------------------------------------
+  // Org's property list of a node (`org-entry-properties`), as org-roam
+  // stores it in `nodes.properties`.
+
+  /// The node's properties as an Emacs Lisp alist. [heading] is null for
+  /// the file node.
+  ///
+  /// Org pushes the entries onto a list, so the result is in reverse order
+  /// of how Org finds them: ITEM, TODO, PRIORITY, FILE, TAGS, ALLTAGS,
+  /// BLOCKED, the planning line, the first timestamps, the drawer, and
+  /// CATEGORY.
+  String _entryProperties(_Heading? heading) {
+    final entries = <(String, String)>[]; // newest first
+    void push(String key, String value) => entries.insert(0, (key, value));
+
+    if (heading != null) {
+      push('ITEM', elispString(_untabify(heading.title ?? '')));
+      if (heading.todo case final todo?) push('TODO', elispString(todo));
+      // `org-priority-regexp`: the first [#X] anywhere in the heading line.
+      final priority = _priorityCookie.firstMatch(lines[heading.line]);
+      push('PRIORITY', elispString(priority?.group(1) ?? 'B'));
+    } else {
+      push('PRIORITY', elispString('B'));
+    }
+    push('FILE', elispString(_filePath));
+
+    if (heading != null) {
+      final inherited = [
+        ...fileTags,
+        for (final p in heading.ancestors) ...p.localTags,
+      ];
+      if (heading.localTags.isNotEmpty) {
+        push('TAGS', elispString(':${heading.localTags.join(':')}:'));
+      }
+      final all = _dedupKeepLastFlagged([
+        for (final t in inherited) (t, true),
+        for (final t in heading.localTags) (t, false),
+      ]);
+      if (all.isNotEmpty) push('ALLTAGS', _tagString(all));
+    } else {
+      final all = _dedupKeepLastFlagged([for (final t in fileTags) (t, true)]);
+      if (all.isNotEmpty) push('ALLTAGS', _tagString(all));
+    }
+    push('BLOCKED', elispString(''));
+
+    if (heading != null) {
+      if (planningLine[heading] case final p?) {
+        for (final m in _planningItem.allMatches(lines[p])) {
+          push(m.group(1)!, elispString(m.group(2)!));
+        }
+      }
+    }
+
+    for (final (key, raw) in _firstTimestamps(heading).reversed) {
+      push(key, elispString(raw));
+    }
+
+    final drawer = heading == null ? fileProperties : heading.properties;
+    for (final (key, value) in _drawerEntries(drawer).reversed) {
+      push(key, elispString(value));
+    }
+    if (!entries.any((e) => e.$1 == 'CATEGORY')) {
+      push('CATEGORY', elispString(_category(heading)));
+    }
+    return '(${[
+      for (final (key, value) in entries) '(${elispString(key)} . $value)',
+    ].join(' ')})';
+  }
+
+  /// The drawer's part of the property list, newest first: special
+  /// properties are skipped, `KEY+` adds to `KEY`, a repeated `KEY` is
+  /// ignored.
+  List<(String, String)> _drawerEntries(List<_Property>? drawer) {
+    final entries = <List<String>>[]; // [key, value], newest first
+    final seen = <String>{};
+    for (final p in drawer ?? const <_Property>[]) {
+      if (_specialProperties.contains(p.key)) continue;
+      final old = entries.where((e) => e[0] == p.key).firstOrNull;
+      if (p.plus) {
+        if (old == null) {
+          entries.insert(0, [p.key, p.value]);
+        } else {
+          old[1] = '${old[1]} ${p.value}';
+        }
+      } else if (seen.add(p.key)) {
+        if (old != null) {
+          old[1] = '${p.value} ${old[1]}';
+        } else {
+          entries.insert(0, [p.key, p.value]);
+        }
+      }
+    }
+    return [for (final e in entries) (e[0], e[1])];
+  }
+
+  /// `org-get-category`: the nearest CATEGORY property, then the last
+  /// `#+category:`, then the file name without `.org`.
+  String _category(_Heading? heading) {
+    if (heading != null) {
+      for (final h in [heading, ...heading.ancestors.reversed]) {
+        final value = _propertyValueOrNull(h.properties, 'CATEGORY');
+        if (value != null) return value;
+      }
+    }
+    final value = _propertyValueOrNull(fileProperties, 'CATEGORY');
+    if (value != null) return value;
+    final keyword = keywords['CATEGORY'];
+    if (keyword != null && keyword.isNotEmpty) return keyword.last;
+    final name = path.split('/').last;
+    return name.endsWith('.org') ? name.substring(0, name.length - 4) : name;
+  }
+
+  /// The first active and inactive timestamps of the entry: in the heading
+  /// line, then in its text up to the next heading, skipping the planning
+  /// line. Newest first, as Org pushes them.
+  List<(String, String)> _firstTimestamps(_Heading? heading) {
+    final found = <(String, String)>[];
+    final begin = heading?.line ?? 0;
+    final end = heading == null
+        ? (headings.isEmpty ? lines.length : headings.first.line)
+        : _nextHeadingLine(heading.line);
+    bool search(int from, int to) {
+      for (var i = from; i < to; i++) {
+        for (final ts in _timestampsIn(i)) {
+          final key = ts.active ? 'TIMESTAMP' : 'TIMESTAMP_IA';
+          if (!found.any((e) => e.$1 == key)) found.insert(0, (key, ts.raw));
+          if (found.length == 2) return true;
+        }
+      }
+      return false;
+    }
+
+    if (!search(begin, begin + 1)) {
+      var first = begin + 1;
+      if (first < lines.length &&
+          kind[first] == _Kind.text &&
+          _planning.hasMatch(lines[first])) {
+        first++;
+      }
+      search(first, end);
+    }
+    return found;
+  }
+
+  int _nextHeadingLine(int line) {
+    for (final h in headings) {
+      if (h.line > line) return h.line;
+    }
+    return lines.length;
+  }
+
+  /// Timestamps in line [i], where Org parses them: text and headings, not
+  /// comments, fixed-width or clock lines, drawers' property lines or
+  /// keywords.
+  List<_Timestamp> _timestampsIn(int i) => _timestampsOfLine.putIfAbsent(i, () {
+        final line = lines[i];
+        final ok = kind[i] == _Kind.heading ||
+            (kind[i] == _Kind.text &&
+                !_comment.hasMatch(line) &&
+                !_fixedWidth.hasMatch(line) &&
+                !_clock.hasMatch(line));
+        if (!ok) return const [];
+        return [
+          for (final o in syntax.findObjects(line))
+            if (o is _Timestamp) o,
+        ];
+      });
+
+  /// ALLTAGS: `:a:b:`, with `(inherited t)` over inherited tags.
+  String _tagString(List<(String, bool)> tags) {
+    final text = ':${tags.map((t) => t.$1).join(':')}:';
+    final spans = <(int, int)>[];
+    var pos = 1;
+    for (final (tag, inherited) in tags) {
+      final length = tag.runes.length;
+      if (inherited) spans.add((pos, pos + length));
+      pos += length + 1;
+    }
+    return elispPropertized(text, spans);
+  }
+}
+
+String _normalize(String text) {
+  var result = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+  // Emacs drops a UTF-8 byte order mark.
+  if (result.startsWith('\uFEFF')) result = result.substring(1);
+  return result;
 }
 
 /// `org-id-get`: an ID with at least one non-space character, on a node
@@ -492,6 +842,9 @@ String? _nodeId(List<_Property>? properties) {
   if (_propertyValue(properties, 'ROAM_EXCLUDE') != null) return null;
   return id.trim();
 }
+
+String? _propertyValueOrNull(List<_Property>? properties, String key) =>
+    properties == null ? null : _propertyValue(properties, key);
 
 /// `org-entry-get`: the value of [key], with `KEY+` values appended. The
 /// value "nil" means no value.
@@ -514,14 +867,48 @@ String? _propertyValue(List<_Property> properties, String key) {
 }
 
 /// `org-get-tags` keeps the last of repeated tags.
-List<String> _dedupKeepLast(List<String> tags) {
+List<String> _dedupKeepLast(List<String> tags) =>
+    [for (final (tag, _) in _dedupKeepLastFlagged([for (final t in tags) (t, false)])) tag];
+
+List<(String, bool)> _dedupKeepLastFlagged(List<(String, bool)> tags) {
   final seen = <String>{};
-  final kept = <String>[];
+  final kept = <(String, bool)>[];
   for (final tag in tags.reversed) {
-    if (seen.add(tag)) kept.add(tag);
+    if (seen.add(tag.$1)) kept.add(tag);
   }
   return kept.reversed.toList();
 }
+
+/// `org-remove-tabs`: tabs become spaces up to the next multiple of 8.
+String _untabify(String text) {
+  final out = StringBuffer();
+  var column = 0;
+  for (final c in text.runes) {
+    if (c == 0x09) {
+      final spaces = 8 - column % 8;
+      out.write(' ' * spaces);
+      column += spaces;
+    } else {
+      out.writeCharCode(c);
+      column++;
+    }
+  }
+  return out.toString();
+}
+
+/// `format-time-string "%FT%T"` of a planning timestamp:
+/// `<2026-03-01 Sun 10:30 +1w>` gives `2026-03-01T10:30:00`.
+String? _isoTime(String timestamp) {
+  final m = _timestampDate.firstMatch(timestamp);
+  if (m == null) return null;
+  final hour = int.tryParse(m.group(2) ?? '') ?? 0;
+  final minute = int.tryParse(m.group(3) ?? '') ?? 0;
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${m.group(1)}T${two(hour)}:${two(minute)}:00';
+}
+
+final _timestampDate =
+    RegExp(r'^[<\[](\d{4}-\d{2}-\d{2})(?: [^\d>\]]*)?(?: ?(\d{1,2}):(\d{2}))?');
 
 /// Emacs's `split-string-and-unquote`: splits at whitespace, but
 /// `"two words"` is one item. A backslash outside quotes is kept, as in
@@ -618,42 +1005,102 @@ final _wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
 final _verbatim = RegExp(r'''([=~])(\S|\S.*?\S)\1(?=[-\s.,:!?;'")}\\\[]|$)''',
     multiLine: true);
 final _inlineSource = RegExp(r'src_[^\s{\[]+(?:\[[^\]\n]*\])?\{[^}\n]*\}');
+final _citationObject = RegExp(r'\[cite(?:/[^:\]\n]*)?:([^\]]*)\]');
+final _timestamp = RegExp(
+  r'(<\d{4}-\d{2}-\d{2}(?: [^<>\n]*?)?>(?:--<\d{4}-\d{2}-\d{2}(?: [^<>\n]*?)?>)?)'
+  r'|(\[\d{4}-\d{2}-\d{2}(?: [^\[\]\n]*?)?\](?:--\[\d{4}-\d{2}-\d{2}(?: [^\[\]\n]*?)?\])?)',
+);
 const _verbatimPre = "-('\"{";
 const _punctuation = r'''!"#$%&'()*+,-.:;<=>?@[\]^_`{|}~''';
 
-/// Finds links in text the way Org's object parser does, for the
-/// registered link types.
+/// Link types whose `::search` option Org's parser removes from the path
+/// without org-roam seeing it.
+const _fileTypes = {'file', 'file+sys', 'file+emacs'};
+
+/// An object Org's parser finds in text.
+sealed class _Object {
+  _Object(this.offset);
+
+  /// Where it starts in the text, in UTF-16 units.
+  final int offset;
+}
+
+class _Link extends _Object {
+  _Link(super.offset, this.type, this.path, this.option);
+
+  final String type;
+  final String path;
+  final String? option;
+}
+
+class _Citation extends _Object {
+  _Citation(super.offset, this.key);
+
+  final String key;
+}
+
+class _Timestamp extends _Object {
+  _Timestamp(super.offset, this.raw, this.active);
+
+  final String raw;
+  final bool active;
+}
+
+/// Finds links, citations and timestamps in text the way Org's object
+/// parser does, for the registered link types.
 class _LinkSyntax {
   _LinkSyntax._(List<String> types)
       : _angle = RegExp('<(${_alternatives(types)}):([^>\\n]*)>'),
-        _plain = RegExp('(${_alternatives(types)}):([^\\[\\]\\s()<>]+)');
+        _plain = RegExp('(${_alternatives(types)}):([^\\[\\]\\s()<>]+)'),
+        _typePrefix = RegExp('^(${_alternatives(types)}):([\\s\\S]*)\$');
 
-  factory _LinkSyntax.of(List<String> types) => _cache[types.join(' ')] ??= _LinkSyntax._(types);
+  factory _LinkSyntax.of(List<String> types) =>
+      _cache[types.join(' ')] ??= _LinkSyntax._(types);
 
   static final _cache = <String, _LinkSyntax>{};
 
   final RegExp _angle;
   final RegExp _plain;
+  final RegExp _typePrefix;
 
   static String _alternatives(List<String> types) {
     final sorted = [...types]..sort((a, b) => b.length.compareTo(a.length));
     return sorted.map(_escape).join('|');
   }
 
-  /// `id:` links in [text], left to right. Other links, verbatim and code
-  /// are skipped as a whole, so an `id:` inside them is not a link.
-  List<({int offset, String dest})> findIdLinks(String text) {
-    final found = <({int offset, String dest})>[];
+  /// Objects in [text], left to right. Verbatim, code and inline source
+  /// are skipped as a whole, so nothing inside them counts.
+  List<_Object> findObjects(String text) {
+    final found = <_Object>[];
     var i = 0;
     while (i < text.length) {
       final c = text[i];
       if (c == '[' && text.startsWith('[[', i)) {
         final m = _bracketLink.matchAsPrefix(text, i);
         if (m != null) {
-          final target = m.group(1)!;
-          if (target.startsWith('id:')) {
-            found.add((offset: i, dest: _withoutSearchOption(target.substring(3))));
+          found.add(_bracket(i, m.group(1)!));
+          i = m.end;
+          continue;
+        }
+      }
+      if (c == '[' && text.startsWith('[cite', i)) {
+        final m = _citationObject.matchAsPrefix(text, i);
+        if (m != null) {
+          // Each reference starts after the colon or after a semicolon.
+          var offset = text.indexOf(':', i) + 1;
+          for (final part in m.group(1)!.split(';')) {
+            final key = _citationKey.firstMatch(part);
+            if (key != null) found.add(_Citation(offset, key.group(1)!));
+            offset += part.length + 1;
           }
+          i = m.end;
+          continue;
+        }
+      }
+      if (c == '<' || c == '[') {
+        final m = _timestamp.matchAsPrefix(text, i);
+        if (m != null) {
+          found.add(_Timestamp(i, m.group(0)!, c == '<'));
           i = m.end;
           continue;
         }
@@ -661,9 +1108,7 @@ class _LinkSyntax {
       if (c == '<') {
         final m = _angle.matchAsPrefix(text, i);
         if (m != null) {
-          if (m.group(1) == 'id') {
-            found.add((offset: i, dest: _withoutSearchOption(m.group(2)!.trim())));
-          }
+          found.add(_link(i, m.group(1)!, m.group(2)!.trim()));
           i = m.end;
           continue;
         }
@@ -687,9 +1132,7 @@ class _LinkSyntax {
       if (atWordStart && _wordChar.hasMatch(c)) {
         final plain = _plainAt(text, i);
         if (plain != null) {
-          if (plain.type == 'id') {
-            found.add((offset: i, dest: _withoutSearchOption(plain.target)));
-          }
+          found.add(_link(i, plain.type, plain.target));
           i = plain.end;
           continue;
         }
@@ -697,6 +1140,41 @@ class _LinkSyntax {
       i++;
     }
     return found;
+  }
+
+  /// A bracket link's type and path, as Org's link parser sees them.
+  _Link _bracket(int offset, String raw) {
+    final target = raw
+        .replaceAll(RegExp(r'[ \t]*\n[ \t]*'), ' ')
+        .replaceAllMapped(RegExp(r'\\(\\*[\[\]])'), (m) => m.group(1)!);
+    final typed = _typePrefix.firstMatch(target);
+    if (typed != null) return _link(offset, typed.group(1)!, typed.group(2)!);
+    if (target.startsWith('#')) {
+      return _Link(offset, 'custom-id', target.substring(1), null);
+    }
+    if (target.startsWith('(') && target.endsWith(')')) {
+      return _Link(offset, 'coderef', target.substring(1, target.length - 1), null);
+    }
+    if (target.startsWith('/') ||
+        target.startsWith('~/') ||
+        target.startsWith('./') ||
+        target.startsWith('../')) {
+      return _link(offset, 'file', target);
+    }
+    return _Link(offset, 'fuzzy', target, null);
+  }
+
+  /// org-roam strips a `::search` option from any path and keeps it; for
+  /// file links Org has already removed it.
+  static _Link _link(int offset, String type, String path) {
+    final option = path.indexOf('::');
+    if (option < 0) return _Link(offset, type, path, null);
+    return _Link(
+      offset,
+      type,
+      path.substring(0, option),
+      _fileTypes.contains(type) ? null : path.substring(option + 2),
+    );
   }
 
   /// The target of the first link in [text], as org-roam's ref parsing
@@ -729,11 +1207,5 @@ class _LinkSyntax {
     if (target.isEmpty) return null;
     final type = m.group(1)!;
     return (type: type, target: target, end: start + type.length + 1 + target.length);
-  }
-
-  /// `id:abc::*Heading` links to `abc`.
-  static String _withoutSearchOption(String target) {
-    final option = target.indexOf('::');
-    return option < 0 ? target : target.substring(0, option);
   }
 }

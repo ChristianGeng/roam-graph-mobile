@@ -12,6 +12,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # SHA-1 of file contents, as org-roam's files.hash.
+  crypto: ^3.0.6
+  # The app's private folder for the database.
+  path_provider: ^2.1.5
+  # SQLite for the org-roam database (#5); sqlite3_flutter_libs bundles
+  # SQLite into the APK.
+  sqlite3: ^2.7.0
+  sqlite3_flutter_libs: ^0.5.32
 
 dev_dependencies:
   flutter_test:
