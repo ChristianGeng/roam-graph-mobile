@@ -61,12 +61,25 @@ class RoamDatabase {
             "AND name = 'files'")
         .isNotEmpty;
     if (!exists) {
-      for (final sql in _schema) {
-        _db.execute(sql);
-      }
-      _db.userVersion = orgRoamDbVersion;
+      // One transaction, so an interrupted setup leaves no half schema.
+      transaction(() {
+        for (final sql in _schema) {
+          _db.execute(sql);
+        }
+        _db.userVersion = orgRoamDbVersion;
+      });
     }
   }
+
+  /// SQLite's `user_version`, which org-roam sets to its schema version.
+  int get userVersion => _db.userVersion;
+
+  /// The column names of [table], as SQLite reports them.
+  List<String> columns(String table) => [
+        for (final row in _db.select('SELECT name FROM pragma_table_info(?)',
+            [table]).rows)
+          row[0]! as String,
+      ];
 
   /// Opens the database at [path], creating it if needed.
   factory RoamDatabase.open(String path, {required String root}) =>
@@ -132,6 +145,8 @@ class RoamDatabase {
       path,
       elispString(file.title),
       elispString(hash),
+      // atime: Android's folder access gives no access time, so the
+      // modification time stands in for it.
       _emacsTime(mtime),
       _emacsTime(mtime),
     ]);
@@ -213,13 +228,12 @@ class RoamDatabase {
         'DELETE FROM files WHERE file = ?', [elispString(_absolute(path))]);
   }
 
-  /// Removes everything, for a full rebuild.
+  /// Removes everything, for a full rebuild. Run it inside [transaction]
+  /// with the rebuild, so a failed rebuild keeps the old rows.
   void clear() {
-    transaction(() {
-      for (final table in roamTables.reversed) {
-        _db.execute('DELETE FROM $table');
-      }
-    });
+    for (final table in roamTables.reversed) {
+      _db.execute('DELETE FROM $table');
+    }
   }
 
   /// The graph as stored. Lines are not stored, so they are 0; [extra]

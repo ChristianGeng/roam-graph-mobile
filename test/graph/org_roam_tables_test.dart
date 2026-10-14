@@ -35,10 +35,21 @@ void main() {
       File('test/fixtures/org_roam_expected_tables.json').readAsStringSync(),
     ) as Map<String, dynamic>;
 
+    expect(db.userVersion, 20);
     for (final table in roamTables) {
+      final expectedTable = expected[table] as Map<String, dynamic>;
+      // The export leaves out atime and mtime.
+      expect(
+        [
+          for (final c in db.columns(table))
+            if (table != 'files' || (c != 'atime' && c != 'mtime')) c,
+        ],
+        expectedTable['columns'],
+        reason: 'The $table table has other columns than org-roam.',
+      );
       expect(
         rows(actual[table]),
-        rows((expected[table] as Map<String, dynamic>)['rows']),
+        rows(expectedTable['rows']),
         reason: 'The $table table differs from org-roam.',
       );
     }

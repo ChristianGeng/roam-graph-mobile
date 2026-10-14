@@ -18,13 +18,14 @@ import 'roam_graph.dart';
 /// milliseconds.
 typedef Listing = Map<String, int>;
 
-/// The files of [listing] that must be read: not stored yet, or stored
-/// with a different modification time.
+/// The files of [listing] that must be read: not stored yet, stored with a
+/// different modification time, or without a modification time (0), whose
+/// content can only be checked by its hash.
 List<String> filesToRead(RoamDatabase db, Listing listing) {
   final stored = db.storedFiles();
   return [
     for (final MapEntry(key: path, value: mtime) in listing.entries)
-      if (stored[path]?.mtime != mtime) path,
+      if (mtime == 0 || stored[path]?.mtime != mtime) path,
   ];
 }
 
@@ -32,15 +33,21 @@ List<String> filesToRead(RoamDatabase db, Listing listing) {
 /// files read, null for a file that could not be read; a file that cannot
 /// be read keeps what is stored for it.
 ///
+/// With [replace], everything stored before is dropped first, in the same
+/// transaction: a full rebuild, which leaves the old index in place if it
+/// fails. [contents] should then hold every file of [listing].
+///
 /// Returns the graph as stored, plus the files org-roam would skip.
 RoamGraph updateIndex(
   RoamDatabase db,
   Listing listing,
-  Map<String, Uint8List?> contents,
-) {
+  Map<String, Uint8List?> contents, {
+  bool replace = false,
+}) {
   final failed = <RoamFileData>[];
   final duplicates = <String, List<String>>{};
   db.transaction(() {
+    if (replace) db.clear();
     final stored = db.storedFiles();
     for (final path in stored.keys) {
       if (!listing.containsKey(path)) db.removeFile(path);

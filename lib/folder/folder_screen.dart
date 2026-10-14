@@ -113,18 +113,21 @@ class _FolderScreenState extends State<FolderScreen>
     }
   }
 
-  /// Forgets the database and indexes every file again.
+  /// Reads every file again and replaces the whole index. The old index
+  /// stays until the new one is complete.
   Future<void> _rebuild() async {
     final folder = _folder;
     if (folder != null) {
-      await _guard((generation) async {
-        await widget.graphIndex.clear();
-        await _index(generation, folder);
-      });
+      await _guard(
+          (generation) => _index(generation, folder, rebuild: true));
     }
   }
 
-  Future<void> _index(int generation, ChosenFolder folder) async {
+  Future<void> _index(
+    int generation,
+    ChosenFolder folder, {
+    bool rebuild = false,
+  }) async {
     // Remember the folder first, so "Try again" works if listing fails.
     if (generation == _generation) _folder = folder;
     if (!folder.hasAccess) {
@@ -146,15 +149,25 @@ class _FolderScreenState extends State<FolderScreen>
       for (final MapEntry(key: path, value: file) in byPath.entries)
         path: file.modified,
     };
-    // Read only what is new or changed since the last time.
-    final toRead = await widget.graphIndex.filesToRead(listing);
+    // Read only what is new or changed since the last time, unless the
+    // index is rebuilt or holds another folder's files.
+    final index = widget.graphIndex;
+    final replace =
+        rebuild || await index.indexedFolder() != folder.uri;
+    final toRead =
+        replace ? listing.keys.toList() : await index.filesToRead(listing);
     final bytes = await widget.folderAccess
         .readFiles([for (final path in toRead) byPath[path]!]);
     final contents = {
       for (var i = 0; i < toRead.length; i++)
         toRead[i]: i < bytes.length ? bytes[i] : null,
     };
-    final graph = await widget.graphIndex.update(listing, contents);
+    // A newer operation has started and reads the files again; an older
+    // scan must not store its contents after the newer one. The index runs
+    // its calls in order, so checking here, before the call, is enough.
+    if (generation != _generation) return;
+    final graph = await index.update(listing, contents,
+        folder: folder.uri, replace: replace);
     final unreadable = [
       for (final MapEntry(key: path, value: content) in contents.entries)
         if (content == null) path,

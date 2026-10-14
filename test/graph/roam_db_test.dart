@@ -61,13 +61,26 @@ void main() {
     });
 
     test('a removed file takes its rows with it', () {
-      updateIndex(db, {'a.org': 1, 'b.org': 1},
-          {'a.org': bytes(a), 'b.org': bytes(b)});
+      // c.org has rows in every table.
+      const c = ':PROPERTIES:\n:ID: c\n:ROAM_ALIASES: Sea\n'
+          ':ROAM_REFS: https://example.org @key\n:END:\n'
+          '#+title: C\n#+filetags: :c:\n[[id:a]] [cite:@other]\n';
+      updateIndex(db, {'a.org': 1, 'c.org': 1},
+          {'a.org': bytes(a), 'c.org': bytes(c)});
+      final before = db.dumpTables();
+      for (final table in roamTables) {
+        expect(before[table], isNotEmpty, reason: table);
+      }
       final graph = updateIndex(db, {'a.org': 1}, {});
       expect(graph.files, ['a.org']);
-      final tables = db.dumpTables();
-      expect(tables['nodes'], hasLength(1));
-      expect(tables['aliases'], isEmpty);
+      final after = db.dumpTables();
+      for (final table in roamTables) {
+        expect(after[table], hasLength(before[table]!.length - _rowsOfC(table)),
+            reason: table);
+      }
+      expect(after['aliases'], isEmpty);
+      expect(after['refs'], isEmpty);
+      expect(after['citations'], isEmpty);
     });
 
     test('the graph read back matches what was stored', () {
@@ -82,9 +95,10 @@ void main() {
 
     test('same content with a new time only updates the time', () {
       updateIndex(db, {'a.org': 1}, {'a.org': bytes(a)});
+      final before = db.dumpTables(); // without the times
       updateIndex(db, {'a.org': 9000}, {'a.org': bytes(a)});
       expect(db.storedFiles()['a.org']!.mtime, 9000);
-      expect(db.dumpTables()['nodes'], hasLength(1));
+      expect(db.dumpTables(), before);
     });
 
     test('a file org-roam fails on is not stored, and is reported', () {
@@ -105,9 +119,37 @@ void main() {
       });
     });
 
-    test('the schema is org-roam version 20', () {
-      expect(orgRoamDbVersion, 20);
-      expect(db.dumpTables().keys, roamTables);
+    test('the schema is org-roam version 20, with its columns', () {
+      expect(db.userVersion, 20);
+      expect({for (final table in roamTables) table: db.columns(table)}, {
+        'files': ['file', 'title', 'hash', 'atime', 'mtime'],
+        'nodes': ['id', 'file', 'level', 'pos', 'todo', 'priority',
+            'scheduled', 'deadline', 'title', 'properties', 'olp'],
+        'aliases': ['node_id', 'alias'],
+        'citations': ['node_id', 'cite_key', 'pos', 'properties'],
+        'refs': ['node_id', 'ref', 'type'],
+        'tags': ['node_id', 'tag'],
+        'links': ['pos', 'source', 'dest', 'type', 'properties'],
+      });
+    });
+
+    test('files without a modification time are always read', () {
+      updateIndex(db, {'a.org': 0}, {'a.org': bytes(a)});
+      expect(filesToRead(db, {'a.org': 0}), ['a.org']);
+    });
+
+    test('a replacing update drops what was stored before', () {
+      updateIndex(db, {'a.org': 1, 'b.org': 1},
+          {'a.org': bytes(a), 'b.org': bytes(b)});
+      updateIndex(db, {'b.org': 1}, {'b.org': bytes(b)}, replace: true);
+      expect(db.storedFiles().keys, ['b.org']);
     });
   });
 }
+
+/// The rows c.org has in [table], in the removal test.
+int _rowsOfC(String table) => switch (table) {
+      'files' || 'nodes' || 'aliases' || 'tags' || 'links' || 'citations' => 1,
+      'refs' => 2,
+      _ => 0,
+    };

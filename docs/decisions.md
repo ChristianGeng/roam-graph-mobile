@@ -177,10 +177,14 @@ devices through Syncthing.
     - The database is `org-roam.db` in the app's support folder, not in the
       Syncthing folder, so the app never writes into my notes.
     - Only new and changed files are read: first by modification time, then
-      by content hash (SHA-1, as org-roam). A file that disappeared is
-      removed. "Rebuild index" deletes everything and reads every file
-      again. The app updates the index when it comes back to the
-      foreground.
+      by content hash (SHA-1, as org-roam). A file without a modification
+      time is always read. A file that disappeared is removed. "Rebuild
+      index" reads every file again and replaces the index in one
+      transaction, so a failed rebuild keeps the old one; choosing another
+      folder does the same. The app updates the index when it comes back
+      to the foreground. Index updates run one at a time, in order.
+    - `files.atime` holds the modification time: Android's folder access
+      gives no access time.
     - The parser fills every column, not only what the graph needs: `pos`,
       `level`, `todo`, `priority`, `scheduled`, `deadline`, `olp`, the
       `properties` list org-roam stores, all link types with their

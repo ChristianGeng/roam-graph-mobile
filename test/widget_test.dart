@@ -64,7 +64,11 @@ class FakeFolderAccess implements FolderAccess {
 /// isolate, which tests cannot wait for.
 class TestGraphIndex implements GraphIndex {
   final db = RoamDatabase.inMemory(root: '/roam');
-  int clears = 0;
+  String? folder;
+  int rebuilds = 0;
+
+  @override
+  Future<String?> indexedFolder() async => folder;
 
   @override
   Future<List<String>> filesToRead(indexer.Listing listing) async =>
@@ -73,14 +77,15 @@ class TestGraphIndex implements GraphIndex {
   @override
   Future<RoamGraph> update(
     indexer.Listing listing,
-    Map<String, Uint8List?> contents,
-  ) async =>
-      indexer.updateIndex(db, listing, contents);
-
-  @override
-  Future<void> clear() async {
-    clears++;
-    db.clear();
+    Map<String, Uint8List?> contents, {
+    required String folder,
+    bool replace = false,
+  }) async {
+    if (replace) rebuilds++;
+    final graph =
+        indexer.updateIndex(db, listing, contents, replace: replace);
+    this.folder = folder;
+    return graph;
   }
 }
 
@@ -88,8 +93,8 @@ const org = ChosenFolder(uri: 'content://tree/org', name: 'org', hasAccess: true
 
 List<FolderFile> someFiles() => [
       const FolderFile(path: 'roam', uri: 'content://r', isDirectory: true),
-      const FolderFile(path: 'roam/a.org', uri: 'content://a'),
-      const FolderFile(path: 'roam/b.org', uri: 'content://b'),
+      const FolderFile(path: 'roam/a.org', uri: 'content://a', modified: 1),
+      const FolderFile(path: 'roam/b.org', uri: 'content://b', modified: 1),
       const FolderFile(path: 'roam/b.sync-conflict-1.org', uri: 'content://c'),
       const FolderFile(path: 'journal/2024.org', uri: 'content://d'),
     ];
@@ -361,13 +366,49 @@ void main() {
   testWidgets('rebuilding the index reads every file again', (tester) async {
     final access = withNotes(saved: org);
     final index = await start(tester, access);
+    expect(index.rebuilds, 1); // the first index of a folder
 
     await tester.tap(find.text('Rebuild index'));
     await tester.pumpAndSettle();
 
-    expect(index.clears, 1);
+    expect(index.rebuilds, 2);
     expect(access.readPaths, hasLength(4));
     expectSomeNotes(tester);
+  });
+
+  testWidgets('a failed rebuild keeps the old index', (tester) async {
+    final access = withNotes(saved: org);
+    final index = await start(tester, access);
+
+    access.listError = PlatformException(code: 'io', message: 'gone');
+    await tester.tap(find.text('Rebuild index'));
+    await tester.pumpAndSettle();
+
+    expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+  });
+
+  testWidgets('another folder replaces the index, even with the same files',
+      (tester) async {
+    final access = withNotes(saved: org);
+    final index = await start(tester, access);
+    expect(index.folder, org.uri);
+
+    // Same paths and times as before, other content.
+    const other =
+        ChosenFolder(uri: 'content://tree/other', name: 'org', hasAccess: true);
+    access
+      ..picked = other
+      ..texts = {
+        'roam/a.org': ':PROPERTIES:\n:ID: other-a\n:END:\n',
+        'roam/b.org': ':PROPERTIES:\n:ID: other-b\n:END:\n',
+      };
+    await tester.tap(find.text('Change folder'));
+    await tester.pumpAndSettle();
+
+    expect(index.folder, other.uri);
+    expect(access.readPaths.skip(2), ['roam/a.org', 'roam/b.org']);
+    expect(index.db.loadGraph().nodes.keys,
+        unorderedEquals(['other-a', 'other-b']));
   });
 
   testWidgets('coming back to the app indexes again', (tester) async {

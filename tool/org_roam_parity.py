@@ -215,7 +215,23 @@ def find_dart():
 # Columns that differ by nature between two databases of the same files:
 # when a file was last read or changed.
 _VOLATILE = {"files": ("atime", "mtime")}
-TABLES = ("files", "nodes", "aliases", "citations", "refs", "tags", "links")
+# org-roam's tables and their columns (org-roam-db--table-schemata, db
+# version 20). Only these names go into the queries below.
+COLUMNS = {
+    "files": ("file", "title", "hash", "atime", "mtime"),
+    "nodes": ("id", "file", "level", "pos", "todo", "priority", "scheduled",
+              "deadline", "title", "properties", "olp"),
+    "aliases": ("node_id", "alias"),
+    "citations": ("node_id", "cite_key", "pos", "properties"),
+    "refs": ("node_id", "ref", "type"),
+    "tags": ("node_id", "tag"),
+    "links": ("pos", "source", "dest", "type", "properties"),
+}
+TABLES = tuple(COLUMNS)
+
+
+def _quoted(name):
+    return '"%s"' % name.replace('"', '""')
 
 
 def dump_tables(db_path, roam_dir):
@@ -237,10 +253,16 @@ def dump_tables(db_path, roam_dir):
         result = {}
         files = set()
         for table in TABLES:
-            columns = [row[1] for row in con.execute("PRAGMA table_info(%s)" % table)]
+            columns = tuple(row[0] for row in con.execute(
+                "SELECT name FROM pragma_table_info(?)", (table,)))
+            if columns != COLUMNS[table]:
+                raise SystemExit("%s: table %s has columns %s, not org-roam's %s"
+                                 % (db_path, table, list(columns),
+                                    list(COLUMNS[table])))
             keep = [c for c in columns if c not in _VOLATILE.get(table, ())]
-            rows = [[neutral(v) for v in row]
-                    for row in con.execute("SELECT %s FROM %s" % (", ".join(keep), table))]
+            query = "SELECT %s FROM %s" % (", ".join(map(_quoted, keep)),
+                                           _quoted(table))
+            rows = [[neutral(v) for v in row] for row in con.execute(query)]
             result[table] = {"columns": keep, "rows": rows}
         # Only the files under ROAM_DIR, and the rows of their nodes.
         file_rows = [r for r in result["files"]["rows"] if r[0].startswith('"{roam}/')]
