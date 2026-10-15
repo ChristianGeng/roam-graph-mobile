@@ -80,6 +80,19 @@ List<FolderFile>? selectRoamFiles(
 /// together with the Emacs setting.
 final roamExcludePatterns = [RegExp(r'^daily/')];
 
+/// The conflict copies Syncthing made in the chosen folder (#13), sorted:
+/// files named `<name>.sync-conflict-<date>-<time>-<device>.<ext>`, made
+/// when the laptop and the device changed the same file. They are not part
+/// of the graph; the app lists them so they can be resolved in Emacs.
+/// Syncthing's own folders are left out.
+List<String> conflictCopies(Iterable<FolderFile> entries) => [
+      for (final entry in entries)
+        if (!entry.isDirectory &&
+            entry.path.split('/').last.contains('.sync-conflict-') &&
+            !entry.path.split('/').any(skippedDirectories.contains))
+          entry.path,
+    ]..sort();
+
 /// Whether [path], relative to `roam/`, is a file org-roam would index.
 ///
 /// Skips what [roamExcludePatterns] excludes, Syncthing's files

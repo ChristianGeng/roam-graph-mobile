@@ -502,6 +502,28 @@ devices through Syncthing.
       default, as decision 10 says. The link can be switched off before
       saving.
 
+33. **Writing next to Syncthing is safe, and conflicts are shown** (#13):
+    - **No partial files, no overwriting:** a new file is written under
+      Syncthing's own temporary name and renamed into place, and an
+      existing name is never replaced (decision 31). The app never writes
+      into existing files (decision 32).
+    - **Conflict copies:** Syncthing names them
+      `<name>.sync-conflict-<date>-<time>-<device>.<ext>`. They were
+      already left out of the graph (#4); now the counts screen counts
+      and lists every one in the chosen folder, outside Syncthing's own
+      folders, so they can be resolved in Emacs.
+      - The counts screen is the first screen on start, so copies found
+        by the first scan are shown there.
+      - A copy that appears later, for example when the app comes back
+        to the foreground while the graph is open, is also reported in a
+        message on top of the graph.
+    - **The check:** a test captures five nodes in quick succession. It
+      requires five distinct files, each written once, none overwritten,
+      all indexed, and no conflict copies or temporary files left. The
+      writing itself (temporary name, rename, name check) is Android code
+      (`FolderAccess.kt`) that the tests do not run. Checking it is the
+      owner's task on the device, against the laptop.
+
 ## Recommended, not decided
 
 Nothing at the moment.

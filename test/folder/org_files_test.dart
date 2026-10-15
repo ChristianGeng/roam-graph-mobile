@@ -135,4 +135,25 @@ void main() {
       expect(isRoamFile('#a.org#'), isFalse);
     });
   });
+
+  test('Syncthing conflict copies anywhere in the folder (#13)', () {
+    expect(
+      conflictCopies(const [
+        FolderFile(path: 'roam', uri: 'r', isDirectory: true),
+        FolderFile(
+            path: 'roam/b.sync-conflict-20261015-101010-ABCDEFG.org', uri: 'c'),
+        FolderFile(path: 'roam/b.org', uri: 'b'),
+        FolderFile(
+            path: 'agenda/a.sync-conflict-20261015-101011-ABCDEFG.org',
+            uri: 'a'),
+        FolderFile(
+            path: '.stversions/x.sync-conflict-20261015-101012-ABCDEFG.org',
+            uri: 'x'),
+      ]),
+      [
+        'agenda/a.sync-conflict-20261015-101011-ABCDEFG.org',
+        'roam/b.sync-conflict-20261015-101010-ABCDEFG.org',
+      ],
+    );
+  });
 }
