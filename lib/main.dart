@@ -1,8 +1,10 @@
 import 'package:material_ui/material_ui.dart';
 
+import 'capture/share_inbox.dart';
 import 'folder/folder_access.dart';
 import 'folder/folder_screen.dart';
 import 'graph/graph_index.dart';
+import 'graph_view/node_memory.dart';
 
 /// The version the release workflow builds, passed in with
 /// `--dart-define=APP_VERSION=...`. Local builds show "dev".
@@ -18,11 +20,15 @@ class RoamGraphApp extends StatelessWidget {
     this.folderAccess = const PlatformFolderAccess(),
     this.graphIndex = const SqliteGraphIndex(),
     this.graphScreen = FolderScreen.defaultGraphScreen,
+    this.shareInbox = const PlatformShareInbox(),
+    this.nodeMemory = const FileNodeMemory(),
   });
 
   final FolderAccess folderAccess;
   final GraphIndex graphIndex;
   final GraphScreenBuilder graphScreen;
+  final ShareInbox shareInbox;
+  final NodeMemory nodeMemory;
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +44,8 @@ class RoamGraphApp extends StatelessWidget {
         version: appVersion,
         graphIndex: graphIndex,
         graphScreen: graphScreen,
+        shareInbox: shareInbox,
+        nodeMemory: nodeMemory,
       ),
     );
   }
