@@ -106,9 +106,10 @@ class _GraphScreenState extends State<GraphScreen> {
   _Drawing? _drawing;
   Size _viewport = Size.zero;
 
-  /// The nodes shown in the side pane, the current one last; empty until a
-  /// node is opened there, when the pane shows the centre node.
-  final _paneHistory = <String>[];
+  /// The nodes selected so far, the current one ([_centre]) last, for the
+  /// side pane's Back. Empty until a second node is selected. The side
+  /// pane always shows [_centre].
+  final _history = <String>[];
 
   /// Layouts computed so far, so switching back is immediate.
   final _layouts = <(GraphScope, LayoutKind), GraphLayout>{};
@@ -157,7 +158,15 @@ class _GraphScreenState extends State<GraphScreen> {
   void _graphChanged() {
     if (!mounted) return;
     final graph = _graph;
-    if (!graph.nodes.containsKey(_centre)) _centre = _mostLinked(graph);
+    // Nodes that are gone leave the history; the centre falls back to the
+    // node selected before it, or to the node with the most links.
+    _history.retainWhere(graph.nodes.containsKey);
+    for (var i = _history.length - 1; i > 0; i--) {
+      if (_history[i] == _history[i - 1]) _history.removeAt(i);
+    }
+    if (!graph.nodes.containsKey(_centre)) {
+      _centre = _history.lastOrNull ?? _mostLinked(graph);
+    }
     final drawn = _drawn;
     final centre = _centre;
     if (centre != null &&
@@ -244,11 +253,31 @@ class _GraphScreenState extends State<GraphScreen> {
     if (id == null) return;
     final node = _graph.nodes[id];
     if (node == null) return;
+    widget.nodeMemory.remember(id);
+    _openNode(context, id);
+  }
+
+  /// Makes [id] the selected node: the graph marks it, and the side pane
+  /// shows it. The view does not move.
+  void _select(String id) {
+    final previous = _centre;
+    if (previous == id) return;
+    if (_history.isEmpty && previous != null) _history.add(previous);
+    _history.add(id);
+    // Back goes far enough; older entries are dropped.
+    if (_history.length > 100) _history.removeAt(0);
+    _centre = id;
+  }
+
+  /// Opens the node [id] the way the screen is now: in the side pane on a
+  /// tablet in landscape, on a new page otherwise. Decided when called, so
+  /// a search opened before the device turned follows the new layout.
+  void _openNode(BuildContext _, String id) {
+    if (!mounted || !_graph.nodes.containsKey(id)) return;
     if (isTwoPane(MediaQuery.sizeOf(context))) {
-      widget.nodeMemory.remember(id);
-      _showInPane(context, id);
+      _showInPane(id);
     } else {
-      setState(() => _centre = id);
+      setState(() => _select(id));
       _openPage(id);
     }
   }
@@ -265,24 +294,30 @@ class _GraphScreenState extends State<GraphScreen> {
       );
 
   /// Shows [id] in the side pane, and marks it in the graph without moving
-  /// the view.
-  void _showInPane(BuildContext _, String id) {
-    if (!mounted || !_graph.nodes.containsKey(id)) return;
-    setState(() {
-      // The pane started on the centre node: Back returns to it.
-      final first = _centre;
-      if (_paneHistory.isEmpty && first != null && first != id) {
-        _paneHistory.add(first);
-      }
-      if (_paneHistory.lastOrNull != id) _paneHistory.add(id);
-      _centre = id;
-    });
+  /// the view. A node outside the part of the graph drawn around another
+  /// node gets that part drawn around it.
+  void _showInPane(String id) {
+    setState(() => _select(id));
+    _drawAroundCentreIfMissing();
   }
 
-  void _paneBack() => setState(() {
-        _paneHistory.removeLast();
-        _centre = _paneHistory.lastOrNull ?? _centre;
-      });
+  void _paneBack() {
+    setState(() {
+      _history.removeLast();
+      _centre = _history.last;
+      if (_history.length == 1) _history.clear();
+    });
+    _drawAroundCentreIfMissing();
+  }
+
+  void _drawAroundCentreIfMissing() {
+    final layout = _layout;
+    if (_choice != _ScopeChoice.whole &&
+        layout != null &&
+        !layout.positions.containsKey(_centre)) {
+      _update();
+    }
+  }
 
   /// Returns from the node views to the graph, centred on the node [id].
   /// A part of the graph around another node is drawn again around [id].
@@ -290,7 +325,7 @@ class _GraphScreenState extends State<GraphScreen> {
     final route = ModalRoute.of(context);
     Navigator.of(nodeContext).popUntil((r) => r == route);
     if (!mounted || !_graph.nodes.containsKey(id)) return;
-    setState(() => _centre = id);
+    setState(() => _select(id));
     if (_choice == _ScopeChoice.whole) {
       _centreView();
     } else {
@@ -310,16 +345,22 @@ class _GraphScreenState extends State<GraphScreen> {
     final graph = LayoutBuilder(
       builder: (context, constraints) {
         // At the start, and when the graph's part of the screen changes
-        // size (the side pane appears, the tablet turns), centre again.
-        if (_viewport != constraints.biggest) {
-          _viewport = constraints.biggest;
+        // width (the side pane appears, the tablet turns), centre again.
+        // Not for a change in height alone, so the view stays when the
+        // keyboard of the search page opens and closes.
+        final size = constraints.biggest;
+        if (_viewport.isEmpty || _viewport.width != size.width) {
           WidgetsBinding.instance.addPostFrameCallback((_) => _centreView());
         }
+        _viewport = size;
         return _body(context);
       },
     );
-    final paneId = _paneHistory.lastOrNull ?? _centre;
+    final paneId = _centre;
     return Scaffold(
+      // The graph has no text field; the keyboard of the search page above
+      // must not resize it.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -344,7 +385,7 @@ class _GraphScreenState extends State<GraphScreen> {
               nodeMemory: widget.nodeMemory,
               onShowInGraph: _showInGraph,
               openInOrgro: widget.openInOrgro,
-              onOpenNode: twoPane ? _showInPane : null,
+              onOpenNode: _openNode,
             ),
           ),
           // The quick switch to the node view, on one screen at a time.
@@ -403,8 +444,8 @@ class _GraphScreenState extends State<GraphScreen> {
                     nodeMemory: widget.nodeMemory,
                     onShowInGraph: _showInGraph,
                     openInOrgro: widget.openInOrgro,
-                    onOpenNode: _showInPane,
-                    onBack: _paneHistory.length > 1 ? _paneBack : null,
+                    onOpenNode: _openNode,
+                    onBack: _history.length > 1 ? _paneBack : null,
                   ),
                 ),
               ],
