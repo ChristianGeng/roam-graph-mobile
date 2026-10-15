@@ -404,6 +404,46 @@ devices through Syncthing.
       page already open stays open, and a search open while turning opens
       its result the way the new layout does.
 
+30. **Graph views compute what my MCP server computes** (#7),
+    `lib/graph/graph_algorithms.dart`, as decision 8 planned. The server
+    (`cgeng-ai-skills`, `mcps/org_roam`) is the reference. It builds a
+    directed graph with every node and one edge for each pair of nodes
+    with an `id:` link; a link to a missing ID adds a bare node. The app
+    builds the same graph. The "View" menu of the graph offers:
+    - **Communities:** coloured by Louvain communities, as the server's
+      `best_partition` from python-louvain finds them on the undirected
+      graph. The app ports that algorithm. Louvain visits nodes in a random
+      order and the server uses no seed, so its own communities differ a
+      little between runs. The app uses a fixed seed, so the colours stay.
+      The ten largest communities get colours; the others stay plain.
+    - **Importance:** node size by PageRank (networkx's `pagerank`, with
+      its defaults), or by number of links (org_roam_central: the distinct
+      nodes a node links to plus those linking to it). The area grows
+      with the value.
+    - **Shortest path:** from the selected node to a tapped one, following
+      links in their direction, at most 8 links, as org_roam_shortest_path.
+      In this view a tap chooses the target instead of opening the node.
+      When a path passes through nodes outside the part of the graph that
+      is drawn, the note under the bar says so and suggests the whole
+      graph.
+    - **Drawing:** Louvain, PageRank and the link counts run on another
+      isolate, once per index update; until they arrive the view says
+      "Computing…". Enlarged dots keep arrow heads at their edge and open
+      on their whole area. The selected node keeps its community colour
+      and gets a ring.
+    - **Neighbourhood** stays as #6 built it, as `org-roam-graph` draws it
+      (links in both directions). The server's org_roam_bfs follows links
+      out of a node only. The graph view keeps org-roam's, which is what
+      the drawing imitates.
+    - **The check:** `tool/graph_algorithms.py` runs the server's
+      libraries (networkx 3.6.1, python-louvain 0.16) on the sample files'
+      org-roam database and on a random graph of 300 nodes, and writes
+      `test/fixtures/graph_algorithms_expected.json`. The tests require:
+      - the same PageRank (to 1e-9), link counts and path lengths;
+      - the same modularity for python-louvain's own partition;
+      - Louvain communities as good as the worst of 20 python-louvain
+        runs, with a similar number of communities.
+
 ## Recommended, not decided
 
 Nothing at the moment.

@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../graph/graph_algorithms.dart';
 import '../graph/graph_layout.dart';
 import '../graph/graph_scope.dart';
 import '../graph/roam_graph.dart';
@@ -18,6 +19,14 @@ typedef LayoutFunction = Future<GraphLayout> Function(
 Future<GraphLayout> layoutOnIsolate(DrawnGraph graph, LayoutKind kind) =>
     Isolate.run(() => layoutGraph(graph, kind));
 
+/// Computes the graph views' results (#7); by default on another isolate,
+/// so Louvain on a large graph does not stop the screen.
+typedef AlgorithmsFunction = Future<AlgorithmResults> Function(
+    AlgorithmGraph graph);
+
+Future<AlgorithmResults> algorithmsOnIsolate(AlgorithmGraph graph) =>
+    Isolate.run(() => computeAlgorithmResults(graph));
+
 /// Whether a screen of [size] shows the graph and the node view side by
 /// side (#16): a tablet (shortest side at least 600, Material's medium
 /// width) held in landscape. Phones, and tablets in portrait, show one at
@@ -30,8 +39,9 @@ const _nodeRadius = 7.0;
 /// Below this scale the labels are too small to read and are not drawn.
 const _labelScale = 0.45;
 
-/// How far from a node's centre a tap opens it, in graph coordinates at
-/// [scale]: the dot, plus 16 logical pixels on the screen for the finger.
+/// How far from a plain node's centre a tap opens it, in graph
+/// coordinates at [scale]: the dot, plus 16 logical pixels on the screen
+/// for the finger. An enlarged dot (#7) reaches as far beyond its edge.
 double tapReach(double scale) => _nodeRadius + 16 / scale;
 
 /// The node graph in the style of `org-roam-graph` (#6): nodes labelled
@@ -53,6 +63,7 @@ class GraphScreen extends StatefulWidget {
     this.openInOrgro,
     this.nodeMemory = const FileNodeMemory(),
     this.computeLayout = layoutOnIsolate,
+    this.computeAlgorithms = algorithmsOnIsolate,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -64,6 +75,7 @@ class GraphScreen extends StatefulWidget {
   final NoteOpener? openInOrgro;
   final NodeMemory nodeMemory;
   final LayoutFunction computeLayout;
+  final AlgorithmsFunction computeAlgorithms;
 
   @override
   State<GraphScreen> createState() => _GraphScreenState();
@@ -91,6 +103,39 @@ enum _ScopeChoice {
       };
 }
 
+/// The graph views of #7: what the drawing shows about each node.
+enum _GraphView {
+  plain('Plain'),
+  communities('Communities'),
+  pageRank('Importance: PageRank'),
+  links('Importance: number of links'),
+  path('Shortest path');
+
+  const _GraphView(this.label);
+
+  final String label;
+}
+
+/// Colours for the largest communities; smaller ones stay plain.
+const _communityColours = [
+  Color(0xFFE53935), Color(0xFF1E88E5), Color(0xFF43A047), //
+  Color(0xFFFB8C00), Color(0xFF8E24AA), Color(0xFF00897B),
+  Color(0xFFD81B60), Color(0xFF6D4C41), Color(0xFF3949AB),
+  Color(0xFFC0CA33),
+];
+
+/// The graph algorithms for one graph, on the whole graph, as the MCP
+/// server computes them. [results] arrive from another isolate when a
+/// view first needs them.
+class _Algorithms {
+  _Algorithms(this.source) : graph = AlgorithmGraph.fromRoam(source);
+
+  final RoamGraph source;
+  final AlgorithmGraph graph;
+  AlgorithmResults? results;
+  bool computing = false;
+}
+
 class _GraphScreenState extends State<GraphScreen> {
   final _transform = TransformationController();
   _ScopeChoice _choice = _ScopeChoice.whole;
@@ -110,6 +155,37 @@ class _GraphScreenState extends State<GraphScreen> {
   /// side pane's Back. Empty until a second node is selected. The side
   /// pane always shows [_centre].
   final _history = <String>[];
+
+  _GraphView _view = _GraphView.plain;
+  _Algorithms? _algorithmsCache;
+
+  /// The node the shortest path leads to, from [_centre].
+  String? _pathTarget;
+
+  _Algorithms get _algorithms {
+    final cached = _algorithmsCache;
+    if (cached != null && identical(cached.source, _graph)) return cached;
+    return _algorithmsCache = _Algorithms(_graph);
+  }
+
+  /// The results the current view needs, or null while they are computed
+  /// (which starts here).
+  AlgorithmResults? _results() {
+    final algorithms = _algorithms;
+    final results = algorithms.results;
+    if (results != null || algorithms.computing) return results;
+    algorithms.computing = true;
+    widget.computeAlgorithms(algorithms.graph).then((results) {
+      algorithms.results = results;
+      if (mounted && identical(_algorithmsCache, algorithms)) setState(() {});
+    });
+    return null;
+  }
+
+  /// The overlay of the last build, and what it was made from, so the
+  /// drawing keeps its edges while the view moves.
+  _ViewOverlay? _overlayCache;
+  Object? _overlayKey;
 
   /// Layouts computed so far, so switching back is immediate.
   final _layouts = <(GraphScope, LayoutKind), GraphLayout>{};
@@ -249,12 +325,109 @@ class _GraphScreenState extends State<GraphScreen> {
     final drawing = _drawing;
     if (drawing == null) return;
     final scale = _transform.value.getMaxScaleOnAxis();
-    final id = drawing.nodeAt(details.localPosition, tapReach(scale));
+    final id = drawing.nodeAt(
+        details.localPosition, tapReach(scale) - _nodeRadius, _overlay().sizes);
     if (id == null) return;
+    if (_view == _GraphView.path) {
+      // The tap chooses where the path leads.
+      setState(() => _pathTarget = id);
+      return;
+    }
     final node = _graph.nodes[id];
     if (node == null) return;
     widget.nodeMemory.remember(id);
     _openNode(context, id);
+  }
+
+  /// What the current view adds to the drawing, the same object while
+  /// nothing it depends on changes.
+  _ViewOverlay _overlay() {
+    // _algorithms is new for each graph from the index, so a new graph
+    // gives a new overlay, also in the path view, which needs no results.
+    final key = (_view, _algorithms, _algorithms.results, _centre, _pathTarget);
+    final cached = _overlayCache;
+    if (cached != null && _overlayKey == key) return cached;
+    _overlayKey = key;
+    return _overlayCache = _computeOverlay();
+  }
+
+  _ViewOverlay _computeOverlay() {
+    final results = _view == _GraphView.plain || _view == _GraphView.path
+        ? null
+        : _results();
+    switch (_view) {
+      case _GraphView.plain:
+        return const _ViewOverlay();
+      case _GraphView.communities:
+        if (results == null) return const _ViewOverlay();
+        final communities = results.communities;
+        final sizes = <int, int>{};
+        for (final c in communities.values) {
+          sizes[c] = (sizes[c] ?? 0) + 1;
+        }
+        final largest = sizes.keys.where((c) => sizes[c]! > 1).toList()
+          ..sort((a, b) => sizes[b]!.compareTo(sizes[a]!));
+        final colourOf = {
+          for (var i = 0; i < largest.length && i < _communityColours.length; i++)
+            largest[i]: _communityColours[i],
+        };
+        return _ViewOverlay(colours: {
+          for (final MapEntry(:key, :value) in communities.entries)
+            key: ?colourOf[value],
+        });
+      case _GraphView.pageRank:
+        if (results == null) return const _ViewOverlay();
+        return _ViewOverlay(sizes: _relativeSizes(results.ranks));
+      case _GraphView.links:
+        if (results == null) return const _ViewOverlay();
+        return _ViewOverlay(sizes: _relativeSizes(results.links));
+      case _GraphView.path:
+        final centre = _centre, target = _pathTarget;
+        if (centre == null || target == null) return const _ViewOverlay();
+        return _ViewOverlay(
+            path: shortestPath(_algorithms.graph, centre, target));
+    }
+  }
+
+  /// What the current view shows, in a line under the bar; null for none.
+  String? _viewNote() {
+    String title(String? id) =>
+        _graph.nodes[id]?.displayTitle ?? (id == null ? '' : 'id:$id');
+    switch (_view) {
+      case _GraphView.plain:
+        return null;
+      case _GraphView.communities ||
+              _GraphView.pageRank ||
+              _GraphView.links
+          when _results() == null:
+        return 'Computing…';
+      case _GraphView.communities:
+        final count = _results()!.communities.values.toSet().length;
+        return '$count communities (Louvain). Colours show the '
+            '${_communityColours.length} largest.';
+      case _GraphView.pageRank:
+        return 'Larger nodes have a higher PageRank.';
+      case _GraphView.links:
+        return 'Larger nodes have more links, to and from them.';
+      case _GraphView.path:
+        final centre = _centre, target = _pathTarget;
+        if (centre == null) return null;
+        if (target == null || target == centre) {
+          return 'Path from ${title(centre)}: tap the node it leads to.';
+        }
+        final path = shortestPath(_algorithms.graph, centre, target);
+        if (path == null) {
+          return 'No path from ${title(centre)} to ${title(target)} within '
+              '$maxPathLinks links, following links in their direction.';
+        }
+        final links = path.length - 1;
+        final positions = _layout?.positions ?? const {};
+        final hidden = path.any((id) => !positions.containsKey(id));
+        return '${title(centre)} to ${title(target)}: '
+            '$links ${links == 1 ? 'link' : 'links'}.'
+            '${hidden ? ' Part of it is outside this part of the graph; '
+                'show the whole graph to see all of it.' : ''}';
+    }
   }
 
   /// Makes [id] the selected node: the graph marks it, and the side pane
@@ -333,6 +506,11 @@ class _GraphScreenState extends State<GraphScreen> {
     }
   }
 
+  void _showView(_GraphView view) => setState(() {
+        _view = view;
+        _pathTarget = null;
+      });
+
   void _show(_ScopeChoice choice) {
     _choice = choice;
     _update();
@@ -357,6 +535,7 @@ class _GraphScreenState extends State<GraphScreen> {
       },
     );
     final paneId = _centre;
+    final note = _viewNote();
     return Scaffold(
       // The graph has no text field; the keyboard of the search page above
       // must not resize it.
@@ -413,6 +592,16 @@ class _GraphScreenState extends State<GraphScreen> {
                 PopupMenuItem(value: choice, child: Text(choice.label)),
             ],
           ),
+          PopupMenuButton<_GraphView>(
+            tooltip: 'View',
+            icon: const Icon(Icons.insights_outlined),
+            initialValue: _view,
+            onSelected: _showView,
+            itemBuilder: (context) => [
+              for (final view in _GraphView.values)
+                PopupMenuItem(value: view, child: Text(view.label)),
+            ],
+          ),
           PopupMenuButton<LayoutKind>(
             tooltip: 'Layout',
             icon: const Icon(Icons.scatter_plot_outlined),
@@ -427,6 +616,24 @@ class _GraphScreenState extends State<GraphScreen> {
             ],
           ),
         ],
+        bottom: note == null
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(36),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      note,
+                      key: const ValueKey('view-note'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ),
+              ),
       ),
       body: !twoPane || paneId == null
           ? graph
@@ -481,6 +688,7 @@ class _GraphScreenState extends State<GraphScreen> {
             viewport: _viewport,
             colors: colors,
             textStyle: Theme.of(context).textTheme.labelMedium!,
+            overlay: _overlay(),
           ),
         ),
       ),
@@ -512,18 +720,32 @@ String? _mostLinked(RoamGraph graph) {
 /// What the painter needs of a layout, prepared once: the edges as one
 /// path, and the labels laid out once.
 class _Drawing {
-  _Drawing(this.drawn, this.layout) {
+  _Drawing(this.drawn, this.layout);
+
+  final DrawnGraph drawn;
+  final GraphLayout layout;
+
+  Path? _edges;
+  Map<String, double>? _edgeSizes;
+
+  /// The edges as one path, for dots of [sizes] (relative radii; plain when
+  /// null): from the edge of one dot to the edge of the other, with an
+  /// arrow head at the target, as Graphviz draws a digraph. Built again
+  /// only for other sizes.
+  Path edges(Map<String, double>? sizes) {
+    final cached = _edges;
+    if (cached != null && identical(_edgeSizes, sizes)) return cached;
+    final edges = Path();
+    double radius(String id) => _nodeRadius * (sizes?[id] ?? 1);
     for (final (:source, :dest) in drawn.edges) {
       if (source == dest) continue;
       final from = position(source), to = position(dest);
       final along = to - from;
       final length = along.distance;
-      if (length <= 2 * _nodeRadius) continue;
+      if (length <= radius(source) + radius(dest)) continue;
       final unit = along / length;
-      // From the edge of one dot to the edge of the other, with an arrow
-      // head at the target, as Graphviz draws a digraph.
-      final start = from + unit * _nodeRadius;
-      final end = to - unit * _nodeRadius;
+      final start = from + unit * radius(source);
+      final end = to - unit * radius(dest);
       edges
         ..moveTo(start.dx, start.dy)
         ..lineTo(end.dx, end.dy);
@@ -534,11 +756,9 @@ class _Drawing {
         ..lineTo(end.dx, end.dy)
         ..lineTo((back - side).dx, (back - side).dy);
     }
+    _edgeSizes = sizes;
+    return _edges = edges;
   }
-
-  final DrawnGraph drawn;
-  final GraphLayout layout;
-  final edges = Path();
 
   /// Labels by node ID, laid out on first use.
   final labels = <String, TextPainter>{};
@@ -555,12 +775,15 @@ class _Drawing {
     }
   }
 
-  /// The node nearest to [point], if it is closer than [reach].
-  String? nodeAt(Offset point, double reach) {
+  /// The node whose dot is nearest to [point], if [point] is on the dot
+  /// or less than [margin] beyond its edge. [sizes] are the dots' relative
+  /// radii, plain when null.
+  String? nodeAt(Offset point, double margin, Map<String, double>? sizes) {
     String? best;
-    var bestDistance = reach;
+    var bestDistance = margin;
     for (final node in drawn.nodes) {
-      final distance = (position(node.id) - point).distance;
+      final radius = _nodeRadius * (sizes?[node.id] ?? 1);
+      final distance = (position(node.id) - point).distance - radius;
       if (distance < bestDistance) {
         best = node.id;
         bestDistance = distance;
@@ -598,11 +821,13 @@ class _GraphPainter extends CustomPainter {
     required this.viewport,
     required this.colors,
     required this.textStyle,
+    this.overlay = const _ViewOverlay(),
   })  : _drawing = drawing,
         super(repaint: transform);
 
   final _Drawing _drawing;
   final String? centre;
+  final _ViewOverlay overlay;
   final TransformationController transform;
   final Size viewport;
   final ColorScheme colors;
@@ -619,7 +844,7 @@ class _GraphPainter extends CustomPainter {
     ).inflate(100);
 
     canvas.drawPath(
-      drawing.edges,
+      drawing.edges(overlay.sizes),
       Paint()
         ..style = PaintingStyle.stroke
         // 0 is one physical pixel at every scale.
@@ -637,6 +862,22 @@ class _GraphPainter extends CustomPainter {
         canvas.drawLine(at, drawing.position(other), highlight);
       }
     }
+    final path = overlay.path;
+    if (path != null) {
+      final pathPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round
+        ..color = colors.tertiary;
+      for (var i = 0; i + 1 < path.length; i++) {
+        if (!drawing.layout.positions.containsKey(path[i]) ||
+            !drawing.layout.positions.containsKey(path[i + 1])) {
+          continue;
+        }
+        canvas.drawLine(drawing.position(path[i]),
+            drawing.position(path[i + 1]), pathPaint);
+      }
+    }
 
     final fill = Paint()..color = colors.secondary;
     final missing = Paint()
@@ -646,13 +887,38 @@ class _GraphPainter extends CustomPainter {
     final centreFill = Paint()..color = colors.primary;
     final showLabels = scale >= _labelScale;
     final style = textStyle.copyWith(color: colors.onSurface);
+    final onPath = overlay.path?.toSet() ?? const <String>{};
+    final pathRing = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = colors.tertiary;
     for (final node in drawing.drawn.nodes) {
       final at = drawing.position(node.id);
       if (!visible.contains(at)) continue;
+      final radius = _nodeRadius * (overlay.sizes?[node.id] ?? 1);
+      final colour = overlay.colours?[node.id];
       if (node.id == centre) {
-        canvas.drawCircle(at, _nodeRadius * 1.6, centreFill);
+        // The selected node keeps its community colour, with a ring.
+        final selected = max(radius, _nodeRadius * 1.6);
+        canvas.drawCircle(at, selected,
+            colour == null ? centreFill : (Paint()..color = colour));
+        if (colour != null) {
+          canvas.drawCircle(
+              at,
+              selected + 2,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 3
+                ..color = colors.primary);
+        }
+      } else if (node.isMissing) {
+        canvas.drawCircle(at, radius, missing);
       } else {
-        canvas.drawCircle(at, _nodeRadius, node.isMissing ? missing : fill);
+        canvas.drawCircle(
+            at, radius, colour == null ? fill : (Paint()..color = colour));
+      }
+      if (onPath.contains(node.id)) {
+        canvas.drawCircle(at, max(radius, _nodeRadius * 1.6) + 3, pathRing);
       }
       if (showLabels) {
         final label = drawing.label(node, style);
@@ -670,5 +936,29 @@ class _GraphPainter extends CustomPainter {
       old.centre != centre ||
       old.viewport != viewport ||
       old.colors != colors ||
-      old.textStyle != textStyle;
+      old.textStyle != textStyle ||
+      old.overlay != overlay;
+}
+
+/// [values] as node sizes from 0.6 to 3 times the plain size, by the
+/// square root, so the area grows with the value.
+Map<String, double> _relativeSizes(Map<String, num> values) {
+  final largest = values.values.fold<num>(0, max);
+  if (largest <= 0) return const {};
+  return {
+    for (final MapEntry(:key, :value) in values.entries)
+      key: 0.6 + 2.4 * sqrt(value / largest),
+  };
+}
+
+/// What a graph view (#7) adds to the drawing: a colour and a size for
+/// each node, and a path. Missing entries keep the plain drawing.
+class _ViewOverlay {
+  const _ViewOverlay({this.colours, this.sizes, this.path});
+
+  final Map<String, Color>? colours;
+
+  /// Radius of each node, relative to the plain radius.
+  final Map<String, double>? sizes;
+  final List<String>? path;
 }

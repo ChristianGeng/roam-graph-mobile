@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roam_graph_mobile/graph/graph_algorithms.dart';
 import 'package:roam_graph_mobile/graph/graph_layout.dart';
 import 'package:roam_graph_mobile/graph/graph_scope.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
@@ -25,6 +28,10 @@ class MemoryNodeMemory implements NodeMemory {
 /// A phone, held upright: one screen at a time (#16).
 const phoneScreen = Size(412, 915);
 
+/// The graph views' results on this isolate.
+Future<AlgorithmResults> algorithmsHere(AlgorithmGraph graph) async =>
+    computeAlgorithmResults(graph);
+
 /// The layout on this isolate: tests cannot wait for another one.
 Future<GraphLayout> layoutHere(DrawnGraph graph, LayoutKind kind) async =>
     layoutGraph(graph, kind);
@@ -41,6 +48,7 @@ Future<MemoryNodeMemory> show(
   ValueNotifier<RoamGraph>? notifier,
   String? remembered,
   Size screen = phoneScreen,
+  AlgorithmsFunction? computeAlgorithms,
 }) async {
   // The default test screen, 800 x 600, is a tablet in landscape (#16).
   tester.view
@@ -55,6 +63,7 @@ Future<MemoryNodeMemory> show(
       readNote: (path) async => 'Text of ${path.replaceAll('.org', '')}.',
       nodeMemory: memory,
       computeLayout: layoutHere,
+      computeAlgorithms: computeAlgorithms ?? algorithmsHere,
     ),
   ));
   await tester.pumpAndSettle();
@@ -290,6 +299,165 @@ void main() {
     await tester.pumpAndSettle();
     await tapMiddle(tester);
     expect(find.text('HUB'), findsOneWidget);
+  });
+
+  group('graph views (#7)', () {
+    /// Taps the node [id] of the whole graph in the circular layout, with
+    /// the view centred on [centre] at scale 1.
+    Future<void> tapNode(WidgetTester tester, String centre, String id) async {
+      final layout =
+          layoutGraph(DrawnGraph.of(graph, const WholeGraph()), LayoutKind.circo);
+      final from = layout.positions[centre]!, to = layout.positions[id]!;
+      await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)) +
+          Offset(to.x - from.x, to.y - from.y));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> chooseView(WidgetTester tester, String label) async {
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    String? note(WidgetTester tester) {
+      final finder = find.byKey(const ValueKey('view-note'));
+      return finder.evaluate().isEmpty ? null : tester.widget<Text>(finder).data;
+    }
+
+    testWidgets('communities, as many as Louvain finds', (tester) async {
+      await show(tester, remembered: 'hub');
+      expect(note(tester), isNull);
+      await chooseView(tester, 'Communities');
+      final count = louvainCommunities(AlgorithmGraph.fromRoam(graph))
+          .values
+          .toSet()
+          .length;
+      expect(note(tester), startsWith('$count communities (Louvain).'));
+
+      await chooseView(tester, 'Plain');
+      expect(note(tester), isNull);
+    });
+
+    testWidgets('importance by PageRank and by links', (tester) async {
+      await show(tester, remembered: 'hub');
+      await chooseView(tester, 'Importance: PageRank');
+      expect(note(tester), 'Larger nodes have a higher PageRank.');
+      await chooseView(tester, 'Importance: number of links');
+      expect(note(tester), 'Larger nodes have more links, to and from them.');
+      // Taps still open nodes.
+      await tapMiddle(tester);
+      expect(nodeTitle('HUB'), findsOneWidget);
+    });
+
+    testWidgets('a shortest path from the selected node to a tapped one',
+        (tester) async {
+      // Large enough for every node; upright, so one screen at a time.
+      await show(tester, remembered: 'hub', screen: const Size(1200, 1600));
+      await chooseView(tester, 'Shortest path');
+      expect(note(tester), 'Path from HUB: tap the node it leads to.');
+
+      // hub -> c -> d.
+      await tapNode(tester, 'hub', 'd');
+      expect(note(tester), 'HUB to D: 2 links.');
+      // The tap chose the target; it opened nothing.
+      expect(find.byType(NodeScreen), findsNothing);
+
+      // f links to hub, not the other way.
+      await tapNode(tester, 'hub', 'f');
+      expect(note(tester),
+          'No path from HUB to F within 8 links, following links in their '
+          'direction.');
+    });
+  });
+
+  group('graph views, details (#7)', () {
+    Future<void> chooseView(WidgetTester tester, String label) async {
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    String? note(WidgetTester tester) {
+      final finder = find.byKey(const ValueKey('view-note'));
+      return finder.evaluate().isEmpty ? null : tester.widget<Text>(finder).data;
+    }
+
+    testWidgets('results computed elsewhere: "Computing…" until they arrive',
+        (tester) async {
+      final pending = Completer<AlgorithmResults>();
+      await show(tester,
+          remembered: 'hub', computeAlgorithms: (_) => pending.future);
+      await chooseView(tester, 'Communities');
+      expect(note(tester), 'Computing…');
+
+      pending.complete(computeAlgorithmResults(AlgorithmGraph.fromRoam(graph)));
+      await tester.pumpAndSettle();
+      expect(note(tester), contains('communities (Louvain)'));
+    });
+
+    testWidgets('a path that leaves the drawn neighbourhood says so',
+        (tester) async {
+      // a -> c -> d -> b -> a: a's one-step neighbourhood draws a, c and b,
+      // not d, on the way from a to b.
+      final ring = graphOf(['a', 'b', 'c', 'd'], ['a>c', 'c>d', 'd>b', 'b>a']);
+      await show(tester,
+          of: ring, remembered: 'a', screen: const Size(1200, 1600));
+      await tester.tap(find.byTooltip('Show'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Neighbourhood: 1 step'));
+      await tester.pumpAndSettle();
+      await chooseView(tester, 'Shortest path');
+
+      final layout = layoutGraph(
+          DrawnGraph.of(ring, const Neighbourhood('a', 1)), LayoutKind.circo);
+      final a = layout.positions['a']!, b = layout.positions['b']!;
+      final scale = tester
+          .widget<InteractiveViewer>(find.byType(InteractiveViewer))
+          .transformationController!
+          .value
+          .getMaxScaleOnAxis();
+      await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)) +
+          Offset(b.x - a.x, b.y - a.y) * scale);
+      await tester.pumpAndSettle();
+      expect(
+          note(tester),
+          'A to B: 3 links. Part of it is outside this part of the graph; '
+          'show the whole graph to see all of it.');
+    });
+
+    testWidgets('a new graph from the index gives a new path', (tester) async {
+      // a -> b directly; then the index drops that link: a -> c -> b.
+      final notifier =
+          ValueNotifier(graphOf(['a', 'b', 'c'], ['a>b', 'a>c', 'c>b']));
+      await show(tester,
+          notifier: notifier, remembered: 'a', screen: const Size(1200, 1600));
+      await chooseView(tester, 'Shortest path');
+      final layout = layoutGraph(
+          DrawnGraph.of(notifier.value, const WholeGraph()), LayoutKind.circo);
+      final a = layout.positions['a']!, b = layout.positions['b']!;
+      await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)) +
+          Offset(b.x - a.x, b.y - a.y));
+      await tester.pumpAndSettle();
+      expect(note(tester), 'A to B: 1 link.');
+
+      notifier.value = graphOf(['a', 'b', 'c'], ['a>c', 'c>b']);
+      await tester.pumpAndSettle();
+      expect(note(tester), 'A to B: 2 links.');
+    });
+
+    testWidgets('an enlarged dot opens on all of its area', (tester) async {
+      await show(tester, remembered: 'hub');
+      await chooseView(tester, 'Importance: number of links');
+      // hub has the most links: three times the plain radius of 7. 30
+      // pixels from its centre is on the dot, beyond the plain reach.
+      await tester.tapAt(
+          tester.getCenter(find.byType(InteractiveViewer)) +
+              const Offset(30, 0));
+      await tester.pumpAndSettle();
+      expect(nodeTitle('HUB'), findsOneWidget);
+    });
   });
 
   testWidgets('a graph without nodes says so', (tester) async {
