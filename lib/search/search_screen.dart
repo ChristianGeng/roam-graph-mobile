@@ -16,6 +16,7 @@ class SearchScreen extends StatefulWidget {
     required this.nodeMemory,
     this.onShowInGraph,
     this.openInOrgro,
+    this.onOpenNode,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -28,6 +29,10 @@ class SearchScreen extends StatefulWidget {
   /// Opens a node's file in Orgro, for the node view.
   final NoteOpener? openInOrgro;
 
+  /// Opens a result. When null, the node view opens on a new page; the
+  /// tablet layout (#16) closes the search and shows it in its side pane.
+  final void Function(BuildContext context, String id)? onOpenNode;
+
   /// Opens the search on a new page.
   static Future<void> open(
     BuildContext context, {
@@ -36,6 +41,7 @@ class SearchScreen extends StatefulWidget {
     required NodeMemory nodeMemory,
     void Function(BuildContext context, String id)? onShowInGraph,
     NoteOpener? openInOrgro,
+    void Function(BuildContext context, String id)? onOpenNode,
   }) =>
       Navigator.push(
         context,
@@ -46,6 +52,7 @@ class SearchScreen extends StatefulWidget {
             nodeMemory: nodeMemory,
             onShowInGraph: onShowInGraph,
             openInOrgro: openInOrgro,
+            onOpenNode: onOpenNode,
           ),
         ),
       );
@@ -76,7 +83,17 @@ class _SearchScreenState extends State<SearchScreen> {
     if (mounted) setState(() {});
   }
 
-  void _open(String id) => NodeScreen.open(
+  void _open(String id) {
+    if (widget.onOpenNode case final open?) {
+      widget.nodeMemory.remember(id);
+      Navigator.pop(context);
+      open(context, id);
+      return;
+    }
+    _openPage(id);
+  }
+
+  void _openPage(String id) => NodeScreen.open(
         context,
         graph: widget.graph,
         id: id,

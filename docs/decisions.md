@@ -375,6 +375,29 @@ devices through Syncthing.
       app to ask for write access to the folder; that belongs with v2
       capture, as decided with the owner on 2026-10-15.
 
+29. **Two panes on a tablet in landscape, one screen at a time otherwise**
+    (#16), as decision 12 planned:
+    - **When:** two panes when the screen's shortest side is at least 600
+      (Material's medium width, so a tablet) and it is wider than high.
+      A phone held sideways is wide, but its shortest side is about 400,
+      so it keeps one screen at a time, as #16 asks.
+    - **Two panes:** the graph on the left (3/5 of the width), the node
+      view on the right (2/5). The node view starts with the graph's
+      centre node.
+      - A tap on a node in the graph shows it on the right, and marks it
+        in the graph without moving the view.
+      - Links, backlinks and search results open in the right pane too.
+      - The pane has its own Back, through the nodes it showed.
+      - "Show in graph" centres the graph on the pane's node.
+    - **One screen at a time:** as before, a tap opens the node view on a
+      new page, and "Show in graph" returns. A button in the graph's bar,
+      "Open node", is the quick switch to the node view of the graph's
+      centre node.
+    - **Search** stays in both bars.
+    - **Turning the device** switches the layout. The graph is centred
+      again whenever its part of the screen changes size. A node page
+      already open stays open.
+
 ## Recommended, not decided
 
 Nothing at the moment.

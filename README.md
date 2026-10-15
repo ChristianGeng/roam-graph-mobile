@@ -9,7 +9,8 @@ shows its counts, and draws the graph like `org-roam-graph`, as a whole or
 around one node, with a circular (`circo`) or a force-directed layout (#6).
 A tap on a node opens it as formatted Org, with tappable `id:` links and its
 backlinks (#8). Search finds nodes by title, alias and tag as you type (#9).
-A button opens the node's file in Orgro, read-only (#10). What is decided and why is in
+A button opens the node's file in Orgro, read-only (#10). On a tablet in
+landscape, graph and node view are side by side (#16). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

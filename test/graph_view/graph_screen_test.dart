@@ -22,6 +22,9 @@ class MemoryNodeMemory implements NodeMemory {
   Future<void> remember(String id) async => this.id = id;
 }
 
+/// A phone, held upright: one screen at a time (#16).
+const phoneScreen = Size(412, 915);
+
 /// The layout on this isolate: tests cannot wait for another one.
 Future<GraphLayout> layoutHere(DrawnGraph graph, LayoutKind kind) async =>
     layoutGraph(graph, kind);
@@ -37,7 +40,13 @@ Future<MemoryNodeMemory> show(
   RoamGraph? of,
   ValueNotifier<RoamGraph>? notifier,
   String? remembered,
+  Size screen = phoneScreen,
 }) async {
+  // The default test screen, 800 x 600, is a tablet in landscape (#16).
+  tester.view
+    ..devicePixelRatio = 1
+    ..physicalSize = screen;
+  addTearDown(tester.view.reset);
   final memory = MemoryNodeMemory(remembered);
   await tester.pumpWidget(MaterialApp(
     home: GraphScreen(
