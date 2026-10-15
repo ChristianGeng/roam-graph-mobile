@@ -342,7 +342,9 @@ class _GraphScreenState extends State<GraphScreen> {
   /// What the current view adds to the drawing, the same object while
   /// nothing it depends on changes.
   _ViewOverlay _overlay() {
-    final key = (_view, _algorithms.results, _centre, _pathTarget);
+    // _algorithms is new for each graph from the index, so a new graph
+    // gives a new overlay, also in the path view, which needs no results.
+    final key = (_view, _algorithms, _algorithms.results, _centre, _pathTarget);
     final cached = _overlayCache;
     if (cached != null && _overlayKey == key) return cached;
     _overlayKey = key;

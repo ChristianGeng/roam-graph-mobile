@@ -427,6 +427,26 @@ void main() {
           'show the whole graph to see all of it.');
     });
 
+    testWidgets('a new graph from the index gives a new path', (tester) async {
+      // a -> b directly; then the index drops that link: a -> c -> b.
+      final notifier =
+          ValueNotifier(graphOf(['a', 'b', 'c'], ['a>b', 'a>c', 'c>b']));
+      await show(tester,
+          notifier: notifier, remembered: 'a', screen: const Size(1200, 1600));
+      await chooseView(tester, 'Shortest path');
+      final layout = layoutGraph(
+          DrawnGraph.of(notifier.value, const WholeGraph()), LayoutKind.circo);
+      final a = layout.positions['a']!, b = layout.positions['b']!;
+      await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)) +
+          Offset(b.x - a.x, b.y - a.y));
+      await tester.pumpAndSettle();
+      expect(note(tester), 'A to B: 1 link.');
+
+      notifier.value = graphOf(['a', 'b', 'c'], ['a>c', 'c>b']);
+      await tester.pumpAndSettle();
+      expect(note(tester), 'A to B: 2 links.');
+    });
+
     testWidgets('an enlarged dot opens on all of its area', (tester) async {
       await show(tester, remembered: 'hub');
       await chooseView(tester, 'Importance: number of links');
