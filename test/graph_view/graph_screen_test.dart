@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roam_graph_mobile/graph/graph_algorithms.dart';
 import 'package:roam_graph_mobile/graph/graph_layout.dart';
 import 'package:roam_graph_mobile/graph/graph_scope.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
@@ -290,6 +291,76 @@ void main() {
     await tester.pumpAndSettle();
     await tapMiddle(tester);
     expect(find.text('HUB'), findsOneWidget);
+  });
+
+  group('graph views (#7)', () {
+    /// Taps the node [id] of the whole graph in the circular layout, with
+    /// the view centred on [centre] at scale 1.
+    Future<void> tapNode(WidgetTester tester, String centre, String id) async {
+      final layout =
+          layoutGraph(DrawnGraph.of(graph, const WholeGraph()), LayoutKind.circo);
+      final from = layout.positions[centre]!, to = layout.positions[id]!;
+      await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)) +
+          Offset(to.x - from.x, to.y - from.y));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> chooseView(WidgetTester tester, String label) async {
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    String? note(WidgetTester tester) {
+      final finder = find.byKey(const ValueKey('view-note'));
+      return finder.evaluate().isEmpty ? null : tester.widget<Text>(finder).data;
+    }
+
+    testWidgets('communities, as many as Louvain finds', (tester) async {
+      await show(tester, remembered: 'hub');
+      expect(note(tester), isNull);
+      await chooseView(tester, 'Communities');
+      final count = louvainCommunities(AlgorithmGraph.fromRoam(graph))
+          .values
+          .toSet()
+          .length;
+      expect(note(tester), startsWith('$count communities (Louvain).'));
+
+      await chooseView(tester, 'Plain');
+      expect(note(tester), isNull);
+    });
+
+    testWidgets('importance by PageRank and by links', (tester) async {
+      await show(tester, remembered: 'hub');
+      await chooseView(tester, 'Importance: PageRank');
+      expect(note(tester), 'Larger nodes have a higher PageRank.');
+      await chooseView(tester, 'Importance: number of links');
+      expect(note(tester), 'Larger nodes have more links, to and from them.');
+      // Taps still open nodes.
+      await tapMiddle(tester);
+      expect(nodeTitle('HUB'), findsOneWidget);
+    });
+
+    testWidgets('a shortest path from the selected node to a tapped one',
+        (tester) async {
+      // Large enough for every node; upright, so one screen at a time.
+      await show(tester, remembered: 'hub', screen: const Size(1200, 1600));
+      await chooseView(tester, 'Shortest path');
+      expect(note(tester), 'Path from HUB: tap the node it leads to.');
+
+      // hub -> c -> d.
+      await tapNode(tester, 'hub', 'd');
+      expect(note(tester), 'HUB to D: 2 links.');
+      // The tap chose the target; it opened nothing.
+      expect(find.byType(NodeScreen), findsNothing);
+
+      // f links to hub, not the other way.
+      await tapNode(tester, 'hub', 'f');
+      expect(note(tester),
+          'No path from HUB to F within 8 links, following links in their '
+          'direction.');
+    });
   });
 
   testWidgets('a graph without nodes says so', (tester) async {

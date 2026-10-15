@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../graph/graph_algorithms.dart';
 import '../graph/graph_layout.dart';
 import '../graph/graph_scope.dart';
 import '../graph/roam_graph.dart';
@@ -91,6 +92,39 @@ enum _ScopeChoice {
       };
 }
 
+/// The graph views of #7: what the drawing shows about each node.
+enum _GraphView {
+  plain('Plain'),
+  communities('Communities'),
+  pageRank('Importance: PageRank'),
+  links('Importance: number of links'),
+  path('Shortest path');
+
+  const _GraphView(this.label);
+
+  final String label;
+}
+
+/// Colours for the largest communities; smaller ones stay plain.
+const _communityColours = [
+  Color(0xFFE53935), Color(0xFF1E88E5), Color(0xFF43A047), //
+  Color(0xFFFB8C00), Color(0xFF8E24AA), Color(0xFF00897B),
+  Color(0xFFD81B60), Color(0xFF6D4C41), Color(0xFF3949AB),
+  Color(0xFFC0CA33),
+];
+
+/// The results of the graph algorithms for one graph, computed when a
+/// view first needs them, on the whole graph, as the MCP server does.
+class _Algorithms {
+  _Algorithms(this.source) : graph = AlgorithmGraph.fromRoam(source);
+
+  final RoamGraph source;
+  final AlgorithmGraph graph;
+  late final communities = louvainCommunities(graph);
+  late final ranks = pageRank(graph) ?? const <String, double>{};
+  late final links = linkCounts(graph);
+}
+
 class _GraphScreenState extends State<GraphScreen> {
   final _transform = TransformationController();
   _ScopeChoice _choice = _ScopeChoice.whole;
@@ -110,6 +144,18 @@ class _GraphScreenState extends State<GraphScreen> {
   /// side pane's Back. Empty until a second node is selected. The side
   /// pane always shows [_centre].
   final _history = <String>[];
+
+  _GraphView _view = _GraphView.plain;
+  _Algorithms? _algorithmsCache;
+
+  /// The node the shortest path leads to, from [_centre].
+  String? _pathTarget;
+
+  _Algorithms get _algorithms {
+    final cached = _algorithmsCache;
+    if (cached != null && identical(cached.source, _graph)) return cached;
+    return _algorithmsCache = _Algorithms(_graph);
+  }
 
   /// Layouts computed so far, so switching back is immediate.
   final _layouts = <(GraphScope, LayoutKind), GraphLayout>{};
@@ -251,10 +297,80 @@ class _GraphScreenState extends State<GraphScreen> {
     final scale = _transform.value.getMaxScaleOnAxis();
     final id = drawing.nodeAt(details.localPosition, tapReach(scale));
     if (id == null) return;
+    if (_view == _GraphView.path) {
+      // The tap chooses where the path leads.
+      setState(() => _pathTarget = id);
+      return;
+    }
     final node = _graph.nodes[id];
     if (node == null) return;
     widget.nodeMemory.remember(id);
     _openNode(context, id);
+  }
+
+  /// What the current view adds to the drawing.
+  _ViewOverlay _overlay() {
+    switch (_view) {
+      case _GraphView.plain:
+        return const _ViewOverlay();
+      case _GraphView.communities:
+        final communities = _algorithms.communities;
+        final sizes = <int, int>{};
+        for (final c in communities.values) {
+          sizes[c] = (sizes[c] ?? 0) + 1;
+        }
+        final largest = sizes.keys.where((c) => sizes[c]! > 1).toList()
+          ..sort((a, b) => sizes[b]!.compareTo(sizes[a]!));
+        final colourOf = {
+          for (var i = 0; i < largest.length && i < _communityColours.length; i++)
+            largest[i]: _communityColours[i],
+        };
+        return _ViewOverlay(colours: {
+          for (final MapEntry(:key, :value) in communities.entries)
+            key: ?colourOf[value],
+        });
+      case _GraphView.pageRank:
+        return _ViewOverlay(sizes: _relativeSizes(_algorithms.ranks));
+      case _GraphView.links:
+        return _ViewOverlay(sizes: _relativeSizes(_algorithms.links));
+      case _GraphView.path:
+        final centre = _centre, target = _pathTarget;
+        if (centre == null || target == null) return const _ViewOverlay();
+        return _ViewOverlay(
+            path: shortestPath(_algorithms.graph, centre, target));
+    }
+  }
+
+  /// What the current view shows, in a line under the bar; null for none.
+  String? _viewNote() {
+    String title(String? id) =>
+        _graph.nodes[id]?.displayTitle ?? (id == null ? '' : 'id:$id');
+    switch (_view) {
+      case _GraphView.plain:
+        return null;
+      case _GraphView.communities:
+        final count = _algorithms.communities.values.toSet().length;
+        return '$count communities (Louvain). Colours show the '
+            '${_communityColours.length} largest.';
+      case _GraphView.pageRank:
+        return 'Larger nodes have a higher PageRank.';
+      case _GraphView.links:
+        return 'Larger nodes have more links, to and from them.';
+      case _GraphView.path:
+        final centre = _centre, target = _pathTarget;
+        if (centre == null) return null;
+        if (target == null || target == centre) {
+          return 'Path from ${title(centre)}: tap the node it leads to.';
+        }
+        final path = shortestPath(_algorithms.graph, centre, target);
+        if (path == null) {
+          return 'No path from ${title(centre)} to ${title(target)} within '
+              '$maxPathLinks links, following links in their direction.';
+        }
+        final links = path.length - 1;
+        return '${title(centre)} to ${title(target)}: '
+            '$links ${links == 1 ? 'link' : 'links'}.';
+    }
   }
 
   /// Makes [id] the selected node: the graph marks it, and the side pane
@@ -333,6 +449,11 @@ class _GraphScreenState extends State<GraphScreen> {
     }
   }
 
+  void _showView(_GraphView view) => setState(() {
+        _view = view;
+        _pathTarget = null;
+      });
+
   void _show(_ScopeChoice choice) {
     _choice = choice;
     _update();
@@ -357,6 +478,7 @@ class _GraphScreenState extends State<GraphScreen> {
       },
     );
     final paneId = _centre;
+    final note = _viewNote();
     return Scaffold(
       // The graph has no text field; the keyboard of the search page above
       // must not resize it.
@@ -413,6 +535,16 @@ class _GraphScreenState extends State<GraphScreen> {
                 PopupMenuItem(value: choice, child: Text(choice.label)),
             ],
           ),
+          PopupMenuButton<_GraphView>(
+            tooltip: 'View',
+            icon: const Icon(Icons.insights_outlined),
+            initialValue: _view,
+            onSelected: _showView,
+            itemBuilder: (context) => [
+              for (final view in _GraphView.values)
+                PopupMenuItem(value: view, child: Text(view.label)),
+            ],
+          ),
           PopupMenuButton<LayoutKind>(
             tooltip: 'Layout',
             icon: const Icon(Icons.scatter_plot_outlined),
@@ -427,6 +559,24 @@ class _GraphScreenState extends State<GraphScreen> {
             ],
           ),
         ],
+        bottom: note == null
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(36),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      note,
+                      key: const ValueKey('view-note'),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ),
+              ),
       ),
       body: !twoPane || paneId == null
           ? graph
@@ -481,6 +631,7 @@ class _GraphScreenState extends State<GraphScreen> {
             viewport: _viewport,
             colors: colors,
             textStyle: Theme.of(context).textTheme.labelMedium!,
+            overlay: _overlay(),
           ),
         ),
       ),
@@ -598,11 +749,13 @@ class _GraphPainter extends CustomPainter {
     required this.viewport,
     required this.colors,
     required this.textStyle,
+    this.overlay = const _ViewOverlay(),
   })  : _drawing = drawing,
         super(repaint: transform);
 
   final _Drawing _drawing;
   final String? centre;
+  final _ViewOverlay overlay;
   final TransformationController transform;
   final Size viewport;
   final ColorScheme colors;
@@ -637,6 +790,22 @@ class _GraphPainter extends CustomPainter {
         canvas.drawLine(at, drawing.position(other), highlight);
       }
     }
+    final path = overlay.path;
+    if (path != null) {
+      final pathPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round
+        ..color = colors.tertiary;
+      for (var i = 0; i + 1 < path.length; i++) {
+        if (!drawing.layout.positions.containsKey(path[i]) ||
+            !drawing.layout.positions.containsKey(path[i + 1])) {
+          continue;
+        }
+        canvas.drawLine(drawing.position(path[i]),
+            drawing.position(path[i + 1]), pathPaint);
+      }
+    }
 
     final fill = Paint()..color = colors.secondary;
     final missing = Paint()
@@ -646,13 +815,26 @@ class _GraphPainter extends CustomPainter {
     final centreFill = Paint()..color = colors.primary;
     final showLabels = scale >= _labelScale;
     final style = textStyle.copyWith(color: colors.onSurface);
+    final onPath = overlay.path?.toSet() ?? const <String>{};
+    final pathRing = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = colors.tertiary;
     for (final node in drawing.drawn.nodes) {
       final at = drawing.position(node.id);
       if (!visible.contains(at)) continue;
+      final radius = _nodeRadius * (overlay.sizes?[node.id] ?? 1);
+      final colour = overlay.colours?[node.id];
       if (node.id == centre) {
-        canvas.drawCircle(at, _nodeRadius * 1.6, centreFill);
+        canvas.drawCircle(at, max(radius, _nodeRadius * 1.6), centreFill);
+      } else if (node.isMissing) {
+        canvas.drawCircle(at, radius, missing);
       } else {
-        canvas.drawCircle(at, _nodeRadius, node.isMissing ? missing : fill);
+        canvas.drawCircle(
+            at, radius, colour == null ? fill : (Paint()..color = colour));
+      }
+      if (onPath.contains(node.id)) {
+        canvas.drawCircle(at, max(radius, _nodeRadius * 1.6) + 3, pathRing);
       }
       if (showLabels) {
         final label = drawing.label(node, style);
@@ -670,5 +852,29 @@ class _GraphPainter extends CustomPainter {
       old.centre != centre ||
       old.viewport != viewport ||
       old.colors != colors ||
-      old.textStyle != textStyle;
+      old.textStyle != textStyle ||
+      old.overlay != overlay;
+}
+
+/// [values] as node sizes from 0.6 to 3 times the plain size, by the
+/// square root, so the area grows with the value.
+Map<String, double> _relativeSizes(Map<String, num> values) {
+  final largest = values.values.fold<num>(0, max);
+  if (largest <= 0) return const {};
+  return {
+    for (final MapEntry(:key, :value) in values.entries)
+      key: 0.6 + 2.4 * sqrt(value / largest),
+  };
+}
+
+/// What a graph view (#7) adds to the drawing: a colour and a size for
+/// each node, and a path. Missing entries keep the plain drawing.
+class _ViewOverlay {
+  const _ViewOverlay({this.colours, this.sizes, this.path});
+
+  final Map<String, Color>? colours;
+
+  /// Radius of each node, relative to the plain radius.
+  final Map<String, double>? sizes;
+  final List<String>? path;
 }
