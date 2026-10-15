@@ -423,6 +423,14 @@ devices through Syncthing.
     - **Shortest path:** from the selected node to a tapped one, following
       links in their direction, at most 8 links, as org_roam_shortest_path.
       In this view a tap chooses the target instead of opening the node.
+      When a path passes through nodes outside the part of the graph that
+      is drawn, the note under the bar says so and suggests the whole
+      graph.
+    - **Drawing:** Louvain, PageRank and the link counts run on another
+      isolate, once per index update; until they arrive the view says
+      "Computing…". Enlarged dots keep arrow heads at their edge and open
+      on their whole area. The selected node keeps its community colour
+      and gets a ring.
     - **Neighbourhood** stays as #6 built it, as `org-roam-graph` draws it
       (links in both directions). The server's org_roam_bfs follows links
       out of a node only. The graph view keeps org-roam's, which is what

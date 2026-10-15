@@ -58,6 +58,24 @@ class AlgorithmGraph {
   final Map<String, LinkedHashSet<String>> predecessors;
 }
 
+/// The results the graph views (#7) show, computed together, for
+/// [computeAlgorithmResults] on another isolate.
+class AlgorithmResults {
+  const AlgorithmResults(this.communities, this.ranks, this.links);
+
+  final Map<String, int> communities;
+  final Map<String, double> ranks;
+  final Map<String, int> links;
+}
+
+/// Louvain communities, PageRank and link counts of [graph].
+AlgorithmResults computeAlgorithmResults(AlgorithmGraph graph) =>
+    AlgorithmResults(
+      louvainCommunities(graph),
+      pageRank(graph) ?? const {},
+      linkCounts(graph),
+    );
+
 /// PageRank as networkx's `nx.pagerank(G)` computes it: damping 0.85, at
 /// most 100 iterations, tolerance 1e-6 per node, and a node without
 /// outgoing links spreads its rank over all nodes. Null if it does not
