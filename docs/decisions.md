@@ -384,10 +384,14 @@ devices through Syncthing.
     - **Two panes:** the graph on the left (3/5 of the width), the node
       view on the right (2/5). The node view starts with the graph's
       centre node.
-      - A tap on a node in the graph shows it on the right, and marks it
-        in the graph without moving the view.
-      - Links, backlinks and search results open in the right pane too.
-      - The pane has its own Back, through the nodes it showed.
+      - There is one selected node: the graph marks it, and the right
+        pane always shows it. A tap in the graph, a link, a backlink, a
+        search result and "Show in graph" all select a node; the view
+        does not move.
+      - The pane's Back goes through the nodes selected before. A node
+        deleted from the notes leaves that history.
+      - A node outside the part of the graph drawn around another node
+        gets that part drawn around it.
       - "Show in graph" centres the graph on the pane's node.
     - **One screen at a time:** as before, a tap opens the node view on a
       new page, and "Show in graph" returns. A button in the graph's bar,
@@ -395,8 +399,10 @@ devices through Syncthing.
       centre node.
     - **Search** stays in both bars.
     - **Turning the device** switches the layout. The graph is centred
-      again whenever its part of the screen changes size. A node page
-      already open stays open.
+      again whenever its part of the screen changes width; not when only
+      its height changes, as when the keyboard of the search opens. A node
+      page already open stays open, and a search open while turning opens
+      its result the way the new layout does.
 
 ## Recommended, not decided
 
