@@ -14,6 +14,15 @@ class Created extends CreateResult {
   final String path;
 }
 
+/// The file was written, but indexing the folder afterwards failed, so the
+/// node cannot be opened yet; it appears with the next scan.
+class WrittenNotIndexed extends CreateResult {
+  const WrittenNotIndexed(this.path, this.message);
+
+  final String path;
+  final String message;
+}
+
 /// The app may only read the folder: it was chosen before v2.
 class NoWriteAccess extends CreateResult {
   const NoWriteAccess();
@@ -70,6 +79,9 @@ class _CaptureScreenState extends State<CaptureScreen> {
   final _body = TextEditingController();
   bool _saving = false;
 
+  /// True once the file is written, so it is not written twice.
+  bool _written = false;
+
   /// Why the last save failed, shown above the fields.
   String? _problem;
   bool _needsWriteAccess = false;
@@ -90,7 +102,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
 
   Future<void> _save() async {
     final title = oneLine(_title.text);
-    if (title.isEmpty || _saving) return;
+    if (title.isEmpty || _saving || _written) return;
     setState(() {
       _saving = true;
       _problem = null;
@@ -114,6 +126,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
         _problem = 'The app may only read the folder. Choose it again and '
             'allow access, then save.';
         _needsWriteAccess = true;
+      case WrittenNotIndexed(:final path, :final message):
+        _problem = 'Saved as roam/$path, but the folder could not be '
+            'indexed: $message. The node appears after the next scan.';
+        _written = true;
       case FileExists():
         _problem = '$fileName exists already. Wait a second and save again.';
       case CreateFailed(:final message):
@@ -132,7 +148,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
           IconButton(
             tooltip: 'Save',
             icon: const Icon(Icons.check),
-            onPressed: title.isEmpty || _saving ? null : _save,
+            onPressed: title.isEmpty || _saving || _written ? null : _save,
           ),
         ],
       ),

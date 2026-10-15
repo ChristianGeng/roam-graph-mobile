@@ -44,6 +44,10 @@ class FakeFolderAccess implements FolderAccess {
   /// Whether every new file's name counts as taken.
   bool everyNameTaken = false;
 
+  /// An error listing the folder will give after the next file is
+  /// created.
+  PlatformException? listErrorAfterCreate;
+
   /// The paths of every file read, in order.
   final readPaths = <String>[];
 
@@ -71,6 +75,7 @@ class FakeFolderAccess implements FolderAccess {
       throw PlatformException(code: 'exists', message: '$name exists');
     }
     created.add((dir, name));
+    listError = listErrorAfterCreate;
     final uri = 'content://new/$name';
     files = [...files, FolderFile(path: path, uri: uri, modified: 1)];
     texts = {...texts, path: utf8.decode(bytes)};
@@ -392,6 +397,53 @@ void main() {
       expect(access.created, hasLength(1));
     });
 
+    testWidgets('written but not indexed: said so, and not written twice',
+        (tester) async {
+      final access = await openCapture(tester, writableOrg);
+      access.listErrorAfterCreate =
+          PlatformException(code: 'io', message: 'listing failed');
+      await tester.enterText(
+          find.byKey(const ValueKey('capture-title')), 'Saved');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      expect(access.created, hasLength(1));
+      expect(find.textContaining('Saved as roam/'), findsOneWidget);
+      expect(find.textContaining('listing failed'), findsOneWidget);
+      // Still here, and Save is off: a second tap writes nothing.
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(access.created, hasLength(1));
+    });
+
+    testWidgets('another folder without roam/ does not get the capture',
+        (tester) async {
+      final access = await openCapture(tester, org);
+      await tester.enterText(
+          find.byKey(const ValueKey('capture-title')), 'Idea');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('may only read the folder'), findsOneWidget);
+
+      // The folder chosen now is writable but has no roam/.
+      access
+        ..picked = const ChosenFolder(
+            uri: 'content://tree/other',
+            name: 'other',
+            hasAccess: true,
+            canWrite: true)
+        ..files = [const FolderFile(path: 'ref.org', uri: 'content://ref')];
+      await tester.tap(find.text('Choose folder'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      expect(access.created, isEmpty);
+      expect(find.textContaining('No folder is indexed'), findsOneWidget);
+    });
+
     testWidgets('a file name that is taken is not overwritten',
         (tester) async {
       final access = await openCapture(tester, writableOrg);
@@ -409,19 +461,32 @@ void main() {
     });
   });
 
-  testWidgets('without nodes there is no "Show graph"', (tester) async {
-    await start(
-      tester,
-      FakeFolderAccess(saved: org, files: [
-        const FolderFile(path: 'roam', uri: 'content://r', isDirectory: true),
-        const FolderFile(path: 'roam/x.org', uri: 'content://x', modified: 1),
-      ], texts: {
-        'roam/x.org': '#+title: Not a node\n',
-      }),
-    );
-
+  testWidgets('without nodes, the graph says so and offers a first node',
+      (tester) async {
+    final access = FakeFolderAccess(saved: writableOrg, files: [
+      const FolderFile(path: 'roam', uri: 'content://r', isDirectory: true),
+      const FolderFile(path: 'roam/x.org', uri: 'content://x', modified: 1),
+    ], texts: {
+      'roam/x.org': '#+title: Not a node\n',
+    });
+    await start(tester, access);
     expect(stat(tester, 'nodes'), '0');
-    expect(find.text('Show graph'), findsNothing);
+
+    await tapText(tester, 'Show graph');
+    await tester.pumpAndSettle();
+    expect(find.text('There are no nodes in roam/.'), findsOneWidget);
+    await tester.tap(find.byTooltip('New node'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('capture-title')), 'First');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Save'));
+    await tester.pumpAndSettle();
+
+    expect(access.created, hasLength(1));
+    expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('First')),
+        findsOneWidget);
   });
 
   testWidgets('a folder chosen earlier is indexed on start', (tester) async {

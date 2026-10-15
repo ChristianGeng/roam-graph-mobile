@@ -112,6 +112,12 @@ class _FolderScreenState extends State<FolderScreen>
           : CreateFailed(e.message ?? e.code);
     }
     await _rescan();
+    // The file is written; if indexing failed, it must not be written
+    // again, but it cannot be opened yet either.
+    if (!(_result.graph?.files.contains(fileName) ?? false)) {
+      return WrittenNotIndexed(
+          fileName, _status == _Status.failed ? _error : 'it was not found');
+    }
     return Created(fileName);
   }
 
@@ -223,7 +229,11 @@ class _FolderScreenState extends State<FolderScreen>
     bool rebuild = false,
   }) async {
     // Remember the folder first, so "Try again" works if listing fails.
-    if (generation == _generation) _folder = folder;
+    if (generation == _generation) {
+      // roam/ of another folder must not receive a capture (#11).
+      if (_folder?.uri != folder.uri) _roamDir = null;
+      _folder = folder;
+    }
     if (!folder.hasAccess) {
       _show(generation, _Status.accessLost, folder, _noResult);
       return;
@@ -394,8 +404,8 @@ class _FolderScreenState extends State<FolderScreen>
       case _Status.indexed:
         return _column([
           Text('Graph in roam/', style: text.titleLarge),
-          if ((_result.graph, _graph) case (final graph?, final notifier?)
-              when graph.nodes.isNotEmpty)
+          // Also without nodes: the graph offers "New node" (#11).
+          if ((_result.graph, _graph) case (_?, final notifier?))
             FilledButton.icon(
               onPressed: () => Navigator.push(
                 context,

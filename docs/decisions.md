@@ -477,8 +477,11 @@ devices through Syncthing.
         and saving a second later gives a new name.
     - **Indexing:** the folder is indexed right after writing, so the new
       node is in the graph at once, and the capture opens it. The laptop
-      picks it up with `org-roam-db-sync` after Syncthing has synced.
-    - **Where:** a "New node" button on the graph.
+      picks it up with `org-roam-db-sync` after Syncthing has synced. If
+      that indexing fails, the capture says the file is saved and offers
+      no second save, which would write a second file.
+    - **Where:** a "New node" button on the graph. The graph opens also
+      for a folder without nodes, so the first node can be made.
 
 ## Recommended, not decided
 
