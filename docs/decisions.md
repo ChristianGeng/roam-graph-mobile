@@ -527,6 +527,27 @@ devices through Syncthing.
       (`FolderAccess.kt`) that the tests do not run. Checking it is the
       owner's task on the device, against the laptop.
 
+34. **Shared text becomes a new node** (#15), as decision 11 planned:
+    - **Share target:** the app is in Android's share menu for plain text
+      (`ACTION_SEND`, `text/plain`). `MainActivity.kt` keeps the shared
+      text until the app takes it, once, through the channel
+      `roam_graph/share`. A share that starts the app waits until the
+      folder is indexed.
+    - **Capture:** the share opens the capture screen of #11.
+      - The title is the share's subject if the sending app gives one.
+        Otherwise it is the first line that is not empty, without the `#`
+        of a Markdown heading or the `**` of bold, since AI apps share
+        Markdown.
+      - The text is the rest, so the title is not repeated in it.
+      - Both can be edited before saving, and tags added.
+      - The text is stored as it came; it is not converted from Markdown
+        to Org.
+    - **Link:** a link to the node viewed last is offered (#12), off by
+      default: a shared text is often about something else.
+    - **Writing:** as #11 and #13: `<timestamp>-<slug>.org`, a new
+      `:ID:`, written safely next to Syncthing. The new node opens after
+      saving.
+
 ## Recommended, not decided
 
 Nothing at the moment.

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roam_graph_mobile/capture/share_inbox.dart';
 import 'package:roam_graph_mobile/folder/folder_access.dart';
 import 'package:roam_graph_mobile/folder/folder_screen.dart';
 import 'package:roam_graph_mobile/folder/org_files.dart';
@@ -99,6 +100,28 @@ class FakeFolderAccess implements FolderAccess {
   }
 }
 
+/// A [ShareInbox] without Android, for tests.
+class FakeShareInbox implements ShareInbox {
+  SharedText? pending;
+  void Function()? onArrived;
+
+  @override
+  Future<SharedText?> take() async {
+    final shared = pending;
+    pending = null;
+    return shared;
+  }
+
+  @override
+  void listen(void Function() onArrived) => this.onArrived = onArrived;
+
+  /// Text shared while the app runs.
+  void share(SharedText shared) {
+    pending = shared;
+    onArrived?.call();
+  }
+}
+
 /// A [GraphIndex] on a real org-roam database in memory, without another
 /// isolate, which tests cannot wait for.
 class TestGraphIndex implements GraphIndex {
@@ -160,18 +183,26 @@ FakeFolderAccess withNotes({ChosenFolder? saved, ChosenFolder? picked}) =>
       texts: someTexts,
     );
 
-Future<TestGraphIndex> start(WidgetTester tester, FakeFolderAccess access) async {
+Future<TestGraphIndex> start(
+  WidgetTester tester,
+  FakeFolderAccess access, {
+  FakeShareInbox? shares,
+  MemoryNodeMemory? memory,
+}) async {
   final index = TestGraphIndex();
+  final nodeMemory = memory ?? MemoryNodeMemory();
   await tester.pumpWidget(
     RoamGraphApp(
       folderAccess: access,
       graphIndex: index,
+      shareInbox: shares ?? FakeShareInbox(),
+      nodeMemory: nodeMemory,
       graphScreen: (graph, readNote, openInOrgro, writer) => GraphScreen(
         graph: graph,
         readNote: readNote,
         openInOrgro: openInOrgro,
         writer: writer,
-        nodeMemory: MemoryNodeMemory(),
+        nodeMemory: nodeMemory,
         computeLayout: layoutHere,
       ),
     ),
@@ -643,6 +674,62 @@ void main() {
       expect(conflictCopies(access.files), ['roam/b.sync-conflict-1.org']);
       expect(access.files.where((f) => f.path.contains('.syncthing.')),
           isEmpty);
+    });
+  });
+
+  group('shared text becomes a new node (#15)', () {
+    testWidgets('a share at start opens the capture, proposed and saved',
+        (tester) async {
+      final shares = FakeShareInbox()
+        ..pending = const SharedText('# Attention\nIs all you need.');
+      final access = withNotes(saved: writableOrg);
+      await start(tester, access,
+          shares: shares, memory: MemoryNodeMemory('a'));
+
+      expect(find.text('New node'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Attention'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Is all you need.'), findsOneWidget);
+      // A link to the node viewed last is offered, not on.
+      final link = tester.widget<CheckboxListTile>(
+          find.byKey(const ValueKey('capture-link')));
+      expect(link.value, isFalse);
+      expect(find.text('Link to A'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      final (_, name) = access.created.single;
+      expect(name, matches(RegExp(r'^\d{14}-attention\.org$')));
+      expect(access.texts['roam/$name'],
+          contains('#+title: Attention\n\nIs all you need.\n'));
+      // The new node is open.
+      expect(
+          find.descendant(
+              of: find.byType(AppBar), matching: find.text('Attention')),
+          findsOneWidget);
+      expect(shares.pending, isNull);
+    });
+
+    testWidgets('a share while the app runs', (tester) async {
+      final shares = FakeShareInbox();
+      await start(tester, withNotes(saved: writableOrg), shares: shares);
+      expect(find.text('New node'), findsNothing);
+
+      shares.share(const SharedText('Later', subject: 'From Claude'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, 'From Claude'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Later'), findsOneWidget);
+    });
+
+    testWidgets('a share waits until a folder is indexed', (tester) async {
+      final shares = FakeShareInbox()..pending = const SharedText('Waiting');
+      final access = withNotes(picked: writableOrg);
+      await start(tester, access, shares: shares);
+      expect(find.text('Choose your org folder'), findsOneWidget);
+      expect(shares.pending, isNotNull);
+
+      await tapText(tester, 'Choose org folder');
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, 'Waiting'), findsOneWidget);
     });
   });
 

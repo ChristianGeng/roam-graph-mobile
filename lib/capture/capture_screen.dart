@@ -61,6 +61,8 @@ class CaptureScreen extends StatefulWidget {
     this.now = DateTime.now,
     this.linkTo,
     this.linkByDefault = true,
+    this.initialTitle = '',
+    this.initialBody = '',
   });
 
   final NoteWriter writer;
@@ -73,6 +75,10 @@ class CaptureScreen extends StatefulWidget {
   /// Whether the link is on at first.
   final bool linkByDefault;
 
+  /// What the fields start with, for shared text (#15).
+  final String initialTitle;
+  final String initialBody;
+
   /// The clock, for the file name; tests replace it.
   final DateTime Function() now;
 
@@ -82,6 +88,8 @@ class CaptureScreen extends StatefulWidget {
     NoteWriter writer, {
     ({String id, String title})? linkTo,
     bool linkByDefault = true,
+    String initialTitle = '',
+    String initialBody = '',
   }) =>
       Navigator.push<String>(
         context,
@@ -90,6 +98,8 @@ class CaptureScreen extends StatefulWidget {
             writer: writer,
             linkTo: linkTo,
             linkByDefault: linkByDefault,
+            initialTitle: initialTitle,
+            initialBody: initialBody,
           ),
         ),
       );
@@ -99,9 +109,9 @@ class CaptureScreen extends StatefulWidget {
 }
 
 class _CaptureScreenState extends State<CaptureScreen> {
-  final _title = TextEditingController();
+  late final _title = TextEditingController(text: widget.initialTitle);
   final _tags = TextEditingController();
-  final _body = TextEditingController();
+  late final _body = TextEditingController(text: widget.initialBody);
   bool _saving = false;
   late bool _link = widget.linkByDefault;
 

@@ -5,9 +5,11 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../capture/capture_screen.dart';
+import '../capture/share_inbox.dart';
 import '../graph/graph_index.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/graph_screen.dart';
+import '../graph_view/node_memory.dart';
 import '../node_view/node_screen.dart';
 import 'folder_access.dart';
 import 'org_files.dart';
@@ -30,6 +32,8 @@ class FolderScreen extends StatefulWidget {
     required this.version,
     this.graphIndex = const SqliteGraphIndex(),
     this.graphScreen = defaultGraphScreen,
+    this.shareInbox = const PlatformShareInbox(),
+    this.nodeMemory = const FileNodeMemory(),
   });
 
   final FolderAccess folderAccess;
@@ -40,6 +44,12 @@ class FolderScreen extends StatefulWidget {
   /// the index, also while the graph view is open; [NoteReader] reads the
   /// notes of the chosen folder, and [NoteOpener] opens them in Orgro.
   final GraphScreenBuilder graphScreen;
+
+  /// Text shared with the app, which becomes a new node (#15).
+  final ShareInbox shareInbox;
+
+  /// The node viewed last, which a shared node may link to.
+  final NodeMemory nodeMemory;
 
   static Widget defaultGraphScreen(
     ValueListenable<RoamGraph> graph,
@@ -85,6 +95,7 @@ class _FolderScreenState extends State<FolderScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.shareInbox.listen(_takeShare);
     _start();
   }
 
@@ -105,6 +116,49 @@ class _FolderScreenState extends State<FolderScreen>
   String? _conflictsFolder;
 
   late final _writer = NoteWriter(create: _createNote, allowWriting: _choose);
+
+  /// True while a share is being turned into a node.
+  bool _sharing = false;
+
+  /// Opens the capture for text shared with the app (#15), once the folder
+  /// is indexed; until then, the share waits.
+  Future<void> _takeShare() async {
+    final notifier = _graph;
+    if (_sharing || _status != _Status.indexed || notifier == null) return;
+    _sharing = true;
+    try {
+      final shared = await widget.shareInbox.take();
+      if (shared == null || !mounted) return;
+      final proposal = proposeNode(shared);
+      final last = notifier.value.nodes[await widget.nodeMemory.lastNode()];
+      if (!mounted) return;
+      final id = await CaptureScreen.open(
+        context,
+        _writer,
+        initialTitle: proposal.title,
+        initialBody: proposal.body,
+        // Offered, not on: a shared text is often about something else.
+        linkTo: last == null ? null : (id: last.id, title: last.displayTitle),
+        linkByDefault: false,
+      );
+      if (id == null || !mounted) return;
+      NodeScreen.open(
+        context,
+        graph: notifier,
+        id: id,
+        readNote: _readNote,
+        nodeMemory: widget.nodeMemory,
+        openInOrgro: _openInOrgro,
+        writer: _writer,
+      );
+    } on PlatformException {
+      // No share to take; nothing to show.
+    } on MissingPluginException {
+      // Not on Android, as in tests without a share inbox.
+    } finally {
+      _sharing = false;
+    }
+  }
 
   /// Writes a new note into roam/ and indexes the folder (#11).
   Future<CreateResult> _createNote(String fileName, String text) async {
@@ -365,6 +419,10 @@ class _FolderScreenState extends State<FolderScreen>
     if (scanned) {
       _conflictsSeen = result.conflicts.toSet();
       _conflictsFolder = folder?.uri;
+    }
+    // A share that waited for the index (#15).
+    if (status == _Status.indexed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _takeShare());
     }
     // An open graph view shows the new graph. Other results, such as a
     // failed scan, leave it as it is.
