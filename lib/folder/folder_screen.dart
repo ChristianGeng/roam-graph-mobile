@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -23,10 +24,12 @@ class FolderScreen extends StatefulWidget {
   final String version;
   final GraphIndex graphIndex;
 
-  /// Builds the graph view for a graph; tests replace it.
-  final Widget Function(RoamGraph graph) graphScreen;
+  /// Builds the graph view; tests replace it. The graph it gets follows
+  /// the index, also while the graph view is open.
+  final Widget Function(ValueListenable<RoamGraph> graph) graphScreen;
 
-  static Widget defaultGraphScreen(RoamGraph graph) => GraphScreen(graph: graph);
+  static Widget defaultGraphScreen(ValueListenable<RoamGraph> graph) =>
+      GraphScreen(graph: graph);
 
   @override
   State<FolderScreen> createState() => _FolderScreenState();
@@ -58,9 +61,13 @@ class _FolderScreenState extends State<FolderScreen>
     _start();
   }
 
+  /// The latest graph, for an open graph view; null before the first.
+  ValueNotifier<RoamGraph>? _graph;
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _graph?.dispose();
     super.dispose();
   }
 
@@ -215,6 +222,15 @@ class _FolderScreenState extends State<FolderScreen>
       _folder = folder;
       _result = result;
     });
+    // An open graph view shows the new graph. Other results, such as a
+    // failed scan, leave it as it is.
+    if (result.graph case final graph?) {
+      if (_graph case final notifier?) {
+        notifier.value = graph;
+      } else {
+        _graph = ValueNotifier(graph);
+      }
+    }
   }
 
   void _fail(int generation, String message) {
@@ -291,12 +307,13 @@ class _FolderScreenState extends State<FolderScreen>
       case _Status.indexed:
         return _column([
           Text('Graph in roam/', style: text.titleLarge),
-          if (_result.graph case final graph? when graph.nodes.isNotEmpty)
+          if ((_result.graph, _graph) case (final graph?, final notifier?)
+              when graph.nodes.isNotEmpty)
             FilledButton.icon(
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute<void>(
-                  builder: (context) => widget.graphScreen(graph),
+                  builder: (context) => widget.graphScreen(notifier),
                 ),
               ),
               icon: const Icon(Icons.hub_outlined),

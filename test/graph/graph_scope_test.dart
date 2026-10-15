@@ -161,12 +161,43 @@ void main() {
     });
   });
 
-  test('titles longer than 100 characters are cut, as org-roam does', () {
-    final exact = 'x' * 100;
-    expect(truncateTitle(exact), exact);
-    final long = 'Ü' * 101;
-    expect(truncateTitle(long), '${'Ü' * 97}...');
-    expect(truncateTitle(long).length, 100);
+  // The expected values are what Emacs 31's truncate-string-to-width
+  // returns, with org-roam's arguments.
+  group('titles wider than 100 columns are cut, as org-roam does', () {
+    test('one column per character', () {
+      final exact = 'x' * 100;
+      expect(truncateTitle(exact), exact);
+      expect(truncateTitle('Ü' * 101), '${'Ü' * 97}...');
+    });
+
+    test('wide characters take two columns', () {
+      expect(truncateTitle('中' * 60), '${'中' * 48}...');
+      final fits = '${'a' * 96}中中';
+      expect(truncateTitle(fits), fits);
+      // The third 中 would end in column 98.
+      expect(truncateTitle('${'a' * 96}中中中'), '${'a' * 96}...');
+    });
+
+    test('nothing after 97 columns, not even a combining mark', () {
+      expect(truncateTitle('${'a' * 97}\u0301bbbb'), '${'a' * 97}...');
+      // The 97th e fills the columns; its accent is left out.
+      expect(truncateTitle('${'e\u0301' * 100}x'), '${'e\u0301' * 96}e...');
+    });
+
+    test('quotes and backslashes count twice, as org-roam escapes them', () {
+      final quotes = '"' * 50;
+      expect(truncateTitle(quotes), quotes);
+      expect(truncateTitle('"' * 51), '${'"' * 48}...');
+    });
+
+    test('Emacs\'s widths', () {
+      for (final (char, width) in [
+        ('a', 1), ('中', 2), ('é', 1), ('\u0301', 0), ('😀', 2), ('가', 2),
+        ('Ａ', 2), ('—', 1), ('…', 1), ('\t', 8),
+      ]) {
+        expect(charWidth(char.runes.single), width, reason: char);
+      }
+    });
   });
 
   group('around a node', () {

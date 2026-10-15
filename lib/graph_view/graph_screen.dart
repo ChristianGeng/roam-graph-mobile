@@ -1,6 +1,7 @@
 import 'dart:isolate';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../graph/graph_layout.dart';
@@ -21,12 +22,21 @@ const _nodeRadius = 7.0;
 /// Below this scale the labels are too small to read and are not drawn.
 const _labelScale = 0.45;
 
+/// How far from a node's centre a tap opens it, in graph coordinates at
+/// [scale]: the dot, plus 16 logical pixels on the screen for the finger.
+double tapReach(double scale) => _nodeRadius + 16 / scale;
+
 /// The node graph in the style of `org-roam-graph` (#6): nodes labelled
 /// with their titles, an edge for each pair of nodes with an `id:` link.
 ///
 /// Starts with the whole graph, centred on the node opened last, or on the
 /// node with the most links. A tap on a node centres the graph on it and
 /// opens it.
+///
+/// [graph] changes when the index is updated, for example when the app
+/// comes back to the foreground after Syncthing brought new notes. The
+/// screen then draws the new graph, and keeps the view if nothing it shows
+/// has changed.
 class GraphScreen extends StatefulWidget {
   const GraphScreen({
     super.key,
@@ -35,7 +45,7 @@ class GraphScreen extends StatefulWidget {
     this.computeLayout = layoutOnIsolate,
   });
 
-  final RoamGraph graph;
+  final ValueListenable<RoamGraph> graph;
   final NodeMemory nodeMemory;
   final LayoutFunction computeLayout;
 
@@ -86,14 +96,28 @@ class _GraphScreenState extends State<GraphScreen> {
   /// Counts layout requests; only the latest may be shown.
   int _generation = 0;
 
+  RoamGraph get _graph => widget.graph.value;
+
   @override
   void initState() {
     super.initState();
+    widget.graph.addListener(_graphChanged);
     _start();
   }
 
   @override
+  void didUpdateWidget(GraphScreen old) {
+    super.didUpdateWidget(old);
+    if (old.graph != widget.graph) {
+      old.graph.removeListener(_graphChanged);
+      widget.graph.addListener(_graphChanged);
+      _graphChanged();
+    }
+  }
+
+  @override
   void dispose() {
+    widget.graph.removeListener(_graphChanged);
     _transform.dispose();
     _drawing?.dispose();
     super.dispose();
@@ -102,10 +126,40 @@ class _GraphScreenState extends State<GraphScreen> {
   Future<void> _start() async {
     final remembered = await widget.nodeMemory.lastNode();
     if (!mounted) return;
-    _centre = widget.graph.nodes.containsKey(remembered)
+    _centre = _graph.nodes.containsKey(remembered)
         ? remembered
-        : _mostLinked(widget.graph);
+        : _mostLinked(_graph);
     await _update();
+  }
+
+  /// Draws the new graph, if it changes what is shown. A centre node that
+  /// is gone is replaced by the node with the most links.
+  void _graphChanged() {
+    if (!mounted) return;
+    final graph = _graph;
+    if (!graph.nodes.containsKey(_centre)) _centre = _mostLinked(graph);
+    final drawn = _drawn;
+    final centre = _centre;
+    if (centre != null &&
+        drawn != null &&
+        centre == _scopeCentre &&
+        _sameDrawing(drawn, DrawnGraph.of(graph, _choice.scope(centre)))) {
+      // The same nodes, labels and edges: keep the layout and the view.
+      setState(() {});
+      return;
+    }
+    _layouts.clear();
+    if (centre == null) {
+      ++_generation;
+      setState(() {
+        _drawn = null;
+        _layout = null;
+        _drawing?.dispose();
+        _drawing = null;
+      });
+      return;
+    }
+    _update();
   }
 
   /// Draws the current scope with the current layout.
@@ -114,7 +168,7 @@ class _GraphScreenState extends State<GraphScreen> {
     if (centre == null) return;
     final generation = ++_generation;
     final scope = _choice.scope(centre);
-    final drawn = DrawnGraph.of(widget.graph, scope);
+    final drawn = DrawnGraph.of(_graph, scope);
     setState(() {
       _scopeCentre = centre;
       _drawn = drawn;
@@ -166,9 +220,9 @@ class _GraphScreenState extends State<GraphScreen> {
     final drawing = _drawing;
     if (drawing == null) return;
     final scale = _transform.value.getMaxScaleOnAxis();
-    final id = drawing.nodeAt(details.localPosition, max(20, 28 / scale));
+    final id = drawing.nodeAt(details.localPosition, tapReach(scale));
     if (id == null) return;
-    final node = widget.graph.nodes[id];
+    final node = _graph.nodes[id];
     if (node == null) return;
     setState(() => _centre = id);
     widget.nodeMemory.remember(id);
@@ -197,7 +251,7 @@ class _GraphScreenState extends State<GraphScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final centreTitle = widget.graph.nodes[_scopeCentre]?.displayTitle ?? '';
+    final centreTitle = _graph.nodes[_scopeCentre]?.displayTitle ?? '';
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -257,7 +311,7 @@ class _GraphScreenState extends State<GraphScreen> {
   }
 
   Widget _body(BuildContext context) {
-    if (widget.graph.nodes.isEmpty) {
+    if (_graph.nodes.isEmpty) {
       return const Center(child: Text('There are no nodes in roam/.'));
     }
     final drawing = _drawing;
@@ -290,6 +344,12 @@ class _GraphScreenState extends State<GraphScreen> {
     );
   }
 }
+
+/// Whether [a] and [b] have the same nodes, labels and edges, in order.
+bool _sameDrawing(DrawnGraph a, DrawnGraph b) =>
+    listEquals([for (final n in a.nodes) (n.id, n.label)],
+        [for (final n in b.nodes) (n.id, n.label)]) &&
+    listEquals(a.edges, b.edges);
 
 /// The node with the most links, in both directions; the first one of
 /// several. Null for a graph without nodes.

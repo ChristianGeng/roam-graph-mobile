@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'folder/folder_access.dart';
@@ -23,7 +24,7 @@ class RoamGraphApp extends StatelessWidget {
 
   final FolderAccess folderAccess;
   final GraphIndex graphIndex;
-  final Widget Function(RoamGraph graph) graphScreen;
+  final Widget Function(ValueListenable<RoamGraph> graph) graphScreen;
 
   @override
   Widget build(BuildContext context) {

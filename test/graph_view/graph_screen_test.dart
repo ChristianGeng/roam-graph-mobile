@@ -34,12 +34,13 @@ final graph = graphOf(
 Future<MemoryNodeMemory> show(
   WidgetTester tester, {
   RoamGraph? of,
+  ValueNotifier<RoamGraph>? notifier,
   String? remembered,
 }) async {
   final memory = MemoryNodeMemory(remembered);
   await tester.pumpWidget(MaterialApp(
     home: GraphScreen(
-      graph: of ?? graph,
+      graph: notifier ?? ValueNotifier(of ?? graph),
       nodeMemory: memory,
       computeLayout: layoutHere,
     ),
@@ -159,6 +160,61 @@ void main() {
     await tester.pumpAndSettle();
     await tapMiddle(tester);
     expect(find.text('E'), findsOneWidget);
+  });
+
+  test('a tap reaches the dot plus 16 pixels on the screen', () {
+    expect(tapReach(1), 23);
+    // Zoomed out, 16 screen pixels are many graph pixels...
+    expect(tapReach(0.1), closeTo(167, 0.001));
+    // ...zoomed in, few: 11 graph pixels are 44 on the screen.
+    expect(tapReach(4), 11);
+  });
+
+  testWidgets('a new graph from the index is drawn', (tester) async {
+    final notifier = ValueNotifier(graph);
+    await show(tester, notifier: notifier, remembered: 'c');
+
+    // Syncthing brought a note that links to c.
+    notifier.value = graphOf(
+      ['hub', 'a', 'b', 'c', 'd', 'e', 'f', 'lonely', 'new'],
+      ['hub>a', 'hub>b', 'hub>c', 'hub>e', 'f>hub', 'a>b', 'c>d', 'new>c'],
+    );
+    await tester.pumpAndSettle();
+    await tapMiddle(tester);
+    expect(find.text('C'), findsOneWidget);
+    expect(find.text('Links to 1 nodes, linked from 2 nodes in this view.'),
+        findsOneWidget);
+  });
+
+  testWidgets('the same graph again keeps the view', (tester) async {
+    final notifier = ValueNotifier(graph);
+    await show(tester, notifier: notifier, remembered: 'c');
+    await tester.drag(find.byType(InteractiveViewer), const Offset(300, 200));
+    await tester.pumpAndSettle();
+
+    // A scan that found nothing new gives an equal graph.
+    notifier.value = graphOf(
+      ['hub', 'a', 'b', 'c', 'd', 'e', 'f', 'lonely'],
+      ['hub>a', 'hub>b', 'hub>c', 'hub>e', 'f>hub', 'a>b', 'c>d'],
+    );
+    await tester.pumpAndSettle();
+    // Not centred again: the middle is still empty after the drag.
+    await tapMiddle(tester);
+    expect(find.byType(BottomSheet), findsNothing);
+  });
+
+  testWidgets('when the centre node is deleted, the graph moves to another',
+      (tester) async {
+    final notifier = ValueNotifier(graph);
+    await show(tester, notifier: notifier, remembered: 'd');
+
+    notifier.value = graphOf(
+      ['hub', 'a', 'b', 'c'],
+      ['hub>a', 'hub>b', 'hub>c'],
+    );
+    await tester.pumpAndSettle();
+    await tapMiddle(tester);
+    expect(find.text('HUB'), findsOneWidget);
   });
 
   testWidgets('a graph without nodes says so', (tester) async {

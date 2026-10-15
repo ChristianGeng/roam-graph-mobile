@@ -238,6 +238,36 @@ void main() {
     expect(find.text('a.org'), findsOneWidget);
   });
 
+  testWidgets('an open graph shows what a scan on resume found',
+      (tester) async {
+    final access = withNotes(saved: org);
+    await start(tester, access);
+    await tapText(tester, 'Show graph');
+    await tester.pumpAndSettle();
+
+    // Syncthing brought c, which links to a and b.
+    access
+      ..files = [
+        ...someFiles(),
+        const FolderFile(path: 'roam/c.org', uri: 'content://c2', modified: 1),
+      ]
+      ..texts = {
+        ...someTexts,
+        'roam/c.org': ':PROPERTIES:\n:ID: c\n:END:\n#+title: C\n'
+            '[[id:a]] [[id:b]]\n',
+      };
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    // Still on a, which c now links to.
+    await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
+    await tester.pumpAndSettle();
+    expect(find.text('a.org'), findsOneWidget);
+    expect(find.text('Links to 2 nodes, linked from 1 nodes in this view.'),
+        findsOneWidget);
+  });
+
   testWidgets('without nodes there is no "Show graph"', (tester) async {
     await start(
       tester,

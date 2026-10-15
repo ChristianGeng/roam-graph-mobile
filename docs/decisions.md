@@ -223,8 +223,12 @@ devices through Syncthing.
       - The whole graph also shows the nodes without links.
       - The target of a link to a missing ID is a node labelled
         `id:<target>`.
-      - Titles longer than 100 characters are cut to 97 plus `...`
-        (`org-roam-graph-max-title-length`).
+      - Titles wider than 100 columns are cut to 97 columns plus `...`
+        (`org-roam-graph-max-title-length`), counted as Emacs counts
+        them: a CJK character takes two columns, and `"` and `\` two as
+        well, because org-roam escapes them first. The widths come from
+        Emacs's `char-width` (`tool/char_width.el` writes
+        `lib/graph/char_width.dart`).
     - "Neighbourhood: N steps" is `C-u N M-x org-roam-graph`, and
       "Connected part" is `C-u M-x org-roam-graph`. org-roam's query for
       N steps keeps the nodes up to N - 1 links away, plus every edge
@@ -266,13 +270,20 @@ devices through Syncthing.
       (#8) exists, opening shows a short summary with a button for its
       neighbourhood.
     - The graph opens from "Show graph" on the screen with the counts. The
-      tablet and phone layouts (#16) will change where it lives.
+      tablet and phone layouts (#16) will change where it lives. An open
+      graph follows the index: when the app comes back to the foreground
+      and the scan finds changes, the graph is drawn again. When nothing
+      it shows has changed, the view stays where it is.
 
 ## Recommended, not decided
 
 Nothing at the moment.
 
 ### Flutter or PWA
+
+This comparison is from 2026-10-11, when the graph was planned in a WebView
+with Cytoscape.js. Since decision 24, Flutter draws the graph itself; the
+reasons for Flutter below still hold.
 
 A PWA was also suggested. Two common objections to it do not hold:
 

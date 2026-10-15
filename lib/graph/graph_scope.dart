@@ -6,10 +6,12 @@ library;
 
 import 'dart:collection';
 
+import 'char_width.dart';
 import 'roam_graph.dart';
 
-/// org-roam's `org-roam-graph-max-title-length`; longer titles are cut, as
-/// with its default `org-roam-graph-shorten-titles` (`truncate`).
+/// org-roam's `org-roam-graph-max-title-length`, in columns; wider titles
+/// are cut, as with its default `org-roam-graph-shorten-titles`
+/// (`truncate`).
 const maxTitleLength = 100;
 
 /// A node in the drawing. [node] is null for the target of an `id:` link
@@ -143,12 +145,49 @@ DrawnNode _drawn(RoamGraph graph, String id) {
   return DrawnNode(id: id, label: truncateTitle(node.displayTitle), node: node);
 }
 
-/// [title] cut to [maxTitleLength] characters, the last three being
-/// `...`, as Emacs's `truncate-string-to-width` does for org-roam.
+/// [title] cut to [maxTitleLength] columns, the last three being `...`, as
+/// Emacs's `truncate-string-to-width` does for org-roam.
+///
+/// Columns are counted as Emacs counts them ([charWidth]): a CJK character
+/// takes two. org-roam cuts the title after escaping `\` and `"` for
+/// Graphviz, so these take two columns each. Unlike Emacs, the cut never
+/// falls between such a character and its escape.
 String truncateTitle(String title) {
-  final chars = title.runes.toList();
-  if (chars.length <= maxTitleLength) return title;
-  return '${String.fromCharCodes(chars.take(maxTitleLength - 3))}...';
+  int width(int rune) =>
+      rune == 0x5C || rune == 0x22 ? 2 : charWidth(rune);
+  final runes = title.runes.toList();
+  if (runes.fold(0, (sum, rune) => sum + width(rune)) <= maxTitleLength) {
+    return title;
+  }
+  // Characters while they fit into the columns before the `...`, and none
+  // after these are full, not even one without width.
+  const limit = maxTitleLength - 3;
+  final kept = StringBuffer();
+  var used = 0;
+  for (final rune in runes) {
+    if (used >= limit || used + width(rune) > limit) break;
+    used += width(rune);
+    kept.writeCharCode(rune);
+  }
+  return '$kept...';
+}
+
+/// The columns Emacs's `char-width` gives the character [rune]: 2 for CJK
+/// characters and most emoji, 0 for combining marks, otherwise mostly 1.
+int charWidth(int rune) {
+  // Binary search in the ranges (first, last, width) of charWidthRanges.
+  var low = 0, high = charWidthRanges.length ~/ 3 - 1;
+  while (low <= high) {
+    final middle = (low + high) ~/ 2;
+    if (rune < charWidthRanges[middle * 3]) {
+      high = middle - 1;
+    } else if (rune > charWidthRanges[middle * 3 + 1]) {
+      low = middle + 1;
+    } else {
+      return charWidthRanges[middle * 3 + 2];
+    }
+  }
+  return 1;
 }
 
 /// The nodes org-roam's recursive query in
