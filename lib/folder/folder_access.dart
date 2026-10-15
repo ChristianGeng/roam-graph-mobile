@@ -8,6 +8,7 @@ class ChosenFolder {
     required this.uri,
     required this.name,
     required this.hasAccess,
+    this.canWrite = false,
   });
 
   /// Android tree URI of the folder.
@@ -19,6 +20,10 @@ class ChosenFolder {
   /// False if Android no longer grants read access, for example after the
   /// user revoked it or reinstalled the app.
   final bool hasAccess;
+
+  /// True if the app may also write into the folder (v2 capture, #11). A
+  /// folder chosen before v2 can only be read until it is chosen again.
+  final bool canWrite;
 }
 
 /// Picks the org folder and lists its files.
@@ -42,6 +47,13 @@ abstract interface class FolderAccess {
   /// Shows [file] in the app [packageName], with Android's `ACTION_VIEW`
   /// (#10). False if that app is not installed.
   Future<bool> openWith(FolderFile file, String packageName);
+
+  /// Writes [bytes] as the new file [name] in the directory with the URI
+  /// [dir] (from [listFiles], or the folder's own URI), and returns the new
+  /// file's URI. Never replaces a file: a [PlatformException] with the
+  /// code `exists` if [name] is taken. The file appears only when it is
+  /// complete (#13).
+  Future<String> createFile(String dir, String name, Uint8List bytes);
 }
 
 /// [FolderAccess] through the Android code in `FolderAccess.kt`.
@@ -94,12 +106,20 @@ class PlatformFolderAccess implements FolderAccess {
       ) ??
       false;
 
+  @override
+  Future<String> createFile(String dir, String name, Uint8List bytes) async =>
+      (await _channel.invokeMethod<String>(
+        'createFile',
+        {'dir': dir, 'name': name, 'bytes': bytes},
+      ))!;
+
   static ChosenFolder? _toFolder(Map<Object?, Object?>? map) {
     if (map == null) return null;
     return ChosenFolder(
       uri: map['uri']! as String,
       name: map['name']! as String,
       hasAccess: map['hasAccess']! as bool,
+      canWrite: map['canWrite'] as bool? ?? false,
     );
   }
 }

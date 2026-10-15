@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../capture/capture_screen.dart';
 import '../graph/graph_algorithms.dart';
 import '../graph/graph_layout.dart';
 import '../graph/graph_scope.dart';
@@ -61,6 +62,7 @@ class GraphScreen extends StatefulWidget {
     required this.graph,
     required this.readNote,
     this.openInOrgro,
+    this.writer,
     this.nodeMemory = const FileNodeMemory(),
     this.computeLayout = layoutOnIsolate,
     this.computeAlgorithms = algorithmsOnIsolate,
@@ -73,6 +75,9 @@ class GraphScreen extends StatefulWidget {
 
   /// Opens a note in Orgro, for the node view.
   final NoteOpener? openInOrgro;
+
+  /// Writes new notes (#11); without it, there is no "New node" button.
+  final NoteWriter? writer;
   final NodeMemory nodeMemory;
   final LayoutFunction computeLayout;
   final AlgorithmsFunction computeAlgorithms;
@@ -506,6 +511,14 @@ class _GraphScreenState extends State<GraphScreen> {
     }
   }
 
+  /// Creates a new node (#11) and opens it.
+  Future<void> _capture(NoteWriter writer) async {
+    final id = await CaptureScreen.open(context, writer);
+    if (id == null || !mounted) return;
+    widget.nodeMemory.remember(id);
+    _openNode(context, id);
+  }
+
   void _showView(_GraphView view) => setState(() {
         _view = view;
         _pathTarget = null;
@@ -536,7 +549,15 @@ class _GraphScreenState extends State<GraphScreen> {
     );
     final paneId = _centre;
     final note = _viewNote();
+    final writer = widget.writer;
     return Scaffold(
+      floatingActionButton: writer == null
+          ? null
+          : FloatingActionButton(
+              tooltip: 'New node',
+              onPressed: () => _capture(writer),
+              child: const Icon(Icons.add),
+            ),
       // The graph has no text field; the keyboard of the search page above
       // must not resize it.
       resizeToAvoidBottomInset: false,

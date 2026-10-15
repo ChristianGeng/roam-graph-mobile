@@ -12,7 +12,8 @@ backlinks (#8). Search finds nodes by title, alias and tag as you type (#9).
 A button opens the node's file in Orgro, read-only (#10). On a tablet in
 landscape, graph and node view are side by side (#16). Graph views show
 communities, importance and shortest paths, as my org-roam MCP server
-computes them (#7). What is decided and why is in
+computes them (#7). A "New node" button creates a node as org-roam's
+capture would, in a file Syncthing brings to the laptop (#11). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 
