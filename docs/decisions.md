@@ -326,6 +326,31 @@ devices through Syncthing.
     - **Starting the graph:** opening a node remembers it, so the graph
       starts there next time.
 
+27. **Search works like `org-roam-node-find` with my Doom Emacs** (#9),
+    `lib/graph/node_search.dart`:
+    - **Candidates:** each node's title, and each alias as a candidate of
+      its own, as `org-roam-node-list` makes them. A node can be found
+      twice, by its title and by an alias; the alias says whose it is. A
+      node without a title is found by its file name, which the app shows
+      for it; org-roam's title for it is empty.
+    - **Matching:** the words typed, separated by spaces, must each occur
+      in the candidate, anywhere, in any order, ignoring case. This is how
+      Doom's completion (`vertico` with `orderless`) matches literal
+      words. Orderless also reads a word as a regular expression; the app
+      does not.
+    - **Order:** the newest file first, as `org-roam-node-default-sort`
+      (`file-mtime`). Candidates from files with the same time keep their
+      order: path order, a title before its aliases. For this the graph
+      now carries each file's modification time, which the database
+      already stored (`files.mtime`).
+    - **Tags:** chips for every tag, the most used first. A node must have
+      every selected tag. In Emacs, tags are part of the text that
+      completion matches; the app keeps them apart, as #9 asks.
+    - **Actions:** a result opens the node view (#8); Enter opens the
+      first result. A second button shows the node in the graph (#6).
+      Both remember the node, so the graph starts there next time.
+    - **Where:** a search button in the graph view and in the node view.
+
 ## Recommended, not decided
 
 Nothing at the moment.

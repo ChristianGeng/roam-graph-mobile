@@ -244,11 +244,14 @@ class RoamDatabase {
   }) {
     final files = <String, String>{}; // stored file -> relative path
     final titles = <String, String>{};
-    for (final row in _db.select('SELECT file, title FROM files').rows) {
+    final mtimes = <String, int>{};
+    for (final row
+        in _db.select('SELECT file, title, mtime FROM files').rows) {
       final path = _relative(row[0]);
       if (path == null) continue;
       files[row[0]! as String] = path;
       titles[path] = row[1] is String ? decodeElispString(row[1]! as String) : '';
+      mtimes[path] = _parseTime(row[2]);
     }
     Map<String, List<List<Object?>>> byNode(String sql) {
       final result = <String, List<List<Object?>>>{};
@@ -312,6 +315,7 @@ class RoamDatabase {
         RoamFileData(
           path: path,
           title: titles[path] ?? '',
+          mtime: mtimes[path] ?? 0,
           nodes: nodesOfFile[path] ?? const [],
           links: linksOfFile[path] ?? const [],
         ),

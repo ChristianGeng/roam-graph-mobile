@@ -5,6 +5,7 @@ import 'package:org_flutter/org_flutter.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
+import '../search/search_screen.dart';
 
 /// Reads a note's text, by its path relative to `roam/`; null if it cannot
 /// be read.
@@ -144,6 +145,17 @@ class _NodeScreenState extends State<NodeScreen> {
       appBar: AppBar(
         title: Text(node?.displayTitle ?? 'Node'),
         actions: [
+          IconButton(
+            tooltip: 'Search',
+            icon: const Icon(Icons.search),
+            onPressed: () => SearchScreen.open(
+              context,
+              graph: widget.graph,
+              readNote: widget.readNote,
+              nodeMemory: widget.nodeMemory,
+              onShowInGraph: onShowInGraph,
+            ),
+          ),
           if (node != null && onShowInGraph != null)
             IconButton(
               tooltip: 'Show in graph',
