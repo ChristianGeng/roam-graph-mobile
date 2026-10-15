@@ -66,15 +66,36 @@ List<String> parseTags(String text) => [
 /// One line: a title with line breaks in it would end `#+title:` early.
 String oneLine(String text) => text.replaceAll(RegExp(r'\s*\n\s*'), ' ').trim();
 
+/// An `id:` link to [id], as Org's `org-link-make-string` writes it:
+/// - The target is escaped as `org-link-escape` does: `[` and `]` get a
+///   backslash, and backslashes before them, or at the end, are doubled.
+/// - The description cannot end the link early: if it ends with `]`, a
+///   zero-width space follows; then each pair `]]`, from the left and not
+///   overlapping, gets a zero-width space between its brackets.
+String orgLink(String id, String description) {
+  const space = '\u200B';
+  var text = oneLine(description);
+  if (text.endsWith(']')) text = '$text$space';
+  text = text.replaceAll(']]', ']$space]');
+  return '[[${orgLinkEscape('id:$id')}][$text]]';
+}
+
+/// [link] escaped as Org's `org-link-escape` does it.
+String orgLinkEscape(String link) => link.replaceAllMapped(
+      RegExp(r'(\\*)([\[\]]|$)'),
+      (m) => '${m[1]}${m[1]}${m[2]!.isEmpty ? '' : '\\'}${m[2]}',
+    );
+
 /// The text of a new node's file, as org-roam writes it: the `:ID:`
 /// property in a drawer at the top (`org-id-get-create`), then the default
 /// template's `#+title:`, then `#+filetags:` as `org-roam-tag-add` writes
-/// it, then [body].
+/// it, then a link to [linkTo] (#12), then [body].
 String nodeFileText({
   required String id,
   required String title,
   List<String> tags = const [],
   String body = '',
+  ({String id, String title})? linkTo,
 }) {
   final text = StringBuffer()
     ..writeln(':PROPERTIES:')
@@ -82,11 +103,14 @@ String nodeFileText({
     ..writeln(':END:')
     ..writeln('#+title: ${oneLine(title)}');
   if (tags.isNotEmpty) text.writeln('#+filetags: :${tags.join(':')}:');
-  final trimmed = body.trimRight();
-  if (trimmed.isNotEmpty) {
+  final parts = [
+    if (linkTo != null) orgLink(linkTo.id, linkTo.title),
+    if (body.trimRight() case final trimmed when trimmed.isNotEmpty) trimmed,
+  ];
+  for (final part in parts) {
     text
       ..writeln()
-      ..writeln(trimmed);
+      ..writeln(part);
   }
   return text.toString();
 }

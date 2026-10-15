@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 
+import '../capture/capture_screen.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
@@ -37,6 +38,7 @@ class NodeScreen extends StatefulWidget {
     this.openInOrgro,
     this.onOpenNode,
     this.onBack,
+    this.writer,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -56,6 +58,10 @@ class NodeScreen extends StatefulWidget {
   /// pane is part of the graph's page.
   final VoidCallback? onBack;
 
+  /// Writes new notes; with it, "New node from here" captures a node that
+  /// links to this one (#12).
+  final NoteWriter? writer;
+
   /// Shows the node [id] in the graph view (#6); the button is hidden when
   /// null.
   final void Function(BuildContext context, String id)? onShowInGraph;
@@ -69,6 +75,7 @@ class NodeScreen extends StatefulWidget {
     required NodeMemory nodeMemory,
     void Function(BuildContext context, String id)? onShowInGraph,
     NoteOpener? openInOrgro,
+    NoteWriter? writer,
   }) {
     nodeMemory.remember(id);
     return Navigator.push(
@@ -81,6 +88,7 @@ class NodeScreen extends StatefulWidget {
           nodeMemory: nodeMemory,
           onShowInGraph: onShowInGraph,
           openInOrgro: openInOrgro,
+          writer: writer,
         ),
       ),
     );
@@ -171,7 +179,18 @@ class _NodeScreenState extends State<NodeScreen> {
       nodeMemory: widget.nodeMemory,
       onShowInGraph: widget.onShowInGraph,
       openInOrgro: widget.openInOrgro,
+      writer: widget.writer,
     );
+  }
+
+  /// Captures a new node that links to [node] (#12), and opens it.
+  Future<void> _capture(NoteWriter writer, RoamNode node) async {
+    final id = await CaptureScreen.open(
+      context,
+      writer,
+      linkTo: (id: node.id, title: node.displayTitle),
+    );
+    if (id != null && mounted) _openId(id);
   }
 
   /// Opens the node's file in Orgro, at the top: Orgro has no way to jump
@@ -225,8 +244,15 @@ class _NodeScreenState extends State<NodeScreen> {
               onShowInGraph: onShowInGraph,
               openInOrgro: widget.openInOrgro,
               onOpenNode: widget.onOpenNode,
+              writer: widget.writer,
             ),
           ),
+          if (widget.writer case final writer? when node != null)
+            IconButton(
+              tooltip: 'New node from here',
+              icon: const Icon(Icons.note_add_outlined),
+              onPressed: () => _capture(writer, node),
+            ),
           if (widget.openInOrgro case final open? when node != null)
             IconButton(
               tooltip: 'Open in Orgro',

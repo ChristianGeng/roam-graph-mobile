@@ -461,6 +461,74 @@ void main() {
     });
   });
 
+  group('link to the current node (#12)', () {
+    Future<FakeFolderAccess> showA(WidgetTester tester) async {
+      final access = withNotes(saved: writableOrg);
+      await start(tester, access);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      // The test screen is a tablet in landscape: a is in the side pane.
+      return access;
+    }
+
+    testWidgets('a node captured from a node links to it, in the new file',
+        (tester) async {
+      final access = await showA(tester);
+      final textOfA = access.texts['roam/a.org'];
+      await tester.tap(find.byTooltip('New node from here'));
+      await tester.pumpAndSettle();
+      expect(find.text('Link to A'), findsOneWidget);
+      await tester.enterText(
+          find.byKey(const ValueKey('capture-title')), 'Child');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      final (_, name) = access.created.single;
+      final text = access.texts['roam/$name']!;
+      expect(text, contains('\n[[id:a][A]]\n'));
+      // The existing file is not changed.
+      expect(access.texts['roam/a.org'], textOfA);
+
+      // The new node is open; back on a, it is a backlink.
+      expect(find.descendant(
+              of: find.byType(AppBar), matching: find.text('Child')),
+          findsOneWidget);
+      // The side pane's Back, not the page's.
+      await tester.tap(find.descendant(
+          of: find.byKey(const ValueKey('node-pane')),
+          matching: find.byTooltip('Back')));
+      await tester.pumpAndSettle();
+      expect(find.text('Backlinks: 1'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'Child'), findsOneWidget);
+    });
+
+    testWidgets('the link can be left out', (tester) async {
+      final access = await showA(tester);
+      await tester.tap(find.byTooltip('New node from here'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Link to A'));
+      await tester.enterText(
+          find.byKey(const ValueKey('capture-title')), 'Alone');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      final (_, name) = access.created.single;
+      expect(access.texts['roam/$name'], isNot(contains('[[id:')));
+    });
+
+    testWidgets('from the graph, the link to the selected node is on',
+        (tester) async {
+      await showA(tester);
+      await tester.tap(find.byTooltip('New node'));
+      await tester.pumpAndSettle();
+      final tile = tester.widget<CheckboxListTile>(
+          find.byKey(const ValueKey('capture-link')));
+      expect(tile.value, isTrue);
+      expect(find.text('Link to A'), findsOneWidget);
+    });
+  });
+
   testWidgets('without nodes, the graph says so and offers a first node',
       (tester) async {
     final access = FakeFolderAccess(saved: writableOrg, files: [

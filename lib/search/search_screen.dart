@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../capture/capture_screen.dart';
 import '../graph/node_search.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
@@ -17,6 +18,7 @@ class SearchScreen extends StatefulWidget {
     this.onShowInGraph,
     this.openInOrgro,
     this.onOpenNode,
+    this.writer,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -33,6 +35,9 @@ class SearchScreen extends StatefulWidget {
   /// tablet layout (#16) closes the search and shows it in its side pane.
   final void Function(BuildContext context, String id)? onOpenNode;
 
+  /// Writes new notes, for the node view.
+  final NoteWriter? writer;
+
   /// Opens the search on a new page.
   static Future<void> open(
     BuildContext context, {
@@ -42,6 +47,7 @@ class SearchScreen extends StatefulWidget {
     void Function(BuildContext context, String id)? onShowInGraph,
     NoteOpener? openInOrgro,
     void Function(BuildContext context, String id)? onOpenNode,
+    NoteWriter? writer,
   }) =>
       Navigator.push(
         context,
@@ -53,6 +59,7 @@ class SearchScreen extends StatefulWidget {
             onShowInGraph: onShowInGraph,
             openInOrgro: openInOrgro,
             onOpenNode: onOpenNode,
+            writer: writer,
           ),
         ),
       );
@@ -101,6 +108,7 @@ class _SearchScreenState extends State<SearchScreen> {
         nodeMemory: widget.nodeMemory,
         onShowInGraph: widget.onShowInGraph,
         openInOrgro: widget.openInOrgro,
+        writer: widget.writer,
       );
 
   @override
