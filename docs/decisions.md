@@ -557,7 +557,30 @@ devices through Syncthing.
 
 ## Recommended, not decided
 
-Nothing at the moment.
+- **No MCP server on the device, for now** (#14). The owner decides; this
+  is the recommendation, with its reasons:
+  - **Writing needs no MCP.** An AI app shares text, and the app turns it
+    into a node (#15, decision 34). That covers the Claude Android app,
+    which cannot write files.
+  - **Reading needs a client on the device, and there is none that fits.**
+    - The Claude Android app connects only to remote MCP servers on the
+      internet. The graph is private and offline on purpose (decisions 2
+      and 14).
+    - Claude Code on the laptop already has Emacs, the real
+      `org-roam.db` and the existing MCP server.
+    - An on-device model would be a project of its own.
+  - **What the app needs from the server's half is built in already.** The
+    graph algorithms the MCP server offers (communities, PageRank, paths)
+    are views in the app (#7, decision 30). The app's database has
+    org-roam's schema (#5), so the server's read-only queries would run
+    on it unchanged if a client ever appears.
+  - **When to look again:** when an MCP client on Android can use a local
+    server (for example over a local socket), or when the Claude Android
+    app can share the graph's database with a local tool. Then the
+    read-only half of `mcps/org_roam` could serve the database the app
+    builds itself (decision 23; Emacs's `org-roam.db` stays on the laptop,
+    decision 3) as it is.
+  - **If the owner agrees:** close #14 and the v3 milestone.
 
 ### Flutter or PWA
 
@@ -593,10 +616,11 @@ matter less here, because the laptop has Emacs.
 
 ## Open
 
-- **MCP on the device** (#14). Adding nodes needs no MCP (see 11). MCP would
-  only matter if an AI on the device had to read or query the graph without
-  the laptop, and it needs a client there. The Claude Android app only
-  connects to remote MCP servers. Possibly never needed.
+- **MCP on the device** (#14). Adding nodes needs no MCP (see 11 and 34).
+  MCP would only matter if an AI on the device had to read or query the
+  graph without the laptop, and it needs a client there. The Claude
+  Android app only connects to remote MCP servers. The recommendation
+  above is not to build it for now; the owner decides.
 
 ## My data, for checks
 
