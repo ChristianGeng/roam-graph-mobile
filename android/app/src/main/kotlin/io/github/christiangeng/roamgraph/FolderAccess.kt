@@ -16,16 +16,20 @@ import java.util.concurrent.Executors
 /**
  * Access to the org folder through Android's Storage Access Framework (#3).
  *
- * The user picks the folder once. The app takes a persistable read
- * permission, which Android keeps across restarts, and remembers the folder
- * so it can tell "never chosen" apart from "permission lost".
+ * The user picks the folder once. The app takes a persistable read and
+ * write permission (write since v2 capture, #11), which Android keeps
+ * across restarts, and remembers the folder so it can tell "never chosen"
+ * apart from "permission lost". A folder chosen before v2 has read access
+ * only, until it is chosen again.
  *
  * This class only picks and lists. Which files belong to the graph is
  * decided in Dart (lib/folder/org_files.dart), where it is unit-tested.
  *
  * Methods on the channel:
- * - savedFolder() -> {uri, name, hasAccess} or null if none was ever chosen
- * - pickFolder() -> {uri, name, hasAccess} or null if the user cancelled
+ * - savedFolder() -> {uri, name, hasAccess, canWrite} or null if none was
+ *   ever chosen
+ * - pickFolder() -> {uri, name, hasAccess, canWrite} or null if the user
+ *   cancelled
  * - listFiles({uri, skipDirs}) -> [{path, uri, directory, modified, size}]
  *   for every file and directory below the folder, with paths relative to
  *   it, leaving out (and not entering) directories named in skipDirs
@@ -34,6 +38,12 @@ import java.util.concurrent.Executors
  * - openWith({uri, package}) -> true if the app [package] was started to
  *   show the file (ACTION_VIEW), false if it is not installed (#10). It
  *   gets read access to the file only: v1 is read-only (decision 28).
+ * - createFile({dir, name, bytes}) -> the new file's URI, in the folder
+ *   [dir] (a document URI from listFiles, or the tree URI for the chosen
+ *   folder itself). It never replaces a file: error "exists" if [name] is
+ *   taken. The bytes go to a temporary file named as Syncthing names its
+ *   own (.syncthing.NAME.tmp), which Syncthing does not sync, and the
+ *   finished file is renamed into place (#13).
  */
 class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHandler {
     companion object {
@@ -74,6 +84,16 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                 }
                 readFiles(uris, result)
             }
+            "createFile" -> {
+                val dir = call.argument<String>("dir")
+                val name = call.argument<String>("name")
+                val bytes = call.argument<ByteArray>("bytes")
+                if (dir == null || name == null || bytes == null) {
+                    result.error("bad_args", "dir, name or bytes is missing", null)
+                    return
+                }
+                createFile(Uri.parse(dir), name, bytes, result)
+            }
             "openWith" -> {
                 val uri = call.argument<String>("uri")
                 val packageName = call.argument<String>("package")
@@ -90,13 +110,14 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
     private fun savedFolder(): Map<String, Any>? {
         val uriString = prefs.getString(KEY_URI, null) ?: return null
         val uri = Uri.parse(uriString)
-        val hasAccess = activity.contentResolver.persistedUriPermissions.any {
-            it.uri == uri && it.isReadPermission
-        }
+        val permissions = activity.contentResolver.persistedUriPermissions
+        val hasAccess = permissions.any { it.uri == uri && it.isReadPermission }
+        val canWrite = permissions.any { it.uri == uri && it.isWritePermission }
         return mapOf(
             "uri" to uriString,
             "name" to displayName(uri, hasAccess),
             "hasAccess" to hasAccess,
+            "canWrite" to canWrite,
         )
     }
 
@@ -122,6 +143,7 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
         pendingPick = result
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(
             Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
                 Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
         )
         try {
@@ -153,24 +175,26 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
         }
         val resolver = activity.contentResolver
         val heldBefore = resolver.persistedUriPermissions.any { it.uri == uri }
+        val readWrite =
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         try {
-            resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        } catch (e: SecurityException) {
-            result?.error("no_permission", e.message, null)
-            return true
+            resolver.takePersistableUriPermission(uri, readWrite)
+        } catch (_: SecurityException) {
+            // A folder that can only be read: browsing still works.
+            try {
+                resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: SecurityException) {
+                result?.error("no_permission", e.message, null)
+                return true
+            }
         }
         // Save the new folder durably before releasing the old one, so the
         // saved folder never points at a released permission. If saving
         // fails, keep the old folder and give back the new permission.
         if (!prefs.edit().putString(KEY_URI, uri.toString()).commit()) {
             if (!heldBefore) {
-                try {
-                    resolver.releasePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                    )
-                } catch (_: SecurityException) {
-                    // Nothing to give back.
+                for (permission in resolver.persistedUriPermissions) {
+                    if (permission.uri == uri) release(permission)
                 }
             }
             result?.error("save_failed", "Could not save the chosen folder. Try again.", null)
@@ -179,19 +203,110 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
         // Keep only the folder just chosen: Android limits how many
         // persisted permissions an app may hold.
         for (permission in resolver.persistedUriPermissions) {
-            if (permission.uri != uri) {
-                try {
-                    resolver.releasePersistableUriPermission(
-                        permission.uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                    )
-                } catch (_: SecurityException) {
-                    // Already gone; nothing to release.
-                }
-            }
+            if (permission.uri != uri) release(permission)
         }
         result?.success(savedFolder())
         return true
+    }
+
+    /** Gives back [permission], with exactly the modes it has. */
+    private fun release(permission: android.content.UriPermission) {
+        var flags = 0
+        if (permission.isReadPermission) flags = flags or Intent.FLAG_GRANT_READ_URI_PERMISSION
+        if (permission.isWritePermission) flags = flags or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        try {
+            activity.contentResolver.releasePersistableUriPermission(permission.uri, flags)
+        } catch (_: SecurityException) {
+            // Already gone; nothing to release.
+        }
+    }
+
+    private fun createFile(dir: Uri, name: String, bytes: ByteArray, result: MethodChannel.Result) {
+        executor.execute {
+            val outcome: Pair<String?, String?> = try {
+                Pair(writeNewFile(dir, name, bytes), null)
+            } catch (e: FileExistsException) {
+                Pair(null, "exists")
+            } catch (e: Exception) {
+                Pair(null, e.message ?: e.toString())
+            }
+            mainThread.post {
+                when (val error = outcome.second) {
+                    null -> result.success(outcome.first)
+                    "exists" -> result.error("exists", "$name exists already", null)
+                    else -> result.error("write_failed", error, null)
+                }
+            }
+        }
+    }
+
+    private class FileExistsException : Exception()
+
+    /** The document URI of [dir], which may be the tree URI itself. */
+    private fun documentUri(dir: Uri): Uri =
+        if (DocumentsContract.isDocumentUri(activity, dir)) {
+            dir
+        } else {
+            DocumentsContract.buildDocumentUriUsingTree(dir, DocumentsContract.getTreeDocumentId(dir))
+        }
+
+    private fun childNames(parent: Uri): Set<String> {
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(
+            parent,
+            DocumentsContract.getDocumentId(parent),
+        )
+        val names = mutableSetOf<String>()
+        activity.contentResolver.query(
+            children,
+            arrayOf(Document.COLUMN_DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) names.add(cursor.getString(0))
+        }
+        return names
+    }
+
+    /** Writes [bytes] as the new file [name] in [dir]; see createFile. */
+    private fun writeNewFile(dir: Uri, name: String, bytes: ByteArray): String {
+        val resolver = activity.contentResolver
+        val parent = documentUri(dir)
+        if (name in childNames(parent)) throw FileExistsException()
+        val tempName = ".syncthing.$name.tmp"
+        val temp = DocumentsContract.createDocument(
+            resolver,
+            parent,
+            "application/octet-stream",
+            tempName,
+        ) ?: throw IllegalStateException("Could not create $tempName")
+        try {
+            resolver.openOutputStream(temp, "w")?.use { it.write(bytes) }
+                ?: throw IllegalStateException("Could not write $tempName")
+            if (name in childNames(parent)) throw FileExistsException()
+            val renamed = DocumentsContract.renameDocument(resolver, temp, name)
+                ?: throw IllegalStateException("Could not rename $tempName")
+            // A provider may change the name, for example to "name (1)".
+            val finalName = resolver.query(
+                renamed,
+                arrayOf(Document.COLUMN_DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { if (it.moveToFirst()) it.getString(0) else null }
+            if (finalName != name) {
+                DocumentsContract.deleteDocument(resolver, renamed)
+                throw FileExistsException()
+            }
+            return renamed.toString()
+        } catch (e: Exception) {
+            try {
+                DocumentsContract.deleteDocument(resolver, temp)
+            } catch (_: Exception) {
+                // Already renamed or gone.
+            }
+            throw e
+        }
     }
 
     private fun listFiles(uriString: String, skipDirs: Set<String>, result: MethodChannel.Result) {

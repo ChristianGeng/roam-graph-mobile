@@ -444,6 +444,42 @@ devices through Syncthing.
       - Louvain communities as good as the worst of 20 python-louvain
         runs, with a similar number of communities.
 
+31. **New nodes are written as org-roam's default capture writes them**
+    (#11), `lib/capture/`:
+    - **Write access:** the folder picker now asks for read and write
+      access (decision 19 took read only, for v1). A folder chosen before
+      v2 keeps read access only; capture then asks to choose the folder
+      again. Browsing works either way.
+    - **File name:** `roam/<%Y%m%d%H%M%S>-<slug>.org`, the default
+      `org-roam-capture-templates` target, which my config does not
+      change. The slug is `org-roam-node-slugify`:
+      - Remove the accents: Unicode decomposition (`unorm_dart`), drop 21
+        combining marks, compose again.
+      - Turn everything that is not a letter or a decimal digit (Emacs's
+        `[:alnum:]`) into `_`.
+      - Remove `_` at the ends and repeated `_`, then use lower case.
+
+      `tool/org_roam_parity/slugs.el` runs the real function in Emacs on
+      30 titles (accents, CJK, Greek, `ß`, `İ`, `²`, ligatures, emoji),
+      and a test requires the same slugs.
+    - **ID:** a random UUID in lower case, as `org-id-new` makes it with
+      `org-id-method` `uuid` (`uuidgen`).
+    - **Text:** `:PROPERTIES:` / `:ID:       <id>` / `:END:`, then
+      `#+title:` (the template's head), then `#+filetags: :a:b:` as
+      `org-roam-tag-add` writes it, then the text. Tags are separated by
+      spaces, commas or colons, which Org tags cannot contain.
+    - **Writing:** the file is never written in place:
+      - The app writes it as `.syncthing.<name>.tmp`, the name Syncthing
+        gives its own temporary files. Syncthing's scanner skips these, so
+        a half-written file is never synced.
+      - Then it renames the file into place.
+      - A name that exists already is never replaced: the capture says so,
+        and saving a second later gives a new name.
+    - **Indexing:** the folder is indexed right after writing, so the new
+      node is in the graph at once, and the capture opens it. The laptop
+      picks it up with `org-roam-db-sync` after Syncthing has synced.
+    - **Where:** a "New node" button on the graph.
+
 ## Recommended, not decided
 
 Nothing at the moment.

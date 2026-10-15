@@ -38,6 +38,12 @@ class FakeFolderAccess implements FolderAccess {
   bool appInstalled = true;
   final opened = <(String, String)>[];
 
+  /// The files created, as directory URI and name.
+  final created = <(String, String)>[];
+
+  /// Whether every new file's name counts as taken.
+  bool everyNameTaken = false;
+
   /// The paths of every file read, in order.
   final readPaths = <String>[];
 
@@ -55,6 +61,20 @@ class FakeFolderAccess implements FolderAccess {
     final error = listError;
     if (error != null) throw error;
     return files;
+  }
+
+  @override
+  Future<String> createFile(String dir, String name, Uint8List bytes) async {
+    // The test folders keep their notes in roam/.
+    final path = 'roam/$name';
+    if (everyNameTaken || files.any((f) => f.path == path)) {
+      throw PlatformException(code: 'exists', message: '$name exists');
+    }
+    created.add((dir, name));
+    final uri = 'content://new/$name';
+    files = [...files, FolderFile(path: path, uri: uri, modified: 1)];
+    texts = {...texts, path: utf8.decode(bytes)};
+    return uri;
   }
 
   @override
@@ -106,6 +126,10 @@ class TestGraphIndex implements GraphIndex {
 
 const org = ChosenFolder(uri: 'content://tree/org', name: 'org', hasAccess: true);
 
+/// The same folder, chosen since v2 with write access.
+const writableOrg = ChosenFolder(
+    uri: 'content://tree/org', name: 'org', hasAccess: true, canWrite: true);
+
 List<FolderFile> someFiles() => [
       const FolderFile(path: 'roam', uri: 'content://r', isDirectory: true),
       const FolderFile(path: 'roam/a.org', uri: 'content://a', modified: 1),
@@ -137,10 +161,11 @@ Future<TestGraphIndex> start(WidgetTester tester, FakeFolderAccess access) async
     RoamGraphApp(
       folderAccess: access,
       graphIndex: index,
-      graphScreen: (graph, readNote, openInOrgro) => GraphScreen(
+      graphScreen: (graph, readNote, openInOrgro, writer) => GraphScreen(
         graph: graph,
         readNote: readNote,
         openInOrgro: openInOrgro,
+        writer: writer,
         nodeMemory: MemoryNodeMemory(),
         computeLayout: layoutHere,
       ),
@@ -304,6 +329,84 @@ void main() {
     await tester.tap(find.byTooltip('Open in Orgro'));
     await tester.pump();
     expect(find.text('Orgro is not installed.'), findsOneWidget);
+  });
+
+  group('capture (#11)', () {
+    Future<FakeFolderAccess> openCapture(
+        WidgetTester tester, ChosenFolder folder) async {
+      final access = withNotes(saved: folder, picked: writableOrg);
+      await start(tester, access);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('New node'));
+      await tester.pumpAndSettle();
+      return access;
+    }
+
+    testWidgets('a new node is written as org-roam would, indexed and opened',
+        (tester) async {
+      final access = await openCapture(tester, writableOrg);
+      await tester.enterText(
+          find.byKey(const ValueKey('capture-title')), 'Crème brûlée');
+      await tester.enterText(
+          find.byKey(const ValueKey('capture-tags')), 'food, french');
+      await tester.enterText(
+          find.byKey(const ValueKey('capture-body')), 'Burnt cream.');
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      final (dir, name) = access.created.single;
+      // Into roam/ itself, named as org-roam's default capture template.
+      expect(dir, 'content://r');
+      expect(name, matches(RegExp(r'^\d{14}-creme_brulee\.org$')));
+      final text = access.texts['roam/$name']!;
+      expect(text, startsWith(':PROPERTIES:\n:ID:       '));
+      expect(text, contains('#+title: Crème brûlée\n#+filetags: :food:french:'));
+      expect(text, endsWith('\nBurnt cream.\n'));
+      // Indexed at once, and opened.
+      expect(access.readPaths, contains('roam/$name'));
+      expect(
+          find.descendant(
+              of: find.byType(AppBar), matching: find.text('Crème brûlée')),
+          findsOneWidget);
+    });
+
+    testWidgets('a folder chosen before v2 must be chosen again',
+        (tester) async {
+      final access = await openCapture(tester, org);
+      await tester.enterText(
+          find.byKey(const ValueKey('capture-title')), 'Idea');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      expect(access.created, isEmpty);
+      expect(find.textContaining('may only read the folder'), findsOneWidget);
+      await tester.tap(find.text('Choose folder'));
+      await tester.pumpAndSettle();
+      expect(access.pickCalls, 1);
+
+      // Now with write access.
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(access.created, hasLength(1));
+    });
+
+    testWidgets('a file name that is taken is not overwritten',
+        (tester) async {
+      final access = await openCapture(tester, writableOrg);
+      access.everyNameTaken = true;
+      await tester.enterText(
+          find.byKey(const ValueKey('capture-title')), 'Twice');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      expect(access.created, isEmpty);
+      expect(find.textContaining('exists already'), findsOneWidget);
+      // Still on the capture screen, to save again.
+      expect(find.byKey(const ValueKey('capture-title')), findsOneWidget);
+    });
   });
 
   testWidgets('without nodes there is no "Show graph"', (tester) async {

@@ -22,6 +22,7 @@ dependencies:
   sqlite3_flutter_libs: ^0.5.32
   org_flutter: ^13.4.2
   material_ui: ^1.7.0
+  unorm_dart: ^0.3.3
 
 dev_dependencies:
   flutter_test:

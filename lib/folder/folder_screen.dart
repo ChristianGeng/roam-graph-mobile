@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
+import '../capture/capture_screen.dart';
 import '../graph/graph_index.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/graph_screen.dart';
@@ -16,6 +17,7 @@ typedef GraphScreenBuilder = Widget Function(
   ValueListenable<RoamGraph> graph,
   NoteReader readNote,
   NoteOpener openInOrgro,
+  NoteWriter writer,
 );
 
 /// Lets the user choose the org folder (#3), keeps the graph's database up
@@ -43,8 +45,14 @@ class FolderScreen extends StatefulWidget {
     ValueListenable<RoamGraph> graph,
     NoteReader readNote,
     NoteOpener openInOrgro,
+    NoteWriter writer,
   ) =>
-      GraphScreen(graph: graph, readNote: readNote, openInOrgro: openInOrgro);
+      GraphScreen(
+        graph: graph,
+        readNote: readNote,
+        openInOrgro: openInOrgro,
+        writer: writer,
+      );
 
   @override
   State<FolderScreen> createState() => _FolderScreenState();
@@ -81,6 +89,31 @@ class _FolderScreenState extends State<FolderScreen>
 
   /// The files of the latest graph, by path relative to roam/.
   Map<String, FolderFile> _roamFiles = {};
+
+  /// The URI of roam/ itself, where new notes go (#11).
+  String? _roamDir;
+
+  late final _writer = NoteWriter(create: _createNote, allowWriting: _choose);
+
+  /// Writes a new note into roam/ and indexes the folder (#11).
+  Future<CreateResult> _createNote(String fileName, String text) async {
+    final folder = _folder;
+    final dir = _roamDir;
+    if (folder == null || dir == null) {
+      return const CreateFailed('No folder is indexed.');
+    }
+    if (!folder.canWrite) return const NoWriteAccess();
+    try {
+      await widget.folderAccess
+          .createFile(dir, fileName, Uint8List.fromList(utf8.encode(text)));
+    } on PlatformException catch (e) {
+      return e.code == 'exists'
+          ? const FileExists()
+          : CreateFailed(e.message ?? e.code);
+    }
+    await _rescan();
+    return Created(fileName);
+  }
 
   /// Opens the note at [path], relative to roam/, in Orgro.
   Future<OpenResult> _openInOrgro(String path) async {
@@ -233,7 +266,16 @@ class _FolderScreenState extends State<FolderScreen>
       for (final MapEntry(key: path, value: content) in contents.entries)
         if (content == null) path,
     ];
-    if (generation == _generation) _roamFiles = byPath;
+    if (generation == _generation) {
+      _roamFiles = byPath;
+      // roam/ itself: the folder, or its roam/ subfolder.
+      _roamDir = prefix.isEmpty
+          ? folder.uri
+          : entries
+              .firstWhere((e) => e.isDirectory && '${e.path}/' == prefix,
+                  orElse: () => FolderFile(path: '', uri: folder.uri))
+              .uri;
+    }
     _show(generation, _Status.indexed, folder,
         (graph: graph, unreadable: unreadable));
   }
@@ -359,7 +401,8 @@ class _FolderScreenState extends State<FolderScreen>
                 context,
                 MaterialPageRoute<void>(
                   builder: (context) =>
-                      widget.graphScreen(notifier, _readNote, _openInOrgro),
+                      widget.graphScreen(
+                          notifier, _readNote, _openInOrgro, _writer),
                 ),
               ),
               icon: const Icon(Icons.hub_outlined),
