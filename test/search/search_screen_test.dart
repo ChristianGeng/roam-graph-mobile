@@ -37,7 +37,7 @@ void main() {
   testWidgets('finds as you type, and the field has the focus',
       (tester) async {
     await open(tester);
-    expect(find.text('6 nodes'), findsOneWidget);
+    expect(find.text('6 results'), findsOneWidget);
 
     // No tap on the field first: it has the focus.
     await tester.enterText(find.byType(TextField), 'li');
@@ -47,11 +47,11 @@ void main() {
     await tester.enterText(find.byType(TextField), 'lisp OLD');
     await tester.pump();
     expect(results(tester), ['Old notes on lisp']);
-    expect(find.text('1 node'), findsOneWidget);
+    expect(find.text('1 result'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Clear'));
     await tester.pump();
-    expect(find.text('6 nodes'), findsOneWidget);
+    expect(find.text('6 results'), findsOneWidget);
   });
 
   testWidgets('an alias says whose it is', (tester) async {

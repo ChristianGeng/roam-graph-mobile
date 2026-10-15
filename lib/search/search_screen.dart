@@ -141,7 +141,8 @@ class _SearchScreenState extends State<SearchScreen> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                hits.length == 1 ? '1 node' : '${hits.length} nodes',
+                // A node found by its title and an alias counts twice.
+                hits.length == 1 ? '1 result' : '${hits.length} results',
                 key: const ValueKey('hit-count'),
                 style: Theme.of(context).textTheme.bodySmall,
               ),

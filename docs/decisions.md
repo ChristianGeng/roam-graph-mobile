@@ -338,6 +338,11 @@ devices through Syncthing.
       Doom's completion (`vertico` with `orderless`) matches literal
       words. Orderless also reads a word as a regular expression; the app
       does not.
+    - **Case:** the app always ignores case, as #9 asks. This differs from
+      Emacs on purpose: orderless's `orderless-smart-case` (on by default,
+      and Doom keeps it) matches case-sensitively as soon as any word
+      contains a capital letter. Android keyboards capitalize the first
+      letter typed, so smart case would make the first word fail.
     - **Order:** the newest file first, as `org-roam-node-default-sort`
       (`file-mtime`). Candidates from files with the same time keep their
       order: path order, a title before its aliases. For this the graph
