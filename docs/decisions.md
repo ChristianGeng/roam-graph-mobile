@@ -370,9 +370,10 @@ devices through Syncthing.
     - **Read-only:** Orgro gets read access to the file only. The app holds
       only read access to the folder (decisions 9 and 19), and it can pass
       on no more than it holds. So Orgro can show and fold the file but not
-      save changes to it. Editing in Orgro from here would need the app to
-      ask for write access to the folder. The Kotlin code already passes
-      write access on if the app ever holds it.
+      save changes to it. The intent grants read access only, even if the
+      app should ever hold more. Editing in Orgro from here would need the
+      app to ask for write access to the folder; that belongs with v2
+      capture, as decided with the owner on 2026-10-15.
 
 ## Recommended, not decided
 

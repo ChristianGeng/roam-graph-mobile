@@ -33,8 +33,7 @@ import java.util.concurrent.Executors
  *   thread; null if a file cannot be read
  * - openWith({uri, package}) -> true if the app [package] was started to
  *   show the file (ACTION_VIEW), false if it is not installed (#10). It
- *   gets read access to the file, and write access only if this app holds
- *   it for the folder; this app takes only read access (decision 19).
+ *   gets read access to the file only: v1 is read-only (decision 28).
  */
 class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHandler {
     companion object {
@@ -103,15 +102,10 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
 
     private fun openWith(uri: Uri, packageName: String): Boolean {
         val resolver = activity.contentResolver
-        val canWrite = resolver.persistedUriPermissions.any {
-            it.isWritePermission && uri.toString().startsWith(it.uri.toString())
-        }
-        var flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-        if (canWrite) flags = flags or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         val intent = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, resolver.getType(uri) ?: "text/plain")
             .setPackage(packageName)
-            .addFlags(flags)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         return try {
             activity.startActivity(intent)
             true
