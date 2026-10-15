@@ -301,6 +301,10 @@ devices through Syncthing.
       - A tap opens the linked node on a new page, so Back returns. This
         includes a link to a heading in the same text, which `org_flutter`
         reports as a section.
+      - A link to a heading in the same text by its title or custom ID
+        (`[[*Heading]]`, `[[#custom-id]]`) opens the heading if it is a
+        node. Another heading cannot be shown alone, and a message says
+        so.
       - A link to a missing ID says so.
       - Other link types are not opened, and a message says so. Opening
         web links could come later.

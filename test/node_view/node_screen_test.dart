@@ -18,6 +18,7 @@ const notes = {
       'Also [[id:gone][a lost note]] and [[https://example.com][the web]].\n'
       '* H\n:PROPERTIES:\n:ID: h\n:END:\nText under H.\n',
   'b.org': ':PROPERTIES:\n:ID: b\n:END:\n#+title: B\nTop text of B.\n'
+      'Jump to [[*Part][the part]] or [[*Other][the other]].\n'
       '* Part\n:PROPERTIES:\n:ID: p\n:END:\nPart text.\n'
       '** Deeper\nDeeper text.\n'
       '* Other\nOther text, [[id:a][back to A]].\n',
@@ -121,6 +122,21 @@ void main() {
     expect(title('H'), findsOneWidget);
     expect(orgText('Text under H.'), findsOneWidget);
     expect(orgText('Some text of A'), findsNothing);
+  });
+
+  testWidgets('a [[*Heading]] link opens the heading if it is a node',
+      (tester) async {
+    await open(tester, 'b');
+
+    await tester.tapOnText(find.textRange.ofSubstring('the other'));
+    await tester.pump();
+    expect(find.text('This heading is no node, so the app cannot open it.'),
+        findsOneWidget);
+    expect(title('B'), findsOneWidget);
+
+    await tester.tapOnText(find.textRange.ofSubstring('the part'));
+    await tester.pumpAndSettle();
+    expect(title('Part'), findsOneWidget);
   });
 
   testWidgets('a link to a missing note or a web page says so',

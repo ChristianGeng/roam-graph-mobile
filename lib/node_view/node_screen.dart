@@ -103,10 +103,16 @@ class _NodeScreenState extends State<NodeScreen> {
     }
   }
 
-  /// A link to an ID in the shown text itself: Org reports it as a section.
+  /// A link to a heading in the shown text itself: `[[id:...]]`,
+  /// `[[*Heading]]` or `[[#custom-id]]`, which Org reports as a section. A
+  /// heading that is a node opens; another heading cannot be shown alone.
   void _openSection(OrgTree section, {String? searchOption}) {
     final id = section.ids.firstOrNull;
-    if (id != null) _openId(id);
+    if (id != null) {
+      _openId(id);
+    } else {
+      _tell('This heading is no node, so the app cannot open it.');
+    }
   }
 
   void _openId(String id) {
