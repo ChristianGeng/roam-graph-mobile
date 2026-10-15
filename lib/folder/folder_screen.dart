@@ -121,27 +121,43 @@ class _FolderScreenState extends State<FolderScreen>
   bool _sharing = false;
 
   /// Opens the capture for text shared with the app (#15), once the folder
-  /// is indexed; until then, the share waits.
+  /// is indexed; until then, shares wait. Shares that came during a
+  /// capture are taken one after another when it closes.
   Future<void> _takeShare() async {
-    final notifier = _graph;
-    if (_sharing || _status != _Status.indexed || notifier == null) return;
+    if (_sharing) return;
     _sharing = true;
     try {
-      final shared = await widget.shareInbox.take();
-      if (shared == null || !mounted) return;
-      final proposal = proposeNode(shared);
-      final last = notifier.value.nodes[await widget.nodeMemory.lastNode()];
-      if (!mounted) return;
-      final id = await CaptureScreen.open(
-        context,
-        _writer,
-        initialTitle: proposal.title,
-        initialBody: proposal.body,
-        // Offered, not on: a shared text is often about something else.
-        linkTo: last == null ? null : (id: last.id, title: last.displayTitle),
-        linkByDefault: false,
-      );
-      if (id == null || !mounted) return;
+      // The next share, as long as one came meanwhile.
+      while (mounted && await _captureShare()) {}
+    } on PlatformException {
+      // No share to take; nothing to show.
+    } on MissingPluginException {
+      // Not on Android, as in tests without a share inbox.
+    } finally {
+      _sharing = false;
+    }
+  }
+
+  /// Takes one share and lets the user capture it; false if there was none
+  /// to take, or the folder is not indexed yet.
+  Future<bool> _captureShare() async {
+    final notifier = _graph;
+    if (_status != _Status.indexed || notifier == null) return false;
+    final shared = await widget.shareInbox.take();
+    if (shared == null || !mounted) return false;
+    final proposal = proposeNode(shared);
+    final last = notifier.value.nodes[await widget.nodeMemory.lastNode()];
+    if (!mounted) return false;
+    final id = await CaptureScreen.open(
+      context,
+      _writer,
+      initialTitle: proposal.title,
+      initialBody: proposal.body,
+      // Offered, not on: a shared text is often about something else.
+      linkTo: last == null ? null : (id: last.id, title: last.displayTitle),
+      linkByDefault: false,
+    );
+    if (id != null && mounted) {
       NodeScreen.open(
         context,
         graph: notifier,
@@ -151,13 +167,8 @@ class _FolderScreenState extends State<FolderScreen>
         openInOrgro: _openInOrgro,
         writer: _writer,
       );
-    } on PlatformException {
-      // No share to take; nothing to show.
-    } on MissingPluginException {
-      // Not on Android, as in tests without a share inbox.
-    } finally {
-      _sharing = false;
     }
+    return true;
   }
 
   /// Writes a new note into roam/ and indexes the folder (#11).

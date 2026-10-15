@@ -529,15 +529,22 @@ devices through Syncthing.
 
 34. **Shared text becomes a new node** (#15), as decision 11 planned:
     - **Share target:** the app is in Android's share menu for plain text
-      (`ACTION_SEND`, `text/plain`). `MainActivity.kt` keeps the shared
-      text until the app takes it, once, through the channel
-      `roam_graph/share`. A share that starts the app waits until the
-      folder is indexed.
+      (`ACTION_SEND`, `text/plain`).
+      - `MainActivity.kt` keeps shared texts in a queue, oldest first,
+        until the app takes them one at a time through the channel
+        `roam_graph/share`.
+      - The queue is kept in the activity's saved state, so a share is
+        not lost when Android recreates the activity before the app took
+        it.
+      - A share that starts the app waits until the folder is indexed.
+      - Shares that come during a capture open one after another when it
+        closes.
     - **Capture:** the share opens the capture screen of #11.
       - The title is the share's subject if the sending app gives one.
         Otherwise it is the first line that is not empty, without the `#`
-        of a Markdown heading or the `**` of bold, since AI apps share
-        Markdown.
+        of a Markdown heading and without `**` bold marks, in pairs, since
+        AI apps share Markdown: `**Summary:** the points` gives
+        `Summary: the points`.
       - The text is the rest, so the title is not repeated in it.
       - Both can be edited before saving, and tags added.
       - The text is stored as it came; it is not converted from Markdown

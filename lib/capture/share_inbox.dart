@@ -13,8 +13,8 @@ class SharedText {
 
 /// The title and text a share proposes for the new node: the subject if
 /// there is one, otherwise the first line that is not empty, without the
-/// `#` of a Markdown heading (AI apps share Markdown). The text is the
-/// rest, so the title is not repeated in it.
+/// `#` of a Markdown heading and the `**` of bold, in pairs (AI apps share
+/// Markdown). The text is the rest, so the title is not repeated in it.
 ({String title, String body}) proposeNode(SharedText shared) {
   final subject = shared.subject?.trim() ?? '';
   if (subject.isNotEmpty) {
@@ -26,7 +26,7 @@ class SharedText {
   final title = lines[first]
       .trim()
       .replaceFirst(RegExp(r'^#+\s*'), '')
-      .replaceAll(RegExp(r'^\*\*|\*\*$'), '')
+      .replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => m[1]!)
       .trim();
   final body = lines.sublist(first + 1).join('\n').trim();
   return (title: title, body: body);
@@ -36,7 +36,8 @@ class SharedText {
 ///
 /// An interface so the screens can be tested without Android.
 abstract interface class ShareInbox {
-  /// The text shared last, once; null if there is none.
+  /// The oldest shared text not taken yet, once; null if there is none.
+  /// Several shares wait in a queue until they are taken.
   Future<SharedText?> take();
 
   /// Calls [onArrived] when text is shared while the app runs.

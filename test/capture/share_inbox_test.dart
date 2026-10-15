@@ -12,6 +12,13 @@ void main() {
         (title: 'Key ideas', body: '- one\n- two'));
     expect(proposeNode(const SharedText('**Summary**\nText')),
         (title: 'Summary', body: 'Text'));
+    // A bold lead-in, and bold inside: only pairs of ** go.
+    expect(
+        proposeNode(const SharedText('**Summary:** the main points\nMore')),
+        (title: 'Summary: the main points', body: 'More'));
+    expect(proposeNode(const SharedText('A **bold** word')).title,
+        'A bold word');
+    expect(proposeNode(const SharedText('5 ** 2')).title, '5 ** 2');
   });
 
   test('a subject is the title, and all of the text the body', () {

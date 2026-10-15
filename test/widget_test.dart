@@ -100,24 +100,22 @@ class FakeFolderAccess implements FolderAccess {
   }
 }
 
-/// A [ShareInbox] without Android, for tests.
+/// A [ShareInbox] without Android, for tests: a queue, as in
+/// MainActivity.kt.
 class FakeShareInbox implements ShareInbox {
-  SharedText? pending;
+  final queue = <SharedText>[];
   void Function()? onArrived;
 
   @override
-  Future<SharedText?> take() async {
-    final shared = pending;
-    pending = null;
-    return shared;
-  }
+  Future<SharedText?> take() async =>
+      queue.isEmpty ? null : queue.removeAt(0);
 
   @override
   void listen(void Function() onArrived) => this.onArrived = onArrived;
 
   /// Text shared while the app runs.
   void share(SharedText shared) {
-    pending = shared;
+    queue.add(shared);
     onArrived?.call();
   }
 }
@@ -681,7 +679,7 @@ void main() {
     testWidgets('a share at start opens the capture, proposed and saved',
         (tester) async {
       final shares = FakeShareInbox()
-        ..pending = const SharedText('# Attention\nIs all you need.');
+        ..queue.add(const SharedText('# Attention\nIs all you need.'));
       final access = withNotes(saved: writableOrg);
       await start(tester, access,
           shares: shares, memory: MemoryNodeMemory('a'));
@@ -706,7 +704,7 @@ void main() {
           find.descendant(
               of: find.byType(AppBar), matching: find.text('Attention')),
           findsOneWidget);
-      expect(shares.pending, isNull);
+      expect(shares.queue, isEmpty);
     });
 
     testWidgets('a share while the app runs', (tester) async {
@@ -720,12 +718,44 @@ void main() {
       expect(find.widgetWithText(TextField, 'Later'), findsOneWidget);
     });
 
+    testWidgets('two shares before indexing: both, one after the other',
+        (tester) async {
+      final shares = FakeShareInbox()
+        ..queue.addAll(const [SharedText('First'), SharedText('Second')]);
+      final access = withNotes(saved: writableOrg);
+      await start(tester, access, shares: shares);
+
+      expect(find.widgetWithText(TextField, 'First'), findsOneWidget);
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, 'Second'), findsOneWidget);
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect([for (final (_, name) in access.created) name.substring(15)],
+          ['first.org', 'second.org']);
+    });
+
+    testWidgets('a share during a capture opens when the capture closes',
+        (tester) async {
+      final shares = FakeShareInbox()..queue.add(const SharedText('One'));
+      await start(tester, withNotes(saved: writableOrg), shares: shares);
+      expect(find.widgetWithText(TextField, 'One'), findsOneWidget);
+
+      shares.share(const SharedText('Two'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, 'Two'), findsNothing);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, 'Two'), findsOneWidget);
+    });
+
     testWidgets('a share waits until a folder is indexed', (tester) async {
-      final shares = FakeShareInbox()..pending = const SharedText('Waiting');
+      final shares = FakeShareInbox()..queue.add(const SharedText('Waiting'));
       final access = withNotes(picked: writableOrg);
       await start(tester, access, shares: shares);
       expect(find.text('Choose your org folder'), findsOneWidget);
-      expect(shares.pending, isNotNull);
+      expect(shares.queue, isNotEmpty);
 
       await tapText(tester, 'Choose org folder');
       await tester.pumpAndSettle();
