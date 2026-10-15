@@ -20,6 +20,8 @@ dependencies:
   # SQLite into the APK.
   sqlite3: ^2.7.0
   sqlite3_flutter_libs: ^0.5.32
+  org_flutter: ^13.4.2
+  material_ui: ^1.7.0
 
 dev_dependencies:
   flutter_test:

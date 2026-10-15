@@ -275,6 +275,57 @@ devices through Syncthing.
       and the scan finds changes, the graph is drawn again. When nothing
       it shows has changed, the view stays where it is.
 
+25. **Material comes from the `material_ui` package**, not from
+    `package:flutter/material.dart` (#8). Since Flutter 3.47, Material
+    Design is also a separate package, `material_ui`, and `org_flutter`
+    (Orgro's renderer, decision 6) uses it. The two libraries are separate
+    copies whose widgets do not see each other:
+    - Org text inside a Flutter `Scaffold` found no `Material` and failed.
+    - Org text would not follow the app's theme or dark mode.
+
+    So every file imports `package:material_ui/material_ui.dart`, and there
+    is one Material library in the app.
+
+26. **The node view** (#8), `lib/node_view/node_screen.dart`:
+    - **What it shows:** `org_flutter` renders the node as Org.
+      - A file node shows its whole file.
+      - A heading node shows its heading and subtree. `org_parser` finds
+        the heading by its `:ID:`. A test renders every node of the
+        sample files and checks that it finds every heading node.
+      - Headings start unfolded; property drawers start folded, as in
+        `org_flutter`.
+    - **Reading the file:** the node view reads the file through the
+      folder access (#3) when it opens. It reads it again when the index
+      changes.
+    - **`id:` links:**
+      - A tap opens the linked node on a new page, so Back returns. This
+        includes a link to a heading in the same text, which `org_flutter`
+        reports as a section.
+      - A link to a heading in the same text by its title or custom ID
+        (`[[*Heading]]`, `[[#custom-id]]`) opens the heading if it is a
+        node. Another heading cannot be shown alone, and a message says
+        so.
+      - A link to a missing ID says so.
+      - Other link types are not opened, and a message says so. Opening
+        web links could come later.
+    - **Backlinks:** listed below the text, as `org-roam-backlinks-section`
+      lists them by default:
+      - One entry for each `id:` link, not one for each node.
+      - Sorted by the linking node's title, keeping the order of links
+        from nodes with the same title.
+      - Each entry shows the title and, below it, where the link is: the
+        headings around it joined by ` > `, with links shown by their
+        description (`org-link-display-format`), or `Top`.
+      - A tap opens the linking node.
+      - org-roam also shows the text around each link. The app leaves
+        that out: it would read every linking file each time a node
+        opens.
+    - **"Show in graph":** returns to the graph, centred on the node. A
+      part of the graph around another node is drawn again around this
+      one.
+    - **Starting the graph:** opening a node remembers it, so the graph
+      starts there next time.
+
 ## Recommended, not decided
 
 Nothing at the moment.

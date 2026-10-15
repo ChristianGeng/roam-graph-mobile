@@ -1,10 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roam_graph_mobile/graph/backlinks.dart';
 import 'package:roam_graph_mobile/graph/elisp.dart';
 import 'package:roam_graph_mobile/graph/indexer.dart';
 import 'package:roam_graph_mobile/graph/roam_db.dart';
+
+import 'graph_scope_test.dart' show fixtureGraph;
 
 Uint8List bytes(String text) => utf8.encode(text);
 
@@ -30,6 +34,43 @@ void main() {
       }
       expect(decodeElispString('#("tag" 0 3 (inherited t))'), 'tag');
     });
+  });
+
+  test('strings of a property list', () {
+    const plist = r'(:outline ("A (1)" #("B \"x\"" 0 3 (face (bold))) "C")'
+        r' :search-option "*H")';
+    expect(decodeElispPlistStrings(plist, ':outline'), ['A (1)', 'B "x"', 'C']);
+    expect(decodeElispPlistStrings('(:outline nil)', ':outline'), isEmpty);
+    expect(decodeElispPlistStrings('(:other ("A"))', ':outline'), isEmpty);
+    expect(decodeElispPlistStrings('', ':outline'), isEmpty);
+  });
+
+  test('backlinks from the database are those of the files', () {
+    final parsed = fixtureGraph();
+    final db = RoamDatabase.inMemory(root: '/roam');
+    addTearDown(db.close);
+    updateIndex(
+      db,
+      {for (final path in parsed.files) path: 1},
+      {
+        for (final path in parsed.files)
+          path: File('test/fixtures/roam/$path').readAsBytesSync(),
+      },
+    );
+    final loaded = db.loadGraph();
+
+    List<String> rows(List<Backlink> backlinks) => [
+          for (final b in backlinks) '${b.source.id} (${b.outline})',
+        ]..sort();
+    var withOutline = 0;
+    for (final id in parsed.nodes.keys) {
+      final expected = rows(backlinksOf(parsed, id));
+      expect(rows(backlinksOf(loaded, id)), expected, reason: id);
+      withOutline += expected.where((r) => !r.endsWith('(Top)')).length;
+    }
+    // The sample files have links under headings, so this compares more
+    // than "Top".
+    expect(withOutline, greaterThan(0));
   });
 
   group('RoamDatabase', () {

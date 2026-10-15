@@ -65,6 +65,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.7"
+  cupertino_ui:
+    dependency: transitive
+    description:
+      name: cupertino_ui
+      sha256: "8e14acc2817ff469b925b0e275ab85ecc6c769621360dd0af1331c47f916e247"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.3"
+  equatable:
+    dependency: transitive
+    description:
+      name: equatable
+      sha256: "3bce007a596ff8b3119c45d68aaef631272537c03d30e5d4534dd24bf4c5eaa2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.0"
   fake_async:
     dependency: transitive
     description:
@@ -94,11 +110,72 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
+  flutter_localizations:
+    dependency: transitive
+    description: flutter
+    source: sdk
+    version: "0.0.0"
+  flutter_slidable:
+    dependency: transitive
+    description:
+      name: flutter_slidable
+      sha256: ea369262929d3cc6ebf9d8a00c196127966f117fe433a5e5cb47fb08008ca203
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.3"
   flutter_test:
     dependency: "direct dev"
     description: flutter
     source: sdk
     version: "0.0.0"
+  flutter_tex_js:
+    dependency: transitive
+    description:
+      name: flutter_tex_js
+      sha256: "56a7a716d617c17797a3ff98458c0039c64db643f67577fe6466b77e03b93e3a"
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.0.0"
+  flutter_tex_js_android:
+    dependency: transitive
+    description:
+      name: flutter_tex_js_android
+      sha256: "7357d171f44068e51271ddf5c3bf8f0bd502df259b8755dba2dfa6fb7481e614"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.3"
+  flutter_tex_js_ios:
+    dependency: transitive
+    description:
+      name: flutter_tex_js_ios
+      sha256: "0ae1a241b20d385bade82732a54513500763908cb50602e7b9ab5059e2840612"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.3"
+  flutter_tex_js_platform_interface:
+    dependency: transitive
+    description:
+      name: flutter_tex_js_platform_interface
+      sha256: d6d4055233af0160170cb193b52f450f81e120fdb85045596dfc52f9f9b46e26
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
+  functional_zipper:
+    dependency: transitive
+    description:
+      name: functional_zipper
+      sha256: "1010a17991c1d1f9bffff65777abb34d39c5ce05bfe2203e18f395fc05296ad5"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.2"
+  highlighting:
+    dependency: transitive
+    description:
+      name: highlighting
+      sha256: "196005ed9c98ee559939fcecd466fa941b9e99b3a93394691b86780ad4da50f3"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.9.0+11.8.0"
   hooks:
     dependency: transitive
     description:
@@ -107,6 +184,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
+  intl:
+    dependency: transitive
+    description:
+      name: intl
+      sha256: "1ca20c894b1717686a2319b8548763d812bc0aabdac580420a44c5178c57a867"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.20.3"
   jni:
     dependency: transitive
     description:
@@ -187,6 +272,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  material_ui:
+    dependency: "direct main"
+    description:
+      name: material_ui
+      sha256: "27ea1af251a79728ee63068417f2ab469d294931a9bb8366ba8b85b0ef839060"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.7.0"
   meta:
     dependency: transitive
     description:
@@ -195,6 +288,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.19.0"
+  more:
+    dependency: transitive
+    description:
+      name: more
+      sha256: e252628d2183cc09539b686abfbd9d8302675959b89a2a8146f5f4baca6ac5ba
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.7.0"
   objective_c:
     dependency: transitive
     description:
@@ -203,6 +304,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "9.6.2"
+  org_flutter:
+    dependency: "direct main"
+    description:
+      name: org_flutter
+      sha256: "3f6dd5586bf7f29c1a646ec4857510add0f435b29c784e937c08fca229417d4d"
+      url: "https://pub.dev"
+    source: hosted
+    version: "13.4.2"
+  org_parser:
+    dependency: transitive
+    description:
+      name: org_parser
+      sha256: "561fd1f1cbb930fb5d0811bdd107278171910be1f199478f3660df2cc4b010d3"
+      url: "https://pub.dev"
+    source: hosted
+    version: "12.0.1"
   package_config:
     dependency: transitive
     description:
@@ -267,6 +384,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.0"
+  petit_lisp:
+    dependency: transitive
+    description:
+      name: petit_lisp
+      sha256: "0b22a81fccba02bf96232cd746da90ce3c4c237c839b036c8b57e850af3c80de"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.5.0"
+  petitparser:
+    dependency: transitive
+    description:
+      name: petitparser
+      sha256: "2f1564aadb14215e478563b5406cb80729d022158c01dc50c96013c2f7eb4790"
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.1.0"
   platform:
     dependency: transitive
     description:
@@ -368,6 +501,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.12"
+  tuple:
+    dependency: transitive
+    description:
+      name: tuple
+      sha256: a97ce2013f240b2f3807bcbaf218765b6f301c3eff91092bcfa23a039e7dd151
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.2"
   typed_data:
     dependency: transitive
     description:
@@ -417,5 +558,5 @@ packages:
     source: hosted
     version: "3.1.4"
 sdks:
-  dart: ">=3.11.0 <4.0.0"
-  flutter: ">=3.38.4"
+  dart: ">=3.13.0 <4.0.0"
+  flutter: ">=3.47.0"
