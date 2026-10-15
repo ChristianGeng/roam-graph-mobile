@@ -121,11 +121,10 @@ class RoamDatabase {
   /// The stored files, by path relative to [root].
   Map<String, StoredFile> storedFiles() => {
         for (final row in _db.select('SELECT file, hash, mtime FROM files').rows)
-          if (_relative(row[0]) case final path?)
-            path: (
-              hash: decodeElispString(row[1]! as String),
-              mtime: _parseTime(row[2]),
-            ),
+          ?_relative(row[0]): (
+            hash: decodeElispString(row[1]! as String),
+            mtime: _parseTime(row[2]),
+          ),
       };
 
   /// Replaces what is stored for [file]. [hash] is the SHA-1 of the file's

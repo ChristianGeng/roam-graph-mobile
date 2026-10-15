@@ -231,8 +231,7 @@ class RoamGraph {
       },
       allNodes: allNodes,
       failedFiles: {
-        for (final file in all)
-          if (file.error case final error?) file.path: error,
+        for (final file in all) file.path: ?file.error,
       },
     );
   }

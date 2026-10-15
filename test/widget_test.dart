@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -133,7 +132,17 @@ String? stat(WidgetTester tester, String key) {
   return tester.widget<Text>(finder).data;
 }
 
-void expectSomeNotes(WidgetTester tester) {
+/// Scrolls the button with [text] into view, as on a small screen, and
+/// taps it.
+Future<void> tapText(WidgetTester tester, String text) async {
+  await tester.ensureVisible(find.text(text));
+  await tester.pump();
+  await tester.tap(find.text(text));
+}
+
+/// The counts of [someTexts]. [unreadable] is the number of files shown as
+/// unreadable, if any.
+void expectSomeNotes(WidgetTester tester, {String? unreadable}) {
   expect(stat(tester, 'files'), '2');
   expect(stat(tester, 'nodes'), '3');
   expect(stat(tester, 'file-nodes'), '2');
@@ -145,7 +154,7 @@ void expectSomeNotes(WidgetTester tester) {
   expect(stat(tester, 'refs'), '1');
   expect(stat(tester, 'aliases'), '1');
   expect(stat(tester, 'duplicates'), isNull);
-  expect(stat(tester, 'unreadable'), isNull);
+  expect(stat(tester, 'unreadable'), unreadable);
 }
 
 void main() {
@@ -196,7 +205,7 @@ void main() {
     final access = withNotes(picked: org);
     await start(tester, access);
 
-    await tester.tap(find.text('Choose org folder'));
+    await tapText(tester, 'Choose org folder');
     await tester.pumpAndSettle();
 
     expect(access.pickCalls, 1);
@@ -310,7 +319,7 @@ void main() {
     final access = withNotes(saved: org);
     await start(tester, access);
 
-    await tester.tap(find.text('Change folder'));
+    await tapText(tester, 'Change folder');
     await tester.pumpAndSettle();
 
     expect(access.pickCalls, 1);
@@ -325,7 +334,7 @@ void main() {
     expect(access.readPaths, ['roam/a.org', 'roam/b.org']);
 
     // Nothing changed: nothing is read.
-    await tester.tap(find.text('Scan again'));
+    await tapText(tester, 'Scan again');
     await tester.pumpAndSettle();
     expect(access.readPaths, hasLength(2));
     expectSomeNotes(tester);
@@ -342,7 +351,7 @@ void main() {
         ...someTexts,
         'roam/b.org': ':PROPERTIES:\n:ID: b\n:END:\n#+title: B\n',
       };
-    await tester.tap(find.text('Scan again'));
+    await tapText(tester, 'Scan again');
     await tester.pumpAndSettle();
     expect(access.readPaths.skip(2), ['roam/b.org']);
     expect(stat(tester, 'nodes'), '2');
@@ -357,7 +366,7 @@ void main() {
       for (final f in someFiles())
         if (f.path != 'roam/b.org') f,
     ];
-    await tester.tap(find.text('Scan again'));
+    await tapText(tester, 'Scan again');
     await tester.pumpAndSettle();
 
     expect(stat(tester, 'files'), '1');
@@ -369,7 +378,7 @@ void main() {
     final index = await start(tester, access);
     expect(index.rebuilds, 1); // the first index of a folder
 
-    await tester.tap(find.text('Rebuild index'));
+    await tapText(tester, 'Rebuild index');
     await tester.pumpAndSettle();
 
     expect(index.rebuilds, 2);
@@ -382,7 +391,7 @@ void main() {
     final index = await start(tester, access);
 
     access.listError = PlatformException(code: 'io', message: 'gone');
-    await tester.tap(find.text('Rebuild index'));
+    await tapText(tester, 'Rebuild index');
     await tester.pumpAndSettle();
 
     expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
@@ -393,11 +402,13 @@ void main() {
     final index = await start(tester, access);
 
     access.texts = {'roam/a.org': someTexts['roam/a.org']!};
-    await tester.tap(find.text('Rebuild index'));
+    await tapText(tester, 'Rebuild index');
     await tester.pumpAndSettle();
 
     expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
-    expectSomeNotes(tester);
+    // b's stored rows stay, so the counts do not change; b is reported.
+    expectSomeNotes(tester, unreadable: '1');
+    expect(find.text('b.org'), findsOneWidget);
   });
 
   testWidgets('roam/ appearing later is found on resume', (tester) async {
@@ -430,7 +441,7 @@ void main() {
         'roam/a.org': ':PROPERTIES:\n:ID: other-a\n:END:\n',
         'roam/b.org': ':PROPERTIES:\n:ID: other-b\n:END:\n',
       };
-    await tester.tap(find.text('Change folder'));
+    await tapText(tester, 'Change folder');
     await tester.pumpAndSettle();
 
     expect(index.folder, other.uri);
@@ -472,7 +483,7 @@ void main() {
       ..listError = null
       ..files = someFiles()
       ..texts = someTexts;
-    await tester.tap(find.text('Try again'));
+    await tapText(tester, 'Try again');
     await tester.pumpAndSettle();
 
     expectSomeNotes(tester);

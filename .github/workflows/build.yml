@@ -77,21 +77,27 @@ jobs:
       - name: Analyze
         # Issues are also reported as an annotation, so they show on the
         # pull request without opening the log.
+        #
+        # shell: bash adds -o pipefail. Without it, the status of
+        # "flutter analyze | tee" is tee's, always 0, and the step passed
+        # with issues. The same holds for the tests below.
+        shell: bash
         run: |
           status=0
           flutter analyze 2>&1 | tee "$RUNNER_TEMP/analyze.txt" || status=$?
           if [ "$status" -ne 0 ]; then
-            issues=$(grep ' • ' "$RUNNER_TEMP/analyze.txt" | sed 's/^ *//' | head -50 | sed ':a;N;$!ba;s/\n/%0A/g')
+            issues=$(grep ' • ' "$RUNNER_TEMP/analyze.txt" | sed 's/^ *//' | head -50 | sed ':a;N;$!ba;s/\n/%0A/g' || true)
             echo "::error title=flutter analyze::${issues:-see the log}"
           fi
           exit "$status"
 
       - name: Test
+        shell: bash
         run: |
           status=0
           flutter test 2>&1 | tee "$RUNNER_TEMP/test.txt" || status=$?
           if [ "$status" -ne 0 ]; then
-            failures=$(grep -E -A 12 '══╡ EXCEPTION|^(Expected|  Actual|   Which):|\[E\]|Test failed' "$RUNNER_TEMP/test.txt" | head -80 | sed ':a;N;$!ba;s/\n/%0A/g')
+            failures=$(grep -E -A 12 '══╡ EXCEPTION|^(Expected|  Actual|   Which):|\[E\]|Test failed' "$RUNNER_TEMP/test.txt" | head -80 | sed ':a;N;$!ba;s/\n/%0A/g' || true)
             echo "::error title=flutter test::${failures:-see the log}"
           fi
           exit "$status"
