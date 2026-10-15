@@ -20,7 +20,11 @@ class MainActivity : FlutterActivity() {
      */
     private val pendingShares = ArrayDeque<Bundle>()
 
+    /** True when Android recreated the activity from its saved state. */
+    private var restored = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        restored = savedInstanceState != null
         savedInstanceState?.let { state ->
             @Suppress("DEPRECATION")
             state.getParcelableArrayList<Bundle>(KEY_SHARES)?.let { pendingShares.addAll(it) }
@@ -57,8 +61,10 @@ class MainActivity : FlutterActivity() {
             }
         }
         shareChannel = share
-        // A share that started the app.
-        keepShare(intent)
+        // A share that started the app. A recreated activity gets its
+        // original intent back from Android, but that share is in the saved
+        // queue already, or was taken: reading it again would repeat it.
+        if (!restored) keepShare(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
