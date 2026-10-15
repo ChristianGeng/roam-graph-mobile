@@ -356,6 +356,25 @@ devices through Syncthing.
       Both remember the node, so the graph starts there next time.
     - **Where:** a search button in the graph view and in the node view.
 
+28. **"Open in Orgro" hands Orgro the file, read-only** (#10). A button in
+    the node view sends the node's file to Orgro with Android's
+    `ACTION_VIEW`.
+    - **Which file:** the file's document URI from the folder access (#3).
+      Orgro accepts `content:` URIs of any type (its `AndroidManifest.xml`).
+    - **Only Orgro:** the intent names Orgro's application ID,
+      `com.madlonkay.orgro` (its `build.gradle`), so Android does not ask
+      which app to use. If Orgro is not installed, the app says so.
+    - **Headings:** a heading node opens its file at the top, and the app
+      says so. Orgro has no external way to jump to a heading
+      (decision 6).
+    - **Read-only:** Orgro gets read access to the file only. The app holds
+      only read access to the folder (decisions 9 and 19), and it can pass
+      on no more than it holds. So Orgro can show and fold the file but not
+      save changes to it. The intent grants read access only, even if the
+      app should ever hold more. Editing in Orgro from here would need the
+      app to ask for write access to the folder; that belongs with v2
+      capture, as decided with the owner on 2026-10-15.
+
 ## Recommended, not decided
 
 Nothing at the moment.

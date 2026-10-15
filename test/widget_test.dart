@@ -33,6 +33,11 @@ class FakeFolderAccess implements FolderAccess {
   PlatformException? listError;
   int pickCalls = 0;
 
+  /// Whether the app to open files with is installed, and the paths it
+  /// was asked to show, with the app.
+  bool appInstalled = true;
+  final opened = <(String, String)>[];
+
   /// The paths of every file read, in order.
   final readPaths = <String>[];
 
@@ -50,6 +55,13 @@ class FakeFolderAccess implements FolderAccess {
     final error = listError;
     if (error != null) throw error;
     return files;
+  }
+
+  @override
+  Future<bool> openWith(FolderFile file, String packageName) async {
+    if (!appInstalled) return false;
+    opened.add((file.path, packageName));
+    return true;
   }
 
   @override
@@ -125,9 +137,10 @@ Future<TestGraphIndex> start(WidgetTester tester, FakeFolderAccess access) async
     RoamGraphApp(
       folderAccess: access,
       graphIndex: index,
-      graphScreen: (graph, readNote) => GraphScreen(
+      graphScreen: (graph, readNote, openInOrgro) => GraphScreen(
         graph: graph,
         readNote: readNote,
+        openInOrgro: openInOrgro,
         nodeMemory: MemoryNodeMemory(),
         computeLayout: layoutHere,
       ),
@@ -272,6 +285,25 @@ void main() {
     expect(find.descendant(of: find.byType(AppBar), matching: find.text('A')),
         findsOneWidget);
     expect(find.text('Backlinks: 1'), findsOneWidget);
+  });
+
+  testWidgets('"Open in Orgro" hands the file to Orgro, or says it is missing',
+      (tester) async {
+    final access = withNotes(saved: org);
+    await start(tester, access);
+    await tapText(tester, 'Show graph');
+    await tester.pumpAndSettle();
+    await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Open in Orgro'));
+    await tester.pumpAndSettle();
+    expect(access.opened, [('roam/a.org', 'com.madlonkay.orgro')]);
+
+    access.appInstalled = false;
+    await tester.tap(find.byTooltip('Open in Orgro'));
+    await tester.pump();
+    expect(find.text('Orgro is not installed.'), findsOneWidget);
   });
 
   testWidgets('without nodes there is no "Show graph"', (tester) async {

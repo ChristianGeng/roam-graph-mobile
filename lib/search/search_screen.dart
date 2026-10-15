@@ -15,6 +15,7 @@ class SearchScreen extends StatefulWidget {
     required this.readNote,
     required this.nodeMemory,
     this.onShowInGraph,
+    this.openInOrgro,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -24,6 +25,9 @@ class SearchScreen extends StatefulWidget {
   /// Shows a node in the graph; the action is hidden when null.
   final void Function(BuildContext context, String id)? onShowInGraph;
 
+  /// Opens a node's file in Orgro, for the node view.
+  final NoteOpener? openInOrgro;
+
   /// Opens the search on a new page.
   static Future<void> open(
     BuildContext context, {
@@ -31,6 +35,7 @@ class SearchScreen extends StatefulWidget {
     required NoteReader readNote,
     required NodeMemory nodeMemory,
     void Function(BuildContext context, String id)? onShowInGraph,
+    NoteOpener? openInOrgro,
   }) =>
       Navigator.push(
         context,
@@ -40,6 +45,7 @@ class SearchScreen extends StatefulWidget {
             readNote: readNote,
             nodeMemory: nodeMemory,
             onShowInGraph: onShowInGraph,
+            openInOrgro: openInOrgro,
           ),
         ),
       );
@@ -77,6 +83,7 @@ class _SearchScreenState extends State<SearchScreen> {
         readNote: widget.readNote,
         nodeMemory: widget.nodeMemory,
         onShowInGraph: widget.onShowInGraph,
+        openInOrgro: widget.openInOrgro,
       );
 
   @override

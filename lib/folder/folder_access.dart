@@ -38,6 +38,10 @@ abstract interface class FolderAccess {
   /// The bytes of each of [files], in the same order. Null for a file that
   /// could not be read.
   Future<List<Uint8List?>> readFiles(List<FolderFile> files);
+
+  /// Shows [file] in the app [packageName], with Android's `ACTION_VIEW`
+  /// (#10). False if that app is not installed.
+  Future<bool> openWith(FolderFile file, String packageName);
 }
 
 /// [FolderAccess] through the Android code in `FolderAccess.kt`.
@@ -81,6 +85,14 @@ class PlatformFolderAccess implements FolderAccess {
     );
     return contents ?? List.filled(files.length, null);
   }
+
+  @override
+  Future<bool> openWith(FolderFile file, String packageName) async =>
+      await _channel.invokeMethod<bool>(
+        'openWith',
+        {'uri': file.uri, 'package': packageName},
+      ) ??
+      false;
 
   static ChosenFolder? _toFolder(Map<Object?, Object?>? map) {
     if (map == null) return null;

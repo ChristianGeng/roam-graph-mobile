@@ -1,6 +1,7 @@
 package io.github.christiangeng.roamgraph
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -30,6 +31,9 @@ import java.util.concurrent.Executors
  *   it, leaving out (and not entering) directories named in skipDirs
  * - readFiles({uris}) -> [bytes or null] for each URI, read on the scan
  *   thread; null if a file cannot be read
+ * - openWith({uri, package}) -> true if the app [package] was started to
+ *   show the file (ACTION_VIEW), false if it is not installed (#10). It
+ *   gets read access to the file only: v1 is read-only (decision 28).
  */
 class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHandler {
     companion object {
@@ -70,6 +74,15 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                 }
                 readFiles(uris, result)
             }
+            "openWith" -> {
+                val uri = call.argument<String>("uri")
+                val packageName = call.argument<String>("package")
+                if (uri == null || packageName == null) {
+                    result.error("bad_args", "uri or package is missing", null)
+                    return
+                }
+                result.success(openWith(Uri.parse(uri), packageName))
+            }
             else -> result.notImplemented()
         }
     }
@@ -85,6 +98,20 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
             "name" to displayName(uri, hasAccess),
             "hasAccess" to hasAccess,
         )
+    }
+
+    private fun openWith(uri: Uri, packageName: String): Boolean {
+        val resolver = activity.contentResolver
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, resolver.getType(uri) ?: "text/plain")
+            .setPackage(packageName)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        return try {
+            activity.startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        }
     }
 
     private fun pickFolder(result: MethodChannel.Result) {
