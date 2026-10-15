@@ -1,0 +1,9 @@
+:PROPERTIES:
+:ID: lt
+:END:
+#+title: Link types
+
+[[*Some heading]] [[#custom-id]] [[(coderef)]] [[./relative.org]] [[~/home.org]]
+[[file:notes.org::*Section][file with option]] [[https://example.com/p::frag][web option]]
+[[isbn:123][unregistered]] [[Plain words]] mailto:me@example.com file:plain.org
+<https://example.com/angle> [[id:lt::#custom][id with custom option]]

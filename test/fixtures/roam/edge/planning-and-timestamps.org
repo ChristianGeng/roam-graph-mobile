@@ -1,0 +1,21 @@
+:PROPERTIES:
+:ID: p0
+:END:
+#+title: Planning and timestamps
+#+category: plans
+
+Created [2026-03-02 Mon] and due <2026-03-05 Thu>.
+
+* DONE [#C] Closed task :done:
+CLOSED: [2026-03-03 Tue 14:20] DEADLINE: <2026-03-04 Wed 09:00> SCHEDULED: <2026-03-01 Sun 10:30 +1w>
+:PROPERTIES:
+:ID: p1
+:CATEGORY: errands
+:END:
+Body with [2026-03-06 Fri] and <2026-03-07 Sat>. 🙂 then [[id:p0][back]].
+* [#B] Only deadline
+DEADLINE: <2026-04-01 Wed>
+:PROPERTIES:
+:ID: p2
+:END:
+Ünïcödé 𝔘𝔫𝔦 then id:p0 here.

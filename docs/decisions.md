@@ -165,6 +165,39 @@ devices through Syncthing.
     app with it; the laptop check (`tool/org_roam_parity.py check`) shows a
     mismatch as files only one side has.
 
+23. **The app stores the graph in an SQLite database with org-roam's schema**
+    (#5): the same tables and columns (`files`, `nodes`, `aliases`,
+    `citations`, `refs`, `tags`, `links`), the same `user_version` (20), and
+    the same values, written the way emacsql writes them (Emacs Lisp
+    strings in quotes, lists, property lists). So the org-roam MCP server's
+    queries work on the phone's database unchanged. Details:
+    - Paths are stored as on the laptop, starting with
+      `/home/cgeng_local/work/cgeng/org/roam/`, so queries and results match
+      the laptop's database.
+    - The database is `org-roam.db` in the app's support folder, not in the
+      Syncthing folder, so the app never writes into my notes.
+    - Only new and changed files are read: first by modification time, then
+      by content hash (SHA-1, as org-roam). A file without a modification
+      time is always read. A file that disappeared is removed. "Rebuild
+      index" reads every file again and replaces the index in one
+      transaction, so a failed rebuild keeps the old one, and a file it
+      cannot read keeps its stored rows; choosing another folder replaces
+      the index too. The folder the index holds is kept in
+      `org-roam.db.folder`, removed before such a change and written after
+      it commits, so an interrupted change leads to a full rebuild. The app updates the index when it comes back
+      to the foreground. Index updates run one at a time, in order.
+    - `files.atime` holds the modification time: Android's folder access
+      gives no access time.
+    - The parser fills every column, not only what the graph needs: `pos`,
+      `level`, `todo`, `priority`, `scheduled`, `deadline`, `olp`, the
+      `properties` list org-roam stores, all link types with their
+      properties, and citations. CI compares every table with the database
+      real org-roam builds from `test/fixtures/roam/`, and
+      `tool/org_roam_parity.py check-db` does the same with my notes.
+    - A node ID used twice keeps the first node, as in org-roam. The app
+      reports it only while it reads the second file; after that the
+      database has only one of them.
+
 ## Recommended, not decided
 
 Nothing at the moment.

@@ -14,6 +14,7 @@
   "edge/angle-refs.org",
   "edge/blank-line-before-drawer.org",
   "edge/blank-line-in-drawer.org",
+  "edge/citations.org",
   "edge/comment-before-drawer.org",
   "edge/comment-blank-line-drawer.org",
   "edge/comment-in-drawer.org",
@@ -28,9 +29,11 @@
   "edge/id-nil.org",
   "edge/indented-drawer.org",
   "edge/junk-in-heading-drawer.org",
+  "edge/link-types.org",
   "edge/linked-title.org",
   "edge/lowercase-drawer.org",
   "edge/mode-line-before-drawer.org",
+  "edge/planning-and-timestamps.org",
   "edge/tab-after-keyword.org",
   "edge/tab-after-stars.org",
   "edge/tag-inheritance.org",
@@ -160,6 +163,18 @@
    "Theta heading ends the block"
   ],
   [
+   "c0",
+   "edge/citations.org",
+   0,
+   "Citations"
+  ],
+  [
+   "c1",
+   "edge/citations.org",
+   1,
+   "A heading"
+  ],
+  [
    "da",
    "edge/hyphen-in-tag.org",
    0,
@@ -200,6 +215,30 @@
    "edge/untitled-heading-links.org",
    1,
    "Titled"
+  ],
+  [
+   "lt",
+   "edge/link-types.org",
+   0,
+   "Link types"
+  ],
+  [
+   "p0",
+   "edge/planning-and-timestamps.org",
+   0,
+   "Planning and timestamps"
+  ],
+  [
+   "p1",
+   "edge/planning-and-timestamps.org",
+   1,
+   "Closed task"
+  ],
+  [
+   "p2",
+   "edge/planning-and-timestamps.org",
+   1,
+   "Only deadline"
   ],
   [
    "qa",
@@ -480,6 +519,18 @@
    "t4"
   ],
   [
+   "lt",
+   "lt"
+  ],
+  [
+   "p1",
+   "p0"
+  ],
+  [
+   "p2",
+   "p0"
+  ],
+  [
    "qa-fake",
    "x1"
   ],
@@ -624,6 +675,10 @@
   [
    "11111111-1111-4111-8111-000000000053",
    "two"
+  ],
+  [
+   "p1",
+   "done"
   ],
   [
    "v11",
@@ -986,6 +1041,24 @@
    "t4",
    "edge/untitled-heading-links.org",
    16
+  ],
+  [
+   "lt",
+   "lt",
+   "edge/link-types.org",
+   9
+  ],
+  [
+   "p1",
+   "p0",
+   "edge/planning-and-timestamps.org",
+   15
+  ],
+  [
+   "p2",
+   "p0",
+   "edge/planning-and-timestamps.org",
+   21
   ],
   [
    "qa-fake",

@@ -3,8 +3,9 @@
 Browse my org-roam node graph on Android (tablet and phone), offline and
 without Emacs. The org files reach the devices through Syncthing.
 
-Status: v1 in progress. The app reads the org folder and builds the graph
-(#3, #4), and shows its counts; there is no graph view yet. What is decided and why is in
+Status: v1 in progress. The app reads the org folder, builds the graph
+(#3, #4), stores it in an SQLite database with org-roam's schema (#5), and
+shows its counts; there is no graph view yet. What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 
@@ -32,6 +33,28 @@ only one side finds it, with the lines around it. Nothing leaves the laptop. CI 
 same comparison on the sample files in `test/fixtures/roam/`, against a
 database real org-roam built from them
 (`tool/org_roam_parity/build-fixture-expectations.sh`).
+
+## Check the database against org-roam
+
+The app keeps the graph in an SQLite database with org-roam's tables and
+encoding (#5). To build the same database on the laptop and compare every
+table with Emacs's, with Flutter and Python 3 installed:
+
+```
+python3 tool/org_roam_parity.py check-db \
+    ~/doom-emacs/.local/cache/org-roam.db ~/work/cgeng/org/roam
+```
+
+To get the database itself, for example to run the org-roam MCP server's
+queries on it:
+
+```
+dart run tool/build_roam_db.dart ~/work/cgeng/org/roam /tmp/app-org-roam.db
+```
+
+Point the MCP server's database path at `/tmp/app-org-roam.db`; its read-only
+queries should return the same results as on `org-roam.db`. Running the
+command again reads only new and changed files.
 
 ## Install
 

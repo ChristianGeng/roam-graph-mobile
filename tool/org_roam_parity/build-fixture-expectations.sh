@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Rebuilds test/fixtures/org_roam_expected.json with real org-roam.
+# Rebuilds test/fixtures/org_roam_expected.json and
+# org_roam_expected_tables.json with real org-roam.
 #
 # It builds an org-roam database from the sample files in
-# test/fixtures/roam/ and exports it as normalized JSON. The parser test
-# (test/graph/org_roam_parity_test.dart) compares the app's parser with it.
+# test/fixtures/roam/ and exports it: as normalized JSON for the parser
+# test (test/graph/org_roam_parity_test.dart), and every table for the
+# database test (test/graph/org_roam_tables_test.dart).
 # Run this after changing a sample file.
 #
 # Needs: git, Emacs 29 (with SQLite support), Python 3. Emacs 29's Org (9.6)
@@ -34,4 +36,7 @@ emacs --batch -l "$here/build-db.el" \
 python3 "$repo/tool/org_roam_parity.py" export \
   "$work/org-roam.db" "$repo/test/fixtures/roam" \
   > "$repo/test/fixtures/org_roam_expected.json"
-echo "Wrote test/fixtures/org_roam_expected.json"
+python3 "$repo/tool/org_roam_parity.py" export-tables \
+  "$work/org-roam.db" "$repo/test/fixtures/roam" \
+  > "$repo/test/fixtures/org_roam_expected_tables.json"
+echo "Wrote test/fixtures/org_roam_expected.json and org_roam_expected_tables.json"

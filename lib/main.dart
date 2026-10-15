@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'folder/folder_access.dart';
 import 'folder/folder_screen.dart';
-import 'graph/build_graph.dart';
+import 'graph/graph_index.dart';
 
 /// The version the release workflow builds, passed in with
 /// `--dart-define=APP_VERSION=...`. Local builds show "dev".
@@ -16,11 +16,11 @@ class RoamGraphApp extends StatelessWidget {
   const RoamGraphApp({
     super.key,
     this.folderAccess = const PlatformFolderAccess(),
-    this.graphBuilder = buildGraphInBackground,
+    this.graphIndex = const SqliteGraphIndex(),
   });
 
   final FolderAccess folderAccess;
-  final GraphBuilder graphBuilder;
+  final GraphIndex graphIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +34,7 @@ class RoamGraphApp extends StatelessWidget {
       home: FolderScreen(
         folderAccess: folderAccess,
         version: appVersion,
-        graphBuilder: graphBuilder,
+        graphIndex: graphIndex,
       ),
     );
   }

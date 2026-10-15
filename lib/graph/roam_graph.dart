@@ -1,4 +1,5 @@
-/// The org-roam graph built from the org files (#4).
+/// The org-roam graph built from the org files (#4), with what org-roam's
+/// database stores about it (#5).
 ///
 /// Pure Dart (no Flutter), so `tool/roam_graph_dump.dart` can run it on the
 /// laptop. The parser that fills it is `org_roam_parser.dart`.
@@ -16,6 +17,13 @@ class RoamNode {
     this.tags = const [],
     this.aliases = const [],
     this.refs = const [],
+    this.pos = 1,
+    this.todo,
+    this.priority,
+    this.scheduled,
+    this.deadline,
+    this.olp = const [],
+    this.properties = 'nil',
   });
 
   /// The `:ID:` property.
@@ -43,6 +51,26 @@ class RoamNode {
   /// `ROAM_REFS`.
   final List<RoamRef> refs;
 
+  /// org-roam's `pos`: the node's character position in the file, from 1.
+  final int pos;
+
+  /// The TODO keyword, if any.
+  final String? todo;
+
+  /// The priority cookie's character code (`[#A]` is 65), if any.
+  final int? priority;
+
+  /// SCHEDULED and DEADLINE as `2026-03-01T10:30:00`, if any.
+  final String? scheduled;
+  final String? deadline;
+
+  /// Titles of the headings above a heading node (org-roam's `olp`).
+  final List<String> olp;
+
+  /// Org's property list of the node, printed as Emacs Lisp (org-roam's
+  /// `properties` column).
+  final String properties;
+
   bool get isFile => level == 0;
 
   /// The title to show: [title], or the file name without `.org` when the
@@ -64,26 +92,60 @@ class RoamRef {
   final String type;
 }
 
-/// An `id:` link from the node [source] to the ID [dest].
+/// A link from the node [source]. The graph's edges are the links of type
+/// `id`; org-roam's `links` table holds every type.
 class RoamLink {
   const RoamLink({
     required this.source,
     required this.dest,
     required this.file,
     required this.line,
+    this.type = 'id',
+    this.pos = 0,
+    this.outline = const [],
+    this.searchOption,
   });
 
   /// ID of the node that contains the link.
   final String source;
 
-  /// The linked ID. It may not exist; see [RoamGraph.danglingLinks].
+  /// The link's path: for an `id` link the linked ID, which may not exist
+  /// (see [RoamGraph.danglingLinks]); for `https://x` it is `//x`.
   final String dest;
 
   /// File that contains the link, relative to `roam/`.
   final String file;
 
-  /// Line of the link, starting at 1.
+  /// Line of the link, starting at 1; 0 when read back from the database.
   final int line;
+
+  /// The link type: `id`, `https`, `file`, `fuzzy`, ...
+  final String type;
+
+  /// org-roam's `pos`: the link's character position, from 1.
+  final int pos;
+
+  /// Titles of the headings around the link, innermost last.
+  final List<String> outline;
+
+  /// The part after `::`, kept for every type but `file`.
+  final String? searchOption;
+}
+
+/// An org-cite reference like `[cite:@key]` in the text (org-roam's
+/// `citations` table).
+class RoamCitation {
+  const RoamCitation({
+    required this.nodeId,
+    required this.key,
+    required this.pos,
+    this.outline = const [],
+  });
+
+  final String nodeId;
+  final String key;
+  final int pos;
+  final List<String> outline;
 }
 
 /// What the parser found in one file.
@@ -92,13 +154,21 @@ class RoamFileData {
     required this.path,
     this.nodes = const [],
     this.links = const [],
+    this.citations = const [],
+    this.title = '',
     this.error,
   });
 
   /// Path relative to `roam/`.
   final String path;
   final List<RoamNode> nodes;
+
+  /// Links of every type; the graph uses those of type `id`.
   final List<RoamLink> links;
+  final List<RoamCitation> citations;
+
+  /// The file's title, as org-roam's `files` table stores it.
+  final String title;
 
   /// Why org-roam would skip this file, or null. A skipped file has no
   /// nodes and links.
@@ -122,7 +192,13 @@ class RoamGraph {
   /// An ID used by more than one node keeps the first one, in path order,
   /// and is reported in [duplicateIds]. org-roam also keeps only one of
   /// them, but which one depends on the order it reads the files.
-  factory RoamGraph.fromFiles(Iterable<RoamFileData> files) {
+  ///
+  /// [duplicateIds] adds IDs found twice elsewhere, such as while storing
+  /// the files in a database, which keeps only one node per ID.
+  factory RoamGraph.fromFiles(
+    Iterable<RoamFileData> files, {
+    Map<String, List<String>> duplicateIds = const {},
+  }) {
     final all = files.toList()..sort((a, b) => a.path.compareTo(b.path));
     final sorted = [
       for (final file in all)
@@ -138,7 +214,7 @@ class RoamGraph {
         nodes.putIfAbsent(node.id, () => node);
         idFiles.putIfAbsent(node.id, () => []).add(file.path);
       }
-      links.addAll(file.links);
+      links.addAll(file.links.where((link) => link.type == 'id'));
     }
     return RoamGraph._(
       files: [for (final file in sorted) file.path],
@@ -151,6 +227,7 @@ class RoamGraph {
       duplicateIds: {
         for (final entry in idFiles.entries)
           if (entry.value.length > 1) entry.key: entry.value,
+        ...duplicateIds,
       },
       allNodes: allNodes,
       failedFiles: {

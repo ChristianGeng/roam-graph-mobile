@@ -1,0 +1,14 @@
+:PROPERTIES:
+:ID: c0
+:END:
+#+title: Citations
+
+As shown in [cite:@smith2020] and [cite/t:see @jones2021 p. 3; @lee2019].
+* A heading
+:PROPERTIES:
+:ID: c1
+:END:
+More [cite:@smith2020].
+#+begin_src text
+[cite:@hidden]
+#+end_src

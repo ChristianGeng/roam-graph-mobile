@@ -1,0 +1,1678 @@
+{
+ "files": {
+  "columns": [
+   "file",
+   "title",
+   "hash"
+  ],
+  "rows": [
+   [
+    "\"{roam}/20240101120000-alpha.org\"",
+    "\"Alpha\"",
+    "\"662d526f1ebf4700089c82710bad8c771df7f45c\""
+   ],
+   [
+    "\"{roam}/20240102120000-beta.org\"",
+    "\"Beta\"",
+    "\"21d6716286410a9fddd36bac01add0dd764467b7\""
+   ],
+   [
+    "\"{roam}/20240103120000-gamma.org\"",
+    "\"Gamma has no file node\"",
+    "\"83006822638da99c48c45dfc98710245a7646230\""
+   ],
+   [
+    "\"{roam}/20240104120000-delta.org\"",
+    "\"\"",
+    "\"8eb3804f3eaa143d25e72332472d18468e18e219\""
+   ],
+   [
+    "\"{roam}/20240105120000-epsilon.org\"",
+    "\"Epsilon with Alpha in it\"",
+    "\"2dd741012a0fdd7505504b23e0df2c1e6b0cfe06\""
+   ],
+   [
+    "\"{roam}/20240106120000-zeta.org\"",
+    "\"Zeta drawer after the title\"",
+    "\"b5044cd538b8e57085d7bbcdc568f1cef2e30f5e\""
+   ],
+   [
+    "\"{roam}/20240107120000-eta.org\"",
+    "\"Eta is excluded\"",
+    "\"1531cc0725461f34cd738a4c53e3448275a97921\""
+   ],
+   [
+    "\"{roam}/20240109120000-iota.org\"",
+    "\"Iota uses CRLF\"",
+    "\"2237b2b0a0a831354efd954898f953e987ff5fd9\""
+   ],
+   [
+    "\"{roam}/20240110120000-kappa.org\"",
+    "\"Kappa\"",
+    "\"39fefa83833a72c16e8a1ba1a22936b56865b247\""
+   ],
+   [
+    "\"{roam}/20240111120000-lambda.org\"",
+    "\"\"",
+    "\"c655d06f57e1caba2e19db695a85f3b1ae616668\""
+   ],
+   [
+    "\"{roam}/edge/aliases-refs-filetags.org\"",
+    "\"\"",
+    "\"1c4c91337cb2701218c98c6501451777adb64731\""
+   ],
+   [
+    "\"{roam}/edge/angle-refs.org\"",
+    "\"\"",
+    "\"d1229ce2ea94999206fd80bdc4d450fe787a88b9\""
+   ],
+   [
+    "\"{roam}/edge/blank-line-before-drawer.org\"",
+    "\"\"",
+    "\"55de95e735698d77aa1b171f3c7f8f946c529193\""
+   ],
+   [
+    "\"{roam}/edge/blank-line-in-drawer.org\"",
+    "\"\"",
+    "\"403311390e7252c18a97ff2e9bdf9202b382adfd\""
+   ],
+   [
+    "\"{roam}/edge/citations.org\"",
+    "\"Citations\"",
+    "\"b7c53f5b990b3e7ed5ba9593963ff430ab583a90\""
+   ],
+   [
+    "\"{roam}/edge/comment-before-drawer.org\"",
+    "\"\"",
+    "\"3d7bfef06bc1cf02f7297a0c85be4d3392dcb3d5\""
+   ],
+   [
+    "\"{roam}/edge/comment-blank-line-drawer.org\"",
+    "\"\"",
+    "\"cbe936d961c275720c2087867ab54b4ce41ffb6d\""
+   ],
+   [
+    "\"{roam}/edge/comment-in-drawer.org\"",
+    "\"\"",
+    "\"bf439463b5191724105a041a3c705426c775ba84\""
+   ],
+   [
+    "\"{roam}/edge/continuation-line-in-drawer.org\"",
+    "\"\"",
+    "\"41437938b108b43460f93ff3b5eb9204fb6aae14\""
+   ],
+   [
+    "\"{roam}/edge/empty-comment-before-drawer.org\"",
+    "\"\"",
+    "\"01cbab9f9420bdc3fe665b6c87a69b926aa83156\""
+   ],
+   [
+    "\"{roam}/edge/empty-id.org\"",
+    "\"\"",
+    "\"a4f4578742112424a37f62c90f227ff616daf7b5\""
+   ],
+   [
+    "\"{roam}/edge/empty-roam-exclude.org\"",
+    "\"\"",
+    "\"2ed35d38c58d306ed9ce6fe86b9507d8ff136049\""
+   ],
+   [
+    "\"{roam}/edge/escaped-space-in-aliases.org\"",
+    "\"\"",
+    "\"85dd72c6fa3fc4b7ef633a5814aa9e920c7cb43e\""
+   ],
+   [
+    "\"{roam}/edge/heading-inside-block.org\"",
+    "\"\"",
+    "\"91978cafec223dd90536c367dcdb2574fe50dfd9\""
+   ],
+   [
+    "\"{roam}/edge/heading-titles.org\"",
+    "\"\"",
+    "\"05bc8bf0504c8ae2286cf06df6700bd9437b341c\""
+   ],
+   [
+    "\"{roam}/edge/hyphen-in-tag.org\"",
+    "\"\"",
+    "\"71793d207549e03b1a729b641ec5454978ca779d\""
+   ],
+   [
+    "\"{roam}/edge/id-nil.org\"",
+    "\"\"",
+    "\"95118130be6efa60b56ce57fd66705fe4647f81d\""
+   ],
+   [
+    "\"{roam}/edge/indented-drawer.org\"",
+    "\"\"",
+    "\"0c38b1d94baea97cc6a1d6eb5d9667d3fd4d0c0c\""
+   ],
+   [
+    "\"{roam}/edge/junk-in-heading-drawer.org\"",
+    "\"\"",
+    "\"18551c7946e32ae0251b2b74b59fcb4a0156682b\""
+   ],
+   [
+    "\"{roam}/edge/link-types.org\"",
+    "\"Link types\"",
+    "\"6f99e4bc3eb800dce305a892059cf7730fd09eb2\""
+   ],
+   [
+    "\"{roam}/edge/linked-title.org\"",
+    "\"Linked title\"",
+    "\"ddb9974e73f0b3ab1cb134bd090cc5f21307fed7\""
+   ],
+   [
+    "\"{roam}/edge/lowercase-drawer.org\"",
+    "\"\"",
+    "\"26187911304ce03ce2577f6df7855414ee0e2d74\""
+   ],
+   [
+    "\"{roam}/edge/mode-line-before-drawer.org\"",
+    "\"\"",
+    "\"38abe15fe06a65c928228461fe05b501123f04d0\""
+   ],
+   [
+    "\"{roam}/edge/planning-and-timestamps.org\"",
+    "\"Planning and timestamps\"",
+    "\"c1ff9133c0ea1b8f66989554f48fb577a1d1b414\""
+   ],
+   [
+    "\"{roam}/edge/tab-after-keyword.org\"",
+    "\"\"",
+    "\"9524fcf65460dd8e9a9487604c14e80ccd23170c\""
+   ],
+   [
+    "\"{roam}/edge/tab-after-stars.org\"",
+    "\"\"",
+    "\"7de081a1c473a5ac81eec138d29a1bc81cbc0e95\""
+   ],
+   [
+    "\"{roam}/edge/tag-inheritance.org\"",
+    "\"\"",
+    "\"ae5a3489f7e2367631ac860b81e52e31221cbf72\""
+   ],
+   [
+    "\"{roam}/edge/title-without-space.org\"",
+    "\"NoSpace second\"",
+    "\"078d430cc5e3358a8c9fd28d0602c637b5a0ebcf\""
+   ],
+   [
+    "\"{roam}/edge/untitled-heading-links.org\"",
+    "\"\"",
+    "\"07498c750584491a607d29364eb2abc22916c374\""
+   ],
+   [
+    "\"{roam}/sub/20240108120000-theta.org\"",
+    "\"\"",
+    "\"6b0003ce5b361b7ea4b06de21815030251267138\""
+   ]
+  ]
+ },
+ "nodes": {
+  "columns": [
+   "id",
+   "file",
+   "level",
+   "pos",
+   "todo",
+   "priority",
+   "scheduled",
+   "deadline",
+   "title",
+   "properties",
+   "olp"
+  ],
+  "rows": [
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"{roam}/20240101120000-alpha.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"Alpha\"",
+    "((\"CATEGORY\" . \"20240101120000-alpha\") (\"ROAM_REFS\" . \"https://example.com/alpha @smith2020 [cite:@jones2021;@lee2019] [[https://example.org/page][Example]] doi:10.1000/xyz\") (\"ROAM_ALIASES\" . \"\\\"Alpha One\\\" A1\") (\"ID\" . \"11111111-1111-4111-8111-000000000001\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":project:Übung:\" 1 8 (inherited t) 9 14 (inherited t))) (\"FILE\" . \"{roam}/20240101120000-alpha.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"{roam}/20240102120000-beta.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"Beta\"",
+    "((\"CATEGORY\" . \"20240102120000-beta\") (\"ID\" . \"11111111-1111-4111-8111-000000000002\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":beta:\" 1 5 (inherited t))) (\"FILE\" . \"{roam}/20240102120000-beta.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"{roam}/20240104120000-delta.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"20240104120000-delta\") (\"ID\" . \"11111111-1111-4111-8111-000000000004\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/20240104120000-delta.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000008\"",
+    "\"{roam}/sub/20240108120000-theta.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"20240108120000-theta\") (\"ID\" . \"11111111-1111-4111-8111-000000000008\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/sub/20240108120000-theta.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000009\"",
+    "\"{roam}/20240109120000-iota.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"Iota uses CRLF\"",
+    "((\"CATEGORY\" . \"20240109120000-iota\") (\"ID\" . \"11111111-1111-4111-8111-000000000009\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/20240109120000-iota.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000010\"",
+    "\"{roam}/20240110120000-kappa.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"Kappa\"",
+    "((\"CATEGORY\" . \"20240110120000-kappa\") (\"ID\" . \"11111111-1111-4111-8111-000000000010\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/20240110120000-kappa.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000012\"",
+    "\"{roam}/20240111120000-lambda.org\"",
+    1,
+    3,
+    null,
+    null,
+    null,
+    null,
+    "\"First heading is a node\"",
+    "((\"CATEGORY\" . \"20240111120000-lambda\") (\"ROAM_REFS\" . \"\\\"https://example.com/with space\\\" cite:unregistered @key]\") (\"ID\" . \"11111111-1111-4111-8111-000000000012\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . \":first:\") (\"TAGS\" . \":first:\") (\"FILE\" . \"{roam}/20240111120000-lambda.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"First heading is a node\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"{roam}/20240102120000-beta.org\"",
+    1,
+    156,
+    "\"TODO\"",
+    65,
+    "\"2024-01-02T00:00:00\"",
+    null,
+    "\"Beta heading with a link [1/2]\"",
+    "((\"CATEGORY\" . \"20240102120000-beta\") (\"RELATED\" . \"[[id:11111111-1111-4111-8111-000000000004]]\") (\"ROAM_REFS\" . \"https://example.com/beta-heading\") (\"ROAM_ALIASES\" . \"BH \\\"Beta Heading\\\"\") (\"ID\" . \"11111111-1111-4111-8111-000000000021\") (\"SCHEDULED\" . \"<2024-01-02 Tue>\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":beta:work:urgent:\" 1 5 (inherited t))) (\"TAGS\" . \":work:urgent:\") (\"FILE\" . \"{roam}/20240102120000-beta.org\") (\"PRIORITY\" . \"A\") (\"TODO\" . \"TODO\") (\"ITEM\" . \"Beta heading with [[id:11111111-1111-4111-8111-000000000001][a link]] [1/2]\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000022\"",
+    "\"{roam}/20240102120000-beta.org\"",
+    3,
+    664,
+    "\"DONE\"",
+    null,
+    null,
+    null,
+    "\"Deeper node\"",
+    "((\"CATEGORY\" . \"20240102120000-beta\") (\"ID\" . \"11111111-1111-4111-8111-000000000022\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":beta:work:urgent:sub:deep:\" 1 5 (inherited t) 6 10 (inherited t) 11 17 (inherited t) 18 21 (inherited t))) (\"TAGS\" . \":deep:\") (\"FILE\" . \"{roam}/20240102120000-beta.org\") (\"PRIORITY\" . \"B\") (\"TODO\" . \"DONE\") (\"ITEM\" . \"Deeper node\"))",
+    "(\"Beta heading with a link\" \"Sub heading without an id\")"
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000024\"",
+    "\"{roam}/20240102120000-beta.org\"",
+    2,
+    972,
+    null,
+    null,
+    null,
+    null,
+    "\"Not excluded\"",
+    "((\"CATEGORY\" . \"20240102120000-beta\") (\"ROAM_EXCLUDE\" . \"nil\") (\"ID\" . \"11111111-1111-4111-8111-000000000024\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":beta:work:urgent:\" 1 5 (inherited t) 6 10 (inherited t) 11 17 (inherited t))) (\"FILE\" . \"{roam}/20240102120000-beta.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Not excluded\"))",
+    "(\"Beta heading with a link\")"
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000026\"",
+    "\"{roam}/20240102120000-beta.org\"",
+    1,
+    1225,
+    null,
+    null,
+    null,
+    null,
+    "\"COMMENT Commented heading\"",
+    "((\"CATEGORY\" . \"20240102120000-beta\") (\"ID\" . \"11111111-1111-4111-8111-000000000026\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":beta:\" 1 5 (inherited t))) (\"FILE\" . \"{roam}/20240102120000-beta.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"COMMENT Commented heading\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000027\"",
+    "\"{roam}/20240102120000-beta.org\"",
+    1,
+    1320,
+    null,
+    null,
+    null,
+    null,
+    "\"Archived\"",
+    "((\"CATEGORY\" . \"20240102120000-beta\") (\"ID\" . \"11111111-1111-4111-8111-000000000027\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":beta:ARCHIVE:\" 1 5 (inherited t))) (\"TAGS\" . \":ARCHIVE:\") (\"FILE\" . \"{roam}/20240102120000-beta.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Archived\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000028\"",
+    "\"{roam}/20240102120000-beta.org\"",
+    1,
+    1475,
+    "\"PROJ\"",
+    null,
+    null,
+    null,
+    "\"Doom project keyword\"",
+    "((\"CATEGORY\" . \"20240102120000-beta\") (\"ID\" . \"11111111-1111-4111-8111-000000000028\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":beta:\" 1 5 (inherited t))) (\"FILE\" . \"{roam}/20240102120000-beta.org\") (\"PRIORITY\" . \"B\") (\"TODO\" . \"PROJ\") (\"ITEM\" . \"Doom project keyword\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000029\"",
+    "\"{roam}/20240102120000-beta.org\"",
+    1,
+    1564,
+    "\"[ ]\"",
+    null,
+    null,
+    null,
+    "\"Doom checkbox keyword\"",
+    "((\"CATEGORY\" . \"20240102120000-beta\") (\"ID\" . \"11111111-1111-4111-8111-000000000029\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":beta:\" 1 5 (inherited t))) (\"FILE\" . \"{roam}/20240102120000-beta.org\") (\"PRIORITY\" . \"B\") (\"TODO\" . \"[ ]\") (\"ITEM\" . \"Doom checkbox keyword\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000030\"",
+    "\"{roam}/20240102120000-beta.org\"",
+    1,
+    1653,
+    null,
+    null,
+    null,
+    null,
+    "\"TODOS is not a keyword\"",
+    "((\"CATEGORY\" . \"20240102120000-beta\") (\"ID\" . \"11111111-1111-4111-8111-000000000030\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":beta:\" 1 5 (inherited t))) (\"FILE\" . \"{roam}/20240102120000-beta.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"TODOS is not a keyword\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000031\"",
+    "\"{roam}/20240103120000-gamma.org\"",
+    1,
+    118,
+    null,
+    null,
+    null,
+    null,
+    "\"Gamma heading\"",
+    "((\"CATEGORY\" . \"20240103120000-gamma\") (\"ID\" . \"11111111-1111-4111-8111-000000000031\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . \":gamma:\") (\"TAGS\" . \":gamma:\") (\"FILE\" . \"{roam}/20240103120000-gamma.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Gamma heading\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000051\"",
+    "\"{roam}/20240105120000-epsilon.org\"",
+    1,
+    274,
+    "\"WAIT\"",
+    null,
+    null,
+    null,
+    "\"Waiting heading\"",
+    "((\"CATEGORY\" . \"20240105120000-epsilon\") (\"ID\" . \"11111111-1111-4111-8111-000000000051\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":one:two:three:\" 1 4 (inherited t) 5 8 (inherited t) 9 14 (inherited t))) (\"FILE\" . \"{roam}/20240105120000-epsilon.org\") (\"PRIORITY\" . \"B\") (\"TODO\" . \"WAIT\") (\"ITEM\" . \"Waiting heading\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000052\"",
+    "\"{roam}/20240105120000-epsilon.org\"",
+    1,
+    356,
+    "\"NEXT\"",
+    null,
+    null,
+    null,
+    "\"Next one\"",
+    "((\"CATEGORY\" . \"20240105120000-epsilon\") (\"ID\" . \"11111111-1111-4111-8111-000000000052\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":one:two:three:\" 1 4 (inherited t) 5 8 (inherited t) 9 14 (inherited t))) (\"FILE\" . \"{roam}/20240105120000-epsilon.org\") (\"PRIORITY\" . \"B\") (\"TODO\" . \"NEXT\") (\"ITEM\" . \"Next one\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000053\"",
+    "\"{roam}/20240105120000-epsilon.org\"",
+    1,
+    433,
+    null,
+    null,
+    null,
+    null,
+    "\"TODO Not a keyword with a file TODO line\"",
+    "((\"CATEGORY\" . \"20240105120000-epsilon\") (\"ID\" . \"11111111-1111-4111-8111-000000000053\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":one:two:three:\" 1 4 (inherited t) 5 8 (inherited t) 9 14 (inherited t))) (\"FILE\" . \"{roam}/20240105120000-epsilon.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"TODO Not a keyword with a file TODO line\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000081\"",
+    "\"{roam}/sub/20240108120000-theta.org\"",
+    1,
+    224,
+    null,
+    null,
+    null,
+    null,
+    "\"Theta heading ends the block\"",
+    "((\"CATEGORY\" . \"20240108120000-theta\") (\"ID\" . \"11111111-1111-4111-8111-000000000081\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/sub/20240108120000-theta.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Theta heading ends the block\"))",
+    null
+   ],
+   [
+    "\"c0\"",
+    "\"{roam}/edge/citations.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"Citations\"",
+    "((\"CATEGORY\" . \"citations\") (\"ID\" . \"c0\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/citations.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"c1\"",
+    "\"{roam}/edge/citations.org\"",
+    1,
+    124,
+    null,
+    null,
+    null,
+    null,
+    "\"A heading\"",
+    "((\"CATEGORY\" . \"citations\") (\"ID\" . \"c1\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/citations.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"A heading\"))",
+    null
+   ],
+   [
+    "\"da-h\"",
+    "\"{roam}/edge/hyphen-in-tag.org\"",
+    1,
+    30,
+    null,
+    null,
+    null,
+    null,
+    "\"Project :long-term:\"",
+    "((\"CATEGORY\" . \"hyphen-in-tag\") (\"ID\" . \"da-h\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/hyphen-in-tag.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Project :long-term:\"))",
+    null
+   ],
+   [
+    "\"da\"",
+    "\"{roam}/edge/hyphen-in-tag.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"hyphen-in-tag\") (\"ID\" . \"da\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/hyphen-in-tag.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"db-h\"",
+    "\"{roam}/edge/tab-after-keyword.org\"",
+    1,
+    30,
+    null,
+    null,
+    null,
+    null,
+    "\"TODO\\11Plan\"",
+    "((\"CATEGORY\" . \"tab-after-keyword\") (\"ID\" . \"db-h\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/tab-after-keyword.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"TODO    Plan\"))",
+    null
+   ],
+   [
+    "\"db-p\"",
+    "\"{roam}/edge/tab-after-keyword.org\"",
+    1,
+    69,
+    "\"TODO\"",
+    null,
+    null,
+    null,
+    "\"[#A]\\11Prioritized\"",
+    "((\"CATEGORY\" . \"tab-after-keyword\") (\"ID\" . \"db-p\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/tab-after-keyword.org\") (\"PRIORITY\" . \"A\") (\"TODO\" . \"TODO\") (\"ITEM\" . \"[#A]    Prioritized\"))",
+    null
+   ],
+   [
+    "\"db\"",
+    "\"{roam}/edge/tab-after-keyword.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"tab-after-keyword\") (\"ID\" . \"db\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/tab-after-keyword.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"de-t\"",
+    "\"{roam}/edge/untitled-heading-links.org\"",
+    1,
+    140,
+    null,
+    null,
+    null,
+    null,
+    "\"Titled\"",
+    "((\"CATEGORY\" . \"untitled-heading-links\") (\"ID\" . \"de-t\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/untitled-heading-links.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Titled\"))",
+    null
+   ],
+   [
+    "\"de\"",
+    "\"{roam}/edge/untitled-heading-links.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"untitled-heading-links\") (\"ID\" . \"de\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/untitled-heading-links.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"lt\"",
+    "\"{roam}/edge/link-types.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"Link types\"",
+    "((\"CATEGORY\" . \"link-types\") (\"ID\" . \"lt\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/link-types.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"p0\"",
+    "\"{roam}/edge/planning-and-timestamps.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"Planning and timestamps\"",
+    "((\"CATEGORY\" . \"plans\") (\"ID\" . \"p0\") (\"TIMESTAMP\" . \"<2026-03-05 Thu>\") (\"TIMESTAMP_IA\" . \"[2026-03-02 Mon]\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/planning-and-timestamps.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"p1\"",
+    "\"{roam}/edge/planning-and-timestamps.org\"",
+    1,
+    134,
+    "\"DONE\"",
+    67,
+    "\"2026-03-01T10:30:00\"",
+    "\"2026-03-04T09:00:00\"",
+    "\"Closed task\"",
+    "((\"CATEGORY\" . \"errands\") (\"ID\" . \"p1\") (\"TIMESTAMP\" . \"<2026-03-07 Sat>\") (\"TIMESTAMP_IA\" . \"[2026-03-06 Fri]\") (\"SCHEDULED\" . \"<2026-03-01 Sun 10:30 +1w>\") (\"DEADLINE\" . \"<2026-03-04 Wed 09:00>\") (\"CLOSED\" . \"[2026-03-03 Tue 14:20]\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . \":done:\") (\"TAGS\" . \":done:\") (\"FILE\" . \"{roam}/edge/planning-and-timestamps.org\") (\"PRIORITY\" . \"C\") (\"TODO\" . \"DONE\") (\"ITEM\" . \"Closed task\"))",
+    null
+   ],
+   [
+    "\"p2\"",
+    "\"{roam}/edge/planning-and-timestamps.org\"",
+    1,
+    384,
+    null,
+    66,
+    null,
+    "\"2026-04-01T00:00:00\"",
+    "\"Only deadline\"",
+    "((\"CATEGORY\" . \"plans\") (\"ID\" . \"p2\") (\"DEADLINE\" . \"<2026-04-01 Wed>\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/planning-and-timestamps.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Only deadline\"))",
+    null
+   ],
+   [
+    "\"qa-fake\"",
+    "\"{roam}/edge/heading-inside-block.org\"",
+    1,
+    47,
+    null,
+    null,
+    null,
+    null,
+    "\"Fake heading\"",
+    "((\"CATEGORY\" . \"heading-inside-block\") (\"ID\" . \"qa-fake\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/heading-inside-block.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Fake heading\"))",
+    null
+   ],
+   [
+    "\"qa\"",
+    "\"{roam}/edge/heading-inside-block.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"heading-inside-block\") (\"ID\" . \"qa\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/heading-inside-block.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"qc\"",
+    "\"{roam}/edge/angle-refs.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"angle-refs\") (\"ROAM_REFS\" . \"<https://example.com/angle> <doi:10.1/x>\") (\"ID\" . \"qc\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/angle-refs.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"qd\"",
+    "\"{roam}/edge/escaped-space-in-aliases.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"escaped-space-in-aliases\") (\"ROAM_ALIASES\" . \"Alpha\\\\ Beta Gamma\") (\"ID\" . \"qd\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/escaped-space-in-aliases.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"qe\"",
+    "\"{roam}/edge/tab-after-stars.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"tab-after-stars\") (\"ID\" . \"qe\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/tab-after-stars.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"qi\"",
+    "\"{roam}/edge/junk-in-heading-drawer.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"junk-in-heading-drawer\") (\"ID\" . \"qi\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/junk-in-heading-drawer.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"v11\"",
+    "\"{roam}/edge/aliases-refs-filetags.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"aliases-refs-filetags\") (\"ROAM_REFS\" . \"cite:k1 \\\"https://x.org/a b\\\" isbn:123 nonsense\") (\"ROAM_ALIASES\" . \"a \\\"b c\\\" d\\\"e f\\\"g\") (\"ID\" . \"v11\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . #(\":b:c:a:\" 1 2 (inherited t) 3 4 (inherited t) 5 6 (inherited t))) (\"FILE\" . \"{roam}/edge/aliases-refs-filetags.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"v12\"",
+    "\"{roam}/edge/tag-inheritance.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"tag-inheritance\") (\"ID\" . \"v12\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/tag-inheritance.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"v12c\"",
+    "\"{roam}/edge/tag-inheritance.org\"",
+    2,
+    43,
+    null,
+    null,
+    null,
+    null,
+    "\"Child\"",
+    "((\"CATEGORY\" . \"tag-inheritance\") (\"ID\" . \"v12c\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . \":y:x:\") (\"TAGS\" . \":y:x:\") (\"FILE\" . \"{roam}/edge/tag-inheritance.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Child\"))",
+    "(\"Heading\")"
+   ],
+   [
+    "\"v13\"",
+    "\"{roam}/edge/heading-titles.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"heading-titles\") (\"ID\" . \"v13\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/heading-titles.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"v13a\"",
+    "\"{roam}/edge/heading-titles.org\"",
+    1,
+    31,
+    null,
+    66,
+    null,
+    null,
+    "\"Only priority\"",
+    "((\"CATEGORY\" . \"heading-titles\") (\"ID\" . \"v13a\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/heading-titles.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Only priority\"))",
+    null
+   ],
+   [
+    "\"v13c\"",
+    "\"{roam}/edge/heading-titles.org\"",
+    1,
+    115,
+    "\"PROJ\"",
+    null,
+    null,
+    null,
+    "\"Doom keyword\"",
+    "((\"CATEGORY\" . \"heading-titles\") (\"ID\" . \"v13c\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/heading-titles.org\") (\"PRIORITY\" . \"B\") (\"TODO\" . \"PROJ\") (\"ITEM\" . \"Doom keyword\"))",
+    null
+   ],
+   [
+    "\"v13d\"",
+    "\"{roam}/edge/heading-titles.org\"",
+    1,
+    164,
+    null,
+    null,
+    null,
+    null,
+    "\"Spaces\"",
+    "((\"CATEGORY\" . \"heading-titles\") (\"ID\" . \"v13d\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/heading-titles.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"Spaces\"))",
+    null
+   ],
+   [
+    "\"v14\"",
+    "\"{roam}/edge/title-without-space.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"NoSpace second\"",
+    "((\"CATEGORY\" . \"title-without-space\") (\"ID\" . \"v14\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/title-without-space.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"v1\"",
+    "\"{roam}/edge/comment-before-drawer.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"comment-before-drawer\") (\"ID\" . \"v1\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/comment-before-drawer.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"v4\"",
+    "\"{roam}/edge/mode-line-before-drawer.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"mode-line-before-drawer\") (\"ID\" . \"v4\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/mode-line-before-drawer.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"v5\"",
+    "\"{roam}/edge/empty-comment-before-drawer.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"empty-comment-before-drawer\") (\"ID\" . \"v5\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/empty-comment-before-drawer.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"v6\"",
+    "\"{roam}/edge/indented-drawer.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"indented-drawer\") (\"ID\" . \"v6\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/indented-drawer.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"v7\"",
+    "\"{roam}/edge/linked-title.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"Linked title\"",
+    "((\"CATEGORY\" . \"linked-title\") (\"ID\" . \"v7\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/linked-title.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ],
+   [
+    "\"v8\"",
+    "\"{roam}/edge/lowercase-drawer.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"\"",
+    "((\"CATEGORY\" . \"lowercase-drawer\") (\"ID\" . \"v8\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/edge/lowercase-drawer.org\") (\"PRIORITY\" . \"B\"))",
+    null
+   ]
+  ]
+ },
+ "aliases": {
+  "columns": [
+   "node_id",
+   "alias"
+  ],
+  "rows": [
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"A1\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"Alpha One\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"BH\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"Beta Heading\""
+   ],
+   [
+    "\"qd\"",
+    "\"Alpha\\\\\""
+   ],
+   [
+    "\"qd\"",
+    "\"Beta\""
+   ],
+   [
+    "\"qd\"",
+    "\"Gamma\""
+   ],
+   [
+    "\"v11\"",
+    "\"a\""
+   ],
+   [
+    "\"v11\"",
+    "\"b c\""
+   ],
+   [
+    "\"v11\"",
+    "\"d\""
+   ],
+   [
+    "\"v11\"",
+    "\"e f\""
+   ],
+   [
+    "\"v11\"",
+    "\"g\""
+   ]
+  ]
+ },
+ "citations": {
+  "columns": [
+   "node_id",
+   "cite_key",
+   "pos",
+   "properties"
+  ],
+  "rows": [
+   [
+    "\"c0\"",
+    "\"jones2021\"",
+    90,
+    "(:outline nil)"
+   ],
+   [
+    "\"c0\"",
+    "\"lee2019\"",
+    110,
+    "(:outline nil)"
+   ],
+   [
+    "\"c0\"",
+    "\"smith2020\"",
+    66,
+    "(:outline nil)"
+   ],
+   [
+    "\"c1\"",
+    "\"smith2020\"",
+    172,
+    "(:outline (\"A heading\"))"
+   ]
+  ]
+ },
+ "refs": {
+  "columns": [
+   "node_id",
+   "ref",
+   "type"
+  ],
+  "rows": [
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"//example.com/alpha\"",
+    "\"https\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"//example.org/page\"",
+    "\"https\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"10.1000/xyz\"",
+    "\"doi\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"jones2021\"",
+    "\"cite\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"lee2019\"",
+    "\"cite\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"smith2020\"",
+    "\"cite\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000012\"",
+    "\"//example.com/with space\"",
+    "\"https\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000012\"",
+    "\"key]\"",
+    "\"cite\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"//example.com/beta-heading\"",
+    "\"https\""
+   ],
+   [
+    "\"v11\"",
+    "\"//x.org/a b\"",
+    "\"https\""
+   ]
+  ]
+ },
+ "tags": {
+  "columns": [
+   "node_id",
+   "tag"
+  ],
+  "rows": [
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"project\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"Übung\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"beta\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000012\"",
+    "\"first\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"beta\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"urgent\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"work\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000022\"",
+    "\"beta\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000022\"",
+    "\"deep\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000022\"",
+    "\"sub\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000022\"",
+    "\"urgent\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000022\"",
+    "\"work\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000024\"",
+    "\"beta\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000024\"",
+    "\"urgent\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000024\"",
+    "\"work\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000026\"",
+    "\"beta\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000027\"",
+    "\"ARCHIVE\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000027\"",
+    "\"beta\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000028\"",
+    "\"beta\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000029\"",
+    "\"beta\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000030\"",
+    "\"beta\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000031\"",
+    "\"gamma\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000051\"",
+    "\"one\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000051\"",
+    "\"three\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000051\"",
+    "\"two\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000052\"",
+    "\"one\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000052\"",
+    "\"three\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000052\"",
+    "\"two\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000053\"",
+    "\"one\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000053\"",
+    "\"three\""
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000053\"",
+    "\"two\""
+   ],
+   [
+    "\"p1\"",
+    "\"done\""
+   ],
+   [
+    "\"v11\"",
+    "\"a\""
+   ],
+   [
+    "\"v11\"",
+    "\"a\""
+   ],
+   [
+    "\"v11\"",
+    "\"b\""
+   ],
+   [
+    "\"v11\"",
+    "\"c\""
+   ],
+   [
+    "\"v12c\"",
+    "\"x\""
+   ],
+   [
+    "\"v12c\"",
+    "\"y\""
+   ]
+  ]
+ },
+ "links": {
+  "columns": [
+   "pos",
+   "source",
+   "dest",
+   "type",
+   "properties"
+  ],
+  "rows": [
+   [
+    100,
+    "\"11111111-1111-4111-8111-000000000010\"",
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    108,
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    112,
+    "\"qa-fake\"",
+    "\"x2\"",
+    "\"id\"",
+    "(:outline (\"Fake heading\"))"
+   ],
+   [
+    115,
+    "\"lt\"",
+    "\"~/home.org\"",
+    "\"file\"",
+    "(:outline nil)"
+   ],
+   [
+    1150,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    1180,
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"id\"",
+    "(:outline (\"Drawer after a blank line\"))"
+   ],
+   [
+    1218,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    1284,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    130,
+    "\"lt\"",
+    "\"notes.org\"",
+    "\"file\"",
+    "(:outline nil)"
+   ],
+   [
+    1335,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    1425,
+    "\"11111111-1111-4111-8111-000000000027\"",
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"id\"",
+    "(:outline (\"Archived\"))"
+   ],
+   [
+    1465,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    1541,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    1619,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    166,
+    "\"11111111-1111-4111-8111-000000000010\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    177,
+    "\"11111111-1111-4111-8111-000000000008\"",
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    177,
+    "\"lt\"",
+    "\"//example.com/p\"",
+    "\"https\"",
+    "(:outline nil :search-option \"frag\")"
+   ],
+   [
+    184,
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"id\"",
+    "(:outline (\"Beta heading with a link\"))"
+   ],
+   [
+    184,
+    "\"de-t\"",
+    "\"t4\"",
+    "\"id\"",
+    "(:outline (\"Titled\"))"
+   ],
+   [
+    210,
+    "\"11111111-1111-4111-8111-000000000010\"",
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    215,
+    "\"11111111-1111-4111-8111-000000000031\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline (\"Gamma heading\"))"
+   ],
+   [
+    221,
+    "\"lt\"",
+    "\"isbn:123\"",
+    "\"fuzzy\"",
+    "(:outline nil)"
+   ],
+   [
+    226,
+    "\"11111111-1111-4111-8111-000000000012\"",
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"id\"",
+    "(:outline (\"Second heading without an id\"))"
+   ],
+   [
+    2337,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    2403,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    248,
+    "\"lt\"",
+    "\"Plain words\"",
+    "\"fuzzy\"",
+    "(:outline nil)"
+   ],
+   [
+    264,
+    "\"lt\"",
+    "\"me@example.com\"",
+    "\"mailto\"",
+    "(:outline nil)"
+   ],
+   [
+    286,
+    "\"lt\"",
+    "\"plain.org\"",
+    "\"file\"",
+    "(:outline nil)"
+   ],
+   [
+    292,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    295,
+    "\"11111111-1111-4111-8111-000000000012\"",
+    "\"//example.com/?q=id:11111111-1111-4111-8111-000000000002\"",
+    "\"https\"",
+    "(:outline (\"Second heading without an id\"))"
+   ],
+   [
+    301,
+    "\"lt\"",
+    "\"//example.com/angle\"",
+    "\"https\"",
+    "(:outline nil)"
+   ],
+   [
+    320,
+    "\"11111111-1111-4111-8111-000000000081\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline (\"Theta heading ends the block\"))"
+   ],
+   [
+    329,
+    "\"lt\"",
+    "\"lt\"",
+    "\"id\"",
+    "(:outline nil :search-option \"#custom\")"
+   ],
+   [
+    35,
+    "\"de\"",
+    "\"t1\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    357,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    367,
+    "\"p1\"",
+    "\"p0\"",
+    "\"id\"",
+    "(:outline (\"Closed task\"))"
+   ],
+   [
+    37,
+    "\"v7\"",
+    "\"x\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    387,
+    "\"11111111-1111-4111-8111-000000000012\"",
+    "\"//example.com/id:11111111-1111-4111-8111-000000000002\"",
+    "\"https\"",
+    "(:outline (\"Second heading without an id\"))"
+   ],
+   [
+    443,
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"id\"",
+    "(:outline (\"Beta heading with a link\"))"
+   ],
+   [
+    453,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    476,
+    "\"p2\"",
+    "\"p0\"",
+    "\"id\"",
+    "(:outline (\"Only deadline\"))"
+   ],
+   [
+    49,
+    "\"lt\"",
+    "\"*Some heading\"",
+    "\"fuzzy\"",
+    "(:outline nil)"
+   ],
+   [
+    511,
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"id\"",
+    "(:outline (\"Beta heading with a link\"))"
+   ],
+   [
+    542,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000005\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    588,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000005\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    619,
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"11111111-1111-4111-8111-000000000005\"",
+    "\"id\"",
+    "(:outline (\"Beta heading with a link\" \"Sub heading without an id\"))"
+   ],
+   [
+    644,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    67,
+    "\"lt\"",
+    "\"custom-id\"",
+    "\"custom-id\"",
+    "(:outline nil)"
+   ],
+   [
+    709,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline nil :search-option \"*Heading\")"
+   ],
+   [
+    73,
+    "\"qe\"",
+    "\"x3\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    76,
+    "\"qi\"",
+    "\"x7\"",
+    "\"id\"",
+    "(:outline (\"H\"))"
+   ],
+   [
+    760,
+    "\"11111111-1111-4111-8111-000000000022\"",
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"id\"",
+    "(:outline (\"Beta heading with a link\" \"Sub heading without an id\" \"Deeper node\"))"
+   ],
+   [
+    797,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-999999999999\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    82,
+    "\"lt\"",
+    "\"coderef\"",
+    "\"coderef\"",
+    "(:outline nil)"
+   ],
+   [
+    864,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"//example.com\"",
+    "\"https\"",
+    "(:outline nil)"
+   ],
+   [
+    897,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"other.org\"",
+    "\"file\"",
+    "(:outline nil)"
+   ],
+   [
+    91,
+    "\"11111111-1111-4111-8111-000000000004\"",
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    92,
+    "\"11111111-1111-4111-8111-000000000009\"",
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    92,
+    "\"qa-fake\"",
+    "\"x1\"",
+    "\"id\"",
+    "(:outline (\"Fake heading\"))"
+   ],
+   [
+    927,
+    "\"11111111-1111-4111-8111-000000000021\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline (\"Beta heading with a link\" \"Excluded heading\"))"
+   ],
+   [
+    946,
+    "\"11111111-1111-4111-8111-000000000001\"",
+    "\"11111111-1111-4111-8111-000000000002\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    95,
+    "\"11111111-1111-4111-8111-000000000008\"",
+    "\"11111111-1111-4111-8111-000000000007\"",
+    "\"id\"",
+    "(:outline nil)"
+   ],
+   [
+    96,
+    "\"lt\"",
+    "\"./relative.org\"",
+    "\"file\"",
+    "(:outline nil)"
+   ]
+  ]
+ }
+}
