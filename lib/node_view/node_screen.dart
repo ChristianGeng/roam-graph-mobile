@@ -35,6 +35,8 @@ class NodeScreen extends StatefulWidget {
     required this.nodeMemory,
     this.onShowInGraph,
     this.openInOrgro,
+    this.onOpenNode,
+    this.onBack,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -44,6 +46,15 @@ class NodeScreen extends StatefulWidget {
 
   /// Opens the node's file in Orgro; the button is hidden when null.
   final NoteOpener? openInOrgro;
+
+  /// Opens another node. When null, it opens on a new page; the side pane
+  /// of the tablet layout (#16) shows it in place instead.
+  final void Function(BuildContext context, String id)? onOpenNode;
+
+  /// Goes back to the node shown before, in the side pane; null when there
+  /// is none. With [onOpenNode], the app bar has no other back button: the
+  /// pane is part of the graph's page.
+  final VoidCallback? onBack;
 
   /// Shows the node [id] in the graph view (#6); the button is hidden when
   /// null.
@@ -131,9 +142,25 @@ class _NodeScreenState extends State<NodeScreen> {
     }
   }
 
+  @override
+  void didUpdateWidget(NodeScreen old) {
+    super.didUpdateWidget(old);
+    if (old.graph != widget.graph) {
+      old.graph.removeListener(_graphChanged);
+      widget.graph.addListener(_graphChanged);
+    }
+    // The side pane shows another node.
+    if (old.id != widget.id || old.graph != widget.graph) _text = _read();
+  }
+
   void _openId(String id) {
     if (!widget.graph.value.nodes.containsKey(id)) {
       _tell('There is no node with the ID $id.');
+      return;
+    }
+    if (widget.onOpenNode case final open?) {
+      widget.nodeMemory.remember(id);
+      open(context, id);
       return;
     }
     NodeScreen.open(
@@ -177,6 +204,14 @@ class _NodeScreenState extends State<NodeScreen> {
     final onShowInGraph = widget.onShowInGraph;
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: widget.onOpenNode == null,
+        leading: widget.onBack == null
+            ? null
+            : IconButton(
+                tooltip: 'Back',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onBack,
+              ),
         title: Text(node?.displayTitle ?? 'Node'),
         actions: [
           IconButton(
@@ -189,6 +224,7 @@ class _NodeScreenState extends State<NodeScreen> {
               nodeMemory: widget.nodeMemory,
               onShowInGraph: onShowInGraph,
               openInOrgro: widget.openInOrgro,
+              onOpenNode: widget.onOpenNode,
             ),
           ),
           if (widget.openInOrgro case final open? when node != null)

@@ -18,6 +18,12 @@ typedef LayoutFunction = Future<GraphLayout> Function(
 Future<GraphLayout> layoutOnIsolate(DrawnGraph graph, LayoutKind kind) =>
     Isolate.run(() => layoutGraph(graph, kind));
 
+/// Whether a screen of [size] shows the graph and the node view side by
+/// side (#16): a tablet (shortest side at least 600, Material's medium
+/// width) held in landscape. Phones, and tablets in portrait, show one at
+/// a time.
+bool isTwoPane(Size size) => size.shortestSide >= 600 && size.width > size.height;
+
 /// Radius of a node's dot, in logical pixels at scale 1.
 const _nodeRadius = 7.0;
 
@@ -100,6 +106,11 @@ class _GraphScreenState extends State<GraphScreen> {
   _Drawing? _drawing;
   Size _viewport = Size.zero;
 
+  /// The nodes selected so far, the current one ([_centre]) last, for the
+  /// side pane's Back. Empty until a second node is selected. The side
+  /// pane always shows [_centre].
+  final _history = <String>[];
+
   /// Layouts computed so far, so switching back is immediate.
   final _layouts = <(GraphScope, LayoutKind), GraphLayout>{};
 
@@ -147,7 +158,15 @@ class _GraphScreenState extends State<GraphScreen> {
   void _graphChanged() {
     if (!mounted) return;
     final graph = _graph;
-    if (!graph.nodes.containsKey(_centre)) _centre = _mostLinked(graph);
+    // Nodes that are gone leave the history; the centre falls back to the
+    // node selected before it, or to the node with the most links.
+    _history.retainWhere(graph.nodes.containsKey);
+    for (var i = _history.length - 1; i > 0; i--) {
+      if (_history[i] == _history[i - 1]) _history.removeAt(i);
+    }
+    if (!graph.nodes.containsKey(_centre)) {
+      _centre = _history.lastOrNull ?? _mostLinked(graph);
+    }
     final drawn = _drawn;
     final centre = _centre;
     if (centre != null &&
@@ -234,16 +253,70 @@ class _GraphScreenState extends State<GraphScreen> {
     if (id == null) return;
     final node = _graph.nodes[id];
     if (node == null) return;
-    setState(() => _centre = id);
-    NodeScreen.open(
-      context,
-      graph: widget.graph,
-      id: node.id,
-      readNote: widget.readNote,
-      nodeMemory: widget.nodeMemory,
-      onShowInGraph: _showInGraph,
-      openInOrgro: widget.openInOrgro,
-    );
+    widget.nodeMemory.remember(id);
+    _openNode(context, id);
+  }
+
+  /// Makes [id] the selected node: the graph marks it, and the side pane
+  /// shows it. The view does not move.
+  void _select(String id) {
+    final previous = _centre;
+    if (previous == id) return;
+    if (_history.isEmpty && previous != null) _history.add(previous);
+    _history.add(id);
+    // Back goes far enough; older entries are dropped.
+    if (_history.length > 100) _history.removeAt(0);
+    _centre = id;
+  }
+
+  /// Opens the node [id] the way the screen is now: in the side pane on a
+  /// tablet in landscape, on a new page otherwise. Decided when called, so
+  /// a search opened before the device turned follows the new layout.
+  void _openNode(BuildContext _, String id) {
+    if (!mounted || !_graph.nodes.containsKey(id)) return;
+    if (isTwoPane(MediaQuery.sizeOf(context))) {
+      _showInPane(id);
+    } else {
+      setState(() => _select(id));
+      _openPage(id);
+    }
+  }
+
+  /// Opens the node view of [id] on a new page.
+  void _openPage(String id) => NodeScreen.open(
+        context,
+        graph: widget.graph,
+        id: id,
+        readNote: widget.readNote,
+        nodeMemory: widget.nodeMemory,
+        onShowInGraph: _showInGraph,
+        openInOrgro: widget.openInOrgro,
+      );
+
+  /// Shows [id] in the side pane, and marks it in the graph without moving
+  /// the view. A node outside the part of the graph drawn around another
+  /// node gets that part drawn around it.
+  void _showInPane(String id) {
+    setState(() => _select(id));
+    _drawAroundCentreIfMissing();
+  }
+
+  void _paneBack() {
+    setState(() {
+      _history.removeLast();
+      _centre = _history.last;
+      if (_history.length == 1) _history.clear();
+    });
+    _drawAroundCentreIfMissing();
+  }
+
+  void _drawAroundCentreIfMissing() {
+    final layout = _layout;
+    if (_choice != _ScopeChoice.whole &&
+        layout != null &&
+        !layout.positions.containsKey(_centre)) {
+      _update();
+    }
   }
 
   /// Returns from the node views to the graph, centred on the node [id].
@@ -252,7 +325,7 @@ class _GraphScreenState extends State<GraphScreen> {
     final route = ModalRoute.of(context);
     Navigator.of(nodeContext).popUntil((r) => r == route);
     if (!mounted || !_graph.nodes.containsKey(id)) return;
-    setState(() => _centre = id);
+    setState(() => _select(id));
     if (_choice == _ScopeChoice.whole) {
       _centreView();
     } else {
@@ -268,7 +341,26 @@ class _GraphScreenState extends State<GraphScreen> {
   @override
   Widget build(BuildContext context) {
     final centreTitle = _graph.nodes[_scopeCentre]?.displayTitle ?? '';
+    final twoPane = isTwoPane(MediaQuery.sizeOf(context));
+    final graph = LayoutBuilder(
+      builder: (context, constraints) {
+        // At the start, and when the graph's part of the screen changes
+        // width (the side pane appears, the tablet turns), centre again.
+        // Not for a change in height alone, so the view stays when the
+        // keyboard of the search page opens and closes.
+        final size = constraints.biggest;
+        if (_viewport.isEmpty || _viewport.width != size.width) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _centreView());
+        }
+        _viewport = size;
+        return _body(context);
+      },
+    );
+    final paneId = _centre;
     return Scaffold(
+      // The graph has no text field; the keyboard of the search page above
+      // must not resize it.
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,8 +385,19 @@ class _GraphScreenState extends State<GraphScreen> {
               nodeMemory: widget.nodeMemory,
               onShowInGraph: _showInGraph,
               openInOrgro: widget.openInOrgro,
+              onOpenNode: _openNode,
             ),
           ),
+          // The quick switch to the node view, on one screen at a time.
+          if (!twoPane && _centre != null)
+            IconButton(
+              tooltip: 'Open node',
+              icon: const Icon(Icons.article_outlined),
+              onPressed: () {
+                widget.nodeMemory.remember(_centre!);
+                _openPage(_centre!);
+              },
+            ),
           IconButton(
             tooltip: 'Centre',
             icon: const Icon(Icons.center_focus_strong),
@@ -325,16 +428,28 @@ class _GraphScreenState extends State<GraphScreen> {
           ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final first = _viewport.isEmpty;
-          _viewport = constraints.biggest;
-          if (first) {
-            WidgetsBinding.instance.addPostFrameCallback((_) => _centreView());
-          }
-          return _body(context);
-        },
-      ),
+      body: !twoPane || paneId == null
+          ? graph
+          : Row(
+              children: [
+                Expanded(flex: 3, child: graph),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  flex: 2,
+                  child: NodeScreen(
+                    key: const ValueKey('node-pane'),
+                    graph: widget.graph,
+                    id: paneId,
+                    readNote: widget.readNote,
+                    nodeMemory: widget.nodeMemory,
+                    onShowInGraph: _showInGraph,
+                    openInOrgro: widget.openInOrgro,
+                    onOpenNode: _openNode,
+                    onBack: _history.length > 1 ? _paneBack : null,
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
