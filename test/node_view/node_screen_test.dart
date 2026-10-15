@@ -39,6 +39,7 @@ Future<MemoryNodeMemory> open(
   ValueNotifier<RoamGraph>? graph,
   Map<String, String> texts = notes,
   void Function(BuildContext, String)? onShowInGraph,
+  NoteOpener? openInOrgro,
 }) async {
   final memory = MemoryNodeMemory();
   await tester.pumpWidget(MaterialApp(
@@ -53,6 +54,7 @@ Future<MemoryNodeMemory> open(
               readNote: (path) async => texts[path],
               nodeMemory: memory,
               onShowInGraph: onShowInGraph,
+              openInOrgro: openInOrgro,
             ),
             child: const Text('open'),
           ),
@@ -189,6 +191,50 @@ void main() {
       (tester) async {
     await open(tester, 'b');
     expect(find.byTooltip('Show in graph'), findsNothing);
+  });
+
+  group('"Open in Orgro"', () {
+    testWidgets('a file node opens its file, without a message',
+        (tester) async {
+      final opened = <String>[];
+      await open(tester, 'b', openInOrgro: (path) async {
+        opened.add(path);
+        return OpenResult.opened;
+      });
+      await tester.tap(find.byTooltip('Open in Orgro'));
+      await tester.pump();
+      expect(opened, ['b.org']);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('a heading node opens its file at the top, and says so',
+        (tester) async {
+      final opened = <String>[];
+      await open(tester, 'p', openInOrgro: (path) async {
+        opened.add(path);
+        return OpenResult.opened;
+      });
+      await tester.tap(find.byTooltip('Open in Orgro'));
+      await tester.pump();
+      expect(opened, ['b.org']);
+      expect(
+          find.text('Orgro opens b.org at the top; '
+              'it cannot jump to the heading.'),
+          findsOneWidget);
+    });
+
+    testWidgets('a file that is not in the folder', (tester) async {
+      await open(tester, 'a',
+          openInOrgro: (path) async => OpenResult.noFile);
+      await tester.tap(find.byTooltip('Open in Orgro'));
+      await tester.pump();
+      expect(find.text('Could not find a.org in the folder.'), findsOneWidget);
+    });
+
+    testWidgets('no button without a way to open files', (tester) async {
+      await open(tester, 'a');
+      expect(find.byTooltip('Open in Orgro'), findsNothing);
+    });
   });
 
   testWidgets('a file that cannot be read', (tester) async {

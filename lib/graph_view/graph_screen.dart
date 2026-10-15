@@ -44,6 +44,7 @@ class GraphScreen extends StatefulWidget {
     super.key,
     required this.graph,
     required this.readNote,
+    this.openInOrgro,
     this.nodeMemory = const FileNodeMemory(),
     this.computeLayout = layoutOnIsolate,
   });
@@ -52,6 +53,9 @@ class GraphScreen extends StatefulWidget {
 
   /// Reads a note for the node view.
   final NoteReader readNote;
+
+  /// Opens a note in Orgro, for the node view.
+  final NoteOpener? openInOrgro;
   final NodeMemory nodeMemory;
   final LayoutFunction computeLayout;
 
@@ -238,6 +242,7 @@ class _GraphScreenState extends State<GraphScreen> {
       readNote: widget.readNote,
       nodeMemory: widget.nodeMemory,
       onShowInGraph: _showInGraph,
+      openInOrgro: widget.openInOrgro,
     );
   }
 
@@ -287,6 +292,7 @@ class _GraphScreenState extends State<GraphScreen> {
               readNote: widget.readNote,
               nodeMemory: widget.nodeMemory,
               onShowInGraph: _showInGraph,
+              openInOrgro: widget.openInOrgro,
             ),
           ),
           IconButton(

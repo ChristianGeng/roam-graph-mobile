@@ -11,6 +11,15 @@ import '../search/search_screen.dart';
 /// be read.
 typedef NoteReader = Future<String?> Function(String path);
 
+/// Orgro's application ID (its `build.gradle`).
+const orgroPackage = 'com.madlonkay.orgro';
+
+/// What happened when a note was to be opened in Orgro.
+enum OpenResult { opened, noOrgro, noFile }
+
+/// Opens a note in Orgro (#10), by its path relative to `roam/`.
+typedef NoteOpener = Future<OpenResult> Function(String path);
+
 /// Shows a node as formatted Org (#8): a file node's whole file, a heading
 /// node's heading with its subtree. `id:` links open the linked node on a
 /// new page, so Back returns to this one. Below the text are the
@@ -25,12 +34,16 @@ class NodeScreen extends StatefulWidget {
     required this.readNote,
     required this.nodeMemory,
     this.onShowInGraph,
+    this.openInOrgro,
   });
 
   final ValueListenable<RoamGraph> graph;
   final String id;
   final NoteReader readNote;
   final NodeMemory nodeMemory;
+
+  /// Opens the node's file in Orgro; the button is hidden when null.
+  final NoteOpener? openInOrgro;
 
   /// Shows the node [id] in the graph view (#6); the button is hidden when
   /// null.
@@ -44,6 +57,7 @@ class NodeScreen extends StatefulWidget {
     required NoteReader readNote,
     required NodeMemory nodeMemory,
     void Function(BuildContext context, String id)? onShowInGraph,
+    NoteOpener? openInOrgro,
   }) {
     nodeMemory.remember(id);
     return Navigator.push(
@@ -55,6 +69,7 @@ class NodeScreen extends StatefulWidget {
           readNote: readNote,
           nodeMemory: nodeMemory,
           onShowInGraph: onShowInGraph,
+          openInOrgro: openInOrgro,
         ),
       ),
     );
@@ -128,7 +143,26 @@ class _NodeScreenState extends State<NodeScreen> {
       readNote: widget.readNote,
       nodeMemory: widget.nodeMemory,
       onShowInGraph: widget.onShowInGraph,
+      openInOrgro: widget.openInOrgro,
     );
+  }
+
+  /// Opens the node's file in Orgro, at the top: Orgro has no way to jump
+  /// to a heading from outside (decision 6).
+  Future<void> _openInOrgro(NoteOpener open, RoamNode node) async {
+    final result = await open(node.file);
+    if (!mounted) return;
+    switch (result) {
+      case OpenResult.opened:
+        if (!node.isFile) {
+          _tell('Orgro opens ${node.file} at the top; '
+              'it cannot jump to the heading.');
+        }
+      case OpenResult.noOrgro:
+        _tell('Orgro is not installed.');
+      case OpenResult.noFile:
+        _tell('Could not find ${node.file} in the folder.');
+    }
   }
 
   void _tell(String message) {
@@ -154,8 +188,15 @@ class _NodeScreenState extends State<NodeScreen> {
               readNote: widget.readNote,
               nodeMemory: widget.nodeMemory,
               onShowInGraph: onShowInGraph,
+              openInOrgro: widget.openInOrgro,
             ),
           ),
+          if (widget.openInOrgro case final open? when node != null)
+            IconButton(
+              tooltip: 'Open in Orgro',
+              icon: const Icon(Icons.open_in_new),
+              onPressed: () => _openInOrgro(open, node),
+            ),
           if (node != null && onShowInGraph != null)
             IconButton(
               tooltip: 'Show in graph',

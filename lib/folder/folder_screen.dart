@@ -11,6 +11,13 @@ import '../node_view/node_screen.dart';
 import 'folder_access.dart';
 import 'org_files.dart';
 
+/// Builds the graph view, for [FolderScreen.graphScreen].
+typedef GraphScreenBuilder = Widget Function(
+  ValueListenable<RoamGraph> graph,
+  NoteReader readNote,
+  NoteOpener openInOrgro,
+);
+
 /// Lets the user choose the org folder (#3), keeps the graph's database up
 /// to date with it (#4, #5) and shows what it holds, to compare with
 /// org-roam on the laptop. From there, the graph view (#6) opens.
@@ -29,15 +36,15 @@ class FolderScreen extends StatefulWidget {
 
   /// Builds the graph view; tests replace it. The graph it gets follows
   /// the index, also while the graph view is open; [NoteReader] reads the
-  /// notes of the chosen folder.
-  final Widget Function(ValueListenable<RoamGraph> graph, NoteReader readNote)
-      graphScreen;
+  /// notes of the chosen folder, and [NoteOpener] opens them in Orgro.
+  final GraphScreenBuilder graphScreen;
 
   static Widget defaultGraphScreen(
     ValueListenable<RoamGraph> graph,
     NoteReader readNote,
+    NoteOpener openInOrgro,
   ) =>
-      GraphScreen(graph: graph, readNote: readNote);
+      GraphScreen(graph: graph, readNote: readNote, openInOrgro: openInOrgro);
 
   @override
   State<FolderScreen> createState() => _FolderScreenState();
@@ -74,6 +81,19 @@ class _FolderScreenState extends State<FolderScreen>
 
   /// The files of the latest graph, by path relative to roam/.
   Map<String, FolderFile> _roamFiles = {};
+
+  /// Opens the note at [path], relative to roam/, in Orgro.
+  Future<OpenResult> _openInOrgro(String path) async {
+    final file = _roamFiles[path];
+    if (file == null) return OpenResult.noFile;
+    try {
+      return await widget.folderAccess.openWith(file, orgroPackage)
+          ? OpenResult.opened
+          : OpenResult.noOrgro;
+    } on PlatformException {
+      return OpenResult.noFile;
+    }
+  }
 
   /// Reads the note at [path], relative to roam/, for the node view.
   Future<String?> _readNote(String path) async {
@@ -339,7 +359,7 @@ class _FolderScreenState extends State<FolderScreen>
                 context,
                 MaterialPageRoute<void>(
                   builder: (context) =>
-                      widget.graphScreen(notifier, _readNote),
+                      widget.graphScreen(notifier, _readNote, _openInOrgro),
                 ),
               ),
               icon: const Icon(Icons.hub_outlined),
