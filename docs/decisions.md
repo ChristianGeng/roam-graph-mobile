@@ -577,8 +577,9 @@ devices through Syncthing.
   - **When to look again:** when an MCP client on Android can use a local
     server (for example over a local socket), or when the Claude Android
     app can share the graph's database with a local tool. Then the
-    read-only half of `mcps/org_roam` could serve the app's
-    `org-roam.db` as it is.
+    read-only half of `mcps/org_roam` could serve the database the app
+    builds itself (decision 23; Emacs's `org-roam.db` stays on the laptop,
+    decision 3) as it is.
   - **If the owner agrees:** close #14 and the v3 milestone.
 
 ### Flutter or PWA
