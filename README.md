@@ -4,8 +4,10 @@ Browse my org-roam node graph on Android (tablet and phone), offline and
 without Emacs. The org files reach the devices through Syncthing.
 
 Status: v1 in progress. The app reads the org folder, builds the graph
-(#3, #4), stores it in an SQLite database with org-roam's schema (#5), and
-shows its counts; there is no graph view yet. What is decided and why is in
+(#3, #4), stores it in an SQLite database with org-roam's schema (#5),
+shows its counts, and draws the graph like `org-roam-graph`, as a whole or
+around one node, with a circular (`circo`) or a force-directed layout (#6).
+There is no node view yet. What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

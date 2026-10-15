@@ -57,7 +57,7 @@ devices through Syncthing.
 7. **The graph view mirrors my `org-roam-graph` settings.** Only `id:` links
    are edges. `file`, `https`, `http`, `fuzzy` and `mailto` links are hidden
    (`org-roam-graph-link-hidden-types`). Layout `circo`, plus a
-   force-directed one.
+   force-directed one. (My Emacs does not actually use `circo`; see 24.)
 
 8. **Graph algorithms as views:** neighbourhood, communities (Louvain),
    importance (PageRank, degree), shortest path. My MCP server computes the
@@ -93,7 +93,8 @@ devices through Syncthing.
     them. Graph in a WebView with Cytoscape.js, algorithms with `graphology`
     in the same WebView. The alternatives were Kotlin with Jetpack Compose
     (org rendering via `uniorg` in a WebView, algorithms with JGraphT) and a
-    PWA; "Flutter or PWA" below says why Flutter won.
+    PWA; "Flutter or PWA" below says why Flutter won. The graph view is
+    drawn by Flutter instead of Cytoscape.js (decision 24).
 
 16. **Flutter is pinned** in the build workflow (3.47.7 at the start). The
     files under `android/` come from that version's `flutter create`
@@ -198,11 +199,91 @@ devices through Syncthing.
       reports it only while it reads the second file; after that the
       database has only one of them.
 
+24. **The graph view is drawn by Flutter itself, not by Cytoscape.js in a
+    WebView** (#6). This changes decision 15 for the graph view. Reasons:
+    - The graph already exists in Dart (#4, #5). A WebView would need it
+      as JSON, and taps would come back over a channel.
+    - The app works offline, so Cytoscape.js would have to be bundled
+      into the APK.
+    - Cytoscape.js has no `circo` layout.
+    - Widget tests can drive Flutter's drawing and taps, but not a
+      WebView.
+
+    Whether the algorithms of #7 also run in Dart is decided in #7.
+
+    How it is built:
+    - A `CustomPainter` inside an `InteractiveViewer` (pan and pinch-zoom).
+      All edges are one path. Labels are drawn only for nodes on screen,
+      and only from scale 0.45, where they become readable. The layouts
+      run on another isolate. On the laptop, for 500 nodes and 2469
+      edges, the force-directed layout takes 0.25 s and circo 10 ms.
+    - What is drawn is what `org-roam-graph` writes into its Graphviz
+      file (`lib/graph/graph_scope.dart`):
+      - One edge per pair of nodes with an `id:` link.
+      - The whole graph also shows the nodes without links.
+      - The target of a link to a missing ID is a node labelled
+        `id:<target>`.
+      - Titles wider than 100 columns are cut to 97 columns plus `...`
+        (`org-roam-graph-max-title-length`), counted as Emacs counts
+        them: a CJK character takes two columns, and `"` and `\` two as
+        well, because org-roam escapes them first. The widths come from
+        Emacs's `char-width` (`tool/char_width.el` writes
+        `lib/graph/char_width.dart`).
+    - "Neighbourhood: N steps" is `C-u N M-x org-roam-graph`, and
+      "Connected part" is `C-u M-x org-roam-graph`. org-roam's query for
+      N steps keeps the nodes up to N - 1 links away, plus every edge
+      that touches them. So the nodes N links away are shown, but not the
+      edges between them. A test runs org-roam's SQL from
+      `org-roam-graph--connected-component` on the sample files and on a
+      random graph, and compares it with the app for every node and N.
+      Two deliberate differences:
+      - The app follows only `id:` links. org-roam's query follows links
+        of every type, so two notes that link the same web page count as
+        neighbours. With my hidden link types, the page is not drawn, and
+        such a note would appear without any visible connection.
+      - The centre node is always drawn. org-roam draws only the ends of
+        edges, so a node without links gives an empty graph.
+    - **My Emacs draws the graph with `dot`, not `circo`.** My config
+      sets `org-roam-graph-layout "circo"`. org-roam has no such
+      variable: its source (`org-roam-graph.el`) never reads it, and the
+      word `circo` does not occur in it. `org-roam-graph` runs
+      `org-roam-graph-executable`, which defaults to `dot`. To get circo
+      in Emacs: `(setq org-roam-graph-executable "circo")`.
+    - The app's circo follows the idea of Graphviz's `circo`:
+      - Each part of the graph that stays connected after removing any
+        one node (a biconnected block) lies on its own circle.
+      - Blocks hang outside the block they share a node with.
+      - A part that is a tree is drawn around its node with the most
+        blocks.
+      - Separate parts are packed in rows.
+
+      The order on a circle is the order of a depth-first search;
+      Graphviz also reorders nodes to reduce crossings. So positions
+      differ from Graphviz's.
+    - The force-directed layout is Fruchterman and Reingold's, with a
+      weak pull to the centre so that unlinked nodes stay near the rest.
+      It starts from fixed random positions, so a graph always gets the
+      same drawing.
+    - The graph starts centred on the node opened last, which is stored in
+      `last-node` next to the database. Without one, it starts on the node
+      with the most links. A tap on a node opens it. Until the node view
+      (#8) exists, opening shows a short summary with a button for its
+      neighbourhood.
+    - The graph opens from "Show graph" on the screen with the counts. The
+      tablet and phone layouts (#16) will change where it lives. An open
+      graph follows the index: when the app comes back to the foreground
+      and the scan finds changes, the graph is drawn again. When nothing
+      it shows has changed, the view stays where it is.
+
 ## Recommended, not decided
 
 Nothing at the moment.
 
 ### Flutter or PWA
+
+This comparison is from 2026-10-11, when the graph was planned in a WebView
+with Cytoscape.js. Since decision 24, Flutter draws the graph itself; the
+reasons for Flutter below still hold.
 
 A PWA was also suggested. Two common objections to it do not hold:
 
