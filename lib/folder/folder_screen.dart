@@ -3,23 +3,30 @@ import 'package:flutter/services.dart';
 
 import '../graph/graph_index.dart';
 import '../graph/roam_graph.dart';
+import '../graph_view/graph_screen.dart';
 import 'folder_access.dart';
 import 'org_files.dart';
 
 /// Lets the user choose the org folder (#3), keeps the graph's database up
 /// to date with it (#4, #5) and shows what it holds, to compare with
-/// org-roam on the laptop.
+/// org-roam on the laptop. From there, the graph view (#6) opens.
 class FolderScreen extends StatefulWidget {
   const FolderScreen({
     super.key,
     required this.folderAccess,
     required this.version,
     this.graphIndex = const SqliteGraphIndex(),
+    this.graphScreen = defaultGraphScreen,
   });
 
   final FolderAccess folderAccess;
   final String version;
   final GraphIndex graphIndex;
+
+  /// Builds the graph view for a graph; tests replace it.
+  final Widget Function(RoamGraph graph) graphScreen;
+
+  static Widget defaultGraphScreen(RoamGraph graph) => GraphScreen(graph: graph);
 
   @override
   State<FolderScreen> createState() => _FolderScreenState();
@@ -284,6 +291,17 @@ class _FolderScreenState extends State<FolderScreen>
       case _Status.indexed:
         return _column([
           Text('Graph in roam/', style: text.titleLarge),
+          if (_result.graph case final graph? when graph.nodes.isNotEmpty)
+            FilledButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (context) => widget.graphScreen(graph),
+                ),
+              ),
+              icon: const Icon(Icons.hub_outlined),
+              label: const Text('Show graph'),
+            ),
           if (_result.graph case final graph?)
             _GraphSummary(graph: graph, unreadable: _result.unreadable),
           if (_result.graph case final graph? when graph.failedFiles.isNotEmpty)

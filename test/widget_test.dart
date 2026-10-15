@@ -10,7 +10,10 @@ import 'package:roam_graph_mobile/graph/graph_index.dart';
 import 'package:roam_graph_mobile/graph/indexer.dart' as indexer;
 import 'package:roam_graph_mobile/graph/roam_db.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
+import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
 import 'package:roam_graph_mobile/main.dart';
+
+import 'graph_view/graph_screen_test.dart' show MemoryNodeMemory, layoutHere;
 
 /// A [FolderAccess] without Android, for tests.
 class FakeFolderAccess implements FolderAccess {
@@ -119,7 +122,15 @@ FakeFolderAccess withNotes({ChosenFolder? saved, ChosenFolder? picked}) =>
 Future<TestGraphIndex> start(WidgetTester tester, FakeFolderAccess access) async {
   final index = TestGraphIndex();
   await tester.pumpWidget(
-    RoamGraphApp(folderAccess: access, graphIndex: index),
+    RoamGraphApp(
+      folderAccess: access,
+      graphIndex: index,
+      graphScreen: (graph) => GraphScreen(
+        graph: graph,
+        nodeMemory: MemoryNodeMemory(),
+        computeLayout: layoutHere,
+      ),
+    ),
   );
   await tester.pumpAndSettle();
   return index;
@@ -211,6 +222,35 @@ void main() {
     expect(access.pickCalls, 1);
     expectSomeNotes(tester);
     expect(find.text('Folder: org'), findsOneWidget);
+  });
+
+  testWidgets('"Show graph" opens the graph of the indexed notes',
+      (tester) async {
+    await start(tester, withNotes(saved: org));
+
+    await tapText(tester, 'Show graph');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Whole graph'), findsOneWidget);
+    // Centred on a, the node with the most links.
+    await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
+    await tester.pumpAndSettle();
+    expect(find.text('a.org'), findsOneWidget);
+  });
+
+  testWidgets('without nodes there is no "Show graph"', (tester) async {
+    await start(
+      tester,
+      FakeFolderAccess(saved: org, files: [
+        const FolderFile(path: 'roam', uri: 'content://r', isDirectory: true),
+        const FolderFile(path: 'roam/x.org', uri: 'content://x', modified: 1),
+      ], texts: {
+        'roam/x.org': '#+title: Not a node\n',
+      }),
+    );
+
+    expect(stat(tester, 'nodes'), '0');
+    expect(find.text('Show graph'), findsNothing);
   });
 
   testWidgets('a folder chosen earlier is indexed on start', (tester) async {
