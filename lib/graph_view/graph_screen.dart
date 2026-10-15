@@ -469,6 +469,7 @@ class _GraphScreenState extends State<GraphScreen> {
         nodeMemory: widget.nodeMemory,
         onShowInGraph: _showInGraph,
         openInOrgro: widget.openInOrgro,
+        writer: widget.writer,
       );
 
   /// Shows [id] in the side pane, and marks it in the graph without moving
@@ -511,9 +512,17 @@ class _GraphScreenState extends State<GraphScreen> {
     }
   }
 
-  /// Creates a new node (#11) and opens it.
+  /// Creates a new node (#11) and opens it. It links to the selected node,
+  /// the current node of decision 10 (#12), unless switched off.
   Future<void> _capture(NoteWriter writer) async {
-    final id = await CaptureScreen.open(context, writer);
+    final selected = _graph.nodes[_centre];
+    final id = await CaptureScreen.open(
+      context,
+      writer,
+      linkTo: selected == null
+          ? null
+          : (id: selected.id, title: selected.displayTitle),
+    );
     if (id == null || !mounted) return;
     widget.nodeMemory.remember(id);
     _openNode(context, id);
@@ -586,6 +595,7 @@ class _GraphScreenState extends State<GraphScreen> {
               onShowInGraph: _showInGraph,
               openInOrgro: widget.openInOrgro,
               onOpenNode: _openNode,
+              writer: widget.writer,
             ),
           ),
           // The quick switch to the node view, on one screen at a time.
@@ -674,6 +684,7 @@ class _GraphScreenState extends State<GraphScreen> {
                     openInOrgro: widget.openInOrgro,
                     onOpenNode: _openNode,
                     onBack: _history.length > 1 ? _paneBack : null,
+                    writer: widget.writer,
                   ),
                 ),
               ],

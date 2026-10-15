@@ -62,6 +62,49 @@ void main() {
     expect(parsed.nodes.single.tags, ['food', 'french']);
   });
 
+  // What Emacs 31's org-link-make-string returns for these descriptions.
+  test('links as org-link-make-string', () {
+    expect(orgLink('abc', 'Plain'), '[[id:abc][Plain]]');
+    expect(orgLink('abc', 'With [brackets]'),
+        '[[id:abc][With [brackets]\u200B]]');
+    expect(orgLink('abc', 'Ends]'), '[[id:abc][Ends]\u200B]]');
+    expect(orgLink('abc', 'a]]b'), '[[id:abc][a]\u200B]b]]');
+    expect(orgLink('abc', 'x[[y'), '[[id:abc][x[[y]]');
+    // Runs of brackets: pairs from the left, not overlapping.
+    expect(orgLink('abc', 'a]]'), '[[id:abc][a]\u200B]\u200B]]');
+    expect(orgLink('abc', ']]]'), '[[id:abc][]\u200B]]\u200B]]');
+    expect(orgLink('abc', 'a]]]b'), '[[id:abc][a]\u200B]]b]]');
+    // Targets as org-link-escape escapes them.
+    expect(orgLink('draft]one', 'D'), r'[[id:draft\]one][D]]');
+    expect(orgLink('a[b', 'D'), r'[[id:a\[b][D]]');
+    expect(orgLink(r'a\]b', 'D'), r'[[id:a\\\]b][D]]');
+    expect(orgLink('a::b', 'D'), '[[id:a::b][D]]');
+  });
+
+  test('an escaped target still links to the node', () {
+    final text = nodeFileText(
+        id: 'new', title: 'N', linkTo: (id: 'draft]one', title: 'D'));
+    final link = parseRoamFile('x.org', text).links.single;
+    expect(link.dest, 'draft]one');
+  });
+
+  test('a link to the node it was captured from (#12)', () {
+    final text = nodeFileText(
+      id: 'new',
+      title: 'Child',
+      body: 'Text.',
+      linkTo: (id: 'parent', title: 'Parent [draft]'),
+    );
+    expect(
+        text,
+        ':PROPERTIES:\n:ID:       new\n:END:\n#+title: Child\n\n'
+        '[[id:parent][Parent [draft]\u200B]]\n\nText.\n');
+    // org-roam reads it as a link from the new node to the parent.
+    final parsed = parseRoamFile('x.org', text);
+    final link = parsed.links.single;
+    expect((link.source, link.dest, link.type), ('new', 'parent', 'id'));
+  });
+
   test('without tags or text, just the title', () {
     expect(nodeFileText(id: 'i', title: 'T'),
         ':PROPERTIES:\n:ID:       i\n:END:\n#+title: T\n');

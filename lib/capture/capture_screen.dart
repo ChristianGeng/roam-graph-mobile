@@ -55,18 +55,43 @@ class NoteWriter {
 /// on the laptop: `roam/<%Y%m%d%H%M%S>-<slug>.org`, with a new `:ID:`,
 /// `#+title:` and `#+filetags:`. Returns the new node's ID.
 class CaptureScreen extends StatefulWidget {
-  const CaptureScreen({super.key, required this.writer, this.now = DateTime.now});
+  const CaptureScreen({
+    super.key,
+    required this.writer,
+    this.now = DateTime.now,
+    this.linkTo,
+    this.linkByDefault = true,
+  });
 
   final NoteWriter writer;
+
+  /// The node the capture starts from (#12): the new file can link to it,
+  /// so it shows the new node as a backlink. The existing file is never
+  /// changed.
+  final ({String id, String title})? linkTo;
+
+  /// Whether the link is on at first.
+  final bool linkByDefault;
 
   /// The clock, for the file name; tests replace it.
   final DateTime Function() now;
 
   /// Opens the capture screen; completes with the new node's ID, or null.
-  static Future<String?> open(BuildContext context, NoteWriter writer) =>
+  static Future<String?> open(
+    BuildContext context,
+    NoteWriter writer, {
+    ({String id, String title})? linkTo,
+    bool linkByDefault = true,
+  }) =>
       Navigator.push<String>(
         context,
-        MaterialPageRoute(builder: (context) => CaptureScreen(writer: writer)),
+        MaterialPageRoute(
+          builder: (context) => CaptureScreen(
+            writer: writer,
+            linkTo: linkTo,
+            linkByDefault: linkByDefault,
+          ),
+        ),
       );
 
   @override
@@ -78,6 +103,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
   final _tags = TextEditingController();
   final _body = TextEditingController();
   bool _saving = false;
+  late bool _link = widget.linkByDefault;
 
   /// True once the file is written, so it is not written twice.
   bool _written = false;
@@ -115,6 +141,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
       title: title,
       tags: parseTags(_tags.text),
       body: _body.text,
+      linkTo: _link ? widget.linkTo : null,
     );
     final result = await widget.writer.create(fileName, text);
     if (!mounted) return;
@@ -201,6 +228,15 @@ class _CaptureScreenState extends State<CaptureScreen> {
             ),
             textInputAction: TextInputAction.next,
           ),
+          if (widget.linkTo case final linkTo?)
+            CheckboxListTile(
+              key: const ValueKey('capture-link'),
+              contentPadding: EdgeInsets.zero,
+              value: _link,
+              onChanged: (on) => setState(() => _link = on ?? false),
+              title: Text('Link to ${linkTo.title}'),
+              subtitle: const Text('In the new file; it shows as a backlink.'),
+            ),
           const SizedBox(height: 16),
           TextField(
             key: const ValueKey('capture-body'),

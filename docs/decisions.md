@@ -483,6 +483,25 @@ devices through Syncthing.
     - **Where:** a "New node" button on the graph. The graph opens also
       for a folder without nodes, so the first node can be made.
 
+32. **A captured node links to the node it came from, in its own file**
+    (#12), as decision 10 planned:
+    - The link goes into the **new** file only, as the first line after
+      the header: `[[id:<id>][<title>]]`. The node it came from then
+      shows the new node as a backlink, in org-roam and in the app. Its
+      file is never changed: the laptop may be editing it, and Syncthing
+      would make a conflict copy.
+    - The link is written as Org's `org-link-make-string` writes it:
+      - The target is escaped as `org-link-escape` does, so an ID with `[`
+        or `]` still gives a backlink.
+      - The description gets zero-width spaces after a final `]` and in
+        each `]]`, so a title like `Draft [2]` cannot end the link early.
+
+      The tests use the values Emacs 31 returns.
+    - Both "New node from here" in the node view and "New node" in the
+      graph link to the current node, the selected one in the graph, by
+      default, as decision 10 says. The link can be switched off before
+      saving.
+
 ## Recommended, not decided
 
 Nothing at the moment.
