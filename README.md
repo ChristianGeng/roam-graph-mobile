@@ -7,7 +7,8 @@ Status: v1 in progress. The app reads the org folder, builds the graph
 (#3, #4), stores it in an SQLite database with org-roam's schema (#5),
 shows its counts, and draws the graph like `org-roam-graph`, as a whole or
 around one node, with a circular (`circo`) or a force-directed layout (#6).
-There is no node view yet. What is decided and why is in
+A tap on a node opens it as formatted Org, with tappable `id:` links and its
+backlinks (#8). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

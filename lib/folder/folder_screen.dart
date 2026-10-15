@@ -1,10 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../graph/graph_index.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/graph_screen.dart';
+import '../node_view/node_screen.dart';
 import 'folder_access.dart';
 import 'org_files.dart';
 
@@ -25,11 +28,16 @@ class FolderScreen extends StatefulWidget {
   final GraphIndex graphIndex;
 
   /// Builds the graph view; tests replace it. The graph it gets follows
-  /// the index, also while the graph view is open.
-  final Widget Function(ValueListenable<RoamGraph> graph) graphScreen;
+  /// the index, also while the graph view is open; [NoteReader] reads the
+  /// notes of the chosen folder.
+  final Widget Function(ValueListenable<RoamGraph> graph, NoteReader readNote)
+      graphScreen;
 
-  static Widget defaultGraphScreen(ValueListenable<RoamGraph> graph) =>
-      GraphScreen(graph: graph);
+  static Widget defaultGraphScreen(
+    ValueListenable<RoamGraph> graph,
+    NoteReader readNote,
+  ) =>
+      GraphScreen(graph: graph, readNote: readNote);
 
   @override
   State<FolderScreen> createState() => _FolderScreenState();
@@ -63,6 +71,22 @@ class _FolderScreenState extends State<FolderScreen>
 
   /// The latest graph, for an open graph view; null before the first.
   ValueNotifier<RoamGraph>? _graph;
+
+  /// The files of the latest graph, by path relative to roam/.
+  Map<String, FolderFile> _roamFiles = {};
+
+  /// Reads the note at [path], relative to roam/, for the node view.
+  Future<String?> _readNote(String path) async {
+    final file = _roamFiles[path];
+    if (file == null) return null;
+    try {
+      final bytes = await widget.folderAccess.readFiles([file]);
+      final content = bytes.firstOrNull;
+      return content == null ? null : utf8.decode(content, allowMalformed: true);
+    } on PlatformException {
+      return null;
+    }
+  }
 
   @override
   void dispose() {
@@ -189,6 +213,7 @@ class _FolderScreenState extends State<FolderScreen>
       for (final MapEntry(key: path, value: content) in contents.entries)
         if (content == null) path,
     ];
+    if (generation == _generation) _roamFiles = byPath;
     _show(generation, _Status.indexed, folder,
         (graph: graph, unreadable: unreadable));
   }
@@ -313,7 +338,8 @@ class _FolderScreenState extends State<FolderScreen>
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute<void>(
-                  builder: (context) => widget.graphScreen(notifier),
+                  builder: (context) =>
+                      widget.graphScreen(notifier, _readNote),
                 ),
               ),
               icon: const Icon(Icons.hub_outlined),

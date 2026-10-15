@@ -2,11 +2,12 @@ import 'dart:isolate';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../graph/graph_layout.dart';
 import '../graph/graph_scope.dart';
 import '../graph/roam_graph.dart';
+import '../node_view/node_screen.dart';
 import 'node_memory.dart';
 
 /// Computes a layout; by default on another isolate.
@@ -31,7 +32,7 @@ double tapReach(double scale) => _nodeRadius + 16 / scale;
 ///
 /// Starts with the whole graph, centred on the node opened last, or on the
 /// node with the most links. A tap on a node centres the graph on it and
-/// opens it.
+/// opens it in the node view (#8), whose "Show in graph" comes back here.
 ///
 /// [graph] changes when the index is updated, for example when the app
 /// comes back to the foreground after Syncthing brought new notes. The
@@ -41,11 +42,15 @@ class GraphScreen extends StatefulWidget {
   const GraphScreen({
     super.key,
     required this.graph,
+    required this.readNote,
     this.nodeMemory = const FileNodeMemory(),
     this.computeLayout = layoutOnIsolate,
   });
 
   final ValueListenable<RoamGraph> graph;
+
+  /// Reads a note for the node view.
+  final NoteReader readNote;
   final NodeMemory nodeMemory;
   final LayoutFunction computeLayout;
 
@@ -225,23 +230,28 @@ class _GraphScreenState extends State<GraphScreen> {
     final node = _graph.nodes[id];
     if (node == null) return;
     setState(() => _centre = id);
-    widget.nodeMemory.remember(id);
-    _open(node);
+    NodeScreen.open(
+      context,
+      graph: widget.graph,
+      id: node.id,
+      readNote: widget.readNote,
+      nodeMemory: widget.nodeMemory,
+      onShowInGraph: _showInGraph,
+    );
   }
 
-  /// Opens [node]. Until the node view (#8) exists, a short summary.
-  void _open(RoamNode node) {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (context) => _NodeSummary(
-        node: node,
-        drawn: _drawn,
-        onNeighbourhood: () {
-          Navigator.pop(context);
-          _show(_ScopeChoice.steps1);
-        },
-      ),
-    );
+  /// Returns from the node views to the graph, centred on the node [id].
+  /// A part of the graph around another node is drawn again around [id].
+  void _showInGraph(BuildContext nodeContext, String id) {
+    final route = ModalRoute.of(context);
+    Navigator.of(nodeContext).popUntil((r) => r == route);
+    if (!mounted || !_graph.nodes.containsKey(id)) return;
+    setState(() => _centre = id);
+    if (_choice == _ScopeChoice.whole) {
+      _centreView();
+    } else {
+      _update();
+    }
   }
 
   void _show(_ScopeChoice choice) {
@@ -528,49 +538,4 @@ class _GraphPainter extends CustomPainter {
       old.viewport != viewport ||
       old.colors != colors ||
       old.textStyle != textStyle;
-}
-
-/// A short summary of a node, shown when it is tapped, until the node view
-/// (#8) exists.
-class _NodeSummary extends StatelessWidget {
-  const _NodeSummary({
-    required this.node,
-    required this.drawn,
-    required this.onNeighbourhood,
-  });
-
-  final RoamNode node;
-  final DrawnGraph? drawn;
-  final VoidCallback onNeighbourhood;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    final edges = drawn?.edges ?? const <DrawnEdge>[];
-    final out = edges.where((e) => e.source == node.id).length;
-    final back = edges.where((e) => e.dest == node.id).length;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 8,
-          children: [
-            Text(node.displayTitle, style: text.titleLarge),
-            Text(node.file, style: text.bodySmall),
-            if (node.tags.isNotEmpty) Text('Tags: ${node.tags.join(', ')}'),
-            Text('Links to $out nodes, linked from $back nodes in this view.'),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: onNeighbourhood,
-                child: const Text('Show its neighbourhood'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

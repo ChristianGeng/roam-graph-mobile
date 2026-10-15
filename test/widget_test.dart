@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/folder/folder_access.dart';
@@ -125,8 +125,9 @@ Future<TestGraphIndex> start(WidgetTester tester, FakeFolderAccess access) async
     RoamGraphApp(
       folderAccess: access,
       graphIndex: index,
-      graphScreen: (graph) => GraphScreen(
+      graphScreen: (graph, readNote) => GraphScreen(
         graph: graph,
+        readNote: readNote,
         nodeMemory: MemoryNodeMemory(),
         computeLayout: layoutHere,
       ),
@@ -226,16 +227,21 @@ void main() {
 
   testWidgets('"Show graph" opens the graph of the indexed notes',
       (tester) async {
-    await start(tester, withNotes(saved: org));
+    final access = withNotes(saved: org);
+    await start(tester, access);
 
     await tapText(tester, 'Show graph');
     await tester.pumpAndSettle();
 
     expect(find.text('Whole graph'), findsOneWidget);
-    // Centred on a, the node with the most links.
+    // Centred on a, the node with the most links. Its node view reads
+    // a.org from the folder.
     await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
     await tester.pumpAndSettle();
-    expect(find.text('a.org'), findsOneWidget);
+    expect(find.descendant(of: find.byType(AppBar), matching: find.text('A')),
+        findsOneWidget);
+    expect(find.textContaining('id:b', findRichText: true), findsWidgets);
+    expect(access.readPaths.last, 'roam/a.org');
   });
 
   testWidgets('an open graph shows what a scan on resume found',
@@ -263,9 +269,9 @@ void main() {
     // Still on a, which c now links to.
     await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
     await tester.pumpAndSettle();
-    expect(find.text('a.org'), findsOneWidget);
-    expect(find.text('Links to 2 nodes, linked from 1 nodes in this view.'),
+    expect(find.descendant(of: find.byType(AppBar), matching: find.text('A')),
         findsOneWidget);
+    expect(find.text('Backlinks: 1'), findsOneWidget);
   });
 
   testWidgets('without nodes there is no "Show graph"', (tester) async {

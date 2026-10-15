@@ -1,10 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'folder/folder_access.dart';
 import 'folder/folder_screen.dart';
 import 'graph/graph_index.dart';
 import 'graph/roam_graph.dart';
+import 'node_view/node_screen.dart';
 
 /// The version the release workflow builds, passed in with
 /// `--dart-define=APP_VERSION=...`. Local builds show "dev".
@@ -24,7 +25,8 @@ class RoamGraphApp extends StatelessWidget {
 
   final FolderAccess folderAccess;
   final GraphIndex graphIndex;
-  final Widget Function(ValueListenable<RoamGraph> graph) graphScreen;
+  final Widget Function(ValueListenable<RoamGraph> graph, NoteReader readNote)
+      graphScreen;
 
   @override
   Widget build(BuildContext context) {
