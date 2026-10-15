@@ -78,5 +78,50 @@ String decodeElispString(String value) {
   });
 }
 
+/// The strings of the list after [key] in a printed property list: for
+/// `:outline` in `(:outline ("A" #("B" 0 1 (face bold))) :search-option
+/// "x")`, `A` and `B`. Empty when [key] is missing or its value is `nil`.
+List<String> decodeElispPlistStrings(String plist, String key) {
+  final start = plist.indexOf('$key ');
+  if (start < 0) return const [];
+  var i = start + key.length + 1;
+  if (!plist.startsWith('(', i)) return const [];
+  i++;
+  final result = <String>[];
+  while (i < plist.length && plist[i] != ')') {
+    if (plist[i] == ' ') {
+      i++;
+      continue;
+    }
+    // A string with text properties: #("text" 0 4 (...)).
+    final propertized = plist.startsWith('#(', i);
+    if (propertized) i += 2;
+    final match = _printedString.matchAsPrefix(plist, i);
+    if (match == null) break;
+    result.add(decodeElispString(match.group(0)!));
+    i = match.end;
+    if (propertized) i = _afterList(plist, i);
+  }
+  return result;
+}
+
+/// The position after the `)` that closes a list whose `(` is before
+/// [start], skipping strings and nested lists.
+int _afterList(String text, int start) {
+  var depth = 1;
+  var i = start;
+  while (i < text.length && depth > 0) {
+    final c = text[i];
+    if (c == '"') {
+      i = _printedString.matchAsPrefix(text, i)?.end ?? text.length;
+      continue;
+    }
+    if (c == '(') depth++;
+    if (c == ')') depth--;
+    i++;
+  }
+  return i;
+}
+
 final _printedString = RegExp(r'"((?:[^"\\]|\\[\s\S])*)"');
 final _escape = RegExp(r'\\(x[0-9A-Fa-f]+|[0-7]{1,3}|[\s\S])');

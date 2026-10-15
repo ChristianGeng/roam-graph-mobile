@@ -262,7 +262,8 @@ class RoamDatabase {
     final aliases = byNode('SELECT node_id, alias FROM aliases');
     final refs = byNode('SELECT node_id, ref, type FROM refs');
     final links = byNode(
-        "SELECT source, dest, pos FROM links WHERE type = '\"id\"'");
+        "SELECT source, dest, pos, properties FROM links "
+        "WHERE type = '\"id\"'");
 
     final nodesOfFile = <String, List<RoamNode>>{};
     final linksOfFile = <String, List<RoamLink>>{};
@@ -301,6 +302,8 @@ class RoamDatabase {
               file: path,
               line: 0,
               pos: r[2]! as int,
+              outline:
+                  decodeElispPlistStrings(r[3] as String? ?? '', ':outline'),
             ));
       }
     }
