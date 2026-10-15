@@ -157,11 +157,16 @@ class RoamFileData {
     this.citations = const [],
     this.title = '',
     this.error,
+    this.mtime = 0,
   });
 
   /// Path relative to `roam/`.
   final String path;
   final List<RoamNode> nodes;
+
+  /// When the file was last modified, in milliseconds since 1970; 0 when
+  /// unknown.
+  final int mtime;
 
   /// Links of every type; the graph uses those of type `id`.
   final List<RoamLink> links;
@@ -185,6 +190,7 @@ class RoamGraph {
     required this.duplicateIds,
     required this.allNodes,
     required this.failedFiles,
+    required this.fileMtimes,
   });
 
   /// Builds the graph from parsed files.
@@ -230,6 +236,7 @@ class RoamGraph {
         ...duplicateIds,
       },
       allNodes: allNodes,
+      fileMtimes: {for (final file in sorted) file.path: file.mtime},
       failedFiles: {
         for (final file in all) file.path: ?file.error,
       },
@@ -242,6 +249,10 @@ class RoamGraph {
 
   /// Files org-roam would skip, with the reason.
   final Map<String, String> failedFiles;
+
+  /// When each file of [files] was last modified, in milliseconds since
+  /// 1970; 0 when unknown.
+  final Map<String, int> fileMtimes;
 
   /// Nodes by ID.
   final Map<String, RoamNode> nodes;

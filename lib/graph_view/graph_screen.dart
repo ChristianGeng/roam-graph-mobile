@@ -8,6 +8,7 @@ import '../graph/graph_layout.dart';
 import '../graph/graph_scope.dart';
 import '../graph/roam_graph.dart';
 import '../node_view/node_screen.dart';
+import '../search/search_screen.dart';
 import 'node_memory.dart';
 
 /// Computes a layout; by default on another isolate.
@@ -277,6 +278,17 @@ class _GraphScreenState extends State<GraphScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Search',
+            icon: const Icon(Icons.search),
+            onPressed: () => SearchScreen.open(
+              context,
+              graph: widget.graph,
+              readNote: widget.readNote,
+              nodeMemory: widget.nodeMemory,
+              onShowInGraph: _showInGraph,
+            ),
+          ),
           IconButton(
             tooltip: 'Centre',
             icon: const Icon(Icons.center_focus_strong),

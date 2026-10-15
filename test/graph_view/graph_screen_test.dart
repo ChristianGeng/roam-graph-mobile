@@ -125,6 +125,41 @@ void main() {
     expect(nodeTitle('F'), findsOneWidget);
   });
 
+  testWidgets('search, then "Show in graph", centres the graph on the node',
+      (tester) async {
+    await show(tester, remembered: 'hub');
+    await tester.tap(find.byTooltip('Search'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'd');
+    await tester.pump();
+    // d is one of the results: show it in the graph.
+    final tile = find.ancestor(
+        of: find.text('D'), matching: find.byType(ListTile));
+    await tester.tap(
+        find.descendant(of: tile, matching: find.byTooltip('Show in graph')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Whole graph'), findsOneWidget);
+    await tapMiddle(tester);
+    expect(nodeTitle('D'), findsOneWidget);
+  });
+
+  testWidgets('search from the node view, and on to the graph',
+      (tester) async {
+    await show(tester, remembered: 'hub');
+    await tapMiddle(tester);
+    await tester.tap(find.byTooltip('Search'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'lonely');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Show in graph').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NodeScreen), findsNothing);
+    await tapMiddle(tester);
+    expect(nodeTitle('LONELY'), findsOneWidget);
+  });
+
   testWidgets('"Show in graph" draws a neighbourhood around the node',
       (tester) async {
     await show(tester, remembered: 'hub');

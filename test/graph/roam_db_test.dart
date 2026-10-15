@@ -93,6 +93,12 @@ void main() {
       expect(tables['links'], hasLength(2));
     });
 
+    test('the graph knows when each file was modified', () {
+      updateIndex(db, {'a.org': 5000, 'b.org': 0},
+          {'a.org': bytes(a), 'b.org': bytes(b)});
+      expect(db.loadGraph().fileMtimes, {'a.org': 5000, 'b.org': 0});
+    });
+
     test('reads only new and changed files', () {
       updateIndex(db, {'a.org': 1, 'b.org': 1},
           {'a.org': bytes(a), 'b.org': bytes(b)});
