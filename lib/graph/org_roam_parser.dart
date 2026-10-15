@@ -862,7 +862,7 @@ String? _propertyValue(List<_Property> properties, String key) {
     }
   }
   if (!found) return null;
-  final value = [if (base != null) base, ...more].join(' ');
+  final value = [?base, ...more].join(' ');
   return value == 'nil' ? null : value;
 }
 
