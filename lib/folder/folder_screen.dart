@@ -62,9 +62,13 @@ enum _Status { loading, noFolder, accessLost, noRoam, indexed, failed }
 
 /// What the screen shows after reading a folder: the graph, and the files
 /// that could not be read.
-typedef _Result = ({RoamGraph? graph, List<String> unreadable});
+typedef _Result = ({
+  RoamGraph? graph,
+  List<String> unreadable,
+  List<String> conflicts,
+});
 
-const _noResult = (graph: null, unreadable: <String>[]);
+const _noResult = (graph: null, unreadable: <String>[], conflicts: <String>[]);
 
 class _FolderScreenState extends State<FolderScreen>
     with WidgetsBindingObserver {
@@ -92,6 +96,13 @@ class _FolderScreenState extends State<FolderScreen>
 
   /// The URI of roam/ itself, where new notes go (#11).
   String? _roamDir;
+
+  /// The conflict copies of the last scan; null before the first scan of a
+  /// folder.
+  Set<String>? _conflictsSeen;
+
+  /// The folder [_conflictsSeen] belongs to.
+  String? _conflictsFolder;
 
   late final _writer = NoteWriter(create: _createNote, allowWriting: _choose);
 
@@ -241,7 +252,12 @@ class _FolderScreenState extends State<FolderScreen>
     final entries = await widget.folderAccess.listFiles(folder);
     final files = selectRoamFiles(folder.name, entries);
     if (files == null) {
-      _show(generation, _Status.noRoam, folder, _noResult);
+      // No graph, but conflict copies can be anywhere in the folder.
+      _show(generation, _Status.noRoam, folder, (
+        graph: null,
+        unreadable: const [],
+        conflicts: conflictCopies(entries),
+      ));
       return;
     }
     // Paths in the graph are relative to roam/, as in org-roam.
@@ -287,7 +303,11 @@ class _FolderScreenState extends State<FolderScreen>
               .uri;
     }
     _show(generation, _Status.indexed, folder,
-        (graph: graph, unreadable: unreadable));
+        (
+          graph: graph,
+          unreadable: unreadable,
+          conflicts: conflictCopies(entries),
+        ));
   }
 
   /// Runs [work] with the spinner showing, and shows its error if it fails.
@@ -319,6 +339,33 @@ class _FolderScreenState extends State<FolderScreen>
       _folder = folder;
       _result = result;
     });
+    // Conflict copies that appear later, for example on resume, are
+    // reported wherever the user is, also over the graph (#13): those not
+    // seen by the last scan of the folder, also when another one was
+    // resolved meanwhile. Those found by the first scan of a folder are
+    // listed on this screen, which is then the one on show.
+    final scanned = status == _Status.indexed || status == _Status.noRoam;
+    final seen = _conflictsFolder == folder?.uri ? _conflictsSeen : null;
+    final fresh = seen == null
+        ? const <String>[]
+        : [
+            for (final path in result.conflicts)
+              if (!seen.contains(path)) path,
+          ];
+    if (scanned && fresh.isNotEmpty) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+        content: Text(fresh.length == 1
+            ? 'Syncthing made a new conflict copy in the folder. '
+                'Resolve it in Emacs; the counts screen lists it.'
+            : 'Syncthing made ${fresh.length} new conflict copies in the '
+                'folder. Resolve them in Emacs; the counts screen lists '
+                'them.'),
+      ));
+    }
+    if (scanned) {
+      _conflictsSeen = result.conflicts.toSet();
+      _conflictsFolder = folder?.uri;
+    }
     // An open graph view shows the new graph. Other results, such as a
     // failed scan, leave it as it is.
     if (result.graph case final graph?) {
@@ -398,6 +445,7 @@ class _FolderScreenState extends State<FolderScreen>
             'Choose the org folder that contains roam/, or roam/ itself.',
             textAlign: TextAlign.center,
           ),
+          if (_result.conflicts.isNotEmpty) _conflictList(),
           OutlinedButton(onPressed: _rescan, child: const Text('Scan again')),
           chooseButton,
         ]);
@@ -419,7 +467,11 @@ class _FolderScreenState extends State<FolderScreen>
               label: const Text('Show graph'),
             ),
           if (_result.graph case final graph?)
-            _GraphSummary(graph: graph, unreadable: _result.unreadable),
+            _GraphSummary(
+              graph: graph,
+              unreadable: _result.unreadable,
+              conflicts: _result.conflicts.length,
+            ),
           if (_result.graph case final graph? when graph.failedFiles.isNotEmpty)
             _FileList(
               title: 'Files org-roam skips',
@@ -430,6 +482,7 @@ class _FolderScreenState extends State<FolderScreen>
             ),
           if (_result.unreadable.isNotEmpty)
             _FileList(title: 'Unreadable files', files: _result.unreadable),
+          if (_result.conflicts.isNotEmpty) _conflictList(),
           Text('Folder: ${_folder?.name}'),
           OutlinedButton(onPressed: _rescan, child: const Text('Scan again')),
           TextButton(
@@ -449,6 +502,13 @@ class _FolderScreenState extends State<FolderScreen>
     }
   }
 
+  /// Every conflict copy, so each can be found and resolved (#13).
+  Widget _conflictList() => _FileList(
+        title: 'Syncthing conflict copies: resolve them in Emacs',
+        files: _result.conflicts,
+        shown: null,
+      );
+
   Widget _column(List<Widget> children) => Column(
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
@@ -458,10 +518,17 @@ class _FolderScreenState extends State<FolderScreen>
 
 /// The counts to compare with org-roam's database on the laptop.
 class _GraphSummary extends StatelessWidget {
-  const _GraphSummary({required this.graph, required this.unreadable});
+  const _GraphSummary({
+    required this.graph,
+    required this.unreadable,
+    required this.conflicts,
+  });
 
   final RoamGraph graph;
   final List<String> unreadable;
+
+  /// The number of Syncthing conflict copies in the folder (#13).
+  final int conflicts;
 
   @override
   Widget build(BuildContext context) {
@@ -481,6 +548,7 @@ class _GraphSummary extends StatelessWidget {
         ('skipped', 'Files org-roam skips', graph.failedFiles.length),
       if (unreadable.isNotEmpty)
         ('unreadable', 'Unreadable files', unreadable.length),
+      if (conflicts > 0) ('conflicts', 'Syncthing conflict copies', conflicts),
     ];
     final bold = Theme.of(context)
         .textTheme
@@ -514,9 +582,10 @@ class _GraphSummary extends StatelessWidget {
 
 /// Names of files with a problem, so they can be found and fixed.
 class _FileList extends StatelessWidget {
-  const _FileList({required this.title, required this.files});
+  const _FileList({required this.title, required this.files, this.shown = 10});
 
-  static const _shown = 10;
+  /// How many files are listed by name; all when null.
+  final int? shown;
 
   final String title;
   final List<String> files;
@@ -527,8 +596,9 @@ class _FileList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(title, style: Theme.of(context).textTheme.titleSmall),
-        for (final file in files.take(_shown)) Text(file),
-        if (files.length > _shown) Text('and ${files.length - _shown} more'),
+        for (final file in files.take(shown ?? files.length)) Text(file),
+        if (shown case final limit? when files.length > limit)
+          Text('and ${files.length - limit} more'),
       ],
     );
   }

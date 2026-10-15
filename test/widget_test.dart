@@ -529,6 +529,123 @@ void main() {
     });
   });
 
+  group('safe writes next to Syncthing (#13)', () {
+    testWidgets('conflict copies are counted, listed and reported',
+        (tester) async {
+      // someFiles() has roam/b.sync-conflict-1.org next to roam/b.org.
+      final access = withNotes(saved: org);
+      await start(tester, access);
+      expect(stat(tester, 'conflicts'), '1');
+      expect(find.text('roam/b.sync-conflict-1.org'), findsOneWidget);
+      // The copy is no node: the counts are those of the notes alone.
+      expectSomeNotes(tester);
+      // This screen lists it; no message on top.
+      expect(find.byType(SnackBar), findsNothing);
+
+      // In the graph, Syncthing makes another one; it is reported there.
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      access.files = [
+        ...access.files,
+        const FolderFile(
+            path: 'roam/a.sync-conflict-20261015-101010-ABCDEFG.org',
+            uri: 'content://ac'),
+      ];
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Syncthing made a new conflict copy'),
+          findsOneWidget);
+    });
+
+    testWidgets('a new copy is reported, also when another was resolved',
+        (tester) async {
+      final access = withNotes(saved: org);
+      await start(tester, access);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+
+      // b's copy is resolved in Emacs, and Syncthing makes one of a.
+      access.files = [
+        for (final file in access.files)
+          if (!file.path.contains('.sync-conflict-')) file,
+        const FolderFile(
+            path: 'roam/a.sync-conflict-20261015-101010-ABCDEFG.org',
+            uri: 'content://ac'),
+      ];
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Syncthing made a new conflict copy'),
+          findsOneWidget);
+    });
+
+    testWidgets('a folder without roam/ still lists its conflict copies',
+        (tester) async {
+      await start(
+        tester,
+        FakeFolderAccess(saved: org, files: [
+          const FolderFile(
+              path: 'agenda/a.sync-conflict-20261015-101010-ABCDEFG.org',
+              uri: 'content://a'),
+        ]),
+      );
+      expect(find.text('No roam/ folder here'), findsOneWidget);
+      expect(find.text('agenda/a.sync-conflict-20261015-101010-ABCDEFG.org'),
+          findsOneWidget);
+    });
+
+    testWidgets('every conflict copy is listed, not only ten', (tester) async {
+      final access = withNotes(saved: org);
+      access.files = [
+        ...access.files,
+        for (var i = 10; i < 22; i++)
+          FolderFile(
+              path: 'roam/n$i.sync-conflict-20261015-1010$i-ABCDEFG.org',
+              uri: 'content://n$i'),
+      ];
+      await start(tester, access);
+      expect(stat(tester, 'conflicts'), '13');
+      await tester.scrollUntilVisible(
+          find.text('roam/n21.sync-conflict-20261015-101021-ABCDEFG.org'),
+          200);
+      expect(find.textContaining(' more'), findsNothing);
+    });
+
+    testWidgets('several nodes captured in quick succession', (tester) async {
+      final access = withNotes(saved: writableOrg);
+      await start(tester, access);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      for (var i = 1; i <= 5; i++) {
+        await tester.tap(find.byTooltip('New node'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+            find.byKey(const ValueKey('capture-title')), 'Quick $i');
+        await tester.pump();
+        await tester.tap(find.byTooltip('Save'));
+        await tester.pumpAndSettle();
+      }
+
+      // Five files, each written once, none overwritten.
+      final names = [for (final (_, name) in access.created) name];
+      expect(names, hasLength(5));
+      expect(names.toSet(), hasLength(5));
+      for (var i = 1; i <= 5; i++) {
+        expect(names.where((n) => n.endsWith('-quick_$i.org')), hasLength(1));
+        final text = access.texts['roam/${names[i - 1]}']!;
+        expect(text, contains('#+title: Quick $i\n'));
+      }
+      // All indexed, no conflict copies and no temporary files.
+      for (final name in names) {
+        expect(access.readPaths, contains('roam/$name'));
+      }
+      expect(conflictCopies(access.files), ['roam/b.sync-conflict-1.org']);
+      expect(access.files.where((f) => f.path.contains('.syncthing.')),
+          isEmpty);
+    });
+  });
+
   testWidgets('without nodes, the graph says so and offers a first node',
       (tester) async {
     final access = FakeFolderAccess(saved: writableOrg, files: [
