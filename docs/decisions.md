@@ -511,12 +511,15 @@ devices through Syncthing.
       `<name>.sync-conflict-<date>-<time>-<device>.<ext>`. They were
       already left out of the graph (#4); now the counts screen counts
       and lists every one in the chosen folder, outside Syncthing's own
-      folders, so they can be resolved in Emacs.
+      folders, so they can be resolved in Emacs. The list has every name,
+      and it is shown also when the folder has no `roam/` yet.
       - The counts screen is the first screen on start, so copies found
         by the first scan are shown there.
       - A copy that appears later, for example when the app comes back
         to the foreground while the graph is open, is also reported in a
-        message on top of the graph.
+        message on top of the graph. "Later" means not seen by the last
+        scan of that folder, compared by path, so a new copy is reported
+        also when another one was resolved meanwhile.
     - **The check:** a test captures five nodes in quick succession. It
       requires five distinct files, each written once, none overwritten,
       all indexed, and no conflict copies or temporary files left. The

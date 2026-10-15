@@ -554,8 +554,62 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
-      expect(find.textContaining('Syncthing made 2 conflict copies'),
+      expect(find.textContaining('Syncthing made a new conflict copy'),
           findsOneWidget);
+    });
+
+    testWidgets('a new copy is reported, also when another was resolved',
+        (tester) async {
+      final access = withNotes(saved: org);
+      await start(tester, access);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+
+      // b's copy is resolved in Emacs, and Syncthing makes one of a.
+      access.files = [
+        for (final file in access.files)
+          if (!file.path.contains('.sync-conflict-')) file,
+        const FolderFile(
+            path: 'roam/a.sync-conflict-20261015-101010-ABCDEFG.org',
+            uri: 'content://ac'),
+      ];
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Syncthing made a new conflict copy'),
+          findsOneWidget);
+    });
+
+    testWidgets('a folder without roam/ still lists its conflict copies',
+        (tester) async {
+      await start(
+        tester,
+        FakeFolderAccess(saved: org, files: [
+          const FolderFile(
+              path: 'agenda/a.sync-conflict-20261015-101010-ABCDEFG.org',
+              uri: 'content://a'),
+        ]),
+      );
+      expect(find.text('No roam/ folder here'), findsOneWidget);
+      expect(find.text('agenda/a.sync-conflict-20261015-101010-ABCDEFG.org'),
+          findsOneWidget);
+    });
+
+    testWidgets('every conflict copy is listed, not only ten', (tester) async {
+      final access = withNotes(saved: org);
+      access.files = [
+        ...access.files,
+        for (var i = 10; i < 22; i++)
+          FolderFile(
+              path: 'roam/n$i.sync-conflict-20261015-1010$i-ABCDEFG.org',
+              uri: 'content://n$i'),
+      ];
+      await start(tester, access);
+      expect(stat(tester, 'conflicts'), '13');
+      await tester.scrollUntilVisible(
+          find.text('roam/n21.sync-conflict-20261015-101021-ABCDEFG.org'),
+          200);
+      expect(find.textContaining(' more'), findsNothing);
     });
 
     testWidgets('several nodes captured in quick succession', (tester) async {
