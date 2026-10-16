@@ -25,4 +25,9 @@ It is good for seeing the shape of the graph: topics, bridges and loners.
 - To see topics and how they connect: force-directed, together with the
   [[id:roam-graph-help-views][Communities]] view.
 
+* At start
+The graph opens with the force-directed layout. Settings, "Graph layout
+at start", can choose circular instead, or the layout chosen last in the
+"More" menu ([[id:roam-graph-help-settings][Settings]]).
+
 Back to [[id:roam-graph-help-graph-view][the graph view]].

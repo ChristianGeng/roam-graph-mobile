@@ -15,6 +15,7 @@ import 'package:org_flutter/org_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../ai/ai_settings.dart';
+import '../graph/graph_layout.dart';
 
 /// How far a note's sections are open when the note opens: the values
 /// Org's `#+STARTUP:` keyword has for this.
@@ -43,12 +44,26 @@ enum SectionsOnOpen {
   final OrgVisibilityState state;
 }
 
+/// The layout the graph view starts with (#71).
+enum StartLayout {
+  force('Force-directed', 'Linked notes pull together, so clusters show'),
+  circo('Circular (circo)', 'As org-roam-graph draws it'),
+  lastUsed('Last used', 'The layout chosen last in the graph\'s More menu');
+
+  const StartLayout(this.label, this.description);
+
+  final String label;
+  final String description;
+}
+
 /// The settings for showing notes.
 class ViewSettings {
   const ViewSettings({
     this.sectionsOnOpen = SectionsOnOpen.collapsed,
     this.graphShare = defaultGraphShare,
     this.graphCollapsed = false,
+    this.startLayout = StartLayout.force,
+    this.lastLayout = LayoutKind.force,
   });
 
   /// The graph's share of the width on a tablet in landscape (#69): 40 %,
@@ -64,21 +79,42 @@ class ViewSettings {
   /// Whether the graph is folded away beside a note (#69).
   final bool graphCollapsed;
 
+  /// The layout the graph view starts with (#71); force-directed by
+  /// default.
+  final StartLayout startLayout;
+
+  /// The layout chosen last in the graph's More menu, for
+  /// [StartLayout.lastUsed].
+  final LayoutKind lastLayout;
+
+  /// The layout a graph view opening now starts with.
+  LayoutKind get layoutAtStart => switch (startLayout) {
+        StartLayout.force => LayoutKind.force,
+        StartLayout.circo => LayoutKind.circo,
+        StartLayout.lastUsed => lastLayout,
+      };
+
   ViewSettings copyWith({
     SectionsOnOpen? sectionsOnOpen,
     double? graphShare,
     bool? graphCollapsed,
+    StartLayout? startLayout,
+    LayoutKind? lastLayout,
   }) =>
       ViewSettings(
         sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
         graphShare: graphShare ?? this.graphShare,
         graphCollapsed: graphCollapsed ?? this.graphCollapsed,
+        startLayout: startLayout ?? this.startLayout,
+        lastLayout: lastLayout ?? this.lastLayout,
       );
 
   Map<String, Object?> toJson() => {
         'sectionsOnOpen': sectionsOnOpen.name,
         'graphShare': graphShare,
         'graphCollapsed': graphCollapsed,
+        'startLayout': startLayout.name,
+        'lastLayout': lastLayout.name,
       };
 
   /// Settings from [json]; a missing or unknown value keeps its default.
@@ -96,6 +132,14 @@ class ViewSettings {
           ? share.toDouble()
           : defaults.graphShare,
       graphCollapsed: json['graphCollapsed'] == true,
+      startLayout: StartLayout.values
+              .where((value) => value.name == json['startLayout'])
+              .firstOrNull ??
+          defaults.startLayout,
+      lastLayout: LayoutKind.values
+              .where((value) => value.name == json['lastLayout'])
+              .firstOrNull ??
+          defaults.lastLayout,
     );
   }
 
@@ -104,10 +148,13 @@ class ViewSettings {
       other is ViewSettings &&
       other.sectionsOnOpen == sectionsOnOpen &&
       other.graphShare == graphShare &&
-      other.graphCollapsed == graphCollapsed;
+      other.graphCollapsed == graphCollapsed &&
+      other.startLayout == startLayout &&
+      other.lastLayout == lastLayout;
 
   @override
-  int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed);
+  int get hashCode => Object.hash(
+      sectionsOnOpen, graphShare, graphCollapsed, startLayout, lastLayout);
 }
 
 /// Loads and saves [ViewSettings]. An interface so screens can be tested
@@ -278,6 +325,15 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
   /// are made, and only the latest is used, so a slow earlier save cannot
   /// bring back an older choice. If saving fails, the settings in use stay
   /// as they were, and the error is thrown.
+  /// The settings, without rebuilding [context] when they change: for
+  /// code outside build, such as a screen's start.
+  static ViewSettings read(BuildContext context) =>
+      context
+          .getInheritedWidgetOfExactType<ViewSettingsScope>()
+          ?.notifier
+          ?.value ??
+      const ViewSettings();
+
   static Future<void> change(BuildContext context, ViewSettings settings) async {
     final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
     if (scope == null) return;
@@ -341,6 +397,31 @@ class SettingsScreen extends StatelessWidget {
                 for (final value in SectionsOnOpen.values)
                   RadioListTile<SectionsOnOpen>(
                     key: ValueKey('sections-${value.name}'),
+                    value: value,
+                    title: Text(value.label),
+                    subtitle: Text(value.description),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(),
+          const ListTile(
+            title: Text('Graph layout at start'),
+            subtitle: Text('The "More" menu still switches the layout '
+                'while the graph is open.'),
+          ),
+          RadioGroup<StartLayout>(
+            groupValue: settings.startLayout,
+            onChanged: (value) {
+              if (value != null) {
+                _save(context, settings.copyWith(startLayout: value));
+              }
+            },
+            child: Column(
+              children: [
+                for (final value in StartLayout.values)
+                  RadioListTile<StartLayout>(
+                    key: ValueKey('start-layout-${value.name}'),
                     value: value,
                     title: Text(value.label),
                     subtitle: Text(value.description),

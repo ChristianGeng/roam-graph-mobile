@@ -340,6 +340,10 @@ void main() {
       // The AI settings are under Settings (#63's page).
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('settings-ai')), 200,
+          scrollable: find.byType(Scrollable).last);
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('settings-ai')));
       await tester.pumpAndSettle();
       expect(find.byType(AiSettingsScreen), findsOneWidget);

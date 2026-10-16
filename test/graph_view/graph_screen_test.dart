@@ -8,6 +8,7 @@ import 'package:roam_graph_mobile/graph/graph_layout.dart';
 import 'package:roam_graph_mobile/graph/graph_scope.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
+import 'package:roam_graph_mobile/settings/view_settings.dart';
 import 'package:roam_graph_mobile/graph_view/node_memory.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
 
@@ -58,6 +59,13 @@ Future<MemoryNodeMemory> show(
   addTearDown(tester.view.reset);
   final memory = MemoryNodeMemory(remembered);
   await tester.pumpWidget(MaterialApp(
+    // These tests were written for the circular layout, which was the start
+    // layout before #71.
+    builder: (context, child) => ViewSettingsHost(
+      store: MemoryViewSettingsStore(
+          const ViewSettings(startLayout: StartLayout.circo)),
+      child: child!,
+    ),
     home: GraphScreen(
       graph: notifier ?? ValueNotifier(of ?? graph),
       // Every note has the text "Text of <id>."
