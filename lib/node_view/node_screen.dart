@@ -10,6 +10,8 @@ import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
+import '../settings/view_settings.dart';
+import 'folding.dart';
 import 'latex.dart';
 import 'mermaid.dart';
 import 'src_languages.dart';
@@ -408,12 +410,16 @@ class _NodeScreenState extends State<NodeScreen> {
         child: Text('The heading is no longer in ${node.file}.'),
       );
     }
-    final settings = OrgSettings(startupFolded: OrgVisibilityState.subtree);
+    // Sections open as the setting says, or as the file's #+STARTUP: says
+    // (#63).
+    final state =
+        startupState(document, ViewSettingsScope.of(context).sectionsOnOpen);
     return OrgController(
-      // A new controller for new text, so the folding starts again.
-      key: ValueKey(text),
+      // A new controller for new text or a new setting, so the folding
+      // starts again.
+      key: ValueKey((text, state)),
       root: tree,
-      settings: settings,
+      settings: OrgSettings(startupFolded: state),
       child: OrgRootWidget(
         onLinkTap: _openLink,
         onLocalSectionLinkTap: _openSection,
@@ -426,7 +432,11 @@ class _NodeScreenState extends State<NodeScreen> {
         child: tree is OrgSection
             ? Padding(
                 padding: const EdgeInsets.all(16),
-                child: OrgSectionWidget(tree),
+                child: OpenSection(
+                  section: tree,
+                  state: state,
+                  child: OrgSectionWidget(tree),
+                ),
               )
             : OrgDocumentWidget(document, shrinkWrap: true),
       ),
