@@ -642,7 +642,10 @@ devices through Syncthing.
       `c++` is `cpp`; other modes keep their name (`python`, `json`).
     - A language without a highlight.js grammar stays plain, as in Emacs
       without its mode: `mermaid`, `text`, and `config` (Emacs has no
-      `config-mode`).
+      `config-mode`). Names are compared as written, as in Emacs, so
+      `Python` stays plain too (Emacs has no `Python-mode`). Where the
+      renderer would still colour such a block by its own name, it gets no
+      language; other plain blocks keep theirs (`mermaid`).
     - Only the language the renderer uses changes; the block's header line
       is shown as written.
     - The colours follow the app's light or dark mode, through

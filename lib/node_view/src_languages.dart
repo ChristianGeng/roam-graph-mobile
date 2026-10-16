@@ -36,27 +36,32 @@ const _highlightOfMode = {
 /// Emacs's mode ([orgSrcLangModes]), the mode gives highlight.js's name.
 /// `sh`, `shell` and `zsh` are shell scripts (`bash`); highlight.js's own
 /// `shell` is a terminal session with prompts, which Emacs does not use.
+///
+/// Names are compared as written, as Emacs does: `Python` would need a
+/// `Python-mode`, which Emacs does not have, so it stays plain.
 String? highlightLanguage(String? language) {
   if (language == null || language.isEmpty) return null;
   final mode = orgSrcLangModes[language] ?? language;
   final id = _highlightOfMode[mode] ?? mode;
-  if (allLanguages.containsKey(id)) return id;
-  // org_flutter also tries the name in lower case, as before.
-  final lower = id.toLowerCase();
-  return allLanguages.containsKey(lower) ? lower : null;
+  return allLanguages.containsKey(id) ? id : null;
 }
 
 /// [document] with each source block's language set to its highlight.js
-/// language ([highlightLanguage]), so org_flutter colours it. Blocks
-/// without one keep their language and are shown plain, as before. Only
-/// the language changes; the block's header line is shown as written.
+/// language ([highlightLanguage]), so org_flutter colours it. A block
+/// without one, whose own name org_flutter would still colour (it also
+/// tries the name in lower case, so `Python` would be coloured as
+/// `python`), gets an empty language, which org_flutter shows plain. Other
+/// plain blocks keep their language (`mermaid`, for #49). Only the
+/// language changes; the block's header line is shown as written.
 OrgDocument withHighlightLanguages(OrgDocument document) {
   var changed = false;
   final edited = document.edit().visit((location) {
     final node = location.node;
     if (node is OrgSrcBlock) {
-      final id = highlightLanguage(node.language);
-      if (id != null && id != node.language) {
+      final language = node.language;
+      final id = highlightLanguage(language) ??
+          (_orgFlutterColours(language) ? '' : language);
+      if (id != language) {
         changed = true;
         return (true, location.replace(node.copyWith(language: id)));
       }
@@ -65,3 +70,10 @@ OrgDocument withHighlightLanguages(OrgDocument document) {
   });
   return changed ? edited.commit<OrgDocument>() : document;
 }
+
+/// Whether org_flutter colours a block of [language] by its own name
+/// (`supportedSrcLanguage`: the name or its lower case).
+bool _orgFlutterColours(String? language) =>
+    language != null &&
+    (allLanguages.containsKey(language) ||
+        allLanguages.containsKey(language.toLowerCase()));

@@ -25,7 +25,11 @@ void main() {
   test('languages Emacs does not colour stay plain', () {
     // Emacs has no config-mode, mermaid has no highlight.js grammar, and
     // text is plain text.
-    for (final language in ['config', 'mermaid', 'text', 'sclang', '', null]) {
+    // Names are compared as written: Emacs has no Python-mode.
+    for (final language in [
+      'config', 'mermaid', 'text', 'sclang', 'Python', 'dot', 'calc', '',
+      null,
+    ]) {
       expect(highlightLanguage(language), isNull, reason: language);
     }
   });
@@ -34,14 +38,17 @@ void main() {
     const text = '* A\n#+begin_src sh :results output\necho hi\n#+end_src\n'
         '** B\n#+begin_src elisp\n(message "x")\n#+end_src\n'
         '#+begin_src toml\na = 1\n#+end_src\n'
-        '#+begin_src mermaid\ngraph TD\n#+end_src\n';
+        '#+begin_src mermaid\ngraph TD\n#+end_src\n'
+        '#+begin_src Python\nx = 1\n#+end_src\n';
     final document = withHighlightLanguages(OrgDocument.parse(text));
     final languages = <String?>[];
     document.visit<OrgSrcBlock>((block) {
       languages.add(block.language);
       return true;
     });
-    expect(languages, ['bash', 'lisp', 'ini', 'mermaid']);
+    // mermaid keeps its name; Python, which the renderer would colour as
+    // python, gets none.
+    expect(languages, ['bash', 'lisp', 'ini', 'mermaid', '']);
     // Only the language changed: the text, headers included, is as written.
     expect(document.toMarkup(), text);
   });
@@ -62,6 +69,25 @@ void main() {
     }
     // Keywords, strings and plain text in different colours.
     expect(colours.length, greaterThan(1));
+  });
+
+  testWidgets('a block Emacs shows plain is plain in the node view',
+      (tester) async {
+    // python is a highlight.js grammar, but Emacs has no Python-mode.
+    const note = ':PROPERTIES:\n:ID: p\n:END:\n#+title: P\n'
+        '#+begin_src Python\nif x: print("found")\n#+end_src\n';
+    await open(tester, 'p',
+        graph: ValueNotifier(graphOf({'p.org': note})),
+        texts: const {'p.org': note});
+    final colours = <Color?>{};
+    for (final text in tester.widgetList<RichText>(find.byType(RichText))) {
+      if (!text.text.toPlainText().contains('found')) continue;
+      text.text.visitChildren((span) {
+        colours.add(span.style?.color);
+        return true;
+      });
+    }
+    expect(colours.length, lessThanOrEqualTo(1));
   });
 
   testWidgets('the colours follow the app: light and dark differ',
