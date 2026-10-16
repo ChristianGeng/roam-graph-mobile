@@ -237,7 +237,9 @@ class _NodeScreenState extends State<NodeScreen> {
   /// Shares [node] with an AI app (#41): its text as shown here, with its
   /// links and backlinks.
   Future<void> _shareWithAi(RoamNode node) async {
-    final settings = AiSettingsScope.of(context);
+    // The saved settings, once loaded, so no saved hidden tag is missed.
+    final settings = await AiSettingsScope.current(context);
+    if (!mounted) return;
     final visibility = settings.visibility;
     if (visibility.hides(node)) {
       final tags = node.tags.where(visibility.hiddenTags.contains);
@@ -247,6 +249,13 @@ class _NodeScreenState extends State<NodeScreen> {
       return;
     }
     final file = await _text;
+    if (!mounted) return;
+    // The file may have a hidden tag the index does not know yet.
+    if (file != null && visibility.hidesInText(node, file)) {
+      _tell('This note is now hidden from AI by its tags, so it is not '
+          'shared.');
+      return;
+    }
     final text =
         nodesForAi(widget.graph.value, [(node, file)], visibility: visibility);
     if (text.length > maxShareLength) {

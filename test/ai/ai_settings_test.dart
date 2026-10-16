@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -12,18 +13,25 @@ import '../graph_view/graph_screen_test.dart'
     show MemoryNodeMemory, algorithmsHere, layoutHere;
 import 'ai_visibility_test.dart' show graphOf, notes;
 
-/// Keeps the settings in memory.
+/// Keeps the settings in memory. With [loading], the load waits for it;
+/// with [failSave], saving fails.
 class MemoryAiSettingsStore implements AiSettingsStore {
   MemoryAiSettingsStore([this.settings = const AiSettings()]);
 
   AiSettings settings;
   int saves = 0;
+  Completer<void>? loading;
+  bool failSave = false;
 
   @override
-  Future<AiSettings> load() async => settings;
+  Future<AiSettings> load() async {
+    await loading?.future;
+    return settings;
+  }
 
   @override
   Future<void> save(AiSettings settings) async {
+    if (failSave) throw const FileSystemException('disk full');
     this.settings = settings;
     saves++;
   }
@@ -98,6 +106,84 @@ void main() {
       expect(store.settings.hiddenTags, ['private', 'secret', 'diary']);
       expect(store.saves, 1);
       expect(find.text('tags: [private, secret, diary]'), findsOneWidget);
+    });
+  });
+
+  group('the saved settings are loaded first (#61 review)', () {
+    testWidgets('a share waits for the saved tags', (tester) async {
+      final store = MemoryAiSettingsStore(const AiSettings(hiddenTags: []))
+        ..loading = Completer();
+      final shared = <String>[];
+      await tester.pumpWidget(AiSettingsHost(
+        store: store,
+        child: MaterialApp(
+          home: NodeScreen(
+            graph: ValueNotifier(graph),
+            id: 'diary',
+            readNote: (path) async => notes[path],
+            nodeMemory: MemoryNodeMemory(),
+            shareText: (text, {subject}) async => shared.add(text),
+          ),
+        ),
+      ));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Share with AI'));
+      await tester.pump();
+      // The defaults would hide the note, the saved settings do not: the
+      // share waits for them.
+      expect(shared, isEmpty);
+      expect(find.textContaining('hidden from AI'), findsNothing);
+      store.loading!.complete();
+      await tester.pumpAndSettle();
+      expect(shared.single, contains('## My diary'));
+    });
+
+    testWidgets('the page shows the saved tags, not the defaults first',
+        (tester) async {
+      final store =
+          MemoryAiSettingsStore(const AiSettings(hiddenTags: ['secret']))
+            ..loading = Completer();
+      await pumpIn(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => AiSettingsScreen.open(context),
+            child: const Text('open'),
+          ),
+        ),
+        store: store,
+      );
+      await tester.tap(find.text('open'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byKey(const ValueKey('hidden-tags')), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      store.loading!.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('secret'), findsOneWidget);
+    });
+
+    testWidgets('a failed save keeps the tags in use', (tester) async {
+      final store = MemoryAiSettingsStore()..failSave = true;
+      late BuildContext inside;
+      await pumpIn(
+        tester,
+        Builder(builder: (context) {
+          inside = context;
+          return TextButton(
+            onPressed: () => AiSettingsScreen.open(context),
+            child: Text('tags: ${AiSettingsScope.of(context).hiddenTags}'),
+          );
+        }),
+        store: store,
+      );
+      await tester.tap(find.text('tags: [private]'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('hidden-tags')), '');
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Could not save the settings'), findsOneWidget);
+      expect((await AiSettingsScope.current(inside)).hiddenTags, ['private']);
     });
   });
 

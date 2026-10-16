@@ -815,31 +815,48 @@ devices through Syncthing.
     - **The setting:** "Hidden from AI", a list of tags, by default
       `private`, on the "AI settings" page (from the folder screen and the
       graph's "More" menu). It is kept in the app's support folder
-      (`ai-settings.json`), not in the notes. An empty list hides nothing.
+      (`ai-settings.json`, written to a temporary file and renamed), not in
+      the notes. An empty list hides nothing.
+    - **The saved tags are loaded before anything is shared.** Until they
+      are, a share waits, and the settings page shows no field, so it
+      cannot save the defaults over saved tags. A change is saved first and
+      used only once saved; if saving fails, the tags in use stay.
     - **Which nodes:** a node with one of the tags. These are the tags
       org-roam stores for the node, so a heading node also has its file's
       `#+filetags` and the tags of the headings above it. Tags are compared
-      as written, as Org compares them.
+      as written, as Org compares them. Of several nodes with one ID, the
+      one the graph keeps (decision 20) decides.
     - **A hidden node does not exist for an AI.** The graph export (#40,
       decision 35) leaves it out with its links, and its header says how
       many nodes are hidden, so the AI knows the graph is not complete.
       "Share with AI" on a hidden node says that it is hidden, with its
       tag, and shares nothing. A selection in search leaves hidden nodes
       out and says how many.
-    - **Inside a visible note's text:** each heading with a hidden tag of
-      its own is replaced by `* (hidden)`, at its level, without its
-      subtree, also when it is no node. A link to a hidden node keeps its
-      ID, but its description becomes `(hidden)`, so its title does not
-      show. The links and backlinks listed with a shared node leave hidden
-      nodes out.
+    - **The file as it is now counts too.** Syncthing may have brought a
+      new `#+filetags` or heading tag before the app indexed the file
+      again. So a node whose file now hides it (its `#+filetags`, or the
+      tags of its heading or a heading above it, found by its `:ID:`) is
+      not shared either.
+    - **Inside a visible note's text:** line ends become `\n`, as the
+      index reads them. Each heading with a hidden tag of its own is
+      replaced by `* (hidden)`, at its level, without its subtree, also
+      when it is no node. A link to a hidden node keeps its ID, but its
+      description becomes `(hidden)` and a search option after `::` (which
+      can hold the title) is dropped. Links are read as Org reads them,
+      escaped brackets included (`org-link-bracket-re`).
+    - **The lists with a shared node** leave hidden nodes out, and "Links
+      to" lists only links that are in the text shared, so not those under
+      a hidden heading.
     - **Headings are found line by line:** a line that starts with stars
-      and a space is a heading, also inside a block, as Org and the node
-      view read it (decision 36). Tags are read at the end of the heading
-      line, as Org's `org-tag-group-re` reads them.
+      and a space is a heading, also inside a block, as Org
+      (`org-outline-regexp`), the index and the node view read it
+      (decision 36). Tags are read at the end of the heading line, as
+      Org's `org-tag-group-re` reads them.
     - **Not covered:** a link written under a hidden heading that is no
-      node belongs to its file's node, as in org-roam, so it still counts
-      as that node's link in the graph export. The link's text is hidden;
-      the export shows only that the two visible nodes are linked.
+      node belongs to its file's node, as in org-roam. The graph export
+      and the backlinks listed with another shared node still count it,
+      as a link between two visible nodes; its text is hidden. Hiding it
+      there needs the heading's tags for each link in the index.
 
 ## Recommended, not decided
 

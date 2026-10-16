@@ -99,8 +99,10 @@ class _SearchScreenState extends State<SearchScreen> {
   /// Shares the selected nodes with an AI app, with their texts.
   Future<void> _shareSelected() async {
     final graph = widget.graph.value;
-    final visibility = AiSettingsScope.of(context).visibility;
     final messenger = ScaffoldMessenger.of(context);
+    // The saved settings, once loaded, so no saved hidden tag is missed.
+    final visibility = (await AiSettingsScope.current(context)).visibility;
+    if (!mounted) return;
     final chosen = [
       for (final id in _selected) ?graph.nodes[id],
     ];

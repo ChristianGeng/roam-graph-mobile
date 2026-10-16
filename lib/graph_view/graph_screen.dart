@@ -573,8 +573,10 @@ class _GraphScreenState extends State<GraphScreen> {
   /// Shares the graph's connectivity with an AI app (#40), and says so if
   /// Android cannot.
   Future<void> _shareGraph() async {
-    final text = graphForAi(_graph,
-        visibility: AiSettingsScope.of(context).visibility);
+    // The saved settings, once loaded, so no saved hidden tag is missed.
+    final settings = await AiSettingsScope.current(context);
+    if (!mounted) return;
+    final text = graphForAi(_graph, visibility: settings.visibility);
     // Android hands shared text over in one transaction, limited to about
     // 1 MB; stay well below it.
     if (text.length > 400000) {

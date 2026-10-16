@@ -61,7 +61,7 @@ void main() {
       '* Health\n:PROPERTIES:\n:ID: health\n:END:\nTagged below.\n'
       '** (hidden)\n'
       '* Public part\nSee [[id:doctor][(hidden)]] and '
-      '[[id:diary::*Top][(hidden)]].\n',
+      '[[id:diary][(hidden)]].\n',
     );
     // Nothing hidden: the text as it is.
     expect(AiVisibility.none.filterText(notes['ideas.org']!, {'diary'}),
@@ -109,5 +109,93 @@ void main() {
     expect(text, contains('* Health\n'));
     expect(text, contains('** (hidden)\n'));
     expect(text, isNot(contains('Visit')));
+  });
+
+  group('review findings on #61', () {
+    test('CRLF files: hidden headings are found too', () {
+      const text = '#+title: X\r\nOpen.\r\n* Salary :private:\r\nNumbers.\r\n'
+          '* Public\r\nYes.\r\n';
+      expect(private.filterText(text, const {}),
+          '#+title: X\nOpen.\n* (hidden)\n* Public\nYes.\n');
+    });
+
+    test('stars and a tab are no heading, as in Org', () {
+      const text = 'Open.\n*\tnot a heading :private:\nStill open.\n';
+      expect(private.filterText(text, const {}), text);
+    });
+
+    test('escaped links and search options of hidden notes', () {
+      const hiddenIds = {'d]x', 'diary'};
+      expect(
+          private.filterText(
+              r'See [[id:d\]x][Diary title]] and [[id:diary::*My diary][x]].',
+              hiddenIds),
+          'See [[id:d]x][(hidden)]] and [[id:diary][(hidden)]].');
+      // Other links stay as written.
+      expect(private.filterText(r'[[id:plan::*Top][Plan]]', hiddenIds),
+          r'[[id:plan::*Top][Plan]]');
+    });
+
+    test('of two nodes with one ID, the graph\'s own decides', () {
+      final g = graphOf({
+        'a.org': ':PROPERTIES:\n:ID: shared\n:END:\n#+title: Open copy\n',
+        'b.org': ':PROPERTIES:\n:ID: shared\n:END:\n#+title: Private copy\n'
+            '#+filetags: :private:\n',
+        'c.org': ':PROPERTIES:\n:ID: c\n:END:\n#+title: C\n[[id:shared][S]]\n',
+      });
+      expect(g.nodes['shared']!.title, 'Open copy');
+      final visible = private.visibleGraph(g);
+      expect(visible.nodes.keys.toSet(), {'shared', 'c'});
+      expect(visible.links.single.dest, 'shared');
+    });
+
+    test('a file that is hidden now, though the index is older', () {
+      final plan = graph.nodes['plan']!;
+      expect(private.hidesInText(plan, notes['plan.org']!), isFalse);
+      final changed = notes['plan.org']!.replaceFirst(
+          '#+title: Plan\n', '#+title: Plan\n#+filetags: :work:private:\n');
+      expect(private.hidesInText(plan, changed), isTrue);
+      // A heading node whose heading, or a heading above it, is now hidden.
+      final health = graph.nodes['health']!;
+      expect(private.hidesInText(health, notes['ideas.org']!), isFalse);
+      expect(
+          private.hidesInText(health,
+              notes['ideas.org']!.replaceFirst('* Health\n', '* Health :private:\n')),
+          isTrue);
+      expect(
+          private.hidesInText(health,
+              'Top.\n* Parent :private:\n** Health\n:PROPERTIES:\n:ID: health\n:END:\n'),
+          isTrue);
+      expect(
+          private.hidesInText(health,
+              '* Before :private:\nx\n* Health\n:PROPERTIES:\n:ID: health\n:END:\n'),
+          isFalse);
+
+      final text = nodesForAi(graph, [(plan, changed)], visibility: private);
+      expect(text, contains('(This note is now hidden from AI by its tags;'));
+      expect(text, isNot(contains('See ')));
+      expect(text, contains('- Links to: none\n'));
+    });
+
+    test('links only under a hidden heading are not listed', () {
+      final g = graphOf({
+        'top.org': ':PROPERTIES:\n:ID: top\n:END:\n#+title: Top\n'
+            '[[id:open][Open]]\n* Secret :private:\n[[id:other][Other]]\n',
+        'open.org': ':PROPERTIES:\n:ID: open\n:END:\n#+title: Open\n',
+        'other.org': ':PROPERTIES:\n:ID: other\n:END:\n#+title: Other\n',
+      });
+      final text = nodesForAi(
+          g,
+          [
+            (
+              g.nodes['top']!,
+              ':PROPERTIES:\n:ID: top\n:END:\n#+title: Top\n'
+                  '[[id:open][Open]]\n* Secret :private:\n[[id:other][Other]]\n',
+            ),
+          ],
+          visibility: private);
+      expect(text, contains('- Links to: [[id:open][Open]]\n'));
+      expect(text, isNot(contains('Other')));
+    });
   });
 }
