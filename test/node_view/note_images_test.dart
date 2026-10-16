@@ -16,16 +16,21 @@ import 'node_screen_test.dart' show graphOf;
 final png = File('test/fixtures/images/red-40x20.png').readAsBytesSync();
 
 /// The folder's files by path relative to roam/, as the folder screen
-/// finds them; [unreadable] are listed but cannot be read.
+/// finds them; [unreadable] are listed but cannot be read. Each holds
+/// [png], unless [contents] has other bytes for it.
 class FakeNoteFiles implements NoteFiles {
-  FakeNoteFiles(Iterable<String> paths, {this.unreadable = const {}})
+  FakeNoteFiles(Iterable<String> paths,
+      {this.unreadable = const {},
+      this.contents = const {},
+      String uriPrefix = 'content://'})
       : files = {
           for (final path in paths)
-            path: FolderFile(path: path, uri: 'content://$path', modified: 1),
+            path: FolderFile(path: path, uri: '$uriPrefix$path', modified: 1),
         };
 
   final Map<String, FolderFile> files;
   final Set<String> unreadable;
+  final Map<String, Uint8List> contents;
   final reads = <String>[];
 
   /// Raised to make every image new, as a scan does for files without a
@@ -44,7 +49,7 @@ class FakeNoteFiles implements NoteFiles {
   @override
   Future<Uint8List?> read(FolderFile file) async {
     reads.add(file.path);
-    return unreadable.contains(file.path) ? null : png;
+    return unreadable.contains(file.path) ? null : contents[file.path] ?? png;
   }
 }
 
@@ -82,6 +87,7 @@ void main() {
       ('sub/n.org', './img/x.png', 'sub/img/x.png'),
       ('sub/n.org', '../include/x.webp', 'include/x.webp'),
       ('a.org', '../include/x.png', '../include/x.png'),
+      ('a.org', 'file:./img/d.svg', 'img/d.svg'),
     ]) {
       expect(linkedImagePath(note, location), path, reason: location);
     }
@@ -95,7 +101,6 @@ void main() {
       '/home/x/img/x.png',
       'file:~/img/x.png',
       '~/img/x.png',
-      'file:./img/x.svg', // #47
       'file:./img/x.avif',
       'data:image/png;base64,iVBORw0KGgo=',
       'id:4f2b',

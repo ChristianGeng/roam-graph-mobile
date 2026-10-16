@@ -666,8 +666,8 @@ devices through Syncthing.
     - **Shows as links** what it cannot or must not read: absolute and
       `~/` paths and paths above the chosen folder (Android gives no
       access there), web images (the app is offline, decisions 2 and 14),
-      `attachment:` and `data:` links, SVG (#47) and AVIF (Flutter has no
-      decoder for it on Android).
+      `attachment:` and `data:` links, and AVIF (Flutter has no decoder
+      for it on Android). SVG is shown since #47 (decision 39).
     - **A missing or unreadable image** shows the link with a
       broken-image icon, whose tooltip says which; the page still shows.
     - **Width, as Org 9.7.39 gives it with my settings**
@@ -694,6 +694,31 @@ devices through Syncthing.
       that could not be read is tried again the next time.
     - **Tap** opens the image on its own page with pinch zoom; Back
       returns to the node.
+
+39. **SVG images are drawn with `flutter_svg`** (#47), in
+    `lib/node_view/note_images.dart`, found and read as other images
+    (decision 38).
+    - `flutter_svg` (the Flutter team's package) draws an SVG with Flutter,
+      without a WebView. Its limits: CSS is not fully supported,
+      `<foreignObject>`, scripts and animation are not drawn, and text uses
+      the device's fonts.
+    - **The app compiles the SVG itself**, with `vector_graphics_compiler`
+      on another isolate, as `flutter_svg` does, and gives `SvgPicture` the
+      compiled bytes. It does not use an `SvgLoader`: `vector_graphics`
+      leaves a failed load as an uncaught error. Compiled SVGs are kept by
+      URI and file version (32 at most), so a note shown again does not
+      parse them again, and a changed file is compiled again.
+    - **Size as in decision 38:** the `#+ATTR_ORG:` width, else the SVG's
+      own (its `width` attribute or `viewBox`), never wider than the text
+      column, in proportion.
+    - **An SVG that cannot be read or parsed** shows the link with a
+      broken-image icon.
+    - **Dark mode:** an SVG is drawn on a white background. Many SVGs have
+      a transparent background and black lines, which cannot be read on a
+      dark page. Emacs shows them on the buffer's background, which is
+      light on the laptop.
+    - **Tap** opens it on its own page with zoom; an SVG stays sharp at any
+      zoom.
 
 ## Recommended, not decided
 
