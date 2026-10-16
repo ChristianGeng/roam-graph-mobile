@@ -113,6 +113,14 @@ class AiVisibility {
   }
 }
 
+/// The IDs of the `id:` links in [text], as Org reads them: escapes undone,
+/// a search option after `::` cut off.
+Set<String> idLinkTargets(String text) => {
+  for (final match in _bracketLink.allMatches(text))
+    if (_unescape(match[1]!) case final target when target.startsWith('id:'))
+      target.substring(3).split('::').first.trim(),
+};
+
 List<String> _lines(String text) =>
     text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
 

@@ -171,10 +171,13 @@ void main() {
               '* Before :private:\nx\n* Health\n:PROPERTIES:\n:ID: health\n:END:\n'),
           isFalse);
 
-      final text = nodesForAi(graph, [(plan, changed)], visibility: private);
-      expect(text, contains('(This note is now hidden from AI by its tags;'));
-      expect(text, isNot(contains('See ')));
-      expect(text, contains('- Links to: none\n'));
+      // Left out completely: no title, ID, file or tags (#61 review).
+      final text = nodesForAi(graph, [(plan, changed), (graph.nodes['ideas']!,
+          notes['ideas.org'])], visibility: private);
+      expect(text, startsWith('# A note from my org-roam graph'));
+      expect(text, isNot(contains('## Plan')));
+      expect(text, isNot(contains('plan.org')));
+      expect(text, contains('## Ideas'));
     });
 
     test('links only under a hidden heading are not listed', () {
@@ -196,6 +199,26 @@ void main() {
           visibility: private);
       expect(text, contains('- Links to: [[id:open][Open]]\n'));
       expect(text, isNot(contains('Other')));
+    });
+
+    test('"Links to" reads the link targets, not parts of them', () {
+      const top = ':PROPERTIES:\n:ID: top\n:END:\n#+title: Top\n'
+          '[[id:openness][Openness]] and [[id:d\\]x][escaped]]\n'
+          '* Secret :private:\n[[id:open][Open]]\n';
+      final g = graphOf({
+        'top.org': top,
+        'open.org': ':PROPERTIES:\n:ID: open\n:END:\n#+title: Open\n',
+        'openness.org': ':PROPERTIES:\n:ID: openness\n:END:\n'
+            '#+title: Openness\n',
+      });
+      final text =
+          nodesForAi(g, [(g.nodes['top']!, top)], visibility: private);
+      final linksTo =
+          text.split('\n').firstWhere((l) => l.startsWith('- Links to:'));
+      expect(linksTo, contains('[[id:openness][Openness]]'));
+      expect(linksTo, isNot(contains('[[id:open][')));
+      expect(idLinkTargets(r'[[id:d\]x][e]] [[id:a::*T][t]] [[file:x]]'),
+          {'d]x', 'a'});
     });
   });
 }

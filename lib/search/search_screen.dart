@@ -106,11 +106,17 @@ class _SearchScreenState extends State<SearchScreen> {
     final chosen = [
       for (final id in _selected) ?graph.nodes[id],
     ];
-    // Notes hidden from AI are left out (#57).
-    final nodes = [
-      for (final node in chosen)
-        if (!visibility.hides(node)) node,
-    ];
+    // Notes hidden from AI are left out (#57), also those whose file
+    // hides them now, before the index knows.
+    final files = <(RoamNode, String?)>[];
+    for (final node in chosen) {
+      if (visibility.hides(node)) continue;
+      final file = await widget.readNote(node.file);
+      if (file != null && visibility.hidesInText(node, file)) continue;
+      files.add((node, file));
+    }
+    if (!mounted) return;
+    final nodes = [for (final (node, _) in files) node];
     final hidden = chosen.length - nodes.length;
     if (nodes.isEmpty) {
       messenger.showSnackBar(SnackBar(
@@ -121,9 +127,6 @@ class _SearchScreenState extends State<SearchScreen> {
                   'not shared.')));
       return;
     }
-    final files = <(RoamNode, String?)>[
-      for (final node in nodes) (node, await widget.readNote(node.file)),
-    ];
     final text = nodesForAi(graph, files, visibility: visibility);
     if (!mounted) return;
     if (hidden > 0) {

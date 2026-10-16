@@ -102,9 +102,10 @@ String? nodeText(RoamNode node, String fileText) {
 ///
 /// [files] must hold no node [visibility] hides; nodes it hides are left
 /// out of the link lists, and their headings and titles out of the texts
-/// (#57). A node whose file now hides it (the index is older) is shared
-/// without its text and links; "Links to" lists only links that are in
-/// the text shared, so not those under a hidden heading.
+/// (#57). A node whose file now hides it (the index is older,
+/// [AiVisibility.hidesInText]) is left out, as a hidden node; callers say
+/// so. "Links to" lists only links that are in the text shared, so not
+/// those under a hidden heading.
 String nodesForAi(
   RoamGraph full,
   List<(RoamNode, String?)> files, {
@@ -122,9 +123,7 @@ String nodesForAi(
 
   final texts = [
     for (final (node, file) in files)
-      if (file != null && visibility.hidesInText(node, file))
-        (node, file, null, true)
-      else
+      if (file == null || !visibility.hidesInText(node, file))
         (
           node,
           file,
@@ -132,7 +131,6 @@ String nodesForAi(
             final text? => visibility.filterText(text, hiddenIds),
             null => null,
           },
-          false,
         ),
   ];
 
@@ -144,21 +142,18 @@ String nodesForAi(
     ..writeln('Shared from the app Roam Graph. The text is Org mode. To '
         'link to a note when you write one for me, use its ID: '
         '[[id:<ID>][<title>]].');
-  for (final (node, file, body, nowHidden) in texts) {
+  for (final (node, file, body) in texts) {
+    // Not a link only under a hidden heading.
+    final inText =
+        body == null || visibility.hiddenTags.isEmpty ? null : idLinkTargets(body);
     final linksTo = <String>{
-      if (!nowHidden)
-        for (final link in graph.links)
-          if (link.source == node.id && link.dest != node.id)
-            // Not a link only under a hidden heading.
-            if (body == null ||
-                visibility.hiddenTags.isEmpty ||
-                body.contains('id:${link.dest}'))
-              link.dest,
+      for (final link in graph.links)
+        if (link.source == node.id && link.dest != node.id)
+          if (inText == null || inText.contains(link.dest)) link.dest,
     };
     final linkedFrom = <String>{
-      if (!nowHidden)
-        for (final b in backlinksOf(graph, node.id))
-          if (b.source.id != node.id) b.source.id,
+      for (final b in backlinksOf(graph, node.id))
+        if (b.source.id != node.id) b.source.id,
     };
     text
       ..writeln()
@@ -172,10 +167,7 @@ String nodesForAi(
       ..writeln('- Linked from: '
           '${linkedFrom.isEmpty ? 'none' : linkedFrom.map(ref).join(', ')}')
       ..writeln();
-    if (nowHidden) {
-      text.writeln('(This note is now hidden from AI by its tags; the file '
-          'changed since the app read it.)');
-    } else if (file == null) {
+    if (file == null) {
       text.writeln('(The file could not be read.)');
     } else if (body == null) {
       text.writeln('(The heading is no longer in ${node.file}; the file '
