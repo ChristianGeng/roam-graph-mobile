@@ -50,10 +50,12 @@ database real org-roam built from them
 
 The app keeps the graph in an SQLite database with org-roam's tables and
 encoding (#5). To build the same database on the laptop and compare every
-table with Emacs's, with Flutter and Python 3 installed:
+table with Emacs's, with Flutter and Python 3 installed, first run
+`M-x org-roam-db-sync` in Emacs, so its database is current, then:
 
 ```
-python3 tool/org_roam_parity.py check-db \
+flutter pub get
+uv run tool/org_roam_parity.py check-db \
     ~/doom-emacs/.local/cache/org-roam.db ~/work/cgeng/org/roam
 ```
 

@@ -22,7 +22,9 @@ void main() {
         if (entity is File)
           if (entity.path.substring(root.length + 1) case final path
               when isRoamFile(path))
-            parseRoamFile(path, entity.readAsStringSync()),
+            // The expected database was built by a plain Emacs.
+            parseRoamFile(path, entity.readAsStringSync(),
+                linkTypes: plainOrgRoamLinkTypes),
     ];
     final actual = RoamGraph.fromFiles(files).toNormalizedJson();
     final expected = jsonDecode(

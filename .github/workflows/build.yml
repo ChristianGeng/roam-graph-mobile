@@ -106,14 +106,14 @@ jobs:
         # The same check as on the laptop (tool/org_roam_parity.py), against
         # the database org-roam built from test/fixtures/roam/.
         run: |
-          dart run tool/roam_graph_dump.dart test/fixtures/roam > "$RUNNER_TEMP/graph.json"
+          dart run tool/roam_graph_dump.dart --plain-org-roam test/fixtures/roam > "$RUNNER_TEMP/graph.json"
           python3 tool/org_roam_parity.py compare \
             test/fixtures/org_roam_expected.json "$RUNNER_TEMP/graph.json"
 
       - name: Compare the app's database with org-roam's on the sample files
         # Every table, every column, as org-roam writes it.
         run: |
-          dart run tool/build_roam_db.dart test/fixtures/roam "$RUNNER_TEMP/app.db"
+          dart run tool/build_roam_db.dart --plain-org-roam test/fixtures/roam "$RUNNER_TEMP/app.db"
           python3 tool/org_roam_parity.py compare-tables \
             test/fixtures/org_roam_expected_tables.json "$RUNNER_TEMP/app.db" \
             test/fixtures/roam
