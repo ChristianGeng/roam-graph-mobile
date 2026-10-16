@@ -701,6 +701,26 @@ class RoamTools {
       ].join('\n');
     }
 
+    /// One line per group, with its members, at most [maxListLines] nodes
+    /// in all, as [list] gives at most that many lines; the rest counted.
+    List<String> groupLines(List<(String, List<Map<String, Object?>>)> groups) {
+      var left = maxListLines;
+      final lines = <String>[];
+      var groupsLeft = groups.length;
+      for (final (header, members) in groups) {
+        if (left <= 0) break;
+        groupsLeft--;
+        final shown = members.take(left).map(node).join('; ');
+        final more = members.length > left
+            ? '; … and ${members.length - left} more'
+            : '';
+        left -= members.length;
+        lines.add('$header: $shown$more');
+      }
+      if (groupsLeft > 0) lines.add('… and $groupsLeft more groups.');
+      return lines;
+    }
+
     String score(Object? value) => (value as num).toStringAsPrecision(6);
     final rows = result is List ? result.cast<Map<String, Object?>>() : null;
     final map = result is Map ? result.cast<String, Object?>() : null;
@@ -755,9 +775,10 @@ class RoamTools {
           '${map['num_communities']} communities, modularity '
               '${score(map['modularity'])}. Largest first; members as '
               'ID | title, separated by "; ".',
-          for (final (i, members) in groups.indexed)
-            'Community ${i + 1} (${members.length}): '
-                '${members.map(node).join('; ')}',
+          ...groupLines([
+            for (final (i, members) in groups.indexed)
+              ('Community ${i + 1} (${members.length})', members),
+          ]),
         ].join('\n');
       case 'org_roam_clustering_coefficient':
         if (map!.containsKey('node_id')) {
@@ -788,12 +809,17 @@ class RoamTools {
         if (components.isEmpty) return 'No components: the graph is empty.';
         return [
           '${map['interpretation']}',
-          for (final c in components)
-            'Component ${c['component_id']}: ${c['size']} nodes'
-                '${switch (c['hub_node']) {
-                  final Map<String, Object?> hub => ', hub ${node(hub)} (${hub['degree']} links)',
-                  _ => '',
-                }}. Nodes: ${[for (final n in (c['nodes'] as List).cast<Map<String, Object?>>()) node(n)].join('; ')}',
+          ...groupLines([
+            for (final c in components)
+              (
+                'Component ${c['component_id']}: ${c['size']} nodes'
+                    '${switch (c['hub_node']) {
+                      final Map<String, Object?> hub => ', hub ${node(hub)} (${hub['degree']} links)',
+                      _ => '',
+                    }}. Nodes',
+                (c['nodes'] as List).cast<Map<String, Object?>>(),
+              ),
+          ]),
         ].join('\n');
     }
     return '$result';
@@ -840,7 +866,11 @@ String _id_(Map<String, Object?> args, String name) {
 int _int(Map<String, Object?> args, String name, int defaultValue) {
   final value = args[name];
   if (value == null) return defaultValue;
-  if (value is num) return value.toInt();
+  if (value is num) {
+    // A fraction would silently run another query.
+    if (value.isFinite && value == value.truncate()) return value.toInt();
+    throw ToolError('$name must be a whole number, not "$value".');
+  }
   return int.tryParse('$value'.trim()) ??
       (throw ToolError('$name must be a whole number, not "$value".'));
 }

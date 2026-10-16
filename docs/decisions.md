@@ -941,8 +941,18 @@ devices through Syncthing.
         at most 300 lines, each saying how many more there are: a chat on
         the phone pays for every token. Line ends are `\n`, as Python's
         `read_text` gives them to the server.
-      - An ID may be given with quotes or `id:` in front; numbers may come
-        as text. A mistake gives an error the model can read.
+        Communities and components name at most 300 nodes in all, and
+        count the rest.
+      - An ID may be given with quotes or `id:` in front; whole numbers may
+        come as text or as `1.0`; a fraction such as `1.9` is refused,
+        not cut. A mistake gives an error the model can read.
+      - A negative `limit` gives every node for `central`, as SQLite's
+        `LIMIT -1` does on the server, and drops the last ones for the
+        networkx rankings, as Python's slice does there.
+      - Tags and titles are those of the index, which the app renews when
+        it comes back to the foreground; `read_node` also checks the file
+        as it is now (decision 42), since it is the one tool that gives
+        note texts.
     - **Hidden notes (decision 42)** are removed from the graph before any
       tool runs, with their links; `read_node` leaves out hidden headings
       and titles, and a file that hides its node now is not read.

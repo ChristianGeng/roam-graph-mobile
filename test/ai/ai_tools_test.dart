@@ -584,6 +584,42 @@ void main() {
       );
     });
 
+    test('fractions are refused; groups are capped as lists', () async {
+      expect(
+        await tools.call('org_roam_bfs', {'node_id': 'plan', 'depth': 1.9}),
+        'Error: depth must be a whole number, not "1.9".',
+      );
+      expect(
+        await tools.call('org_roam_bfs', {'node_id': 'plan', 'depth': 1.0}),
+        contains('(2)'),
+      );
+      // 350 notes without links: 350 communities and components.
+      final lonely = RoamGraph.fromFiles([
+        for (var i = 0; i < 350; i++)
+          RoamFileData(
+            path: 'n$i.org',
+            nodes: [
+              RoamNode(
+                id: 'n$i',
+                file: 'n$i.org',
+                level: 0,
+                title: 'N$i',
+                line: 1,
+              ),
+            ],
+          ),
+      ]);
+      final many = RoamTools(lonely, readNote: (_) async => null);
+      for (final tool in [
+        'org_roam_communities',
+        'org_roam_connected_components',
+      ]) {
+        final lines = (await many.call(tool, {})).split('\n');
+        expect(lines.length, lessThanOrEqualTo(maxListLines + 3), reason: tool);
+        expect(lines.last, '… and 50 more groups.', reason: tool);
+      }
+    });
+
     test('a long note is cut, and says so', () async {
       final long = RoamTools(
         graph,
