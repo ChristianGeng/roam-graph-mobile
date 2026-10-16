@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../ai/ai_settings.dart';
+import '../ai/chat_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/ai_share.dart';
@@ -129,6 +130,7 @@ enum _MoreAction {
   circo,
   force,
   share,
+  askAi,
   settings;
 
   static _MoreAction layoutOf(LayoutKind kind) =>
@@ -563,6 +565,20 @@ class _GraphScreenState extends State<GraphScreen> {
         _centreView();
       case _MoreAction.share:
         _shareGraph();
+      case _MoreAction.askAi:
+        ChatScreen.open(
+          context,
+          graph: widget.graph,
+          readNote: widget.readNote,
+          startNode: _graph.nodes[_centre],
+          writer: widget.writer,
+          // On a page above the chat, also on a tablet, where the side
+          // pane would be hidden behind it.
+          openNode: (_, id) {
+            widget.nodeMemory.remember(id);
+            _openPage(id);
+          },
+        );
       case _MoreAction.settings:
         SettingsScreen.open(context);
       case _MoreAction.circo || _MoreAction.force:
@@ -717,6 +733,10 @@ class _GraphScreenState extends State<GraphScreen> {
                 value: _MoreAction.share,
                 enabled: _graph.nodes.isNotEmpty,
                 child: const Text('Share graph with AI'),
+              ),
+              const PopupMenuItem(
+                value: _MoreAction.askAi,
+                child: Text('Ask AI'),
               ),
               const PopupMenuItem(
                 value: _MoreAction.settings,

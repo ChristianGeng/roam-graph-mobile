@@ -79,6 +79,13 @@ Future<MemoryNodeMemory> open(
   return memory;
 }
 
+/// Taps "Share with AI" in the node view's AI menu.
+Future<void> shareNodeWithAi(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('AI').last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Share with AI').last);
+}
+
 /// The title in the app bar.
 Finder title(String text) =>
     find.descendant(of: find.byType(AppBar), matching: find.text(text));
@@ -254,7 +261,7 @@ void main() {
     final shared = <(String, String?)>[];
     await open(tester, 'p',
         shareText: (text, {subject}) async => shared.add((text, subject)));
-    await tester.tap(find.byTooltip('Share with AI'));
+    await shareNodeWithAi(tester);
     await tester.pump();
 
     final (text, subject) = shared.single;
@@ -271,7 +278,7 @@ void main() {
     await open(tester, 'a',
         shareText: (text, {subject}) async =>
             throw PlatformException(code: 'x', message: 'no app'));
-    await tester.tap(find.byTooltip('Share with AI'));
+    await shareNodeWithAi(tester);
     await tester.pump();
     expect(find.text('Could not share the note: no app'), findsOneWidget);
   });

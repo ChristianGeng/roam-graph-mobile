@@ -11,6 +11,7 @@ import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
 import 'package:roam_graph_mobile/search/search_screen.dart';
 
+import '../node_view/node_screen_test.dart' show shareNodeWithAi;
 import '../graph_view/graph_screen_test.dart'
     show MemoryNodeMemory, algorithmsHere, layoutHere;
 import 'ai_visibility_test.dart' show graphOf, notes;
@@ -149,7 +150,7 @@ void main() {
         ),
       ));
       await tester.pump();
-      await tester.tap(find.byTooltip('Share with AI'));
+      await shareNodeWithAi(tester);
       await tester.pump();
       // The defaults would hide the note, the saved settings do not: the
       // share waits for them.
@@ -223,7 +224,7 @@ void main() {
           shareText: (text, {subject}) async => shared.add(text),
         ),
       );
-      await tester.tap(find.byTooltip('Share with AI'));
+      await shareNodeWithAi(tester);
       await tester.pump();
       expect(shared, isEmpty);
       expect(find.textContaining('hidden from AI by its tag :private:'),
@@ -243,7 +244,7 @@ void main() {
           shareText: (text, {subject}) async => shared.add(text),
         ),
       );
-      await tester.tap(find.byTooltip('Share with AI'));
+      await shareNodeWithAi(tester);
       await tester.pump();
       expect(shared.single, contains('Open text.'));
       expect(shared.single, isNot(contains('Salary')));
@@ -263,7 +264,7 @@ void main() {
         ),
         store: MemoryAiSettingsStore(const AiSettings(hiddenTags: [])),
       );
-      await tester.tap(find.byTooltip('Share with AI'));
+      await shareNodeWithAi(tester);
       await tester.pump();
       expect(shared.single, contains('## My diary'));
     });

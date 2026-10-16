@@ -13,8 +13,9 @@ class SharedText {
 
 /// The title and text a share proposes for the new node: the subject if
 /// there is one, otherwise the first line that is not empty, without the
-/// `#` of a Markdown heading and the `**` of bold, in pairs (AI apps share
-/// Markdown). The text is the rest, so the title is not repeated in it.
+/// `#` of a Markdown heading or the stars of an Org heading, and the `**`
+/// of bold, in pairs (AI apps share Markdown; the AI chat writes Org).
+/// The text is the rest, so the title is not repeated in it.
 ({String title, String body}) proposeNode(SharedText shared) {
   final subject = shared.subject?.trim() ?? '';
   if (subject.isNotEmpty) {
@@ -26,6 +27,8 @@ class SharedText {
   final title = lines[first]
       .trim()
       .replaceFirst(RegExp(r'^#+\s*'), '')
+      // An Org heading, as the AI chat writes (#60): stars and a space.
+      .replaceFirst(RegExp(r'^\*+\s+'), '')
       .replaceAllMapped(RegExp(r'\*\*(.+?)\*\*'), (m) => m[1]!)
       .trim();
   final body = lines.sublist(first + 1).join('\n').trim();

@@ -427,6 +427,27 @@ void main() {
           isFalse);
     });
 
+    test('a cancelled chat runs and sends nothing more', () async {
+      final server = FakeServer([call(1, 'org_roam_read_node')]);
+      late ChatSession session;
+      var read = 0;
+      final counting = RoamTools(graph, readNote: (path) async {
+        read++;
+        return notes[path];
+      });
+      session = ChatSession(
+          tools: counting,
+          config: anthropic,
+          post: (url, headers, body) {
+            final reply = server.post(url, headers, body);
+            session.cancel();
+            return reply;
+          });
+      await session.send('Read plan');
+      expect(server.requests, hasLength(1));
+      expect(read, 0);
+    });
+
     test('no key, no model: nothing is sent', () async {
       final server = FakeServer([]);
       final noKey = ChatSession(
