@@ -750,6 +750,65 @@ devices through Syncthing.
       widgets render the formulas, and with what (a mock of
       `flutter_tex_js`'s channel answers as KaTeX would).
 
+41. **Mermaid: the result image first; blocks without one are drawn with
+    `mermaid_flutter`** (#48, #49), `lib/node_view/mermaid.dart`. The owner
+    accepted the recommendation in #48: option 0, then A.
+    - **The result image first.** Emacs shows a mermaid block and below it
+      the `#+RESULTS:` image that `mmdc` drew when the block was last run.
+      The node view shows the same since #46. A block whose result
+      paragraph links to an image the app shows is left as it is.
+    - **Every other `mermaid` block is drawn on the device**, right below
+      the block, where its result would be: a block never run, without
+      `:file`, or whose image is not in the folder. The drawing is labelled
+      "Drawn on the device", so it is not taken for the laptop's result.
+      The language is compared as written, as Emacs runs only `mermaid`
+      blocks with `ob-mermaid`. Org's comma escapes are removed first, as
+      Org does before running a block.
+    - **The check behind A.** `mermaid_flutter` 0.3.0 (MIT; `mermaid_core`
+      parses and lays out in Dart, a `CustomPainter` draws, no WebView) was
+      run on the 73 mermaid blocks in my notes (`roam/` without `daily/`),
+      by a local script that is not in the repo (decision 14): 67
+      flowcharts (`flowchart` or `graph`, one with front matter), 4
+      sequence diagrams and 2 state diagrams; 14 start with
+      `%%{init: ...}%%`.
+      **All 73 were drawn without an error, in the light and the dark
+      theme, all 14 `%%{init}%%` blocks among them.** Laid out at most
+      0.17 s each on the laptop (median 0.02 s). The layout is close to
+      `mmdc`'s, not the same: for 53 of the 73, the drawing's aspect ratio
+      is within 25 % of the PNG's; the others place nodes differently, for
+      example side by side inside a subgraph where mermaid.js stacks them.
+      So B (mermaid.js in a hidden WebView, +2.6 MB) was not needed.
+    - **Cost: APK size.** The APK grew from 67.9 MB (v0.1.90) to 79.2 MB,
+      all of it compiled Dart code (`libapp.so`): `mermaid_core` brings
+      parsers and layouts for 28 diagram types, ELK and a KaTeX port. That
+      is 3.6 MB for each of the three CPU types in the one APK; a phone
+      keeps only its own, so the installed app grows by about 3.6 MB, more
+      than B's 2.6 MB. A was kept for drawing without a WebView, offline,
+      on the UI's own text measurement; if the size matters, B is the
+      alternative, or APKs split by CPU type.
+    - **An image that is in the folder but cannot be read** (for example
+      while Syncthing writes it) shows the broken-image link, as other
+      images do (decision 38), and no drawing; the image is read again
+      when the note is shown again. Emacs, too, shows only the result.
+    - **Dark mode** uses mermaid's `dark` theme. A theme the block sets in
+      `%%{init: ...}%%` comes first, as in mermaid; a light one is then
+      drawn on a white background, as SVGs are (decision 39).
+    - **Never wider than the text column**, scaled down in proportion; tap
+      opens it on its own page with zoom, where it stays sharp.
+    - **A diagram that cannot be drawn** shows one line with the error,
+      below the block; the rest of the note is shown.
+    - **Cached** by source and theme (32 at most), so scrolling and showing
+      a note again do not lay it out again. Layout runs on the UI thread:
+      `mermaid_flutter` measures text with Flutter's `TextPainter`.
+    - **How it is placed.** `org_flutter` has no hook for source blocks, so
+      after parsing, the app adds a paragraph with one image link after
+      each block to draw; the node view's `loadImage` shows the drawing for
+      exactly those links (kept by the link object, not by its text), so a
+      link a note writes itself is never taken for one.
+    - **Not done:** a button to switch between the result image and a
+      drawing of the current source, to see whether the PNG is out of date.
+      It can be added if it is wanted.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

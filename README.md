@@ -21,7 +21,8 @@ Text shared from another app, such as the Claude app, becomes a new node
 (#41) can be shared to such an app. Source blocks are coloured as Emacs
 colours them (#45), and images from the notes folder, also SVG, are
 shown at their Org width (#46, #47). LaTeX display formulas are shown in
-display mode (#50). What is decided and why is in
+display mode (#50). Mermaid blocks show their result image; a block
+without one is drawn on the device (#49). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 
