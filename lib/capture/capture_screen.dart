@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../edit/note_editor.dart';
 import 'new_node.dart';
 
 /// What happened when a note was to be written.
@@ -41,7 +42,11 @@ class CreateFailed extends CreateResult {
 
 /// Writes new notes into `roam/` (#11) and indexes them.
 class NoteWriter {
-  const NoteWriter({required this.create, required this.allowWriting});
+  const NoteWriter({
+    required this.create,
+    required this.allowWriting,
+    this.editor,
+  });
 
   /// Writes [text] as the new file [fileName] in `roam/`, then indexes the
   /// folder, so the graph has the new node when this returns.
@@ -49,6 +54,9 @@ class NoteWriter {
 
   /// Asks Android for write access: opens the folder picker.
   final Future<void> Function() allowWriting;
+
+  /// Changes existing notes (v4, #35); null where editing is not offered.
+  final NoteEditor? editor;
 }
 
 /// Creates a new node (#11), as org-roam's default capture template does
