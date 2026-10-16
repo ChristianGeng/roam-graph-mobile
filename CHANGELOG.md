@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Rules for editing existing notes ([#73](https://github.com/ChristianGeng/roam-graph-mobile/pull/73))
+
+- Changed: the rules for editing existing notes are agreed and written down
+  (decision 10). An edit will be saved only over the version it was made
+  on, through a temporary file, with the old version kept; the `:ID:` and
+  the property drawer stay as they are. No change in the app yet.
+- Closes [#34](https://github.com/ChristianGeng/roam-graph-mobile/issues/34).
+
 ## 2026-10-17: A changelog, and release notes taken from it ([#74](https://github.com/ChristianGeng/roam-graph-mobile/pull/74))
 
 - Added: this changelog. Each release's text on GitHub (and so in

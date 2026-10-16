@@ -67,11 +67,38 @@ devices through Syncthing.
    Capture brings org-roam-compatible file names and IDs and Syncthing
    conflicts, which deserve their own milestone.
 
-10. **v2 capture writes only new files**, never into existing ones. A new
-    node links to the current node from inside the new file, so it shows up
-    as a backlink. Editing an existing file risks a Syncthing conflict with
-    the laptop. File names follow my capture template, which is org-roam's
-    default: `roam/<%Y%m%d%H%M%S>-<slug>.org`.
+10. **Existing notes are edited only under five rules** (#34, agreed on
+    2026-10-17). Until v4 the app wrote only new files (v2 capture): a new
+    node links to the current node from inside the new file, so it shows
+    up as a backlink, and file names follow my capture template, which is
+    org-roam's default: `roam/<%Y%m%d%H%M%S>-<slug>.org`. v4 lets the app
+    change existing notes, also with an AI, while the laptop edits the same
+    graph with Emacs and the org-roam MCP server. So:
+    1. **Only what was shown is replaced.** The app saves an edit only if
+       the file is still the version it read: the same content hash,
+       checked just before writing. Otherwise it refuses and shows the
+       newer version (#35).
+    2. **Whole files, written safely.** An edit replaces the file through a
+       temporary file and a rename, as capture writes new files (decision
+       31), so Syncthing never sees half a file.
+    3. **Nothing is lost.** Before replacing a file, the app keeps the old
+       version in its own storage, and a wrong edit can be undone from
+       there (#35).
+    4. **The laptop stays the reference.** Syncthing's conflict copies are
+       listed (decision 33) and resolved in Emacs; the app does not merge
+       them.
+    5. **Text only.** A file node's whole text, or a heading node's
+       subtree, can be edited. The `:ID:` and the property drawer stay as
+       they are. Editing tags, the title or aliases (`ROAM_ALIASES`) is
+       left for later, since the index must follow such changes.
+
+    Rules 1, 2, 3 and 5 do not depend on Syncthing; rule 4 is Syncthing's.
+    The writing is kept behind an interface, so that notes could later
+    reach the device through git instead: rule 4 would then become "pull
+    before an edit, push after; if the push is refused, pull, merge, and
+    show a conflict when the same lines changed", and git's history would
+    cover rule 3. For now Syncthing stays the transport, and git runs only
+    on the laptop.
 
 11. **AI input through Android's share menu, not MCP.** The Claude Android
     app cannot write to device storage, but it can share text. The app
