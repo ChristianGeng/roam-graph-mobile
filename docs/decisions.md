@@ -896,6 +896,69 @@ devices through Syncthing.
       as API keys, never go into these files**: they belong in Android's
       secure storage.
 
+44. **AI tools on the app's index, as my org-roam MCP server has them**
+    (#58), `lib/ai/ai_tools.dart` and `lib/graph/graph_measures.dart`. The
+    chat of milestone v6 gives a model the tools of my org-roam MCP server
+    ([org-roam-mcp](https://github.com/ChristianGeng/org-roam-mcp)), with
+    its names, parameters, defaults and results, so an AI works with the
+    graph on the phone as Claude Code does on the laptop. They run on the
+    app's index, offline.
+    - **The 16 tools:** `find`, `read_node`, `backlinks`, `bfs`,
+      `shortest_path`, `common_neighbors`, `central`, `orphans`,
+      `pagerank`, `communities`, `betweenness`, `closeness`,
+      `clustering_coefficient`, `graph_stats`, `suggest_links` and
+      `connected_components`, each `org_roam_` in front. Not `emacs_eval`
+      and `org_roam_sync`: there is no Emacs on the device, and the index
+      updates itself. Each has a JSON Schema for its parameters.
+    - **The same results.** The query tools follow the server's SQL: what
+      `LIKE` matches (`%` and `_` are wildcards, case is ignored only from
+      A to Z), one backlink row per link, breadth-first distances in the
+      links' direction, and `common_neighbors` as the server computes it:
+      nodes that link to the same nodes as `node_a`, where `node_b` is only
+      left out (its description says so). The other tools follow networkx
+      3.6.1: PageRank (decision 30), betweenness (Brandes, normalized),
+      closeness (by the distances to a node, with Wasserman and Faust's
+      scaling), directed clustering, weakly connected components,
+      statistics, and python-louvain's Louvain, now with its resolution.
+      Titles sort as SQL's `ORDER BY title` sorts the stored, quoted titles
+      (`"Beta heading"` before `"Beta"`); the graph the networkx tools use
+      is built in that order too, as the server's query builds it, which
+      also changes the order Louvain visits nodes in the graph views.
+    - **Where the app differs, on purpose:**
+      - Titles are given as written; the server gives them as stored, with
+        Emacs Lisp escapes such as `\11` for a tab. Files are paths
+        relative to `roam/`; the server gives absolute paths.
+      - `shortest_path` lists each path once. The server's query follows
+        each link row, so a note that links twice to the next one gives
+        the same path twice, and its 3 rows can be one path. The app gives
+        the 3 shortest different paths (Yen's algorithm, at most 8 links).
+      - Of equally ranked rows, the server's order is its table's, SQLite's
+        or Python's set order, which the app cannot know. The app keeps
+        the order of the index (by path) for equal titles, takes the
+        higher ID first for equal counts, and the hub of a component is
+        the first by ID of those with the most links.
+      - `read_node` gives at most 60,000 characters, and lists in the text
+        at most 300 lines, each saying how many more there are: a chat on
+        the phone pays for every token. Line ends are `\n`, as Python's
+        `read_text` gives them to the server.
+      - An ID may be given with quotes or `id:` in front; numbers may come
+        as text. A mistake gives an error the model can read.
+    - **Hidden notes (decision 42)** are removed from the graph before any
+      tool runs, with their links; `read_node` leaves out hidden headings
+      and titles, and a file that hides its node now is not read.
+    - **Results as compact text**, not JSON: one line per node with its ID
+      and title, for example `0.0123 | <ID> | <title>`. The data with the
+      server's keys is what the tests compare.
+    - **Checked against the server itself:** `tool/ai_tools_expected.py`
+      runs the server's own tool functions, in its own environment, on a
+      database `tool/build_roam_db.dart` builds from the sample notes and on
+      the random graph of #27, and writes
+      `test/fixtures/ai_tools_expected.json`. `test/ai/ai_tools_test.dart`
+      compares every tool with it, rows of equal rank as groups. Louvain is
+      random and the server sets no seed, so the communities are checked
+      against the modularity and community counts of 20 python-louvain
+      runs at resolutions 0.5, 1 and 2.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
