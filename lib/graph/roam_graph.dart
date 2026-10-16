@@ -270,6 +270,38 @@ class RoamGraph {
   /// aliases and refs of a duplicate.
   final List<RoamNode> allNodes;
 
+  /// This graph without the nodes [hide] chooses, and without the links
+  /// from and to them (#57). Links to IDs that are no node stay. Files
+  /// stay, so paths and modification times are unchanged.
+  RoamGraph withoutNodes(bool Function(RoamNode node) hide) {
+    final hidden = {
+      for (final node in allNodes)
+        if (hide(node)) node.id,
+    };
+    if (hidden.isEmpty) return this;
+    bool keep(RoamLink link) =>
+        !hidden.contains(link.source) && !hidden.contains(link.dest);
+    return RoamGraph._(
+      files: files,
+      nodes: {
+        for (final MapEntry(:key, :value) in nodes.entries)
+          if (!hidden.contains(key)) key: value,
+      },
+      links: links.where(keep).toList(),
+      danglingLinks: danglingLinks.where(keep).toList(),
+      duplicateIds: {
+        for (final MapEntry(:key, :value) in duplicateIds.entries)
+          if (!hidden.contains(key)) key: value,
+      },
+      allNodes: [
+        for (final node in allNodes)
+          if (!hidden.contains(node.id)) node,
+      ],
+      failedFiles: failedFiles,
+      fileMtimes: fileMtimes,
+    );
+  }
+
   int get fileNodeCount => nodes.values.where((n) => n.isFile).length;
   int get headingNodeCount => nodes.length - fileNodeCount;
 

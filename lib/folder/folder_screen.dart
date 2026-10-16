@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
+import '../ai/ai_settings.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/graph_index.dart';
@@ -483,7 +484,16 @@ class _FolderScreenState extends State<FolderScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Roam Graph')),
+      appBar: AppBar(
+        title: const Text('Roam Graph'),
+        actions: [
+          IconButton(
+            tooltip: 'AI settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => AiSettingsScreen.open(context),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

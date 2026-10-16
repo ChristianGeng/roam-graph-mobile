@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../ai/ai_settings.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/ai_share.dart';
@@ -126,7 +127,8 @@ enum _MoreAction {
   centre,
   circo,
   force,
-  share;
+  share,
+  aiSettings;
 
   static _MoreAction layoutOf(LayoutKind kind) =>
       kind == LayoutKind.circo ? circo : force;
@@ -560,6 +562,8 @@ class _GraphScreenState extends State<GraphScreen> {
         _centreView();
       case _MoreAction.share:
         _shareGraph();
+      case _MoreAction.aiSettings:
+        AiSettingsScreen.open(context);
       case _MoreAction.circo || _MoreAction.force:
         _kind = action == _MoreAction.circo ? LayoutKind.circo : LayoutKind.force;
         _update();
@@ -569,7 +573,10 @@ class _GraphScreenState extends State<GraphScreen> {
   /// Shares the graph's connectivity with an AI app (#40), and says so if
   /// Android cannot.
   Future<void> _shareGraph() async {
-    final text = graphForAi(_graph);
+    // The saved settings, once loaded, so no saved hidden tag is missed.
+    final settings = await AiSettingsScope.current(context);
+    if (!mounted) return;
+    final text = graphForAi(_graph, visibility: settings.visibility);
     // Android hands shared text over in one transaction, limited to about
     // 1 MB; stay well below it.
     if (text.length > 400000) {
@@ -709,6 +716,10 @@ class _GraphScreenState extends State<GraphScreen> {
                 value: _MoreAction.share,
                 enabled: _graph.nodes.isNotEmpty,
                 child: const Text('Share graph with AI'),
+              ),
+              const PopupMenuItem(
+                value: _MoreAction.aiSettings,
+                child: Text('AI settings'),
               ),
             ],
           ),
