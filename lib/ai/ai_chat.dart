@@ -52,6 +52,8 @@ Future<HttpReply> postWithDartIo(
     ..userAgent = 'RoamGraph';
   try {
     final request = await client.postUrl(url);
+    // A redirect could send the conversation to another host.
+    request.followRedirects = false;
     headers.forEach(request.headers.set);
     request.add(utf8.encode(body));
     final response =
@@ -541,6 +543,10 @@ class ChatSession {
 
   ModelApi get _api => ModelApi.of(_config.api);
 
+  /// Tool rounds run for the current message; [send] starts again at 0,
+  /// [resume] goes on counting.
+  int _rounds = 0;
+
   /// Sends [text] and runs tool rounds until the model answers.
   /// [onUpdate] runs after each step. Throws [AiError]; then [resume] tries
   /// again from where it stopped.
@@ -548,6 +554,7 @@ class ChatSession {
       {String? context, void Function()? onUpdate}) async {
     final first = !transcript.any((e) => e is UserMessage);
     transcript.add(UserMessage(text, context: first ? context : null));
+    _rounds = 0;
     onUpdate?.call();
     await resume(onUpdate: onUpdate);
   }
@@ -557,55 +564,64 @@ class ChatSession {
   bool get waiting =>
       transcript.isNotEmpty && transcript.last is! AssistantMessage;
 
-  /// Continues after an error: sends the conversation again.
+  /// Continues after an error: sends the conversation again. The tool
+  /// rounds of the message count on, so a retry gets no new rounds.
   Future<void> resume({void Function()? onUpdate}) async {
     final offered = toolList ?? aiTools;
-    var rounds = 0;
     while (waiting) {
       final reply = await _request(offered);
       usage += reply.usage;
-      transcript.add(reply.message);
-      onUpdate?.call();
-      final calls = reply.message.toolCalls;
-      if (calls.isEmpty) {
-        if (reply.cut) {
-          throw AiError('The answer stopped at ${_config.maxOutputTokens} '
-              'tokens. Raise "Most tokens per answer" in AI settings, or '
-              'ask for less.');
-        }
-        return;
+      final message = reply.message;
+      if (reply.cut) {
+        // Not kept, so "Send again" asks again; a part of an answer, or of
+        // a tool call, is of no use.
+        throw AiError('The answer stopped at ${_config.maxOutputTokens} '
+            'tokens and was dropped. Raise "Most tokens per answer" in AI '
+            'settings and start a new chat, or ask for less.');
       }
-      rounds++;
-      final stop = rounds >= maxToolRounds;
-      transcript.add(ToolResults([
-        for (final call in calls)
-          ToolResult(
-            call,
-            stop
-                ? 'Not run: the app allows $maxToolRounds tool rounds for '
-                    'one message. Answer with what you have.'
-                : call.badArguments != null
-                    ? 'Error: the arguments are not valid JSON: '
-                        '${call.badArguments}'
-                    : await tools.call(call.name, call.input),
-          ),
-      ]));
-      onUpdate?.call();
-      if (stop) {
-        // One more request, so the model can answer with what it has.
-        final reply = await _request(offered);
-        usage += reply.usage;
-        transcript.add(reply.message.toolCalls.isEmpty
-            ? reply.message
-            : AssistantMessage(
-                text: reply.message.text.isEmpty
-                    ? '(Stopped after $maxToolRounds tool rounds.)'
-                    : reply.message.text,
-                model: reply.message.model,
-              ));
+      if (message.toolCalls.isNotEmpty && _rounds >= maxToolRounds) {
+        // More tool calls than allowed: keep the text, run nothing.
+        transcript.add(AssistantMessage(
+          text: message.text.isEmpty
+              ? '(Stopped after $maxToolRounds tool rounds.)'
+              : message.text,
+          model: message.model,
+        ));
         onUpdate?.call();
         return;
       }
+      transcript.add(message);
+      onUpdate?.call();
+      if (message.toolCalls.isEmpty) return;
+      _rounds++;
+      final last = _rounds >= maxToolRounds;
+      final results = <ToolResult>[];
+      for (final call in message.toolCalls) {
+        results.add(ToolResult(call, await _runTool(call)));
+      }
+      if (last) {
+        final end = results.removeLast();
+        results.add(ToolResult(
+            end.call,
+            '${end.content}\n\n(That was the last of the $maxToolRounds '
+            'tool rounds the app allows for one message: answer now, with '
+            'what you have.)'));
+      }
+      transcript.add(ToolResults(results));
+      onUpdate?.call();
+    }
+  }
+
+  /// The result of [call] for the model; every call gets one, also when
+  /// the tool fails, as the APIs require.
+  Future<String> _runTool(ToolCall call) async {
+    if (call.badArguments != null) {
+      return 'Error: the arguments are not valid JSON: ${call.badArguments}';
+    }
+    try {
+      return await tools.call(call.name, call.input);
+    } catch (e) {
+      return 'Error: the tool failed: $e';
     }
   }
 
@@ -624,6 +640,11 @@ class ChatSession {
           'settings.');
     }
     final request = _api.request(config, offered, transcript);
+    if (request.url.scheme != 'https' && config.apiKey.isNotEmpty) {
+      throw AiError('The app sends an API key only over HTTPS. Use an '
+          'https:// base URL for ${config.name}, or remove the key for a '
+          'local server without one.');
+    }
     lastRequest = request;
     HttpReply reply;
     try {
@@ -645,6 +666,11 @@ class ChatSession {
       json = jsonDecode(reply.body);
     } on FormatException {
       json = null;
+    }
+    if (reply.status >= 300 && reply.status < 400) {
+      throw AiError('${config.name} answered with a redirect (HTTP '
+          '${reply.status}), which the app does not follow, so nothing goes '
+          'to another host. Check the base URL.');
     }
     if (reply.status < 200 || reply.status >= 300) {
       throw AiError(_httpError(config, reply.status, _message(json, reply.body)));

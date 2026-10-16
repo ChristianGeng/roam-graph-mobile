@@ -196,8 +196,7 @@ void main() {
           session.send('Tell me all.'),
           throwsA(isA<AiError>().having((e) => e.message, 'message',
               contains('Raise "Most tokens per answer"'))));
-      expect((session.transcript.last as AssistantMessage).text,
-          'Half an answ');
+      expect(session.transcript.whereType<AssistantMessage>(), isEmpty);
     });
   });
 
@@ -302,33 +301,130 @@ void main() {
   });
 
   group('limits and errors', () {
-    test('stops after the most tool rounds, and lets the model answer',
-        () async {
-      Map<String, Object?> call(int i) => anthropicReply([
-            {
-              'type': 'tool_use',
-              'id': 'toolu_$i',
-              'name': 'org_roam_orphans',
-              'input': <String, Object?>{},
-            },
-          ], stop: 'tool_use');
+    Map<String, Object?> call(int i, [String tool = 'org_roam_orphans']) =>
+        anthropicReply([
+          {
+            'type': 'tool_use',
+            'id': 'toolu_$i',
+            'name': tool,
+            'input': <String, Object?>{},
+          },
+        ], stop: 'tool_use');
+
+    test('runs the most tool rounds allowed, then no more', () async {
       final server = FakeServer([
         call(1),
         call(2),
-        anthropicReply([
-          {'type': 'text', 'text': 'With what I have: none.'},
-        ]),
+        call(3),
       ]);
       final session = ChatSession(
           tools: tools(), config: anthropic, post: server.post, maxToolRounds: 2);
       await session.send('Orphans?');
       expect(server.requests, hasLength(3));
       final results = session.transcript.whereType<ToolResults>().toList();
-      expect(results.first.results.single.content, contains('Orphans'));
+      // Both allowed rounds ran; the last says it was the last.
+      expect(results, hasLength(2));
+      expect(results.first.results.single.content, startsWith('Orphans'));
+      expect(results.last.results.single.content, startsWith('Orphans'));
       expect(results.last.results.single.content,
-          startsWith('Not run: the app allows 2 tool rounds'));
+          endsWith('answer now, with what you have.)'));
       expect((session.transcript.last as AssistantMessage).text,
-          'With what I have: none.');
+          '(Stopped after 2 tool rounds.)');
+      // Every tool call before it has its result, as the APIs require.
+      expect(session.transcript.last is AssistantMessage, isTrue);
+      expect((session.transcript.last as AssistantMessage).toolCalls, isEmpty);
+    });
+
+    test('a retry does not give the message new tool rounds', () async {
+      final server = FakeServer([
+        call(1),
+        const SocketException('offline'),
+        call(2),
+      ]);
+      final session = ChatSession(
+          tools: tools(), config: anthropic, post: server.post, maxToolRounds: 1);
+      await expectLater(session.send('Orphans?'), throwsA(isA<AiError>()));
+      await session.resume();
+      expect(session.transcript.whereType<ToolResults>(), hasLength(1));
+      expect((session.transcript.last as AssistantMessage).text,
+          '(Stopped after 1 tool rounds.)');
+    });
+
+    test('a tool that fails gives the model an error, not a broken chat',
+        () async {
+      final server = FakeServer([
+        call(1, 'org_roam_read_node'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Could not read it.'},
+        ]),
+      ]);
+      final failing = RoamTools(graph,
+          readNote: (_) async => throw const FileSystemException('gone'));
+      final session =
+          ChatSession(tools: failing, config: anthropic, post: server.post);
+      await session.send('Read plan');
+      final result = session.transcript.whereType<ToolResults>().single;
+      expect(result.results.single.content, startsWith('Error:'));
+      expect((session.transcript.last as AssistantMessage).text,
+          'Could not read it.');
+    });
+
+    test('a cut answer is dropped, so "Send again" asks again', () async {
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Half'},
+        ], stop: 'max_tokens'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Whole.'},
+        ]),
+      ]);
+      final session =
+          ChatSession(tools: tools(), config: anthropic, post: server.post);
+      await expectLater(session.send('Tell me all.'), throwsA(isA<AiError>()));
+      expect(session.waiting, isTrue);
+      await session.resume();
+      expect(session.transcript.whereType<AssistantMessage>().single.text,
+          'Whole.');
+    });
+
+    test('keys only over HTTPS; redirects are not followed', () async {
+      final server = FakeServer([
+        const HttpReply(301, ''),
+        openAiReply({'role': 'assistant', 'content': 'Local.'}),
+      ]);
+      const plain = ProviderConfig(
+        name: 'Custom',
+        api: ApiKind.openAi,
+        baseUrl: 'http://192.168.1.5:11434/v1',
+        model: 'llama',
+        apiKey: 'secret',
+        keyRequired: false,
+      );
+      await expectLater(
+          ChatSession(tools: tools(), config: plain, post: server.post)
+              .send('Hi'),
+          throwsA(isA<AiError>().having(
+              (e) => e.message, 'message', startsWith('The app sends an API '
+                  'key only over HTTPS.'))));
+      expect(server.requests, isEmpty);
+      await expectLater(
+          ChatSession(tools: tools(), config: anthropic, post: server.post)
+              .send('Hi'),
+          throwsA(isA<AiError>().having(
+              (e) => e.message, 'message', contains('redirect (HTTP 301)'))));
+      // Without a key, a local server over HTTP is fine.
+      const local = ProviderConfig(
+        name: 'Custom',
+        api: ApiKind.openAi,
+        baseUrl: 'http://192.168.1.5:11434/v1',
+        model: 'llama',
+        apiKey: '',
+        keyRequired: false,
+      );
+      await ChatSession(tools: tools(), config: local, post: server.post)
+          .send('Hi');
+      expect(server.requests.last.headers.containsKey('authorization'),
+          isFalse);
     });
 
     test('no key, no model: nothing is sent', () async {

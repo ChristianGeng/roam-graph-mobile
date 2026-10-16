@@ -1057,16 +1057,24 @@ devices through Syncthing.
       or DeepSeek's `prompt_cache_hit_tokens`. Each chat counts its input,
       cached and output tokens. A test checks that each request starts
       with the one before.
-    - **Limits:** after the most tool rounds, the tool calls of that round
-      are answered with "Not run" and the model is asked once more, so it
-      answers with what it has.
+    - **Limits:** a message may run the most tool rounds set; the last
+      round's result says it was the last. If the model still asks for
+      tools, they are not run and its text, if any, is its answer. The
+      count belongs to the message: "Send again" after an error goes on
+      counting. Every tool call gets a result, also when the tool fails
+      (as an error the model reads), since both APIs refuse a conversation
+      with a tool call left without one.
     - **Errors say what to do:** no key, model or base URL (nothing is
       sent); no network or no answer in time; 401 or 403 (the key); 429
       (rate limit or credit); 404 (base URL or model); 400 that mentions
-      tools (the model may not support them); an answer cut at the token
-      limit; any other HTTP error with the provider's own message. After
-      an error, the chat can send the conversation again from where it
-      stopped.
+      tools (the model may not support them); any other HTTP error with
+      the provider's own message. An answer cut at the token limit is
+      dropped, so "Send again" asks again. After an error, the chat can
+      send the conversation again from where it stopped.
+    - **Keys only over HTTPS; no redirects.** A key is never sent to an
+      `http://` base URL (Custom can reach a local server over HTTP without
+      a key, such as Ollama). Redirects are not followed, so the
+      conversation cannot go to another host than the base URL's.
     - Answers are not streamed: an answer appears when it is complete.
       Qwen does not allow streaming together with tools anyway.
 
