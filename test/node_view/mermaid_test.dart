@@ -56,6 +56,19 @@ void main() {
           [flowchart]);
     });
 
+    test('the result image may follow another link in the paragraph', () {
+      final text = '${block(flowchart)}#+RESULTS:\n'
+          'See [[file:notes.org]] and [[file:a.png]]\n';
+      expect(drawingsIn(text, shown: {'file:a.png'}), isEmpty);
+    });
+
+    test('a described result link is text, so the block is drawn', () {
+      // org_flutter shows a link with a description as text, not as an
+      // image.
+      final text = '${block(flowchart)}#+RESULTS:\n[[file:a.png][diagram]]\n';
+      expect(drawingsIn(text, shown: {'file:a.png'}), [flowchart]);
+    });
+
     test('only mermaid blocks, by their name as written, as in Emacs', () {
       expect(drawingsIn('#+begin_src dot\ndigraph { a -> b }\n#+end_src\n'),
           isEmpty);

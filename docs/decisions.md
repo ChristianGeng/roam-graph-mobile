@@ -778,6 +778,18 @@ devices through Syncthing.
       is within 25 % of the PNG's; the others place nodes differently, for
       example side by side inside a subgraph where mermaid.js stacks them.
       So B (mermaid.js in a hidden WebView, +2.6 MB) was not needed.
+    - **Cost: APK size.** The APK grew from 67.9 MB (v0.1.90) to 79.2 MB,
+      all of it compiled Dart code (`libapp.so`): `mermaid_core` brings
+      parsers and layouts for 28 diagram types, ELK and a KaTeX port. That
+      is 3.6 MB for each of the three CPU types in the one APK; a phone
+      keeps only its own, so the installed app grows by about 3.6 MB, more
+      than B's 2.6 MB. A was kept for drawing without a WebView, offline,
+      on the UI's own text measurement; if the size matters, B is the
+      alternative, or APKs split by CPU type.
+    - **An image that is in the folder but cannot be read** (for example
+      while Syncthing writes it) shows the broken-image link, as other
+      images do (decision 38), and no drawing; the image is read again
+      when the note is shown again. Emacs, too, shows only the result.
     - **Dark mode** uses mermaid's `dark` theme. A theme the block sets in
       `%%{init: ...}%%` comes first, as in mermaid; a light one is then
       drawn on a white background, as SVGs are (decision 39).

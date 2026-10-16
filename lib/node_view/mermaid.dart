@@ -27,7 +27,8 @@ final _resultsKey = RegExp(r'^#\+results(?:\[[^\]]*\])?:$', caseSensitive: false
 /// A block's result is the `#+RESULTS:` keyword right after it (only blank
 /// lines between) and the paragraph after that, where `ob-mermaid` writes
 /// the link to its `:file`. A block whose result paragraph has a link the
-/// node view shows as an image is left alone: that image is what `mmdc`
+/// node view shows as an image (one without a description, whose image is
+/// in the folder) is left alone: that image is what `mmdc`
 /// drew on the laptop. Every other mermaid block (no `:file`, never run,
 /// or its image is not in the folder) gets a drawing right after it.
 ///
@@ -61,8 +62,11 @@ bool _hasResultImage(OrgZipper block, bool Function(String) showsImage) {
   if (paragraph is! OrgParagraph) return false;
   var shown = false;
   paragraph.visit<OrgLink>((link) {
-    shown = showsImage(link.location);
-    return false;
+    // As org_flutter: only a link without a description is shown as an
+    // image; any such link in the paragraph counts.
+    shown = (link is! OrgBracketLink || link.description == null) &&
+        showsImage(link.location);
+    return !shown;
   });
   return shown;
 }
