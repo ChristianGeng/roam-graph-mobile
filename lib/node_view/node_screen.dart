@@ -3,6 +3,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 
 import '../capture/capture_screen.dart';
+import '../capture/share_inbox.dart';
+import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
@@ -39,6 +41,7 @@ class NodeScreen extends StatefulWidget {
     this.onOpenNode,
     this.onBack,
     this.writer,
+    this.shareText = shareTextOut,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -62,6 +65,9 @@ class NodeScreen extends StatefulWidget {
   /// links to this one (#12).
   final NoteWriter? writer;
 
+  /// Sends text to an AI app (#41); tests replace it.
+  final TextSharer shareText;
+
   /// Shows the node [id] in the graph view (#6); the button is hidden when
   /// null.
   final void Function(BuildContext context, String id)? onShowInGraph;
@@ -76,6 +82,7 @@ class NodeScreen extends StatefulWidget {
     void Function(BuildContext context, String id)? onShowInGraph,
     NoteOpener? openInOrgro,
     NoteWriter? writer,
+    TextSharer shareText = shareTextOut,
   }) {
     nodeMemory.remember(id);
     return Navigator.push(
@@ -89,6 +96,7 @@ class NodeScreen extends StatefulWidget {
           onShowInGraph: onShowInGraph,
           openInOrgro: openInOrgro,
           writer: writer,
+          shareText: shareText,
         ),
       ),
     );
@@ -180,6 +188,7 @@ class _NodeScreenState extends State<NodeScreen> {
       onShowInGraph: widget.onShowInGraph,
       openInOrgro: widget.openInOrgro,
       writer: widget.writer,
+      shareText: widget.shareText,
     );
   }
 
@@ -209,6 +218,17 @@ class _NodeScreenState extends State<NodeScreen> {
       case OpenResult.noFile:
         _tell('Could not find ${node.file} in the folder.');
     }
+  }
+
+  /// Shares [node] with an AI app (#41): its text as shown here, with its
+  /// links and backlinks.
+  Future<void> _shareWithAi(RoamNode node) async {
+    final file = await _text;
+    await widget.shareText(
+      nodesForAi(widget.graph.value,
+          [(node, file == null ? null : nodeText(node, file))]),
+      subject: node.displayTitle,
+    );
   }
 
   void _tell(String message) {
@@ -245,8 +265,15 @@ class _NodeScreenState extends State<NodeScreen> {
               openInOrgro: widget.openInOrgro,
               onOpenNode: widget.onOpenNode,
               writer: widget.writer,
+              shareText: widget.shareText,
             ),
           ),
+          if (node != null)
+            IconButton(
+              tooltip: 'Share with AI',
+              icon: const Icon(Icons.share_outlined),
+              onPressed: () => _shareWithAi(node),
+            ),
           if (widget.writer case final writer? when node != null)
             IconButton(
               tooltip: 'New node from here',

@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../capture/capture_screen.dart';
+import '../capture/share_inbox.dart';
+import '../graph/ai_share.dart';
 import '../graph/node_search.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
@@ -19,6 +21,7 @@ class SearchScreen extends StatefulWidget {
     this.openInOrgro,
     this.onOpenNode,
     this.writer,
+    this.shareText = shareTextOut,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -38,6 +41,9 @@ class SearchScreen extends StatefulWidget {
   /// Writes new notes, for the node view.
   final NoteWriter? writer;
 
+  /// Sends text to an AI app (#41); tests replace it.
+  final TextSharer shareText;
+
   /// Opens the search on a new page.
   static Future<void> open(
     BuildContext context, {
@@ -48,6 +54,7 @@ class SearchScreen extends StatefulWidget {
     NoteOpener? openInOrgro,
     void Function(BuildContext context, String id)? onOpenNode,
     NoteWriter? writer,
+    TextSharer shareText = shareTextOut,
   }) =>
       Navigator.push(
         context,
@@ -60,6 +67,7 @@ class SearchScreen extends StatefulWidget {
             openInOrgro: openInOrgro,
             onOpenNode: onOpenNode,
             writer: writer,
+            shareText: shareText,
           ),
         ),
       );
@@ -71,6 +79,29 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final _query = TextEditingController();
   final _tags = <String>{};
+
+  /// Nodes chosen with a long press, to share with an AI (#41).
+  final _selected = <String>{};
+
+  void _toggle(String id) => setState(
+      () => _selected.contains(id) ? _selected.remove(id) : _selected.add(id));
+
+  /// Shares the selected nodes with an AI app, with their texts.
+  Future<void> _shareSelected() async {
+    final graph = widget.graph.value;
+    final nodes = [
+      for (final id in _selected) ?graph.nodes[id],
+    ];
+    final texts = <(RoamNode, String?)>[
+      for (final node in nodes)
+        (node, switch (await widget.readNote(node.file)) {
+          final file? => nodeText(node, file),
+          null => null,
+        }),
+    ];
+    await widget.shareText(nodesForAi(graph, texts),
+        subject: nodes.length == 1 ? nodes.single.displayTitle : null);
+  }
 
   @override
   void initState() {
@@ -109,6 +140,7 @@ class _SearchScreenState extends State<SearchScreen> {
         onShowInGraph: widget.onShowInGraph,
         openInOrgro: widget.openInOrgro,
         writer: widget.writer,
+        shareText: widget.shareText,
       );
 
   @override
@@ -137,6 +169,15 @@ class _SearchScreenState extends State<SearchScreen> {
           },
         ),
         actions: [
+          if (_selected.isNotEmpty)
+            IconButton(
+              tooltip: 'Share with AI',
+              icon: Badge(
+                label: Text('${_selected.length}'),
+                child: const Icon(Icons.share_outlined),
+              ),
+              onPressed: _shareSelected,
+            ),
           if (_query.text.isNotEmpty)
             IconButton(
               tooltip: 'Clear',
@@ -191,11 +232,21 @@ class _SearchScreenState extends State<SearchScreen> {
                   if (hit.alias != null) 'Alias of ${node.displayTitle}',
                   if (node.tags.isNotEmpty) node.tags.join(' '),
                 ].join(' · ');
+                final selected = _selected.contains(node.id);
                 return ListTile(
                   key: ValueKey('hit-$i'),
+                  selected: selected,
+                  leading: _selected.isEmpty
+                      ? null
+                      : Icon(selected
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank),
+                  onLongPress: () => _toggle(node.id),
                   title: Text(hit.text),
                   subtitle: details.isEmpty ? null : Text(details),
-                  onTap: () => _open(node.id),
+                  // While nodes are selected, a tap adds or removes one.
+                  onTap: () =>
+                      _selected.isEmpty ? _open(node.id) : _toggle(node.id),
                   trailing: onShowInGraph == null
                       ? null
                       : IconButton(

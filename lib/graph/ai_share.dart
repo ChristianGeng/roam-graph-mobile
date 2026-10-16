@@ -4,6 +4,7 @@
 /// Pure Dart (no Flutter), like `roam_graph.dart`.
 library;
 
+import 'backlinks.dart';
 import 'roam_graph.dart';
 
 /// The connectivity of [graph]: every node's ID, title and tags, and every
@@ -61,6 +62,71 @@ String graphForAi(RoamGraph graph) {
     ..writeln('## Links (source -> target)');
   for (final (source, target) in links) {
     text.writeln('n${source + 1} -> n${target + 1}');
+  }
+  return text.toString();
+}
+
+/// The Org text of [node] in [fileText]: the whole file for a file node,
+/// the heading and its subtree for a heading node, as the node view shows
+/// it (#8). The subtree ends before the next heading of the same or a
+/// higher level.
+String nodeText(RoamNode node, String fileText) {
+  if (node.isFile) return fileText;
+  final lines = fileText.split('\n');
+  final start = node.line - 1;
+  if (start < 0 || start >= lines.length) return '';
+  final end = RegExp('^\\*{1,${node.level}}\\s');
+  var stop = lines.length;
+  for (var i = start + 1; i < lines.length; i++) {
+    if (end.hasMatch(lines[i])) {
+      stop = i;
+      break;
+    }
+  }
+  return lines.sublist(start, stop).join('\n').trimRight();
+}
+
+/// Nodes of [graph] with their texts, for an AI app (#41): each node's
+/// ID, title, tags and file, the nodes it links to and the nodes linking
+/// to it (titles and IDs), and its Org text. [texts] has each node's text
+/// as [nodeText] gives it; null when the file could not be read.
+String nodesForAi(RoamGraph graph, List<(RoamNode, String?)> texts) {
+  String ref(String id) {
+    final title = graph.nodes[id]?.displayTitle;
+    return title == null ? '[[id:$id]]' : '[[id:$id][${_oneLine(title)}]]';
+  }
+
+  final text = StringBuffer()
+    ..writeln(texts.length == 1
+        ? '# A note from my org-roam graph'
+        : '# ${texts.length} notes from my org-roam graph')
+    ..writeln()
+    ..writeln('Shared from the app Roam Graph. The text is Org mode. To '
+        'link to a note when you write one for me, use its ID: '
+        '[[id:<ID>][<title>]].');
+  for (final (node, body) in texts) {
+    final linksTo = <String>{
+      for (final link in graph.links)
+        if (link.source == node.id && link.dest != node.id) link.dest,
+    };
+    final linkedFrom = <String>{
+      for (final b in backlinksOf(graph, node.id))
+        if (b.source.id != node.id) b.source.id,
+    };
+    text
+      ..writeln()
+      ..writeln('## ${_oneLine(node.displayTitle)}')
+      ..writeln()
+      ..writeln('- ID: ${node.id}')
+      ..writeln('- File: ${node.file}');
+    if (node.tags.isNotEmpty) text.writeln('- Tags: ${node.tags.join(' ')}');
+    text
+      ..writeln('- Links to: ${linksTo.isEmpty ? 'none' : linksTo.map(ref).join(', ')}')
+      ..writeln('- Linked from: '
+          '${linkedFrom.isEmpty ? 'none' : linkedFrom.map(ref).join(', ')}')
+      ..writeln()
+      ..writeln(body == null ? '(The file could not be read.)' : '```org')
+      ..write(body == null ? '' : '${body.trimRight()}\n```\n');
   }
   return text.toString();
 }

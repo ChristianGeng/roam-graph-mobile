@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:roam_graph_mobile/capture/share_inbox.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
 import 'package:roam_graph_mobile/search/search_screen.dart';
@@ -11,6 +12,7 @@ Future<MemoryNodeMemory> open(
   WidgetTester tester, {
   RoamGraph? of,
   void Function(BuildContext, String)? onShowInGraph,
+  TextSharer? shareText,
 }) async {
   final memory = MemoryNodeMemory();
   await tester.pumpWidget(MaterialApp(
@@ -19,6 +21,7 @@ Future<MemoryNodeMemory> open(
       readNote: (path) async => 'Text of $path.',
       nodeMemory: memory,
       onShowInGraph: onShowInGraph,
+      shareText: shareText ?? (text, {subject}) async {},
     ),
   ));
   await tester.pumpAndSettle();
@@ -118,5 +121,34 @@ void main() {
   testWidgets('without the graph view, no "Show in graph"', (tester) async {
     await open(tester);
     expect(find.byTooltip('Show in graph'), findsNothing);
+  });
+
+  testWidgets('long-press selects nodes; they are shared together (#41)',
+      (tester) async {
+    final shared = <String>[];
+    await open(tester,
+        shareText: (text, {subject}) async => shared.add(text));
+    expect(find.byTooltip('Share with AI'), findsNothing);
+
+    await tester.longPress(find.text('Flutter and Dart'));
+    await tester.pump();
+    // While selecting, a tap adds a node instead of opening it.
+    await tester.tap(find.text('Emacs Lisp basics'));
+    await tester.pump();
+    expect(find.byType(NodeScreen), findsNothing);
+    await tester.tap(find.byTooltip('Share with AI'));
+    await tester.pump();
+
+    final text = shared.single;
+    expect(text, startsWith('# 2 notes from my org-roam graph'));
+    expect(text, contains('## Flutter and Dart'));
+    expect(text, contains('## Emacs Lisp basics'));
+    expect(text, contains('Text of flutter.org.'));
+
+    // A long press again unselects.
+    await tester.longPress(find.text('Flutter and Dart'));
+    await tester.longPress(find.text('Emacs Lisp basics'));
+    await tester.pump();
+    expect(find.byTooltip('Share with AI'), findsNothing);
   });
 }

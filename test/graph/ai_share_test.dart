@@ -49,4 +49,41 @@ void main() {
     expect(lines.sublist(start + 1).where((l) => l.isNotEmpty),
         ['n1 -> n2', 'n2 -> n1']);
   });
+
+  group('nodes with their texts (#41)', () {
+    const file = '#+title: F\n* A\n:PROPERTIES:\n:ID: a\n:END:\nText of A.\n'
+        '** Inner\nMore of A.\n* B\nText of B.\n';
+
+    test('a heading node: its heading and subtree', () {
+      const a = RoamNode(id: 'a', file: 'f.org', level: 1, title: 'A', line: 2);
+      expect(nodeText(a, file),
+          '* A\n:PROPERTIES:\n:ID: a\n:END:\nText of A.\n** Inner\nMore of A.');
+      const f = RoamNode(id: 'f', file: 'f.org', level: 0, title: 'F', line: 1);
+      expect(nodeText(f, file), file);
+    });
+
+    test('ID, file, tags, links, backlinks and the Org text', () {
+      final text = nodesForAi(graph, [(graph.nodes['id-a']!, 'Body of a.')]);
+      expect(text, startsWith('# A note from my org-roam graph\n'));
+      expect(text, contains('[[id:<ID>][<title>]]'));
+      expect(text, contains('## alpha\n\n- ID: id-a\n- File: id-a.org\n'));
+      expect(text, contains('- Links to: [[id:id-b][Beta]]\n'));
+      expect(text, contains('- Linked from: [[id:id-b][Beta]]\n'));
+      expect(text, contains('```org\nBody of a.\n```\n'));
+    });
+
+    test('several nodes, tags, and a file that could not be read', () {
+      final text = nodesForAi(graph, [
+        (graph.nodes['id-b']!, 'B text'),
+        (graph.nodes['id-c']!, null),
+      ]);
+      expect(text, startsWith('# 2 notes from my org-roam graph\n'));
+      expect(text, contains('- Tags: x y\n'));
+      // b links to a twice and to a missing ID.
+      expect(text, contains('- Links to: [[id:id-a][alpha]], [[id:gone]]\n'));
+      expect(text, contains('## Gamma note\n'));
+      expect(text, contains('- Links to: none\n- Linked from: none\n'));
+      expect(text, contains('(The file could not be read.)'));
+    });
+  });
 }
