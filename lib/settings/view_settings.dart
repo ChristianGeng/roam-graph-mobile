@@ -45,35 +45,69 @@ enum SectionsOnOpen {
 
 /// The settings for showing notes.
 class ViewSettings {
-  const ViewSettings({this.sectionsOnOpen = SectionsOnOpen.collapsed});
+  const ViewSettings({
+    this.sectionsOnOpen = SectionsOnOpen.collapsed,
+    this.graphShare = defaultGraphShare,
+    this.graphCollapsed = false,
+  });
+
+  /// The graph's share of the width on a tablet in landscape (#69): 40 %,
+  /// so the note gets 60 %.
+  static const defaultGraphShare = 0.4;
 
   /// By default [SectionsOnOpen.collapsed]: on a phone, the headings first.
   final SectionsOnOpen sectionsOnOpen;
 
-  ViewSettings copyWith({SectionsOnOpen? sectionsOnOpen}) =>
-      ViewSettings(sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen);
+  /// The graph's share of the width beside a note (#69), from 0 to 1.
+  final double graphShare;
 
-  Map<String, Object?> toJson() => {'sectionsOnOpen': sectionsOnOpen.name};
+  /// Whether the graph is folded away beside a note (#69).
+  final bool graphCollapsed;
+
+  ViewSettings copyWith({
+    SectionsOnOpen? sectionsOnOpen,
+    double? graphShare,
+    bool? graphCollapsed,
+  }) =>
+      ViewSettings(
+        sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
+        graphShare: graphShare ?? this.graphShare,
+        graphCollapsed: graphCollapsed ?? this.graphCollapsed,
+      );
+
+  Map<String, Object?> toJson() => {
+        'sectionsOnOpen': sectionsOnOpen.name,
+        'graphShare': graphShare,
+        'graphCollapsed': graphCollapsed,
+      };
 
   /// Settings from [json]; a missing or unknown value keeps its default.
   factory ViewSettings.fromJson(Object? json) {
     const defaults = ViewSettings();
     if (json is! Map) return defaults;
     final sections = json['sectionsOnOpen'];
+    final share = json['graphShare'];
     return ViewSettings(
       sectionsOnOpen: SectionsOnOpen.values
               .where((value) => value.name == sections)
               .firstOrNull ??
           defaults.sectionsOnOpen,
+      graphShare: share is num && share > 0 && share < 1
+          ? share.toDouble()
+          : defaults.graphShare,
+      graphCollapsed: json['graphCollapsed'] == true,
     );
   }
 
   @override
   bool operator ==(Object other) =>
-      other is ViewSettings && other.sectionsOnOpen == sectionsOnOpen;
+      other is ViewSettings &&
+      other.sectionsOnOpen == sectionsOnOpen &&
+      other.graphShare == graphShare &&
+      other.graphCollapsed == graphCollapsed;
 
   @override
-  int get hashCode => sectionsOnOpen.hashCode;
+  int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed);
 }
 
 /// Loads and saves [ViewSettings]. An interface so screens can be tested
@@ -273,9 +307,21 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _save(BuildContext context, ViewSettings settings) async {
+    try {
+      await ViewSettingsScope.change(context, settings);
+    } on Exception catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not save the setting: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final current = ViewSettingsScope.of(context).sectionsOnOpen;
+    final settings = ViewSettingsScope.of(context);
+    final current = settings.sectionsOnOpen;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
@@ -298,6 +344,34 @@ class SettingsScreen extends StatelessWidget {
                     subtitle: Text(value.description),
                   ),
               ],
+            ),
+          ),
+          const Divider(),
+          ListTile(
+            key: const ValueKey('settings-graph-width'),
+            title: const Text('Graph width on the tablet'),
+            subtitle: Text(
+              settings.graphCollapsed
+                  ? 'The graph is folded away beside a note. Drag the '
+                      'divider, or tap the strip, to change it.'
+                  : 'Graph ${(settings.graphShare * 100).round()} %, note '
+                      '${100 - (settings.graphShare * 100).round()} %. Drag '
+                      'the divider between them to change it.',
+            ),
+            trailing: TextButton(
+              key: const ValueKey('settings-graph-width-reset'),
+              onPressed: settings.graphShare ==
+                          ViewSettings.defaultGraphShare &&
+                      !settings.graphCollapsed
+                  ? null
+                  : () => _save(
+                        context,
+                        settings.copyWith(
+                          graphShare: ViewSettings.defaultGraphShare,
+                          graphCollapsed: false,
+                        ),
+                      ),
+              child: const Text('Reset'),
             ),
           ),
           const Divider(),

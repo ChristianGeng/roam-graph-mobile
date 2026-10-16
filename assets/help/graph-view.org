@@ -10,6 +10,9 @@ drawn, as in ~org-roam-graph~.
 
 - *Tap* a node to select it and open it. On a tablet held sideways the
   note opens beside the graph; otherwise on its own page.
+- *On a tablet held sideways*, drag the divider between graph and note to
+  share the width, double-tap it for 40 : 60 again, or fold the graph away
+  with its arrow button. The app remembers the layout.
 - *Pinch and drag* to zoom and move. Titles show once they are large enough
   to read.
 - *Search* (the magnifier) finds notes by title, alias and tag.

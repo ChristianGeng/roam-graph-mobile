@@ -1225,6 +1225,28 @@ devices through Syncthing.
       no previous changelog, nothing new, no entries, and the headings of
       the repository's own changelog).
 
+49. **On a tablet in landscape, the split is mine to set** (#69),
+    `lib/graph_view/two_panes.dart`. Decision 29 put graph and note side
+    by side at 3 : 2; the note was narrow to read.
+    - **A divider to drag**, between the panes: a thin line with a drag
+      handle, in a touch area 24 pixels wide. It follows the finger from
+      where it touched. The graph keeps at least 240 pixels and the note
+      320.
+    - **Fold the graph:** a button on the graph folds it into a 48-pixel
+      strip, and the strip's button unfolds it at the width it had.
+      Dragging the divider past half the graph's minimum folds it too.
+      "Show in graph" from the note unfolds it. While it is folded, links
+      in the note open in the note pane as before; the graph keeps its
+      centre and, unfolded, is centred on the current note.
+    - **The default** is 40 % graph, 60 % note. A double tap on the
+      divider restores it, unfolded.
+    - **Remembered** in the view settings (`view-settings.json`, decision
+      43): the graph's share and whether it is folded; they survive a
+      restart. A drag is saved when the finger lifts, not on every move.
+    - **Settings:** "Graph width on the tablet" shows the share, or that
+      the graph is folded, with "Reset".
+    - On a phone, and in portrait, nothing changes: one screen at a time.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

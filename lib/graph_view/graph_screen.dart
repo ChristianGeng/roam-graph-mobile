@@ -19,6 +19,7 @@ import '../node_view/node_screen.dart';
 import '../search/search_screen.dart';
 import '../settings/view_settings.dart';
 import 'node_memory.dart';
+import 'two_panes.dart';
 import '../node_view/note_images.dart';
 
 /// Computes a layout; by default on another isolate.
@@ -539,6 +540,12 @@ class _GraphScreenState extends State<GraphScreen> {
     Navigator.of(nodeContext).popUntil((r) => r == route);
     if (!mounted || !_graph.nodes.containsKey(id)) return;
     setState(() => _select(id));
+    // A graph folded away beside the note unfolds (#69).
+    final view = ViewSettingsScope.of(context);
+    if (view.graphCollapsed && isTwoPane(MediaQuery.sizeOf(context))) {
+      ViewSettingsScope.change(context, view.copyWith(graphCollapsed: false))
+          .catchError((Object _) {});
+    }
     if (_choice == _ScopeChoice.whole) {
       _centreView();
     } else {
@@ -790,13 +797,9 @@ class _GraphScreenState extends State<GraphScreen> {
       ),
       body: !twoPane || paneId == null
           ? graph
-          : Row(
-              children: [
-                Expanded(flex: 3, child: graph),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  flex: 2,
-                  child: NodeScreen(
+          : TwoPanes(
+              graph: graph,
+              note: NodeScreen(
                     key: const ValueKey('node-pane'),
                     graph: widget.graph,
                     id: paneId,
@@ -810,8 +813,6 @@ class _GraphScreenState extends State<GraphScreen> {
                     writer: widget.writer,
                     shareText: widget.shareText,
                   ),
-                ),
-              ],
             ),
     );
   }
