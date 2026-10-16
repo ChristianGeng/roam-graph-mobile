@@ -137,7 +137,7 @@ packages:
     source: sdk
     version: "0.0.0"
   flutter_tex_js:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: flutter_tex_js
       sha256: "56a7a716d617c17797a3ff98458c0039c64db643f67577fe6466b77e03b93e3a"

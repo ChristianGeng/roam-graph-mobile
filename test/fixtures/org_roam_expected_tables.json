@@ -57,6 +57,11 @@
     "\"c655d06f57e1caba2e19db695a85f3b1ae616668\""
    ],
    [
+    "\"{roam}/20240112120000-mu.org\"",
+    "\"Mu\"",
+    "\"2bb36033cbd367ada17a7ed5862fdbdf4c7af765\""
+   ],
+   [
     "\"{roam}/edge/aliases-refs-filetags.org\"",
     "\"\"",
     "\"1c4c91337cb2701218c98c6501451777adb64731\""
@@ -312,6 +317,19 @@
     null,
     "\"First heading is a node\"",
     "((\"CATEGORY\" . \"20240111120000-lambda\") (\"ROAM_REFS\" . \"\\\"https://example.com/with space\\\" cite:unregistered @key]\") (\"ID\" . \"11111111-1111-4111-8111-000000000012\") (\"BLOCKED\" . \"\") (\"ALLTAGS\" . \":first:\") (\"TAGS\" . \":first:\") (\"FILE\" . \"{roam}/20240111120000-lambda.org\") (\"PRIORITY\" . \"B\") (\"ITEM\" . \"First heading is a node\"))",
+    null
+   ],
+   [
+    "\"11111111-1111-4111-8111-000000000013\"",
+    "\"{roam}/20240112120000-mu.org\"",
+    0,
+    1,
+    null,
+    null,
+    null,
+    null,
+    "\"Mu\"",
+    "((\"CATEGORY\" . \"20240112120000-mu\") (\"ID\" . \"11111111-1111-4111-8111-000000000013\") (\"BLOCKED\" . \"\") (\"FILE\" . \"{roam}/20240112120000-mu.org\") (\"PRIORITY\" . \"B\"))",
     null
    ],
    [
