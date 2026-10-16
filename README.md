@@ -26,7 +26,10 @@ without one is drawn on the device (#49). Notes with a tag such as
 `:private:` are never shared with an AI, and private headings and titles
 are left out of the notes that are (#57). Notes open with their sections
 collapsed, a setting that can also show all headings or everything; a
-note's own `#+STARTUP:` line comes first (#63). What is decided and why is in
+note's own `#+STARTUP:` line comes first (#63). The tools of my org-roam
+MCP server (search, backlinks, paths, PageRank, communities and the
+others) run on the app's own index, for an AI chat in the app (#58). What
+is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 
