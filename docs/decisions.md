@@ -728,7 +728,11 @@ devices through Syncthing.
       formulas. `org_parser` reads them as inline fragments, which
       `org_flutter` renders in text mode (smaller, in the line). The app
       turns each into a LaTeX block after parsing, which `org_flutter`
-      renders in display mode: on its own line, centred. `\( ... \)` and
+      renders in display mode: in display style (larger sums, integrals
+      and fractions), on its own line, at its start. It is not centred:
+      Emacs shows a preview image at the formula's place, and Org 9.7.39
+      has no option to centre previews (`org-format-latex-options` has no
+      `:justify`). `\( ... \)` and
       `$ ... $` stay inline; `\begin{equation}` and other environments were
       already blocks.
     - **Colour:** a formula takes the text colour, so it is light on a dark

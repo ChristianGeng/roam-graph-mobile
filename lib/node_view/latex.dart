@@ -5,8 +5,10 @@ import 'package:org_flutter/org_flutter.dart';
 const displayFormulaDelimiters = {r'\[', r'$$'};
 
 /// [document] with each display formula ([displayFormulaDelimiters]) as a
-/// LaTeX block, so `org_flutter` renders it in display mode: on its own
-/// line, centred and larger, as in LaTeX (#50). `org_parser` reads display
+/// LaTeX block, so `org_flutter` renders it in display mode (#50): in
+/// display style (larger sums, integrals and fractions), on its own line,
+/// at its start. Emacs shows a preview at the formula's place, not centred
+/// (Org 9.7 has no option to centre previews). `org_parser` reads display
 /// formulas as inline fragments, and `org_flutter` renders every inline
 /// fragment in text mode.
 ///
