@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 
@@ -224,11 +225,17 @@ class _NodeScreenState extends State<NodeScreen> {
   /// links and backlinks.
   Future<void> _shareWithAi(RoamNode node) async {
     final file = await _text;
-    await widget.shareText(
-      nodesForAi(widget.graph.value,
-          [(node, file == null ? null : nodeText(node, file))]),
-      subject: node.displayTitle,
-    );
+    final text = nodesForAi(widget.graph.value, [(node, file)]);
+    if (text.length > maxShareLength) {
+      _tell('This note is too large to share at once '
+          '(${text.length ~/ 1000} KB).');
+      return;
+    }
+    try {
+      await widget.shareText(text, subject: node.displayTitle);
+    } on PlatformException catch (e) {
+      if (mounted) _tell('Could not share the note: ${e.message ?? e.code}');
+    }
   }
 
   void _tell(String message) {

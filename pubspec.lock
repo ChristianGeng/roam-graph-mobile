@@ -313,7 +313,7 @@ packages:
     source: hosted
     version: "13.4.2"
   org_parser:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: org_parser
       sha256: "561fd1f1cbb930fb5d0811bdd107278171910be1f199478f3660df2cc4b010d3"

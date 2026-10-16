@@ -51,15 +51,15 @@ void main() {
   });
 
   group('nodes with their texts (#41)', () {
-    const file = '#+title: F\n* A\n:PROPERTIES:\n:ID: a\n:END:\nText of A.\n'
+    const sampleFile = '#+title: F\n* A\n:PROPERTIES:\n:ID: a\n:END:\nText of A.\n'
         '** Inner\nMore of A.\n* B\nText of B.\n';
 
     test('a heading node: its heading and subtree', () {
       const a = RoamNode(id: 'a', file: 'f.org', level: 1, title: 'A', line: 2);
-      expect(nodeText(a, file),
+      expect(nodeText(a, sampleFile),
           '* A\n:PROPERTIES:\n:ID: a\n:END:\nText of A.\n** Inner\nMore of A.');
       const f = RoamNode(id: 'f', file: 'f.org', level: 0, title: 'F', line: 1);
-      expect(nodeText(f, file), file);
+      expect(nodeText(f, sampleFile), sampleFile);
     });
 
     test('ID, file, tags, links, backlinks and the Org text', () {
@@ -70,6 +70,45 @@ void main() {
       expect(text, contains('- Links to: [[id:id-b][Beta]]\n'));
       expect(text, contains('- Linked from: [[id:id-b][Beta]]\n'));
       expect(text, contains('```org\nBody of a.\n```\n'));
+    });
+
+    test('the heading is found by its ID, not by the indexed line', () {
+      // Indexed on line 2; lines were added above it since.
+      const a = RoamNode(id: 'a', file: 'f.org', level: 1, title: 'A', line: 2);
+      expect(nodeText(a, 'New line.\nAnother.\n$sampleFile'),
+          startsWith('* A\n:PROPERTIES:\n:ID: a\n:END:\nText of A.'));
+      // Gone from the file: nothing, rather than another note's text.
+      expect(nodeText(a, '#+title: F\n* B\nText of B.\n'), isNull);
+      final graphA = RoamGraph.fromFiles([
+        const RoamFileData(path: 'f.org', nodes: [a]),
+      ]);
+      expect(nodesForAi(graphA, [(a, '* B\n')]),
+          contains('(The heading is no longer in f.org; the file changed'));
+    });
+
+    test('a heading line inside a block ends the subtree, as in Org', () {
+      // Org reads "* x" at the start of a line as a heading, also inside
+      // a block (Org escapes such lines with a comma), as the node view
+      // does with the same parser.
+      const a = RoamNode(id: 'a', file: 'f.org', level: 1, title: 'A', line: 1);
+      const text = '* A\n:PROPERTIES:\n:ID: a\n:END:\n#+begin_src org\n'
+          '* inner\n#+end_src\nAfter.\n* B\n';
+      expect(nodeText(a, text),
+          '* A\n:PROPERTIES:\n:ID: a\n:END:\n#+begin_src org');
+    });
+
+    test('a fence longer than any backticks in the text', () {
+      final text = nodesForAi(graph, [(graph.nodes['id-a']!, 'Code:\n```\nx\n```')]);
+      expect(text, contains('````org\nCode:\n```\nx\n```\n````\n'));
+    });
+
+    test('links to titles with brackets are escaped as Org writes them', () {
+      final g = RoamGraph.fromFiles([
+        file('p', 'Plan', to: ['d']),
+        file('d', 'Draft [2]'),
+      ]);
+      expect(nodesForAi(g, [(g.nodes['p']!, 'x')]),
+          contains('- Links to: [[id:d][Draft [2]​]]\n'));
     });
 
     test('several nodes, tags, and a file that could not be read', () {

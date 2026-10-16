@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../capture/capture_screen.dart';
@@ -92,15 +93,25 @@ class _SearchScreenState extends State<SearchScreen> {
     final nodes = [
       for (final id in _selected) ?graph.nodes[id],
     ];
-    final texts = <(RoamNode, String?)>[
-      for (final node in nodes)
-        (node, switch (await widget.readNote(node.file)) {
-          final file? => nodeText(node, file),
-          null => null,
-        }),
+    final files = <(RoamNode, String?)>[
+      for (final node in nodes) (node, await widget.readNote(node.file)),
     ];
-    await widget.shareText(nodesForAi(graph, texts),
-        subject: nodes.length == 1 ? nodes.single.displayTitle : null);
+    final text = nodesForAi(graph, files);
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (text.length > maxShareLength) {
+      messenger.showSnackBar(SnackBar(
+          content: Text('These ${nodes.length} notes are too large to share '
+              'at once (${text.length ~/ 1000} KB). Select fewer.')));
+      return;
+    }
+    try {
+      await widget.shareText(text,
+          subject: nodes.length == 1 ? nodes.single.displayTitle : null);
+    } on PlatformException catch (e) {
+      messenger.showSnackBar(SnackBar(
+          content: Text('Could not share the notes: ${e.message ?? e.code}')));
+    }
   }
 
   @override

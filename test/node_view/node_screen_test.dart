@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/capture/share_inbox.dart';
 import 'package:roam_graph_mobile/graph/org_roam_parser.dart';
@@ -256,6 +257,15 @@ void main() {
     expect(text, contains('Deeper text.'));
     expect(text, isNot(contains('Top text of B.')));
     expect(text, isNot(contains('Other text')));
+  });
+
+  testWidgets('a share that fails says so', (tester) async {
+    await open(tester, 'a',
+        shareText: (text, {subject}) async =>
+            throw PlatformException(code: 'x', message: 'no app'));
+    await tester.tap(find.byTooltip('Share with AI'));
+    await tester.pump();
+    expect(find.text('Could not share the note: no app'), findsOneWidget);
   });
 
   testWidgets('a file that cannot be read', (tester) async {
