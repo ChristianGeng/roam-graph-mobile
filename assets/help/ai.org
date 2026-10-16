@@ -1,0 +1,34 @@
+:PROPERTIES:
+:ID:       roam-graph-help-ai
+:END:
+#+title: AI: sharing, hidden notes and the chat
+#+STARTUP: showall
+
+* Hidden from AI
+Notes with a tag such as ~:private:~ are never shown to an AI: not in a
+share, not to the chat. Headings with such a tag are left out of the notes
+that are. Set the tags in [[id:roam-graph-help-settings][Settings]], under
+AI.
+
+* Sharing with an AI app
+- *Share graph with AI* (the graph's "More" menu) sends the structure of
+  the graph: titles, IDs, tags and links, without texts.
+- *Share with AI* (a note's AI menu, or several notes selected in search
+  with a long press) sends the notes with their texts and links.
+An AI app's answer can come back as a new note: share it to Roam Graph
+([[id:roam-graph-help-capture][Capture and shared text]]).
+
+* The AI chat
+*Ask AI* (the graph's "More" menu, or a note's AI menu) opens a chat. The
+AI reads the notes itself, with the tools of my org-roam MCP server:
+search, read, backlinks, paths and the
+[[id:roam-graph-help-algorithms][graph algorithms]]. The tool calls show in
+the chat; ~id:~ links in answers open the note; "Save as new node" turns an
+answer into a note after I review it.
+
+The chat needs a provider and a key, set under AI in
+[[id:roam-graph-help-settings][Settings]]. The app goes online only for the
+chat, and only when I send a message: my message and the notes the AI
+reads go to that provider. Each provider's note says where the data goes;
+some keep it in the EU. Where the provider has a stronger model, the chat
+can switch to it.

@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../ai/ai_settings.dart';
 import '../ai/chat_screen.dart';
+import '../help/help.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/ai_share.dart';
@@ -131,7 +132,9 @@ enum _MoreAction {
   force,
   share,
   askAi,
-  settings;
+  settings,
+  helpLayouts,
+  help;
 
   static _MoreAction layoutOf(LayoutKind kind) =>
       kind == LayoutKind.circo ? circo : force;
@@ -581,6 +584,10 @@ class _GraphScreenState extends State<GraphScreen> {
         );
       case _MoreAction.settings:
         SettingsScreen.open(context);
+      case _MoreAction.helpLayouts:
+        openHelp(context, id: helpLayouts);
+      case _MoreAction.help:
+        openHelp(context);
       case _MoreAction.circo || _MoreAction.force:
         _kind = action == _MoreAction.circo ? LayoutKind.circo : LayoutKind.force;
         _update();
@@ -706,14 +713,22 @@ class _GraphScreenState extends State<GraphScreen> {
                 PopupMenuItem(value: choice, child: Text(choice.label)),
             ],
           ),
-          PopupMenuButton<_GraphView>(
+          PopupMenuButton<Object>(
             tooltip: 'View',
             icon: const Icon(Icons.insights_outlined),
             initialValue: _view,
-            onSelected: _showView,
+            onSelected: (value) => value is _GraphView
+                ? _showView(value)
+                : openHelp(context, id: helpViews),
             itemBuilder: (context) => [
               for (final view in _GraphView.values)
                 PopupMenuItem(value: view, child: Text(view.label)),
+              const PopupMenuDivider(),
+              // The "?" of the views (#62).
+              const PopupMenuItem(
+                value: 'help',
+                child: _HelpLabel('About the views'),
+              ),
             ],
           ),
           // Less used actions, so the bar fits a phone held upright.
@@ -729,6 +744,11 @@ class _GraphScreenState extends State<GraphScreen> {
                   checked: kind == _kind,
                   child: Text(kind.label),
                 ),
+              // The "?" next to the layout switch (#62).
+              const PopupMenuItem(
+                value: _MoreAction.helpLayouts,
+                child: _HelpLabel('About the layouts'),
+              ),
               PopupMenuItem(
                 value: _MoreAction.share,
                 enabled: _graph.nodes.isNotEmpty,
@@ -741,6 +761,10 @@ class _GraphScreenState extends State<GraphScreen> {
               const PopupMenuItem(
                 value: _MoreAction.settings,
                 child: Text('Settings'),
+              ),
+              const PopupMenuItem(
+                value: _MoreAction.help,
+                child: Text('Help'),
               ),
             ],
           ),
@@ -1093,4 +1117,20 @@ class _ViewOverlay {
   /// Radius of each node, relative to the plain radius.
   final Map<String, double>? sizes;
   final List<String>? path;
+}
+
+/// A menu entry that opens a help page: a "?" and its label.
+class _HelpLabel extends StatelessWidget {
+  const _HelpLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          const Icon(Icons.help_outline, size: 20),
+          const SizedBox(width: 12),
+          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+        ],
+      );
 }

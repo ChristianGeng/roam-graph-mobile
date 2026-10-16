@@ -52,6 +52,7 @@ class NodeScreen extends StatefulWidget {
     this.onBack,
     this.writer,
     this.shareText = shareTextOut,
+    this.help = false,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -82,6 +83,10 @@ class NodeScreen extends StatefulWidget {
   /// Sends text to an AI app (#41); tests replace it.
   final TextSharer shareText;
 
+  /// A help page (#62): no search and no AI menu, which would act on the
+  /// help instead of my notes.
+  final bool help;
+
   /// Shows the node [id] in the graph view (#6); the button is hidden when
   /// null.
   final void Function(BuildContext context, String id)? onShowInGraph;
@@ -98,6 +103,7 @@ class NodeScreen extends StatefulWidget {
     NoteOpener? openInOrgro,
     NoteWriter? writer,
     TextSharer shareText = shareTextOut,
+    bool help = false,
   }) {
     nodeMemory.remember(id);
     return Navigator.push(
@@ -113,6 +119,7 @@ class NodeScreen extends StatefulWidget {
           openInOrgro: openInOrgro,
           writer: writer,
           shareText: shareText,
+          help: help,
         ),
       ),
     );
@@ -206,6 +213,7 @@ class _NodeScreenState extends State<NodeScreen> {
       openInOrgro: widget.openInOrgro,
       writer: widget.writer,
       shareText: widget.shareText,
+      help: widget.help,
     );
   }
 
@@ -317,6 +325,7 @@ class _NodeScreenState extends State<NodeScreen> {
               ),
         title: Text(node?.displayTitle ?? 'Node'),
         actions: [
+          if (!widget.help)
           IconButton(
             tooltip: 'Search',
             icon: const Icon(Icons.search),
@@ -334,7 +343,7 @@ class _NodeScreenState extends State<NodeScreen> {
             ),
           ),
           // The AI actions in one menu, so the bar fits a phone.
-          if (node != null)
+          if (node != null && !widget.help)
             PopupMenuButton<_AiAction>(
               tooltip: 'AI',
               icon: const Icon(Icons.auto_awesome_outlined),

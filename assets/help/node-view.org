@@ -1,0 +1,26 @@
+:PROPERTIES:
+:ID:       roam-graph-help-node-view
+:END:
+#+title: The node view
+#+STARTUP: showall
+
+Shows a note as formatted Org: a whole file, or a heading with its subtree.
+
+- *Links*: an ~id:~ link opens the linked note on a new page; Back
+  returns. Other links are shown but not opened.
+- *Backlinks*: below the text, every link to this note, with where in the
+  linking note it is.
+- *Sections* open collapsed or expanded, as set in
+  [[id:roam-graph-help-settings][Settings]]; a note's own ~#+STARTUP:~
+  line comes first. Tap a heading to open or close it.
+- *Images* from the notes folder show at their Org width; tap one to zoom.
+  SVG is drawn too. Web images stay links: the app reads only the folder.
+- *LaTeX* formulas are rendered; ~\[ \]~ and ~$$ $$~ on their own line.
+- *Mermaid* blocks show the image Emacs made; a block without one is drawn
+  on the device, marked as such.
+- *Source blocks* are coloured as Emacs colours them.
+- *Open in Orgro* hands the file to Orgro, to read or edit it there.
+- *Show in graph* returns to the graph, centred on this note.
+- *New node from here* writes a new note linking to this one; see
+  [[id:roam-graph-help-capture][Capture]].
+- The *AI* menu: see [[id:roam-graph-help-ai][AI]].
