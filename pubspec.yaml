@@ -33,6 +33,8 @@ dependencies:
   # laid out in Dart, drawn with a CustomPainter; no WebView.
   mermaid_flutter: ^0.3.0
   mermaid_core: ^0.3.0
+  # API keys of the AI chat (#59), in Android's Keystore-backed storage.
+  flutter_secure_storage: ^11.2.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

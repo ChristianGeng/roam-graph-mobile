@@ -14,6 +14,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../ai/ai_settings.dart';
+
 /// How far a note's sections are open when the note opens: the values
 /// Org's `#+STARTUP:` keyword has for this.
 enum SectionsOnOpen {
@@ -297,6 +299,18 @@ class SettingsScreen extends StatelessWidget {
                   ),
               ],
             ),
+          ),
+          const Divider(),
+          // The AI settings keep their own file, with the keys in secure
+          // storage (decision 45); this is the way to them.
+          ListTile(
+            key: const ValueKey('settings-ai'),
+            leading: const Icon(Icons.auto_awesome_outlined),
+            title: const Text('AI'),
+            subtitle: const Text('Notes hidden from AI, and the provider, '
+                'model and key of the AI chat'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => AiSettingsScreen.open(context),
           ),
         ],
       ),

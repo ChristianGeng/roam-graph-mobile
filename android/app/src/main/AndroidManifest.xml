@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Only for the AI chat (#59, decision 45): requests go to the chosen
+         provider when a message is sent, never in the background. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Roam Graph"
         android:name="${applicationName}"

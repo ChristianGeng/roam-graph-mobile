@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:roam_graph_mobile/ai/ai_providers.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
@@ -39,10 +41,30 @@ class MemoryAiSettingsStore implements AiSettingsStore {
 
 typedef Shared = List<(String, String?)>;
 
+/// Scrolls the settings page until [finder] is built and on screen.
+Future<void> scrollTo(WidgetTester tester, Finder finder) async {
+  await tester.scrollUntilVisible(finder, 200,
+      scrollable: find.byType(Scrollable).first);
+  await tester.pumpAndSettle();
+}
+
+/// API keys in memory.
+class MemoryKeyStore implements ApiKeyStore {
+  final keys = <String, String>{};
+
+  @override
+  Future<String?> read(String provider) async => keys[provider];
+
+  @override
+  Future<void> write(String provider, String key) async =>
+      key.isEmpty ? keys.remove(provider) : keys[provider] = key;
+}
+
 Future<void> pumpIn(WidgetTester tester, Widget home,
-    {AiSettingsStore? store}) async {
+    {AiSettingsStore? store, ApiKeyStore? keys}) async {
   await tester.pumpWidget(AiSettingsHost(
     store: store ?? MemoryAiSettingsStore(),
+    keys: keys ?? MemoryKeyStore(),
     child: MaterialApp(home: home),
   ));
   await tester.pumpAndSettle();
@@ -314,9 +336,131 @@ void main() {
 
       await tester.tap(find.byTooltip('More'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('AI settings'));
+      // The AI settings are under Settings (#63's page).
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('settings-ai')));
       await tester.pumpAndSettle();
       expect(find.byType(AiSettingsScreen), findsOneWidget);
+    });
+  });
+
+  group('providers (#59)', () {
+    test('saved provider values come back; unknown ones keep defaults', () {
+      final settings = AiSettings(
+        provider: 'mistral',
+        providers: {
+          'mistral': ProviderSettings.of(presetById('mistral')),
+          'custom': const ProviderSettings(
+              api: ApiKind.anthropic,
+              baseUrl: 'http://192.168.1.5:11434',
+              defaultModel: 'local',
+              strongModel: ''),
+        },
+        maxToolRounds: 4,
+        maxOutputTokens: 2000,
+      );
+      final back = AiSettings.fromJson(jsonDecode(jsonEncode(settings.toJson())));
+      expect(back.provider, 'mistral');
+      expect(back.providerSettings().defaultModel, 'mistral-large-4');
+      expect(back.providerSettings('custom').api, ApiKind.anthropic);
+      expect(back.providerSettings('custom').baseUrl, 'http://192.168.1.5:11434');
+      expect(back.maxToolRounds, 4);
+      expect(back.maxOutputTokens, 2000);
+      // Only Custom can change the API; a preset keeps its own.
+      final odd = AiSettings.fromJson({
+        'provider': 'gone',
+        'providers': {
+          'mistral': {'api': 'anthropic'},
+        },
+        'maxToolRounds': -1,
+      });
+      expect(odd.provider, 'anthropic');
+      expect(odd.providerSettings('mistral').api, ApiKind.openAi);
+      expect(odd.maxToolRounds, 10);
+    });
+
+    test('the config takes the key, and the strong model on request',
+        () async {
+      final keys = MemoryKeyStore()..keys['anthropic'] = 'sk';
+      const settings = AiSettings();
+      final normal = await providerConfig(settings, keys);
+      expect(normal.model, 'claude-sonnet-5-5');
+      expect(normal.apiKey, 'sk');
+      expect(normal.maxOutputTokens, 8192);
+      expect((await providerConfig(settings, keys, strong: true)).model,
+          'claude-opus-5-5');
+      final mistral = await providerConfig(
+          settings.copyWith(provider: 'mistral'), keys, strong: true);
+      // No strong model: the default.
+      expect(mistral.model, 'mistral-large-4');
+      expect(mistral.apiKey, '');
+      final vercel =
+          await providerConfig(settings.copyWith(provider: 'vercel'), keys);
+      expect(vercel.euOnly, isTrue);
+    });
+
+    testWidgets('choosing a provider, its note, its key', (tester) async {
+      final store = MemoryAiSettingsStore();
+      final keys = MemoryKeyStore();
+      await pumpIn(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => AiSettingsScreen.open(context),
+            child: const Text('open'),
+          ),
+        ),
+        store: store,
+        keys: keys,
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.byKey(const ValueKey('provider-note')));
+      expect(find.text('Data stays in the EU'), findsOneWidget);
+      expect(find.textContaining('Safe default (Sonnet 5.5)'), findsOneWidget);
+
+      await scrollTo(tester, find.byKey(const ValueKey('provider-mistral')));
+      await tester.tap(find.byKey(const ValueKey('provider-mistral')));
+      await tester.pumpAndSettle();
+      await scrollTo(tester, find.byKey(const ValueKey('provider-note')));
+      expect(find.textContaining('Best value in the EU'), findsOneWidget);
+      final key = find.byKey(const ValueKey('api-key-mistral'));
+      await scrollTo(tester, key);
+      await tester.enterText(key, 'mi-key');
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(store.settings.provider, 'mistral');
+      expect(keys.keys, {'mistral': 'mi-key'});
+      // The key is not in the settings file.
+      expect(jsonEncode(store.settings.toJson()), isNot(contains('mi-key')));
+    });
+
+    testWidgets('a saved key is not shown, and can be removed',
+        (tester) async {
+      final keys = MemoryKeyStore()..keys['anthropic'] = 'sk-old';
+      await pumpIn(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => AiSettingsScreen.open(context),
+            child: const Text('open'),
+          ),
+        ),
+        keys: keys,
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('sk-old'), findsNothing);
+      final remove = find.text('Remove the saved key');
+      await scrollTo(tester, remove);
+      expect(find.text('A key is saved. Type a new one to replace it.'),
+          findsOneWidget);
+      await tester.tap(remove);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(keys.keys, isEmpty);
     });
   });
 }
