@@ -126,6 +126,45 @@ jobs:
           echo "name=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
           echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
+      - name: Write the release notes
+        # The CHANGELOG.md entries added since the previous published
+        # release, then the commit (tool/release_notes.dart, decision 48).
+        # The previous release is the newest published one built by an
+        # earlier run, so a re-run of an old run does not compare with a
+        # newer release. Its changelog is read through the API, so the
+        # shallow checkout is enough. Only a 404 means "no changelog there";
+        # any other failure stops the build, so no entry is left out.
+        if: env.IS_RELEASE == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ steps.version.outputs.code }}
+        run: |
+          previous=$(gh release list --limit 100 --exclude-drafts \
+            --json tagName --jq "[.[] | .tagName
+              | select(test(\"^v0\\\\.1\\\\.[0-9]+$\"))
+              | select((ltrimstr(\"v0.1.\") | tonumber) < $RUN)][0] // empty")
+          echo "Previous release: ${previous:-none}"
+          if [ -n "$previous" ]; then
+            status=0
+            gh api -H "Accept: application/vnd.github.raw" \
+              "repos/$GH_REPO/contents/CHANGELOG.md?ref=$previous" \
+              > "$RUNNER_TEMP/previous-changelog.md" \
+              2> "$RUNNER_TEMP/previous-changelog.err" || status=$?
+            if [ "$status" -ne 0 ]; then
+              rm -f "$RUNNER_TEMP/previous-changelog.md"
+              if ! grep -q 'HTTP 404' "$RUNNER_TEMP/previous-changelog.err"; then
+                cat "$RUNNER_TEMP/previous-changelog.err"
+                echo "::error::Could not read CHANGELOG.md of $previous."
+                exit 1
+              fi
+            fi
+          fi
+          dart tool/release_notes.dart "$RUNNER_TEMP/previous-changelog.md" \
+            CHANGELOG.md "${{ github.sha }}" > release-notes.md
+          cat release-notes.md
+
       - name: Load the release key
         if: env.IS_RELEASE == 'true'
         env:
@@ -168,7 +207,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: apk
-          path: roam-graph-*.apk
+          # release-notes.md exists only for a release.
+          path: |
+            roam-graph-*.apk
+            release-notes.md
           if-no-files-found: error
 
   org-roam:
@@ -210,7 +252,8 @@ jobs:
         # A new release starts as a draft with the APK attached and is
         # published only after that, so Obtainium never sees a release
         # without an APK. Safe to re-run: an existing release (draft or
-        # published) is reused, its APK replaced, and then published.
+        # published) is reused, its APK and text replaced, and then
+        # published. The text comes from CHANGELOG.md (decision 48).
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -219,11 +262,12 @@ jobs:
         run: |
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber
+            gh release edit "$TAG" --notes-file release-notes.md
           else
             gh release create "$TAG" "$APK" \
               --draft \
               --target "${{ github.sha }}" \
               --title "$TAG" \
-              --notes "Built from ${{ github.sha }}."
+              --notes-file release-notes.md
           fi
           gh release edit "$TAG" --draft=false

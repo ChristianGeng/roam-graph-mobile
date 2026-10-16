@@ -1151,6 +1151,46 @@ devices through Syncthing.
       `id:` link points to a help page and every page is linked; the help
       is not part of my graph; the entries open their pages, and a link
       between pages works.
+48. **A changelog, and release texts taken from it** (#70),
+    `CHANGELOG.md`, `tool/release_notes.dart`,
+    `.github/workflows/build.yml`, `.github/workflows/changelog.yml`.
+    - Every merge to `main` is a release, but its text was only "Built
+      from <sha>", so Obtainium showed updates without saying what
+      changed.
+    - **The file:** newest first, one entry per pull request, headed
+      `## YYYY-MM-DD: <title> ([#PR](<url>))`, with 1 to 4 lines on what
+      changed for the user and the issue it closes. No version numbers:
+      the version is `0.1.<run number>`, known only when the release is
+      built. The history before the changelog was written once from the
+      merged pull requests; each of those entries names the release it
+      first shipped in, found by matching the release's "Built from" commit
+      (pull requests whose own build was replaced by a later one name that
+      later release). It is not rewritten before 1.x.
+    - **The release text:** the build job, on `main` only, reads the
+      `CHANGELOG.md` of the newest published release built by an earlier
+      run (so re-running an old run does not compare with a newer release)
+      through the API (the checkout is shallow). Only a 404 counts as "no
+      changelog there"; any other failure stops the build, because
+      guessing would leave entries out of every later release text. Then
+      it runs `tool/release_notes.dart`: the entries
+      whose heading the previous copy does not have, then "Built from
+      <sha>". When the previous release has no changelog, or nothing is
+      new (a release built again), the top entry only. The text travels
+      with the APK in the build artifact; the release job, unchanged in
+      its permissions, passes it to `gh release create` or `edit`. Entries
+      are matched by heading, not by a diff, so an edit to an older entry
+      does not show as new.
+    - **The check:** a separate workflow, `changelog.yml`, on pull
+      requests (also when labels change). It asks the API which files the
+      pull request changes; it runs no code from the pull request and
+      uses no actions. A change under `lib/` or `android/` fails unless
+      the patch of `CHANGELOG.md` adds a `## ` heading (an edit to an old
+      entry alone would give the release no new text), with a message that
+      says what to add. A deleted `CHANGELOG.md` fails too. The
+      label `skip-changelog` lets a change through that users do not see.
+    - Tests: `test/tool/release_notes_test.dart` (new entries in order,
+      no previous changelog, nothing new, no entries, and the headings of
+      the repository's own changelog).
 
 ## Recommended, not decided
 
