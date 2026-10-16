@@ -210,6 +210,11 @@ devices through Syncthing.
       to the foreground. Index updates run one at a time, in order.
     - `files.atime` holds the modification time: Android's folder access
       gives no access time.
+    - An index made by another parser is rebuilt once: the folder marker
+      also holds the parser's version and link types
+      (`parserFingerprint`), and a different one counts as no index. So an
+      update that changes how notes are read reaches unchanged notes too.
+      `tool/build_roam_db.dart` keeps the same in `OUT.db.parser`.
     - The parser fills every column, not only what the graph needs: `pos`,
       `level`, `todo`, `priority`, `scheduled`, `deadline`, `olp`, the
       `properties` list org-roam stores, all link types with their

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 
 import 'indexer.dart' as indexer;
+import 'org_roam_parser.dart';
 import 'roam_db.dart';
 import 'roam_graph.dart';
 
@@ -36,6 +37,22 @@ abstract interface class GraphIndex {
     required String folder,
     bool replace = false,
   });
+}
+
+/// The marker kept next to the database: the indexed folder, and the
+/// parser that indexed it ([parserFingerprint]).
+String folderMarker(String folder, [String? fingerprint]) =>
+    '$folder\n${fingerprint ?? parserFingerprint()}';
+
+/// The folder a marker names, if the index was made by this parser; null
+/// otherwise, so that an index from an older parser is rebuilt.
+String? markedFolder(String marker, [String? fingerprint]) {
+  final newline = marker.indexOf('\n');
+  if (newline < 0) return null;
+  if (marker.substring(newline + 1) != (fingerprint ?? parserFingerprint())) {
+    return null;
+  }
+  return marker.substring(0, newline);
 }
 
 /// [GraphIndex] in an org-roam database in the app's private storage. The
@@ -81,7 +98,7 @@ class SqliteGraphIndex implements GraphIndex {
   @override
   Future<String?> indexedFolder() => _queued(() async {
         final file = File('${await _path()}.folder');
-        return file.existsSync() ? file.readAsStringSync() : null;
+        return file.existsSync() ? markedFolder(file.readAsStringSync()) : null;
       });
 
   @override
@@ -98,7 +115,8 @@ class SqliteGraphIndex implements GraphIndex {
       _run((db, path) {
         final marker = File('$path.folder');
         final sameFolder =
-            marker.existsSync() && marker.readAsStringSync() == folder;
+            marker.existsSync() &&
+            markedFolder(marker.readAsStringSync()) == folder;
         // The marker is removed before the database changes and written
         // again after it commits. If the app stops in between, there is no
         // marker, and the next update rebuilds the whole index.
@@ -107,7 +125,7 @@ class SqliteGraphIndex implements GraphIndex {
         }
         final graph = indexer.updateIndex(db, listing, contents,
             replace: replace || !sameFolder, keepUnreadable: sameFolder);
-        marker.writeAsStringSync(folder);
+        marker.writeAsStringSync(folderMarker(folder));
         return graph;
       });
 }

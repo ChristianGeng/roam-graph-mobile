@@ -407,5 +407,7 @@ void main() {
     expect(links('see [fn:tm] here\n'), isEmpty);
     expect(links('[fn:tm] The note.\n'), isEmpty);
     expect(links('see fn:tm here\n'), [('fn', 'tm')]);
+    // Labels may hold letters of any script, as Org's [:word:].
+    expect(links('see [fn:über] and [fn:café-2] here\n'), isEmpty);
   });
 }

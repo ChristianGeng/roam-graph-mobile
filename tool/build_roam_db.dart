@@ -48,14 +48,22 @@ void main(List<String> arguments) {
       path: file.lastModifiedSync().millisecondsSinceEpoch,
   };
 
+  // A database made by another parser, or with the other link types, is
+  // built again from all files, as the app does (graph_index.dart).
+  final linkTypes = plain ? plainOrgRoamLinkTypes : defaultLinkTypes;
+  final fingerprint = parserFingerprint(linkTypes);
+  final marker = File('${args[1]}.parser');
+  final rebuild =
+      !marker.existsSync() || marker.readAsStringSync() != fingerprint;
   final db = RoamDatabase.open(args[1], root: rootPath);
   try {
-    final toRead = filesToRead(db, listing);
+    final toRead = rebuild ? listing.keys.toList() : filesToRead(db, listing);
     final contents = <String, Uint8List?>{
       for (final path in toRead) path: files[path]!.readAsBytesSync(),
     };
     final graph = updateIndex(db, listing, contents,
-        linkTypes: plain ? plainOrgRoamLinkTypes : defaultLinkTypes);
+        replace: rebuild, linkTypes: linkTypes);
+    marker.writeAsStringSync(fingerprint);
     final tables = db.dumpTables();
     stdout.writeln('Read ${toRead.length} of ${listing.length} files into '
         '${args[1]}:');

@@ -55,6 +55,16 @@ const myEmacsLinkTypes = [
 /// The link types the parser uses unless told otherwise: my Emacs's.
 const defaultLinkTypes = myEmacsLinkTypes;
 
+/// Changes when the parser reads files differently, so that a stored index
+/// made by an older parser is built again (`graph_index.dart`). Raise it
+/// with every change to what the parser finds.
+const parserVersion = 2;
+
+/// What an index depends on besides the files: the parser and its link
+/// types. An index stored with another fingerprint is rebuilt.
+String parserFingerprint([List<String> linkTypes = defaultLinkTypes]) =>
+    'parser $parserVersion; link types ${linkTypes.join(' ')}';
+
 /// Parses one file. [path] is relative to `roam/` and is stored as given.
 /// [root] is the folder org-roam's absolute paths start with; it appears in
 /// Org's `FILE` property.
@@ -1035,8 +1045,9 @@ final _verbatim = RegExp(
 // A footnote reference or definition, `[fn:label]`, or the start of an
 // inline one, `[fn:label:` or `[fn::`. Org parses it before plain links, so
 // `fn:label` is no link even where `fn` is a link type (Doom registers
-// one); links in an inline definition still count.
-final _footnoteStart = RegExp(r'\[fn:[-\w]*[\]:]');
+// one); links in an inline definition still count. Labels are Org's
+// `[-_[:word:]]`, letters of any script included.
+final _footnoteStart = RegExp(r'\[fn:[-_\p{L}\p{N}]*[\]:]', unicode: true);
 
 // A line that ends a paragraph, as Org 9.7 parses one: a blank line, or a
 // line that starts another element (heading, list item, table, keyword or
