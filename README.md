@@ -17,7 +17,7 @@ capture would, in a file Syncthing brings to the laptop (#11); captured
 from a node, it links back to it, so it shows as a backlink (#12). Files are
 written safely next to Syncthing, and its conflict copies are listed (#13).
 Text shared from another app, such as the Claude app, becomes a new node
-(#15). What is decided and why is in
+(#15), and the graph's structure can be shared to such an app (#40). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

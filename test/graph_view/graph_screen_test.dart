@@ -460,6 +460,29 @@ void main() {
     });
   });
 
+  testWidgets('"Share graph with AI" shares the connectivity (#40)',
+      (tester) async {
+    final shared = <(String, String?)>[];
+    await tester.pumpWidget(MaterialApp(
+      home: GraphScreen(
+        graph: ValueNotifier(graph),
+        readNote: (path) async => '',
+        nodeMemory: MemoryNodeMemory('hub'),
+        computeLayout: layoutHere,
+        computeAlgorithms: algorithmsHere,
+        shareText: (text, {subject}) async => shared.add((text, subject)),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Share graph with AI'));
+    await tester.pump();
+
+    final (text, subject) = shared.single;
+    expect(subject, 'My org-roam graph');
+    expect(text, startsWith('# My org-roam graph: 8 nodes, 7 links'));
+    expect(text, contains(' | hub | HUB'));
+  });
+
   testWidgets('a graph without nodes says so', (tester) async {
     await show(tester, of: graphOf([], []));
     expect(find.text('There are no nodes in roam/.'), findsOneWidget);

@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../capture/capture_screen.dart';
+import '../capture/share_inbox.dart';
+import '../graph/ai_share.dart';
 import '../graph/graph_algorithms.dart';
 import '../graph/graph_layout.dart';
 import '../graph/graph_scope.dart';
@@ -66,6 +68,7 @@ class GraphScreen extends StatefulWidget {
     this.nodeMemory = const FileNodeMemory(),
     this.computeLayout = layoutOnIsolate,
     this.computeAlgorithms = algorithmsOnIsolate,
+    this.shareText = shareTextOut,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -81,6 +84,9 @@ class GraphScreen extends StatefulWidget {
   final NodeMemory nodeMemory;
   final LayoutFunction computeLayout;
   final AlgorithmsFunction computeAlgorithms;
+
+  /// Sends text to another app; tests replace it.
+  final TextSharer shareText;
 
   @override
   State<GraphScreen> createState() => _GraphScreenState();
@@ -608,6 +614,14 @@ class _GraphScreenState extends State<GraphScreen> {
                 _openPage(_centre!);
               },
             ),
+          IconButton(
+            tooltip: 'Share graph with AI',
+            icon: const Icon(Icons.share_outlined),
+            onPressed: _graph.nodes.isEmpty
+                ? null
+                : () => widget.shareText(graphForAi(_graph),
+                    subject: 'My org-roam graph'),
+          ),
           IconButton(
             tooltip: 'Centre',
             icon: const Icon(Icons.center_focus_strong),

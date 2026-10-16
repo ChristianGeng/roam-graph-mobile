@@ -581,6 +581,24 @@ devices through Syncthing.
       `:ID:`, written safely next to Syncthing. The new node opens after
       saving.
 
+35. **The graph's connectivity can be shared with an AI** (#40). The Claude
+    Android app cannot read device folders and runs no local MCP server
+    (#14), but it reads text shared to it. "Share graph with AI" in the
+    graph view sends, through Android's share menu, the structure of the
+    whole graph (`lib/graph/ai_share.dart`):
+    - Every node: a short number (`n1`, `n2`, …, in title order), its ID,
+      title and tags. Then every pair of nodes with an `id:` link, as
+      `n3 -> n17`. The numbers keep the 2589 links from repeating 36-letter
+      IDs; for my notes the text is about 57 KB, some 14,000 tokens.
+    - No note texts: all of them are 3.4 MB, some 850,000 tokens, too much
+      for one chat. A node's text is shared on request (#41).
+    - A header says what it is and how to answer: link to a node with
+      `[[id:<ID>][<title>]]`, put a new note's title on its first line, and
+      ask for a node's text by title. An answer shared back to the app
+      becomes a linked new node (#15).
+    - Built from the app's index, so it is the graph org-roam has (#5).
+      Links to IDs that are no node are left out. Nothing is written.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
