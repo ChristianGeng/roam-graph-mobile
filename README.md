@@ -19,7 +19,8 @@ written safely next to Syncthing, and its conflict copies are listed (#13).
 Text shared from another app, such as the Claude app, becomes a new node
 (#15), and the graph's structure (#40) and chosen nodes with their texts
 (#41) can be shared to such an app. Source blocks are coloured as Emacs
-colours them (#45). What is decided and why is in
+colours them (#45), and images from the notes folder are shown at their
+Org width (#46). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

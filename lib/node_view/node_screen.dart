@@ -11,6 +11,7 @@ import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
 import 'src_languages.dart';
 import '../search/search_screen.dart';
+import 'note_images.dart';
 
 /// Reads a note's text, by its path relative to `roam/`; null if it cannot
 /// be read.
@@ -37,6 +38,7 @@ class NodeScreen extends StatefulWidget {
     required this.graph,
     required this.id,
     required this.readNote,
+    this.files,
     required this.nodeMemory,
     this.onShowInGraph,
     this.openInOrgro,
@@ -49,6 +51,10 @@ class NodeScreen extends StatefulWidget {
   final ValueListenable<RoamGraph> graph;
   final String id;
   final NoteReader readNote;
+
+  /// The folder's other files, for images in notes (#46); without
+  /// them, image links are shown as text.
+  final NoteFiles? files;
   final NodeMemory nodeMemory;
 
   /// Opens the node's file in Orgro; the button is hidden when null.
@@ -80,6 +86,7 @@ class NodeScreen extends StatefulWidget {
     required ValueListenable<RoamGraph> graph,
     required String id,
     required NoteReader readNote,
+    NoteFiles? files,
     required NodeMemory nodeMemory,
     void Function(BuildContext context, String id)? onShowInGraph,
     NoteOpener? openInOrgro,
@@ -94,6 +101,7 @@ class NodeScreen extends StatefulWidget {
           graph: graph,
           id: id,
           readNote: readNote,
+          files: files,
           nodeMemory: nodeMemory,
           onShowInGraph: onShowInGraph,
           openInOrgro: openInOrgro,
@@ -186,6 +194,7 @@ class _NodeScreenState extends State<NodeScreen> {
       graph: widget.graph,
       id: id,
       readNote: widget.readNote,
+      files: widget.files,
       nodeMemory: widget.nodeMemory,
       onShowInGraph: widget.onShowInGraph,
       openInOrgro: widget.openInOrgro,
@@ -268,6 +277,7 @@ class _NodeScreenState extends State<NodeScreen> {
               context,
               graph: widget.graph,
               readNote: widget.readNote,
+              files: widget.files,
               nodeMemory: widget.nodeMemory,
               onShowInGraph: onShowInGraph,
               openInOrgro: widget.openInOrgro,
@@ -373,6 +383,10 @@ class _NodeScreenState extends State<NodeScreen> {
       child: OrgRootWidget(
         onLinkTap: _openLink,
         onLocalSectionLinkTap: _openSection,
+        loadImage: switch (widget.files) {
+          final files? => (link) => loadNoteImage(files, node.file, tree, link),
+          null => null,
+        },
         child: tree is OrgSection
             ? Padding(
                 padding: const EdgeInsets.all(16),

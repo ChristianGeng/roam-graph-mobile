@@ -9,6 +9,7 @@ import '../graph/node_search.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
 import '../node_view/node_screen.dart';
+import '../node_view/note_images.dart';
 
 /// Finds a node by title, alias and tag (#9), as you type. A result opens
 /// the node view (#8); its second action shows the node in the graph (#6).
@@ -17,6 +18,7 @@ class SearchScreen extends StatefulWidget {
     super.key,
     required this.graph,
     required this.readNote,
+    this.files,
     required this.nodeMemory,
     this.onShowInGraph,
     this.openInOrgro,
@@ -27,6 +29,10 @@ class SearchScreen extends StatefulWidget {
 
   final ValueListenable<RoamGraph> graph;
   final NoteReader readNote;
+
+  /// The folder's other files, for images in notes (#46); without
+  /// them, image links are shown as text.
+  final NoteFiles? files;
   final NodeMemory nodeMemory;
 
   /// Shows a node in the graph; the action is hidden when null.
@@ -50,6 +56,7 @@ class SearchScreen extends StatefulWidget {
     BuildContext context, {
     required ValueListenable<RoamGraph> graph,
     required NoteReader readNote,
+    NoteFiles? files,
     required NodeMemory nodeMemory,
     void Function(BuildContext context, String id)? onShowInGraph,
     NoteOpener? openInOrgro,
@@ -63,6 +70,7 @@ class SearchScreen extends StatefulWidget {
           builder: (context) => SearchScreen(
             graph: graph,
             readNote: readNote,
+            files: files,
             nodeMemory: nodeMemory,
             onShowInGraph: onShowInGraph,
             openInOrgro: openInOrgro,
@@ -147,6 +155,7 @@ class _SearchScreenState extends State<SearchScreen> {
         graph: widget.graph,
         id: id,
         readNote: widget.readNote,
+        files: widget.files,
         nodeMemory: widget.nodeMemory,
         onShowInGraph: widget.onShowInGraph,
         openInOrgro: widget.openInOrgro,
