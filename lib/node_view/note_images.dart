@@ -1,12 +1,16 @@
-/// Images from the notes folder in the node view (#46).
+/// Images from the notes folder in the node view (#46), also SVG (#47).
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
+import 'package:vector_graphics_compiler/vector_graphics_compiler.dart'
+    as compiler;
 
 import '../folder/org_files.dart';
 
@@ -29,10 +33,14 @@ abstract interface class NoteFiles {
   int version(FolderFile file);
 }
 
-/// The image files the app shows. Flutter decodes these itself; SVG is
-/// #47, and AVIF needs a decoder Android's Flutter does not have.
-final _rasterImage =
-    RegExp(r'\.(?:png|jpe?g|gif|webp|bmp)$', caseSensitive: false);
+/// The image files the app shows. Flutter decodes these itself, and
+/// `flutter_svg` draws SVG (#47); AVIF needs a decoder Android's Flutter
+/// does not have.
+final _shownImage =
+    RegExp(r'\.(?:png|jpe?g|gif|webp|bmp|svg)$', caseSensitive: false);
+
+/// Whether [path] is an SVG file, which `flutter_svg` draws.
+bool isSvg(String path) => path.toLowerCase().endsWith('.svg');
 
 /// [path] with `.` parts and empty parts removed, and each `..` taking away
 /// the part before it. A `..` with nothing before it stays, so the path can
@@ -72,7 +80,7 @@ String? linkedImagePath(String note, String location) {
   if (body.isEmpty || body.startsWith('/') || body.startsWith('~')) {
     return null;
   }
-  if (!_rasterImage.hasMatch(body)) return null;
+  if (!_shownImage.hasMatch(body)) return null;
   final slash = note.lastIndexOf('/');
   final dir = slash < 0 ? '' : note.substring(0, slash + 1);
   return normalizePath('$dir$body');
@@ -251,6 +259,144 @@ class FolderImage extends ImageProvider<FolderImage> {
   int get hashCode => Object.hash(file.uri, version, width);
 }
 
+/// SVG files compiled for drawing, by URI and [NoteFiles.version], so a
+/// note shown again does not parse its SVGs again. The oldest are dropped
+/// beyond [_maxCompiled]; one that failed is tried again next time.
+final _compiled = <(String, int), Future<ByteData>>{};
+const _maxCompiled = 32;
+
+/// [file], an SVG, compiled by `vector_graphics_compiler` on another
+/// isolate, as `flutter_svg` compiles it. Fails if it cannot be read or
+/// parsed.
+///
+/// The app compiles it itself, instead of giving `SvgPicture` a loader,
+/// because `vector_graphics` leaves a failed load as an uncaught error.
+Future<ByteData> compiledSvg(FolderFile file, NoteFiles files) {
+  final key = (file.uri, files.version(file));
+  if (_compiled[key] case final compiled?) return compiled;
+  final result = () async {
+    final bytes = await files.read(file);
+    if (bytes == null) throw StateError('Could not read ${file.path}.');
+    return compute(_compileSvg, utf8.decode(bytes, allowMalformed: true));
+  }();
+  _compiled[key] = result;
+  if (_compiled.length > _maxCompiled) _compiled.remove(_compiled.keys.first);
+  result.then<void>((_) {}, onError: (Object _) {
+    if (_compiled[key] == result) _compiled.remove(key);
+  });
+  return result;
+}
+
+ByteData _compileSvg(String xml) => compiler
+    .encodeSvg(
+      xml: xml,
+      debugName: 'note image',
+      // As flutter_svg's own loaders.
+      enableClippingOptimizer: false,
+      enableMaskingOptimizer: false,
+      enableOverdrawOptimizer: false,
+    )
+    .buffer
+    .asByteData();
+
+/// Already compiled SVG bytes, for `SvgPicture`.
+class _CompiledSvg extends BytesLoader {
+  const _CompiledSvg(this.bytes, this.key);
+
+  final ByteData bytes;
+  final Object key;
+
+  @override
+  Future<ByteData> loadBytes(BuildContext? context) =>
+      SynchronousFuture(bytes);
+
+  @override
+  Object cacheKey(BuildContext? context) => key;
+}
+
+/// An SVG file of the chosen folder (#47), drawn with `flutter_svg`; on a
+/// light background in dark mode. [error] is shown if it cannot be read
+/// or parsed.
+class FolderSvg extends StatefulWidget {
+  const FolderSvg({
+    super.key,
+    required this.file,
+    required this.files,
+    required this.error,
+  });
+
+  final FolderFile file;
+  final NoteFiles files;
+  final WidgetBuilder error;
+
+  @override
+  State<FolderSvg> createState() => _FolderSvgState();
+}
+
+class _FolderSvgState extends State<FolderSvg> {
+  /// The compilation shown, and the file and version it is of.
+  late Future<ByteData> _bytes;
+  late (String, int) _key;
+
+  /// Whether [_bytes] failed, so the next update tries again.
+  bool _failed = false;
+
+  void _compile() {
+    final key = (widget.file.uri, widget.files.version(widget.file));
+    final bytes = compiledSvg(widget.file, widget.files);
+    _key = key;
+    _bytes = bytes;
+    _failed = false;
+    bytes.then<void>((_) {}, onError: (Object _) {
+      if (_bytes == bytes) _failed = true;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _compile();
+  }
+
+  @override
+  void didUpdateWidget(FolderSvg old) {
+    super.didUpdateWidget(old);
+    // The version is taken now and compared with the one compiled: for a
+    // file without a modification time, it is the folder's scan count,
+    // which the old and the new widget share.
+    if (_failed ||
+        _key != (widget.file.uri, widget.files.version(widget.file))) {
+      _compile();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<ByteData>(
+        future: _bytes,
+        builder: (context, snapshot) {
+          // A new compilation keeps the old snapshot until it is done;
+          // those bytes must not be shown under the new key.
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SizedBox.shrink();
+          }
+          if (snapshot.hasError) return widget.error(context);
+          return SvgPicture(
+            _CompiledSvg(snapshot.requireData, _key),
+            semanticsLabel: widget.file.path.split('/').last,
+            imageBuilder: (context, svg) => _onLightBackground(context, svg),
+          );
+        },
+      );
+}
+
+/// [svg] on a light background in dark mode: many SVGs have a transparent
+/// background and black lines, which cannot be read on a dark page. Emacs
+/// shows them on the buffer's background, which is light on the laptop.
+Widget _onLightBackground(BuildContext context, Widget svg) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? ColoredBox(color: Colors.white, child: svg)
+        : svg;
+
 /// The `loadImage` of the node view for the note [note] (relative to
 /// `roam/`), shown as [root]: the image of a link, or null to show the link
 /// as text.
@@ -293,6 +439,34 @@ class NoteImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final image = isSvg(file.path) ? _svg(context) : _raster(context);
+    return GestureDetector(
+      onTap: () => ImagePage.open(context, file, files),
+      child: image,
+    );
+  }
+
+  /// An SVG at its Org width, else its own (its `width` attribute or
+  /// `viewBox`). The width is set from outside, so `SvgPicture` keeps the
+  /// aspect ratio, and the text column narrows it.
+  Widget _svg(BuildContext context) {
+    final picture = FolderSvg(
+      file: file,
+      files: files,
+      error: (context) =>
+          BrokenImage(link, reason: 'Could not show ${file.path}.'),
+    );
+    if (width?.pixels case final pixels?) {
+      return SizedBox(width: pixels, child: picture);
+    }
+    if (width?.fraction case final fraction?) {
+      return FractionallySizedBox(
+          widthFactor: fraction.clamp(0, 1), child: picture);
+    }
+    return picture;
+  }
+
+  Widget _raster(BuildContext context) {
     final media = MediaQuery.of(context);
     final pixels = width?.pixels;
     // Decoded no wider than shown, in device pixels. The text column is at
@@ -315,10 +489,7 @@ class NoteImage extends StatelessWidget {
         child: image,
       );
     }
-    return GestureDetector(
-      onTap: () => ImagePage.open(context, file, files),
-      child: image,
-    );
+    return image;
   }
 }
 
@@ -377,12 +548,19 @@ class ImagePage extends StatelessWidget {
         body: InteractiveViewer(
           maxScale: maxScale,
           child: Center(
-            child: Image(
-              image: FolderImage(file, files,
-                  width: decodeWidth(MediaQuery.of(context))),
-              errorBuilder: (context, error, stackTrace) =>
-                  Text('Could not read ${file.path}.'),
-            ),
+            // An SVG is drawn anew at each zoom, so it stays sharp.
+            child: isSvg(file.path)
+                ? FolderSvg(
+                    file: file,
+                    files: files,
+                    error: (context) => Text('Could not show ${file.path}.'),
+                  )
+                : Image(
+                    image: FolderImage(file, files,
+                        width: decodeWidth(MediaQuery.of(context))),
+                    errorBuilder: (context, error, stackTrace) =>
+                        Text('Could not read ${file.path}.'),
+                  ),
           ),
         ),
       );
