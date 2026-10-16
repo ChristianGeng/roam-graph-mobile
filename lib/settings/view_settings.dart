@@ -154,6 +154,14 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   /// Counts the changes; only the latest one is applied.
   var _changes = 0;
 
+  /// What the file holds as far as known: the settings loaded, then each
+  /// one saved. Used when the latest save fails.
+  ViewSettings _inFile = const ViewSettings();
+
+  /// Whether a save succeeded; then the file is newer than what was
+  /// loaded.
+  var _saved = false;
+
   @override
   void initState() {
     super.initState();
@@ -164,22 +172,31 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
       } on Exception {
         settings = const ViewSettings();
       }
+      if (!mounted || _saved) return;
+      _inFile = settings;
       // A choice made while loading is newer than the file.
-      if (mounted && _changes == 0) _settings.value = settings;
+      if (_changes == 0) _settings.value = settings;
     }();
   }
 
   /// Saves [settings] after any earlier save, then uses them, unless a
-  /// newer change came meanwhile. If saving fails, the settings in use
-  /// stay as they were, and the error is thrown.
+  /// newer change came meanwhile. If the latest save fails, the screen
+  /// shows what the file holds, and the error is thrown.
   Future<void> _change(ViewSettings settings) {
     final change = ++_changes;
     final saved = _saves
         .catchError((Object _) {})
-        .then((_) => widget.store.save(settings));
+        .then((_) => widget.store.save(settings))
+        .then((_) {
+      _saved = true;
+      _inFile = settings;
+    });
     _saves = saved;
     return saved.then((_) {
       if (mounted && change == _changes) _settings.value = settings;
+    }, onError: (Object error, StackTrace stack) {
+      if (mounted && change == _changes) _settings.value = _inFile;
+      Error.throwWithStackTrace(error, stack);
     });
   }
 

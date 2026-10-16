@@ -152,6 +152,29 @@ void main() {
       expect(group.groupValue, SectionsOnOpen.expanded);
     });
 
+    testWidgets('a failed latest save shows what the file holds, and says so',
+        (tester) async {
+      final store = _GatedStore();
+      await tester.pumpWidget(MaterialApp(
+        builder: (context, child) =>
+            ViewSettingsHost(store: store, child: child!),
+        home: const SettingsScreen(),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('sections-headings')));
+      await tester.tap(find.byKey(const ValueKey('sections-expanded')));
+      await tester.pump();
+      store.finish();
+      await tester.pump();
+      store.finish(fail: true);
+      await tester.pumpAndSettle();
+      expect(store.saved, SectionsOnOpen.headings);
+      final group = tester.widget<RadioGroup<SectionsOnOpen>>(
+          find.byType(RadioGroup<SectionsOnOpen>));
+      expect(group.groupValue, SectionsOnOpen.headings);
+      expect(find.textContaining('Could not save the setting'), findsOneWidget);
+    });
+
     testWidgets('the settings page saves the choice', (tester) async {
       final store = MemoryViewSettingsStore();
       await tester.pumpWidget(MaterialApp(
@@ -176,7 +199,10 @@ class _GatedStore implements ViewSettingsStore {
   final _pending = <Completer<void>>[];
   SectionsOnOpen? saved;
 
-  void finish() => _pending.removeAt(0).complete();
+  /// Finishes the oldest save; with [fail], it throws.
+  void finish({bool fail = false}) => fail
+      ? _pending.removeAt(0).completeError(const FileSystemException('full'))
+      : _pending.removeAt(0).complete();
 
   @override
   Future<ViewSettings> load() async => const ViewSettings();
