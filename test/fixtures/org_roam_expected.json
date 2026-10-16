@@ -10,6 +10,7 @@
   "20240109120000-iota.org",
   "20240110120000-kappa.org",
   "20240111120000-lambda.org",
+  "20240112120000-mu.org",
   "edge/aliases-refs-filetags.org",
   "edge/angle-refs.org",
   "edge/blank-line-before-drawer.org",
@@ -83,6 +84,12 @@
    "20240111120000-lambda.org",
    1,
    "First heading is a node"
+  ],
+  [
+   "11111111-1111-4111-8111-000000000013",
+   "20240112120000-mu.org",
+   0,
+   "Mu"
   ],
   [
    "11111111-1111-4111-8111-000000000021",

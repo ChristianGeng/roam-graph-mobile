@@ -720,6 +720,32 @@ devices through Syncthing.
     - **Tap** opens it on its own page with zoom; an SVG stays sharp at any
       zoom.
 
+40. **LaTeX is rendered by `org_flutter`, display formulas in display
+    mode** (#50), `lib/node_view/latex.dart`. `org_flutter` renders LaTeX
+    fragments and environments with `flutter_tex_js`, which runs KaTeX
+    (bundled, so offline) in a hidden WebView and returns an image.
+    - **Display formulas.** In Org, `\[ ... \]` and `$$ ... $$` are display
+      formulas. `org_parser` reads them as inline fragments, which
+      `org_flutter` renders in text mode (smaller, in the line). The app
+      turns each into a LaTeX block after parsing, which `org_flutter`
+      renders in display mode: on its own line, centred. `\( ... \)` and
+      `$ ... $` stay inline; `\begin{equation}` and other environments were
+      already blocks.
+    - **Colour:** a formula takes the text colour, so it is light on a dark
+      page (checked in a test).
+    - **A formula KaTeX cannot render** shows its source, with its
+      delimiters.
+    - **Not done: the system font size.** `org_flutter` gives KaTeX the
+      text style's font size without the system's text scaling, so with a
+      larger system font, formulas stay at the normal size. The app cannot
+      change this from outside; it needs a change in `org_flutter`, to be
+      offered upstream if it matters on the device.
+    - The sample note `test/fixtures/roam/20240112120000-mu.org` has an
+      inline, a `\[ \]`, a `$$` and a broken formula and an `equation`
+      environment. Widget tests cannot run the WebView; they check which
+      widgets render the formulas, and with what (a mock of
+      `flutter_tex_js`'s channel answers as KaTeX would).
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
