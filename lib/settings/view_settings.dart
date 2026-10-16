@@ -220,6 +220,10 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   /// shows what the file holds, and the error is thrown.
   Future<void> _change(ViewSettings settings) {
     final change = ++_changes;
+    // Used at once, so a second change made while the first is saving
+    // builds on it instead of on the file (#72 review); undone if saving
+    // fails.
+    if (mounted) _settings.value = settings;
     final saved = _saves
         .catchError((Object _) {})
         .then((_) => widget.store.save(settings))
@@ -228,9 +232,7 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
       _inFile = settings;
     });
     _saves = saved;
-    return saved.then((_) {
-      if (mounted && change == _changes) _settings.value = settings;
-    }, onError: (Object error, StackTrace stack) {
+    return saved.then((_) {}, onError: (Object error, StackTrace stack) {
       if (mounted && change == _changes) _settings.value = _inFile;
       Error.throwWithStackTrace(error, stack);
     });

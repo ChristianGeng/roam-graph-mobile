@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
@@ -7,7 +9,7 @@ import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 import '../ai/ai_visibility_test.dart' show graphOf, notes;
 import 'graph_screen_test.dart'
-    show MemoryNodeMemory, algorithmsHere, layoutHere;
+    show MemoryNodeMemory, algorithmsHere, layoutHere, tapMiddle;
 
 /// The graph's width on screen.
 double graphWidth(WidgetTester tester) =>
@@ -124,4 +126,84 @@ void main() {
     expect(find.text('Graph 40 %, note 60 %. Drag the divider between them '
         'to change it.'), findsOneWidget);
   });
+
+  group('review of #72', () {
+    testWidgets('while dragging, the graph stops at its minimum, then shows '
+        'the strip it would fold to', (tester) async {
+      await pumpTablet(tester);
+      final gesture = await tester.startGesture(
+          tester.getCenter(find.byKey(const ValueKey('pane-divider'))));
+      // The first move starts the drag.
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-190, 0));
+      await tester.pump();
+      expect(graphWidth(tester), closeTo(240, 1));
+      await gesture.moveBy(const Offset(-100, 0));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('graph-strip')), findsOneWidget);
+      await gesture.moveBy(const Offset(100, 0));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('graph-strip')), findsNothing);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(graphWidth(tester), closeTo(240, 1));
+    });
+
+    testWidgets('unfolded, the graph is centred on the note opened meanwhile',
+        (tester) async {
+      await pumpTablet(tester,
+          settings: const ViewSettings(graphCollapsed: true));
+      // The pane shows Plan; its link opens Ideas there.
+      await tester.tapOnText(find.textRange.ofSubstring('Ideas'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Show graph'));
+      await tester.pumpAndSettle();
+      // The node in the middle is Ideas: tapping it keeps Ideas open.
+      await tapMiddle(tester);
+      await tester.pumpAndSettle();
+      expect(
+          find.descendant(
+              of: find.byKey(const ValueKey('node-pane')),
+              matching: find.text('Ideas')),
+          findsWidgets);
+    });
+
+    testWidgets('a quick Reset keeps a section choice still being saved',
+        (tester) async {
+      final store = _SlowStore(const ViewSettings(graphShare: 0.7));
+      await tester.pumpWidget(MaterialApp(
+        builder: (context, child) =>
+            ViewSettingsHost(store: store, child: child!),
+        home: const SettingsScreen(),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('sections-expanded')));
+      await tester.pump();
+      final reset = find.byKey(const ValueKey('settings-graph-width-reset'));
+      await tester.scrollUntilVisible(reset, 200,
+          scrollable: find.byType(Scrollable).first);
+      await tester.tap(reset);
+      await tester.pump();
+      store.release();
+      await tester.pumpAndSettle();
+      expect(store.settings.sectionsOnOpen, SectionsOnOpen.expanded);
+      expect(store.settings.graphShare, ViewSettings.defaultGraphShare);
+    });
+  });
+}
+
+/// Saves only when [release] is called.
+class _SlowStore extends MemoryViewSettingsStore {
+  _SlowStore(super.settings);
+
+  final _gate = Completer<void>();
+
+  void release() => _gate.complete();
+
+  @override
+  Future<void> save(ViewSettings settings) async {
+    await _gate.future;
+    await super.save(settings);
+  }
 }

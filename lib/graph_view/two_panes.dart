@@ -8,10 +8,22 @@ import '../settings/view_settings.dart';
 /// with a divider to drag and a button that folds the graph into a strip.
 /// The share and the folded state are kept in the view settings (#63).
 class TwoPanes extends StatefulWidget {
-  const TwoPanes({super.key, required this.graph, required this.note});
+  const TwoPanes({
+    super.key,
+    required this.graph,
+    required this.note,
+    this.onUnfold,
+    this.onDragging,
+  });
 
   final Widget graph;
   final Widget note;
+
+  /// Called when the folded graph unfolds.
+  final VoidCallback? onUnfold;
+
+  /// Called when a drag of the divider starts (true) and ends (false).
+  final ValueChanged<bool>? onDragging;
 
   /// The narrowest the graph and the note get while both show.
   static const minGraph = 240.0;
@@ -70,22 +82,32 @@ class _TwoPanesState extends State<TwoPanes> {
         double shown(double share) =>
             (share * width).clamp(narrowest, widest).toDouble();
         final dragging = _dragging;
-        final collapsed = settings.graphCollapsed && dragging == null;
+        // Dragged past half the graph's minimum, the graph would fold:
+        // the strip shows it while the finger is still down.
+        final folding = dragging != null && dragging < narrowest / 2;
+        final collapsed =
+            folding || (settings.graphCollapsed && dragging == null);
         final graphWidth = collapsed
             ? TwoPanes.strip
             : dragging != null
-            ? dragging.clamp(TwoPanes.strip, widest).toDouble()
+            ? dragging.clamp(narrowest, widest).toDouble()
             : shown(settings.graphShare);
+
+        void unfold(ViewSettings next) {
+          if (settings.graphCollapsed) widget.onUnfold?.call();
+          _save(next);
+        }
 
         void end() {
           final raw = _dragging;
           if (raw == null) return;
           setState(() => _dragging = null);
+          widget.onDragging?.call(false);
           // Dragged all the way to the left: fold the graph, keeping its share.
           if (raw < narrowest / 2) {
             _save(settings.copyWith(graphCollapsed: true));
           } else {
-            _save(
+            unfold(
               settings.copyWith(
                 graphShare: shown(raw / width) / width,
                 graphCollapsed: false,
@@ -107,8 +129,9 @@ class _TwoPanesState extends State<TwoPanes> {
                           IconButton(
                             tooltip: 'Show graph',
                             icon: const Icon(Icons.chevron_right),
-                            onPressed: () =>
-                                _save(settings.copyWith(graphCollapsed: false)),
+                            onPressed: () => unfold(
+                              settings.copyWith(graphCollapsed: false),
+                            ),
                           ),
                           Expanded(
                             child: RotatedBox(
@@ -145,12 +168,15 @@ class _TwoPanesState extends State<TwoPanes> {
                 _downX = x;
                 _downWidth = graphWidth;
               },
-              onStart: () => setState(() => _dragging = _downWidth),
+              onStart: () {
+                widget.onDragging?.call(true);
+                setState(() => _dragging = _downWidth);
+              },
               onUpdate: (x) =>
                   setState(() => _dragging = _downWidth + x - _downX),
               onEnd: end,
               // The default split, unfolded.
-              onDoubleTap: () => _save(
+              onDoubleTap: () => unfold(
                 settings.copyWith(
                   graphShare: ViewSettings.defaultGraphShare,
                   graphCollapsed: false,

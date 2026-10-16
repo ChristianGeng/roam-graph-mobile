@@ -1231,7 +1231,13 @@ devices through Syncthing.
     - **A divider to drag**, between the panes: a thin line with a drag
       handle, in a touch area 24 pixels wide. It follows the finger from
       where it touched. The graph keeps at least 240 pixels and the note
-      320.
+      320; dragged past half the graph's minimum, the strip shows that the
+      graph will fold. The graph is centred once, when the divider is let
+      go, not on every move, and on the current note when it unfolds,
+      also when that note was opened while it was folded.
+    - **View settings apply at once**, before they are saved, so a second
+      change made while the first is saving builds on it; a failed save
+      undoes it (this changes the settings host of #63).
     - **Fold the graph:** a button on the graph folds it into a 48-pixel
       strip, and the strip's button unfolds it at the width it had.
       Dragging the divider past half the graph's minimum folds it too.

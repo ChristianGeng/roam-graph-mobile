@@ -220,6 +220,13 @@ class _GraphScreenState extends State<GraphScreen> {
     return null;
   }
 
+  /// The graph's width when the view was last centred; null to centre
+  /// again, as when the folded graph unfolds (#69).
+  double? _centredWidth;
+
+  /// Whether the divider beside the note is being dragged (#69).
+  bool _paneDragging = false;
+
   /// The overlay of the last build, and what it was made from, so the
   /// drawing keeps its edges while the view moves.
   _ViewOverlay? _overlayCache;
@@ -649,7 +656,9 @@ class _GraphScreenState extends State<GraphScreen> {
         // Not for a change in height alone, so the view stays when the
         // keyboard of the search page opens and closes.
         final size = constraints.biggest;
-        if (_viewport.isEmpty || _viewport.width != size.width) {
+        // Not while the divider is dragged (#69): once, when it is let go.
+        if (!_paneDragging && _centredWidth != size.width) {
+          _centredWidth = size.width;
           WidgetsBinding.instance.addPostFrameCallback((_) => _centreView());
         }
         _viewport = size;
@@ -799,6 +808,17 @@ class _GraphScreenState extends State<GraphScreen> {
           ? graph
           : TwoPanes(
               graph: graph,
+              // Unfolded: centred on the current note, which may have
+              // changed while the graph was folded.
+              onUnfold: () => _centredWidth = null,
+              onDragging: (dragging) {
+                _paneDragging = dragging;
+                if (!dragging && _centredWidth != _viewport.width) {
+                  _centredWidth = _viewport.width;
+                  WidgetsBinding.instance
+                      .addPostFrameCallback((_) => _centreView());
+                }
+              },
               note: NodeScreen(
                     key: const ValueKey('node-pane'),
                     graph: widget.graph,
