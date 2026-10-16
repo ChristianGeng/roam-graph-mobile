@@ -1078,6 +1078,39 @@ devices through Syncthing.
     - Answers are not streamed: an answer appears when it is complete.
       Qwen does not allow streaming together with tools anyway.
 
+46. **The AI chat screen** (#60), `lib/ai/chat_screen.dart`.
+    - **Where:** "Ask AI" in the graph view's "More" menu, with the
+      selected node, and in the node view's new AI menu, with that node.
+      The node view's "Share with AI" moved into the same menu, so the bar
+      still fits a phone held upright.
+    - **The node the chat starts from** goes into the first message ("I am
+      looking at the note … (ID …)"), not into the system prompt, so every
+      request still starts with the same bytes (decision 45). On screen,
+      my message shows without it.
+    - **Model switch:** the chat starts with the provider's default model;
+      where the provider has a strong one (Anthropic and Bedrock: Opus
+      5.5), a menu switches to it for the rest of this chat. The bar shows
+      the provider and the model in use; each answer shows the model that
+      wrote it.
+    - **Tool calls are shown**, collapsed, as `find(search: Plan)`; opened,
+      with the result the model got. Below the chat: its tokens, in, of
+      them from the cache, and out (decision 45).
+    - **Answers are rendered as Org** with `org_flutter`, so
+      `[[id:…][…]]` links can be tapped and open the node, as in the node
+      view. Other links are not opened.
+    - **"Save as new node"** on an answer opens the capture screen (#11)
+      with a title and text proposed as for shared text (#15, decision
+      34): the first line without `#` or `**` is the title. A chat started
+      from a node offers a link to it, on. Nothing is written before I
+      save there; the AI never writes a file.
+    - **Errors** show in the chat with "Send again", which sends the
+      conversation from where it stopped (decision 45). Without a key or a
+      model, the chat says what to enter and links to AI settings; Send
+      stays off.
+    - **The conversation** is kept only while the chat is open; "New chat"
+      starts again, with the settings as they are then. Nothing of it is
+      stored.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

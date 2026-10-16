@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 
 import '../ai/ai_settings.dart';
+import '../ai/chat_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/ai_share.dart';
@@ -272,6 +273,28 @@ class _NodeScreenState extends State<NodeScreen> {
     }
   }
 
+  /// Opens the AI chat about [node] (#60).
+  Future<void> _askAi(RoamNode node) => ChatScreen.open(
+        context,
+        graph: widget.graph,
+        readNote: widget.readNote,
+        startNode: node,
+        writer: widget.writer,
+        // On a page above the chat, also from the side pane (#16).
+        openNode: (chatContext, id) => NodeScreen.open(
+          chatContext,
+          graph: widget.graph,
+          id: id,
+          readNote: widget.readNote,
+          files: widget.files,
+          nodeMemory: widget.nodeMemory,
+          onShowInGraph: widget.onShowInGraph,
+          openInOrgro: widget.openInOrgro,
+          writer: widget.writer,
+          shareText: widget.shareText,
+        ),
+      );
+
   void _tell(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -310,11 +333,20 @@ class _NodeScreenState extends State<NodeScreen> {
               shareText: widget.shareText,
             ),
           ),
+          // The AI actions in one menu, so the bar fits a phone.
           if (node != null)
-            IconButton(
-              tooltip: 'Share with AI',
-              icon: const Icon(Icons.share_outlined),
-              onPressed: () => _shareWithAi(node),
+            PopupMenuButton<_AiAction>(
+              tooltip: 'AI',
+              icon: const Icon(Icons.auto_awesome_outlined),
+              onSelected: (action) => switch (action) {
+                _AiAction.ask => _askAi(node),
+                _AiAction.share => _shareWithAi(node),
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: _AiAction.ask, child: Text('Ask AI')),
+                PopupMenuItem(
+                    value: _AiAction.share, child: Text('Share with AI')),
+              ],
             ),
           if (widget.writer case final writer? when node != null)
             IconButton(
@@ -443,3 +475,6 @@ class _NodeScreenState extends State<NodeScreen> {
     );
   }
 }
+
+/// The actions of the node view's AI menu.
+enum _AiAction { ask, share }
