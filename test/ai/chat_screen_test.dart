@@ -232,4 +232,81 @@ void main() {
             of: find.byType(AppBar), matching: find.text('Ideas')),
         findsOneWidget);
   });
+
+  group('review of #67', () {
+    testWidgets('a hidden note is not named to the AI', (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Hi.'},
+        ]),
+      ]);
+      await openChat(tester, server, startNode: graph.nodes['diary']);
+      expect(find.textContaining('This note is hidden from AI'), findsOneWidget);
+      await ask(tester, 'What is in it?');
+      final sent = jsonEncode([for (final r in server.requests) r.body]);
+      expect(sent, isNot(contains('My diary')));
+      expect(sent, isNot(contains('diary')));
+    });
+
+    testWidgets('after an error, a new question waits for "Send again"',
+        (tester) async {
+      final server = FakeServer([const SocketException('offline')]);
+      await openChat(tester, server);
+      await ask(tester, 'First?');
+      final send = tester
+          .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.send));
+      expect(send.onPressed, isNull);
+      expect(find.text('Send again'), findsOneWidget);
+    });
+
+    testWidgets('the tools follow a rescan and new hidden tags',
+        (tester) async {
+      final server = FakeServer([
+        for (var i = 0; i < 2; i++) ...[
+          anthropicReply([
+            {
+              'type': 'tool_use',
+              'id': 't$i',
+              'name': 'org_roam_find',
+              'input': {'search': ''},
+            },
+          ], stop: 'tool_use'),
+          anthropicReply([
+            {'type': 'text', 'text': 'Done $i.'},
+          ]),
+        ],
+      ]);
+      final notifier = ValueNotifier(graph);
+      final store = MemoryAiSettingsStore();
+      await tester.pumpWidget(AiSettingsHost(
+        store: store,
+        keys: keysWithAnthropic(),
+        child: MaterialApp(
+          home: ChatScreen(
+            graph: notifier,
+            readNote: (path) async => notes[path],
+            post: server.post,
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      // A scan brings a new note.
+      notifier.value = graphOf({
+        ...notes,
+        'new.org': ':PROPERTIES:\n:ID: new\n:END:\n#+title: New plan\n'
+            '#+filetags: :work:\n',
+      });
+      await ask(tester, 'All notes?');
+      final first = jsonEncode(server.requests[1].body);
+      expect(first, contains('New plan'));
+      // Now "work" is hidden too.
+      await AiSettingsScope.change(
+          tester.element(find.byType(ChatScreen)),
+          const AiSettings(hiddenTags: ['private', 'work']));
+      await tester.pumpAndSettle();
+      await ask(tester, 'And now?');
+      final second = jsonEncode(server.requests[3].body['messages'].last);
+      expect(second, isNot(contains('New plan')));
+    });
+  });
 }

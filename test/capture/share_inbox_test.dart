@@ -21,6 +21,14 @@ void main() {
     expect(proposeNode(const SharedText('5 ** 2')).title, '5 ** 2');
   });
 
+  test('an Org heading first line, as the AI chat writes (#60)', () {
+    expect(proposeNode(const SharedText('* Meeting notes\nAgenda')),
+        (title: 'Meeting notes', body: 'Agenda'));
+    expect(proposeNode(const SharedText('** Deeper')).title, 'Deeper');
+    // Org bold is no heading.
+    expect(proposeNode(const SharedText('*Bold* start')).title, '*Bold* start');
+  });
+
   test('a subject is the title, and all of the text the body', () {
     expect(
         proposeNode(const SharedText('Line one\nLine two', subject: ' Chat ')),

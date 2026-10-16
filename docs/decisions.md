@@ -1109,7 +1109,19 @@ devices through Syncthing.
       stays off.
     - **The conversation** is kept only while the chat is open; "New chat"
       starts again, with the settings as they are then. Nothing of it is
-      stored.
+      stored. Closing the chat stops it: a request under way finishes, but
+      no tool runs and nothing more is sent.
+    - **An open chat follows the app:** after a scan brings or removes
+      notes, or a tag is hidden in the settings, the next tool call uses
+      the graph and the hidden tags as they are then.
+    - **A hidden note is not named.** A chat opened from a note hidden from
+      AI (its index tags or its file as it is now, decision 42) says so and
+      does not put the note into the first message.
+    - **One turn at a time:** after an error, Send stays off until "Send
+      again" has finished the turn, or a new chat starts, so a new question
+      does not join the unanswered one.
+    - A proposed title loses the stars of an Org heading (`* Title`), as it
+      loses a Markdown `#`.
 
 ## Recommended, not decided
 

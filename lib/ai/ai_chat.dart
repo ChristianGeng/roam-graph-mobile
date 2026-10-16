@@ -519,7 +519,9 @@ class ChatSession {
     this.toolList,
   }) : _config = config;
 
-  final RoamTools tools;
+  /// The tools; the chat screen replaces them when the graph or the
+  /// hidden tags change.
+  RoamTools tools;
   final HttpPost post;
 
   /// The most tool rounds for one message, so a confused model cannot loop
@@ -547,6 +549,12 @@ class ChatSession {
   /// [resume] goes on counting.
   int _rounds = 0;
 
+  bool _cancelled = false;
+
+  /// Stops this chat: no further tool runs and no further requests, for
+  /// example when its screen closes during a request.
+  void cancel() => _cancelled = true;
+
   /// Sends [text] and runs tool rounds until the model answers.
   /// [onUpdate] runs after each step. Throws [AiError]; then [resume] tries
   /// again from where it stopped.
@@ -568,8 +576,9 @@ class ChatSession {
   /// rounds of the message count on, so a retry gets no new rounds.
   Future<void> resume({void Function()? onUpdate}) async {
     final offered = toolList ?? aiTools;
-    while (waiting) {
+    while (waiting && !_cancelled) {
       final reply = await _request(offered);
+      if (_cancelled) return;
       usage += reply.usage;
       final message = reply.message;
       if (reply.cut) {
@@ -597,6 +606,7 @@ class ChatSession {
       final last = _rounds >= maxToolRounds;
       final results = <ToolResult>[];
       for (final call in message.toolCalls) {
+        if (_cancelled) return;
         results.add(ToolResult(call, await _runTool(call)));
       }
       if (last) {

@@ -51,19 +51,18 @@ class ChatScreen extends StatefulWidget {
     RoamNode? startNode,
     NoteWriter? writer,
     OpenNode? openNode,
-  }) =>
-      Navigator.push(
-        context,
-        MaterialPageRoute<void>(
-          builder: (_) => ChatScreen(
-            graph: graph,
-            readNote: readNote,
-            startNode: startNode,
-            writer: writer,
-            openNode: openNode,
-          ),
-        ),
-      );
+  }) => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      builder: (_) => ChatScreen(
+        graph: graph,
+        readNote: readNote,
+        startNode: startNode,
+        writer: writer,
+        openNode: openNode,
+      ),
+    ),
+  );
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -80,17 +79,64 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _error;
   String? _setupProblem;
 
+  /// Whether the node the chat starts from may be named to the AI: not
+  /// when it is hidden from AI (#57).
+  bool _startShown = false;
+
+  /// The hidden tags the tools were made with.
+  Set<String>? _hiddenTags;
+
   @override
   void initState() {
     super.initState();
+    widget.graph.addListener(_refreshTools);
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
   }
 
   @override
+  void didUpdateWidget(ChatScreen old) {
+    super.didUpdateWidget(old);
+    if (old.graph != widget.graph) {
+      old.graph.removeListener(_refreshTools);
+      widget.graph.addListener(_refreshTools);
+      _refreshTools();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // New hidden tags apply to the next tool call of an open chat.
+    final tags = AiSettingsScope.of(context).hiddenTags.toSet();
+    if (_hiddenTags != null && !setEquals(tags, _hiddenTags)) {
+      _refreshTools();
+    }
+  }
+
+  @override
   void dispose() {
+    widget.graph.removeListener(_refreshTools);
+    // A request under way finishes, but nothing more is read or sent.
+    _session?.cancel();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  RoamTools _tools(AiSettings settings) => RoamTools(
+    widget.graph.value,
+    readNote: widget.readNote,
+    visibility: settings.visibility,
+  );
+
+  /// The tools on the graph and the hidden tags as they are now: after a
+  /// scan brought new notes, or a tag was hidden.
+  void _refreshTools() {
+    final session = _session;
+    if (session == null || !mounted) return;
+    final settings = AiSettingsScope.of(context);
+    _hiddenTags = settings.hiddenTags.toSet();
+    session.tools = _tools(settings);
   }
 
   /// Makes a new chat with the settings as they are now.
@@ -99,12 +145,21 @@ class _ChatScreenState extends State<ChatScreen> {
     final settings = await AiSettingsScope.current(context);
     if (!mounted) return;
     final keys = AiSettingsScope.keysOf(context);
-    final config = keys == null
-        ? null
-        : await providerConfig(settings, keys);
+    final config = keys == null ? null : await providerConfig(settings, keys);
     if (!mounted) return;
     final values = settings.providerSettings();
+    final start = widget.startNode;
+    var startShown = start != null && !settings.visibility.hides(start);
+    if (startShown) {
+      final file = await widget.readNote(start.file);
+      startShown =
+          file == null || !settings.visibility.hidesInText(start, file);
+    }
+    if (!mounted) return;
+    _session?.cancel();
     setState(() {
+      _startShown = startShown;
+      _hiddenTags = settings.hiddenTags.toSet();
       _error = null;
       _config = config;
       _defaultModel = values.defaultModel;
@@ -112,18 +167,14 @@ class _ChatScreenState extends State<ChatScreen> {
       _setupProblem = config == null
           ? 'The AI settings are not available.'
           : config.model.isEmpty
-              ? 'Choose a model for ${config.name} in AI settings.'
-              : config.keyRequired && config.apiKey.isEmpty
-                  ? 'Enter the API key for ${config.name} in AI settings.'
-                  : null;
+          ? 'Choose a model for ${config.name} in AI settings.'
+          : config.keyRequired && config.apiKey.isEmpty
+          ? 'Enter the API key for ${config.name} in AI settings.'
+          : null;
       _session = config == null
           ? null
           : ChatSession(
-              tools: RoamTools(
-                widget.graph.value,
-                readNote: widget.readNote,
-                visibility: settings.visibility,
-              ),
+              tools: _tools(settings),
               config: config,
               post: widget.post,
               maxToolRounds: settings.maxToolRounds,
@@ -134,7 +185,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// What the first message says about the node the chat came from.
   String? get _context {
     final node = widget.startNode;
-    if (node == null) return null;
+    if (node == null || !_startShown) return null;
     return 'I am looking at the note "${node.displayTitle}" (ID ${node.id}). '
         'Read it with org_roam_read_node if you need it.';
   }
@@ -144,8 +195,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _input.text.trim();
     if (session == null || text.isEmpty || _sending) return;
     _input.clear();
-    await _run(() => session.send(text,
-        context: _context, onUpdate: _changed));
+    await _run(() => session.send(text, context: _context, onUpdate: _changed));
   }
 
   Future<void> _resume() async {
@@ -176,10 +226,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _toEnd() => WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scroll.hasClients) {
-          _scroll.jumpTo(_scroll.position.maxScrollExtent);
-        }
-      });
+    if (_scroll.hasClients) {
+      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    }
+  });
 
   void _openLink(OrgLink link) {
     final location = link.location;
@@ -291,131 +341,148 @@ class _ChatScreenState extends State<ChatScreen> {
     final colors = theme.colorScheme;
     final children = <Widget>[];
     if (_setupProblem case final problem?) {
-      children.add(Card(
-        key: const ValueKey('chat-setup'),
-        child: ListTile(
-          title: Text(problem),
-          trailing: TextButton(
-            onPressed: () async {
-              await AiSettingsScreen.open(context);
-              if (mounted) _start();
-            },
-            child: const Text('AI settings'),
+      children.add(
+        Card(
+          key: const ValueKey('chat-setup'),
+          child: ListTile(
+            title: Text(problem),
+            trailing: TextButton(
+              onPressed: () async {
+                await AiSettingsScreen.open(context);
+                if (mounted) _start();
+              },
+              child: const Text('AI settings'),
+            ),
           ),
         ),
-      ));
+      );
     } else if (session != null && session.transcript.isEmpty) {
-      children.add(Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(
-          widget.startNode == null
-              ? 'Ask about your notes. The AI reads them with the tools of '
-                  'your org-roam MCP server; notes hidden from AI stay '
-                  'hidden.'
-              : 'Ask about "${widget.startNode!.displayTitle}" and its '
-                  'neighbours. The AI reads the notes with the tools of '
-                  'your org-roam MCP server; notes hidden from AI stay '
-                  'hidden.',
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(color: colors.onSurfaceVariant),
+      children.add(
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            widget.startNode != null && !_startShown
+                ? 'This note is hidden from AI by its tags, so the chat does '
+                      'not name it. Ask about your other notes.'
+                : widget.startNode == null
+                ? 'Ask about your notes. The AI reads them with the tools of '
+                      'your org-roam MCP server; notes hidden from AI stay '
+                      'hidden.'
+                : 'Ask about "${widget.startNode!.displayTitle}" and its '
+                      'neighbours. The AI reads the notes with the tools of '
+                      'your org-roam MCP server; notes hidden from AI stay '
+                      'hidden.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
         ),
-      ));
+      );
     }
     for (final (i, entry) in (session?.transcript ?? const []).indexed) {
       switch (entry) {
         case UserMessage():
-          children.add(Align(
-            alignment: Alignment.centerRight,
-            child: Container(
-              key: ValueKey('chat-user-$i'),
-              margin: const EdgeInsets.fromLTRB(48, 8, 8, 4),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
+          children.add(
+            Align(
+              alignment: Alignment.centerRight,
+              child: Container(
+                key: ValueKey('chat-user-$i'),
+                margin: const EdgeInsets.fromLTRB(48, 8, 8, 4),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: SelectableText(entry.text),
               ),
-              child: SelectableText(entry.text),
             ),
-          ));
+          );
         case AssistantMessage():
           if (entry.text.trim().isNotEmpty) {
             final writer = widget.writer;
-            children.add(Container(
-              key: ValueKey('chat-answer-$i'),
-              margin: const EdgeInsets.fromLTRB(8, 8, 24, 4),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  OrgText(entry.text.trim(), onLinkTap: _openLink),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          entry.model,
-                          style: theme.textTheme.labelSmall
-                              ?.copyWith(color: colors.onSurfaceVariant),
+            children.add(
+              Container(
+                key: ValueKey('chat-answer-$i'),
+                margin: const EdgeInsets.fromLTRB(8, 8, 24, 4),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colors.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    OrgText(entry.text.trim(), onLinkTap: _openLink),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            entry.model,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
                         ),
-                      ),
-                      if (writer != null && entry.toolCalls.isEmpty)
-                        TextButton.icon(
-                          key: ValueKey('chat-save-$i'),
-                          onPressed: () => _saveAsNode(writer, entry.text),
-                          icon: const Icon(Icons.note_add_outlined, size: 18),
-                          label: const Text('Save as new node'),
-                        ),
-                    ],
-                  ),
-                ],
+                        if (writer != null && entry.toolCalls.isEmpty)
+                          TextButton.icon(
+                            key: ValueKey('chat-save-$i'),
+                            onPressed: () => _saveAsNode(writer, entry.text),
+                            icon: const Icon(Icons.note_add_outlined, size: 18),
+                            label: const Text('Save as new node'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ));
+            );
           }
         case ToolResults():
           for (final (j, result) in entry.results.indexed) {
-            children.add(_ToolCallTile(
-              key: ValueKey('chat-tool-$i-$j'),
-              result: result,
-            ));
+            children.add(
+              _ToolCallTile(key: ValueKey('chat-tool-$i-$j'), result: result),
+            );
           }
       }
     }
     if (_error case final error?) {
-      children.add(Card(
-        key: const ValueKey('chat-error'),
-        color: colors.errorContainer,
-        margin: const EdgeInsets.all(8),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(error, style: TextStyle(color: colors.onErrorContainer)),
-              if (session?.waiting ?? false)
-                TextButton(
-                  onPressed: _sending ? null : _resume,
-                  child: const Text('Send again'),
-                ),
-            ],
+      children.add(
+        Card(
+          key: const ValueKey('chat-error'),
+          color: colors.errorContainer,
+          margin: const EdgeInsets.all(8),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(error, style: TextStyle(color: colors.onErrorContainer)),
+                if (session?.waiting ?? false)
+                  TextButton(
+                    onPressed: _sending ? null : _resume,
+                    child: const Text('Send again'),
+                  ),
+              ],
+            ),
           ),
         ),
-      ));
+      );
     }
     if (session != null && session.transcript.isNotEmpty) {
       final usage = session.usage;
-      children.add(Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        child: Text(
-          'Tokens in this chat: ${usage.input} in, of them ${usage.cached} '
-          'from the cache, ${usage.output} out.',
-          key: const ValueKey('chat-usage'),
-          style: theme.textTheme.labelSmall
-              ?.copyWith(color: colors.onSurfaceVariant),
+      children.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Text(
+            'Tokens in this chat: ${usage.input} in, of them ${usage.cached} '
+            'from the cache, ${usage.output} out.',
+            key: const ValueKey('chat-usage'),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
         ),
-      ));
+      );
     }
     return ListView(
       key: const ValueKey('chat-list'),
@@ -425,7 +492,13 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _composer(BuildContext context) {
-    final ready = _session != null && _setupProblem == null && !_sending;
+    // A turn that failed is finished with "Send again" or a new chat
+    // first, so a new question does not join it.
+    final ready =
+        _session != null &&
+        _setupProblem == null &&
+        !_sending &&
+        !(_session?.waiting ?? false);
     return SafeArea(
       top: false,
       child: Padding(
@@ -487,8 +560,9 @@ class _ToolCallTile extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: SelectableText(
               result.content,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(fontFamily: 'monospace'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontFamily: 'monospace',
+              ),
             ),
           ),
         ],
