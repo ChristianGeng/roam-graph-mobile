@@ -12,6 +12,7 @@ import 'package:roam_graph_mobile/graph/indexer.dart' as indexer;
 import 'package:roam_graph_mobile/graph/roam_db.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
+import 'package:roam_graph_mobile/node_view/note_images.dart';
 import 'package:roam_graph_mobile/main.dart';
 
 import 'graph_view/graph_screen_test.dart' show MemoryNodeMemory, layoutHere;
@@ -195,9 +196,10 @@ Future<TestGraphIndex> start(
       graphIndex: index,
       shareInbox: shares ?? FakeShareInbox(),
       nodeMemory: nodeMemory,
-      graphScreen: (graph, readNote, openInOrgro, writer) => GraphScreen(
+      graphScreen: (graph, readNote, openInOrgro, writer, files) => GraphScreen(
         graph: graph,
         readNote: readNote,
+        files: files,
         openInOrgro: openInOrgro,
         writer: writer,
         nodeMemory: nodeMemory,
@@ -363,6 +365,72 @@ void main() {
     await tester.tap(find.byTooltip('Open in Orgro'));
     await tester.pump();
     expect(find.text('Orgro is not installed.'), findsOneWidget);
+  });
+
+  group('images in notes (#46)', () {
+    /// a with an image beside it and one in include/ at the org root.
+    const imageNote = ':PROPERTIES:\n:ID: a\n:END:\n#+title: A\n'
+        '[[id:b]]\n\n[[file:./img/p.png]]\n\n[[file:../include/q.png]]\n';
+
+    Future<void> openA(WidgetTester tester) async {
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
+      await tester.pumpAndSettle();
+    }
+
+    List<String> shownImages(WidgetTester tester) => [
+          for (final image in tester.widgetList<Image>(find.byType(Image)))
+            if (image.image case final FolderImage folderImage)
+              folderImage.file.path,
+        ];
+
+    testWidgets('are read from the chosen folder, also above roam/',
+        (tester) async {
+      final access = withNotes(saved: org)
+        ..files = [
+          ...someFiles(),
+          const FolderFile(path: 'roam/img/p.png', uri: 'content://p'),
+          const FolderFile(path: 'include/q.png', uri: 'content://q'),
+        ]
+        ..texts = {...someTexts, 'roam/a.org': imageNote};
+      await start(tester, access);
+      await openA(tester);
+      expect(shownImages(tester), ['roam/img/p.png', 'include/q.png']);
+      expect(access.readPaths, containsAll(['roam/img/p.png', 'include/q.png']));
+    });
+
+    testWidgets('above the chosen folder, an image stays a link',
+        (tester) async {
+      const roam = ChosenFolder(
+          uri: 'content://tree/roam', name: 'roam', hasAccess: true);
+      final access = FakeFolderAccess(
+        saved: roam,
+        files: [
+          const FolderFile(path: 'a.org', uri: 'content://a'),
+          const FolderFile(path: 'b.org', uri: 'content://b'),
+          const FolderFile(path: 'img/p.png', uri: 'content://p'),
+        ],
+        texts: {
+          'a.org': imageNote,
+          'b.org': someTexts['roam/b.org']!,
+        },
+      );
+      await start(tester, access);
+      await openA(tester);
+      expect(shownImages(tester), ['img/p.png']);
+      expect(find.textContaining('../include/q.png', findRichText: true),
+          findsOneWidget);
+      // A plain link, not a missing image (p.png, which is no real PNG
+      // here, may show as broken).
+      expect(
+          [
+            for (final broken
+                in tester.widgetList<BrokenImage>(find.byType(BrokenImage)))
+              broken.link.location,
+          ],
+          isNot(contains('file:../include/q.png')));
+    });
   });
 
   group('capture (#11)', () {

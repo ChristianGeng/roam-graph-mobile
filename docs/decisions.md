@@ -651,6 +651,50 @@ devices through Syncthing.
     - The colours follow the app's light or dark mode, through
       `material_ui`'s theme (decision 25).
 
+38. **Images from the notes folder are shown as Org shows them** (#46),
+    `lib/node_view/note_images.dart`. `org_flutter` decides which links
+    are images (a location ending in an image extension, no description)
+    and asks the app for the widget (`loadImage`). The app:
+    - **Finds the file as Org does.** Only file links: `file:./img/a.png`,
+      `./img/a.png`, `file:img/a.png`, `../include/a.png` (read with
+      `org_parser`'s `OrgFileLink`). The path is relative to the
+      directory of the note's file; `.` and `..` are resolved.
+    - **Reads it through the folder access**, by content URI (decisions 19
+      and 31). The folder screen keeps every listed file of the chosen
+      folder, not only the notes, so an image beside `roam/` (the org
+      root's `include/`) is found when the org root is chosen.
+    - **Shows as links** what it cannot or must not read: absolute and
+      `~/` paths and paths above the chosen folder (Android gives no
+      access there), web images (the app is offline, decisions 2 and 14),
+      `attachment:` and `data:` links, SVG (#47) and AVIF (Flutter has no
+      decoder for it on Android).
+    - **A missing or unreadable image** shows the link with a
+      broken-image icon, whose tooltip says which; the page still shows.
+    - **Width, as Org 9.7.39 gives it with my settings**
+      (`org-image-actual-width` nil; `org-display-inline-image--width`,
+      checked in Emacs): the `:width` of the paragraph's `#+ATTR_ORG:`
+      lines; if they have no readable one, the first other `#+ATTR_...:`
+      line that has one. Only keyword lines right above the paragraph
+      count; a blank line between ends them, as in Org. `300px` and `300`
+      are 300 logical pixels; `50%`, `0.5` and other decimals from 0 to 2
+      are that part of the text width; `t`, a decimal such as `300.0`, or
+      no readable width is the image's own width (one image pixel per
+      logical pixel).
+    - **Never wider than the text column**, keeping the aspect ratio. This
+      differs from Emacs, which with these settings does not narrow an
+      image (`org-image-max-width` only applies with
+      `org-image-actual-width` t). `:align` is applied by `org_flutter`.
+    - **Memory:** the image is decoded no wider than shown, at most the
+      screen width in device pixels (a `:width` fraction of it), and never
+      enlarged. The zoom page decodes up to four times the screen's long
+      side, at most 4096 pixels. The image cache is keyed by the file's
+      URI, modification time and that width, so a changed image is read
+      again when the index changes (decision 26); a file whose folder
+      gives no modification time is read again after each scan. An image
+      that could not be read is tried again the next time.
+    - **Tap** opens the image on its own page with pinch zoom; Back
+      returns to the node.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

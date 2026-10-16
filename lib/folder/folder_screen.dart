@@ -11,6 +11,7 @@ import '../graph/roam_graph.dart';
 import '../graph_view/graph_screen.dart';
 import '../graph_view/node_memory.dart';
 import '../node_view/node_screen.dart';
+import '../node_view/note_images.dart';
 import 'folder_access.dart';
 import 'org_files.dart';
 
@@ -20,6 +21,7 @@ typedef GraphScreenBuilder = Widget Function(
   NoteReader readNote,
   NoteOpener openInOrgro,
   NoteWriter writer,
+  NoteFiles files,
 );
 
 /// Lets the user choose the org folder (#3), keeps the graph's database up
@@ -42,7 +44,8 @@ class FolderScreen extends StatefulWidget {
 
   /// Builds the graph view; tests replace it. The graph it gets follows
   /// the index, also while the graph view is open; [NoteReader] reads the
-  /// notes of the chosen folder, and [NoteOpener] opens them in Orgro.
+  /// notes of the chosen folder, and [NoteOpener] opens them in Orgro;
+  /// [NoteFiles] reads the folder's other files, for images (#46).
   final GraphScreenBuilder graphScreen;
 
   /// Text shared with the app, which becomes a new node (#15).
@@ -56,10 +59,12 @@ class FolderScreen extends StatefulWidget {
     NoteReader readNote,
     NoteOpener openInOrgro,
     NoteWriter writer,
+    NoteFiles files,
   ) =>
       GraphScreen(
         graph: graph,
         readNote: readNote,
+        files: files,
         openInOrgro: openInOrgro,
         writer: writer,
       );
@@ -104,6 +109,20 @@ class _FolderScreenState extends State<FolderScreen>
 
   /// The files of the latest graph, by path relative to roam/.
   Map<String, FolderFile> _roamFiles = {};
+
+  /// Every file of the chosen folder at the latest scan, by path relative
+  /// to it, for images in notes (#46).
+  Map<String, FolderFile> _folderFiles = {};
+
+  /// The path of roam/ in the chosen folder at the latest scan: `roam/`,
+  /// or empty when the chosen folder is roam/ itself.
+  String _roamPrefix = '';
+
+  /// The number of scans that found roam/, for images whose folder gives
+  /// no modification time (#46).
+  int _scans = 0;
+
+  late final NoteFiles _files = _FolderNoteFiles(this);
 
   /// The URI of roam/ itself, where new notes go (#11).
   String? _roamDir;
@@ -163,6 +182,7 @@ class _FolderScreenState extends State<FolderScreen>
         graph: notifier,
         id: id,
         readNote: _readNote,
+        files: _files,
         nodeMemory: widget.nodeMemory,
         openInOrgro: _openInOrgro,
         writer: _writer,
@@ -359,6 +379,12 @@ class _FolderScreenState extends State<FolderScreen>
     ];
     if (generation == _generation) {
       _roamFiles = byPath;
+      _folderFiles = {
+        for (final entry in entries)
+          if (!entry.isDirectory) entry.path: entry,
+      };
+      _roamPrefix = prefix;
+      _scans++;
       // roam/ itself: the folder, or its roam/ subfolder.
       _roamDir = prefix.isEmpty
           ? folder.uri
@@ -529,7 +555,7 @@ class _FolderScreenState extends State<FolderScreen>
                 MaterialPageRoute<void>(
                   builder: (context) =>
                       widget.graphScreen(
-                          notifier, _readNote, _openInOrgro, _writer),
+                          notifier, _readNote, _openInOrgro, _writer, _files),
                 ),
               ),
               icon: const Icon(Icons.hub_outlined),
@@ -670,5 +696,41 @@ class _FileList extends StatelessWidget {
           Text('and ${files.length - limit} more'),
       ],
     );
+  }
+}
+
+/// The files of the chosen folder at the latest scan, for images in notes
+/// (#46): what [FolderAccess.listFiles] listed, read with
+/// [FolderAccess.readFiles] by content URI.
+class _FolderNoteFiles implements NoteFiles {
+  _FolderNoteFiles(this._state);
+
+  final _FolderScreenState _state;
+
+  /// [path], relative to roam/, as a path relative to the chosen folder.
+  String _inFolder(String path) =>
+      normalizePath('${_state._roamPrefix}$path');
+
+  @override
+  bool reaches(String path) {
+    final inFolder = _inFolder(path);
+    return inFolder != '..' && !inFolder.startsWith('../');
+  }
+
+  @override
+  FolderFile? find(String path) =>
+      reaches(path) ? _state._folderFiles[_inFolder(path)] : null;
+
+  @override
+  int version(FolderFile file) =>
+      file.modified != 0 ? file.modified : -_state._scans;
+
+  @override
+  Future<Uint8List?> read(FolderFile file) async {
+    try {
+      return (await _state.widget.folderAccess.readFiles([file])).firstOrNull;
+    } on PlatformException {
+      return null;
+    }
   }
 }

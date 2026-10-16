@@ -15,6 +15,7 @@ import '../graph/roam_graph.dart';
 import '../node_view/node_screen.dart';
 import '../search/search_screen.dart';
 import 'node_memory.dart';
+import '../node_view/note_images.dart';
 
 /// Computes a layout; by default on another isolate.
 typedef LayoutFunction = Future<GraphLayout> Function(
@@ -64,6 +65,7 @@ class GraphScreen extends StatefulWidget {
     super.key,
     required this.graph,
     required this.readNote,
+    this.files,
     this.openInOrgro,
     this.writer,
     this.nodeMemory = const FileNodeMemory(),
@@ -76,6 +78,10 @@ class GraphScreen extends StatefulWidget {
 
   /// Reads a note for the node view.
   final NoteReader readNote;
+
+  /// The folder's other files, for images in notes (#46); without
+  /// them, image links are shown as text.
+  final NoteFiles? files;
 
   /// Opens a note in Orgro, for the node view.
   final NoteOpener? openInOrgro;
@@ -484,6 +490,7 @@ class _GraphScreenState extends State<GraphScreen> {
         graph: widget.graph,
         id: id,
         readNote: widget.readNote,
+        files: widget.files,
         nodeMemory: widget.nodeMemory,
         onShowInGraph: _showInGraph,
         openInOrgro: widget.openInOrgro,
@@ -646,6 +653,7 @@ class _GraphScreenState extends State<GraphScreen> {
               context,
               graph: widget.graph,
               readNote: widget.readNote,
+              files: widget.files,
               nodeMemory: widget.nodeMemory,
               onShowInGraph: _showInGraph,
               openInOrgro: widget.openInOrgro,
@@ -737,6 +745,7 @@ class _GraphScreenState extends State<GraphScreen> {
                     graph: widget.graph,
                     id: paneId,
                     readNote: widget.readNote,
+                    files: widget.files,
                     nodeMemory: widget.nodeMemory,
                     onShowInGraph: _showInGraph,
                     openInOrgro: widget.openInOrgro,
