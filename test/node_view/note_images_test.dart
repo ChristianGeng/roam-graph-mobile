@@ -21,16 +21,17 @@ final png = File('test/fixtures/images/red-40x20.png').readAsBytesSync();
 class FakeNoteFiles implements NoteFiles {
   FakeNoteFiles(Iterable<String> paths,
       {this.unreadable = const {},
-      this.contents = const {},
+      Map<String, Uint8List> contents = const {},
       String uriPrefix = 'content://'})
-      : files = {
+      : contents = {...contents},
+        files = {
           for (final path in paths)
             path: FolderFile(path: path, uri: '$uriPrefix$path', modified: 1),
         };
 
   final Map<String, FolderFile> files;
   final Set<String> unreadable;
-  final Map<String, Uint8List> contents;
+  Map<String, Uint8List> contents;
   final reads = <String>[];
 
   /// Raised to make every image new, as a scan does for files without a

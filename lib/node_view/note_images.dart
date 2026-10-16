@@ -334,20 +334,39 @@ class FolderSvg extends StatefulWidget {
 }
 
 class _FolderSvgState extends State<FolderSvg> {
+  /// The compilation shown, and the file and version it is of.
   late Future<ByteData> _bytes;
+  late (String, int) _key;
+
+  /// Whether [_bytes] failed, so the next update tries again.
+  bool _failed = false;
+
+  void _compile() {
+    final key = (widget.file.uri, widget.files.version(widget.file));
+    final bytes = compiledSvg(widget.file, widget.files);
+    _key = key;
+    _bytes = bytes;
+    _failed = false;
+    bytes.then<void>((_) {}, onError: (Object _) {
+      if (_bytes == bytes) _failed = true;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    _bytes = compiledSvg(widget.file, widget.files);
+    _compile();
   }
 
   @override
   void didUpdateWidget(FolderSvg old) {
     super.didUpdateWidget(old);
-    if (old.file.uri != widget.file.uri ||
-        old.files.version(old.file) != widget.files.version(widget.file)) {
-      _bytes = compiledSvg(widget.file, widget.files);
+    // The version is taken now and compared with the one compiled: for a
+    // file without a modification time, it is the folder's scan count,
+    // which the old and the new widget share.
+    if (_failed ||
+        _key != (widget.file.uri, widget.files.version(widget.file))) {
+      _compile();
     }
   }
 
@@ -355,12 +374,14 @@ class _FolderSvgState extends State<FolderSvg> {
   Widget build(BuildContext context) => FutureBuilder<ByteData>(
         future: _bytes,
         builder: (context, snapshot) {
+          // A new compilation keeps the old snapshot until it is done;
+          // those bytes must not be shown under the new key.
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SizedBox.shrink();
+          }
           if (snapshot.hasError) return widget.error(context);
-          final bytes = snapshot.data;
-          if (bytes == null) return const SizedBox.shrink();
           return SvgPicture(
-            _CompiledSvg(
-                bytes, (widget.file.uri, widget.files.version(widget.file))),
+            _CompiledSvg(snapshot.requireData, _key),
             semanticsLabel: widget.file.path.split('/').last,
             imageBuilder: (context, svg) => _onLightBackground(context, svg),
           );

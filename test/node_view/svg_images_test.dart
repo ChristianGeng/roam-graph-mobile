@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/folder/org_files.dart';
+import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
 import 'package:roam_graph_mobile/node_view/note_images.dart';
 
@@ -16,6 +17,40 @@ import 'note_images_test.dart' show FakeNoteFiles;
 /// drawing, and one cut off in the middle.
 Uint8List fixture(String name) =>
     File('test/fixtures/images/$name').readAsBytesSync();
+
+/// A note with the SVG [name], for the tests that show it again.
+String noteWith(String name) =>
+    ':PROPERTIES:\n:ID: n\n:END:\n#+title: N\n[[file:./img/$name]]\n';
+
+/// Pumps until each SVG is drawn or shown as broken, at most 10 seconds:
+/// they are compiled on another isolate.
+Future<void> settle(WidgetTester tester) async {
+  await tester.pumpAndSettle();
+  bool pending() =>
+      find.byType(FolderSvg).evaluate().length >
+      find.byType(FittedBox).evaluate().length +
+          find.byType(BrokenImage).evaluate().length;
+  for (var i = 0; i < 200 && pending(); i++) {
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+  }
+}
+
+/// Shows [note] from [graph], which the test changes as a scan would.
+Future<void> showGraph(WidgetTester tester, ValueNotifier<RoamGraph> graph,
+    FakeNoteFiles files, String note) async {
+  await tester.pumpWidget(MaterialApp(
+    home: NodeScreen(
+      graph: graph,
+      id: 'n',
+      readNote: (path) async => note,
+      files: files,
+      nodeMemory: MemoryNodeMemory(),
+    ),
+  ));
+  await settle(tester);
+}
 
 void main() {
   /// Shows a note with [text] whose folder holds [files], and waits until
@@ -33,17 +68,7 @@ void main() {
         nodeMemory: MemoryNodeMemory(),
       ),
     ));
-    await tester.pumpAndSettle();
-    // Until each SVG is drawn or shown as broken, at most 10 seconds.
-    bool pending() =>
-        find.byType(FolderSvg).evaluate().length >
-        find.byType(FittedBox).evaluate().length +
-            find.byType(BrokenImage).evaluate().length;
-    for (var i = 0; i < 200 && pending(); i++) {
-      await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 50)));
-      await tester.pump();
-    }
+    await settle(tester);
   }
 
   // Other URIs in each test: a drawing still pending in one test's fake
@@ -144,5 +169,46 @@ void main() {
       files.unreadable.clear();
       expect(await compiledSvg(file, files), isNotNull);
     });
+  });
+
+  testWidgets('after a scan, a changed SVG without a time is drawn anew',
+      (tester) async {
+    // Two drawings of different sizes, in a file whose folder gives no
+    // modification time.
+    final files = FakeNoteFiles([], contents: {
+      'img/s.svg': fixture('lines-40x20.svg'),
+    });
+    files.files['img/s.svg'] =
+        const FolderFile(path: 'img/s.svg', uri: 'content://scan/s.svg');
+    final note = noteWith('s.svg');
+    final graph = ValueNotifier(graphOf({'n.org': note}));
+    await showGraph(tester, graph, files, note);
+    expect(tester.getSize(find.byType(FittedBox)), const Size(40, 20));
+
+    files.contents['img/s.svg'] = Uint8List.fromList(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="10"/>'
+            .codeUnits);
+    files.scan++;
+    graph.value = graphOf({'n.org': note});
+    await settle(tester);
+    expect(tester.getSize(find.byType(FittedBox)), const Size(60, 10));
+  });
+
+  testWidgets('a broken SVG is tried again when the note is shown again',
+      (tester) async {
+    final files = FakeNoteFiles(['img/r.svg'],
+        unreadable: {'img/r.svg'},
+        contents: {'img/r.svg': fixture('lines-40x20.svg')},
+        uriPrefix: 'content://retry/');
+    final note = noteWith('r.svg');
+    final graph = ValueNotifier(graphOf({'n.org': note}));
+    await showGraph(tester, graph, files, note);
+    expect(find.byType(BrokenImage), findsOneWidget);
+
+    files.unreadable.clear();
+    graph.value = graphOf({'n.org': note});
+    await settle(tester);
+    expect(find.byType(BrokenImage), findsNothing);
+    expect(tester.getSize(find.byType(FittedBox)), const Size(40, 20));
   });
 }
