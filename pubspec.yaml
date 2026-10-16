@@ -26,6 +26,7 @@ dependencies:
   org_parser: ^12.0.1
   material_ui: ^1.7.0
   unorm_dart: ^0.3.3
+  highlighting: ^0.9.0+11.8.0
 
 dev_dependencies:
   flutter_test:

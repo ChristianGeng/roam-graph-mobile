@@ -626,6 +626,28 @@ devices through Syncthing.
     - So an AI on the device reads on demand with me as the messenger. An
       AI that fetches notes itself would need a remote MCP server (#42).
 
+37. **Source blocks are coloured as Emacs colours them** (#45),
+    `lib/node_view/src_languages.dart`. `org_flutter` already highlights
+    source blocks (with the `highlighting` package, a port of
+    highlight.js, and Emacs-like colours for light and dark), but only when
+    the block's language is a highlight.js name. So the app maps each
+    block's language first, the way Emacs picks a mode:
+    - The language gives Emacs's mode through `org-src-lang-modes` (copied
+      from Org 9.7.39), or the mode of its own name, as
+      `org-src-get-lang-mode` does: `sh`, `shell`, `bash` and `zsh` give
+      `sh-mode`, `elisp` gives `emacs-lisp-mode`, `toml` gives
+      `conf-toml-mode`.
+    - The mode gives highlight.js's name: `sh` is `bash`, `emacs-lisp` is
+      `lisp`, `conf` and `conf-toml` are `ini`, `js` is `javascript`,
+      `c++` is `cpp`; other modes keep their name (`python`, `json`).
+    - A language without a highlight.js grammar stays plain, as in Emacs
+      without its mode: `mermaid`, `text`, and `config` (Emacs has no
+      `config-mode`).
+    - Only the language the renderer uses changes; the block's header line
+      is shown as written.
+    - The colours follow the app's light or dark mode, through
+      `material_ui`'s theme (decision 25).
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
