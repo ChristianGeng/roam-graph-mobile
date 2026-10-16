@@ -34,7 +34,9 @@ EU, Mistral, DeepSeek and others, with the key in Android's secure storage
 (#59). "Ask AI" in the graph and node views opens the chat: tool calls
 are shown, `id:` links in answers open the node, and an answer can be
 saved as a new node after review (#60). Help pages, linked Org files shown
-like notes, explain the views and layouts (#62). What is decided and why is in
+like notes, explain the views and layouts (#62). What changed in each
+release is in [CHANGELOG.md](CHANGELOG.md), and the release text repeats it
+(#70). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

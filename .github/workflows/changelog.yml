@@ -1,0 +1,42 @@
+# Checks that a pull request which changes the app adds a CHANGELOG.md
+# entry (decision 48). The release text is taken from those entries.
+#
+# "Changes the app" means files under lib/ or android/. A pull request
+# with the label skip-changelog passes without an entry, for example one
+# that only changes documentation or tests.
+#
+# It runs no code from the pull request and uses no actions: it only asks
+# the API which files the pull request changes.
+
+name: Changelog
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for a changelog entry
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          files=$(gh api --paginate "repos/$GH_REPO/pulls/$PR/files" --jq '.[].filename')
+          if ! printf '%s\n' "$files" | grep -qE '^(lib|android)/'; then
+            echo "No change under lib/ or android/; no entry needed."
+            exit 0
+          fi
+          if printf '%s\n' "$files" | grep -qx 'CHANGELOG.md'; then
+            echo "CHANGELOG.md is changed."
+            exit 0
+          fi
+          echo "::error title=Changelog::This pull request changes lib/ or android/ but not CHANGELOG.md. Add an entry at the top of CHANGELOG.md (see AGENTS.md), or add the label skip-changelog if the change is not visible to users."
+          exit 1

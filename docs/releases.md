@@ -4,6 +4,21 @@ Every push to `main` builds a signed APK on GitHub Actions
 (`.github/workflows/build.yml`) and publishes it as a GitHub release named
 `v0.1.<run number>`. Pull requests only test and build; they publish nothing.
 
+## What changed: the changelog
+
+`CHANGELOG.md` lists what changed, newest first. Every pull request adds
+one entry at the top (see `AGENTS.md`); CI's "Changelog" check fails a pull
+request that changes `lib/` or `android/` without one, unless it has the
+label `skip-changelog`.
+
+The release text is written by `tool/release_notes.dart`: the entries that
+are in `CHANGELOG.md` now but were not in the previous published release's
+copy, then "Built from <sha>". If there are none (for example when a
+release is built again), it uses the top entry. The version is not in the
+changelog, because it is only known when the release is built; the release
+text carries it. Entries written before the changelog existed name their
+version at their end.
+
 ## The signing key
 
 Android installs an update only if it is signed with the same key as the

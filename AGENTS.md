@@ -30,6 +30,13 @@ folder is the only connection.
   disk and print differences.
 - **The APK comes from GitHub Actions.** Releases carry the signed APK; the
   signing key is a repository secret, never a file in the repo.
+- **Every pull request adds a CHANGELOG.md entry** at the top:
+  `## YYYY-MM-DD: <short title> ([#PR](<PR URL>))`, then 1 to 4 lines on
+  what changed for the user (Added / Changed / Fixed) and the issue it
+  closes. No version number: the release text adds it. CI fails a pull
+  request that changes `lib/` or `android/` without an entry; the label
+  `skip-changelog` lets a change through that users do not see
+  (decision 48).
 - **Match org-roam exactly** where the app imitates it: which files are
   nodes, how titles, tags, aliases, refs and links are read, how values are
   stored (Emacs Lisp quoted strings), and how new files are named. When
