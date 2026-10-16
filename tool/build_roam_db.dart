@@ -1,6 +1,10 @@
 // Builds the app's org-roam database from a roam folder, on the laptop.
 //
-//   dart run tool/build_roam_db.dart ROAM_DIR OUT.db
+//   dart run tool/build_roam_db.dart [--plain-org-roam] ROAM_DIR OUT.db
+//
+// --plain-org-roam uses the link types of a plain Emacs with org-roam,
+// with which the sample files' expected database was built (CI); without
+// it, those of my Emacs, as the app does.
 //
 // Same code as the app, so OUT.db is what the phone stores. The stored
 // paths start with ROAM_DIR as given, like org-roam's own paths. Run
@@ -14,11 +18,15 @@ import 'dart:typed_data';
 
 import 'package:roam_graph_mobile/folder/org_files.dart';
 import 'package:roam_graph_mobile/graph/indexer.dart';
+import 'package:roam_graph_mobile/graph/org_roam_parser.dart';
 import 'package:roam_graph_mobile/graph/roam_db.dart';
 
-void main(List<String> args) {
+void main(List<String> arguments) {
+  final plain = arguments.contains('--plain-org-roam');
+  final args = [for (final a in arguments) if (a != '--plain-org-roam') a];
   if (args.length != 2) {
-    stderr.writeln('Usage: dart run tool/build_roam_db.dart ROAM_DIR OUT.db');
+    stderr.writeln('Usage: dart run tool/build_roam_db.dart '
+        '[--plain-org-roam] ROAM_DIR OUT.db');
     exit(2);
   }
   final root = Directory(args[0]).absolute;
@@ -40,13 +48,22 @@ void main(List<String> args) {
       path: file.lastModifiedSync().millisecondsSinceEpoch,
   };
 
+  // A database made by another parser, or with the other link types, is
+  // built again from all files, as the app does (graph_index.dart).
+  final linkTypes = plain ? plainOrgRoamLinkTypes : defaultLinkTypes;
+  final fingerprint = parserFingerprint(linkTypes);
+  final marker = File('${args[1]}.parser');
+  final rebuild =
+      !marker.existsSync() || marker.readAsStringSync() != fingerprint;
   final db = RoamDatabase.open(args[1], root: rootPath);
   try {
-    final toRead = filesToRead(db, listing);
+    final toRead = rebuild ? listing.keys.toList() : filesToRead(db, listing);
     final contents = <String, Uint8List?>{
       for (final path in toRead) path: files[path]!.readAsBytesSync(),
     };
-    final graph = updateIndex(db, listing, contents);
+    final graph = updateIndex(db, listing, contents,
+        replace: rebuild, linkTypes: linkTypes);
+    marker.writeAsStringSync(fingerprint);
     final tables = db.dumpTables();
     stdout.writeln('Read ${toRead.length} of ${listing.length} files into '
         '${args[1]}:');

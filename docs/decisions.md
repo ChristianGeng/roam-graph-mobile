@@ -145,6 +145,15 @@ devices through Syncthing.
       verbatim, comments, and source, example, export and comment blocks are
       not. Links in `#+title:`, other keywords and property values are,
       except `ROAM_REFS` and `#+transclude:`.
+    - Code `~…~` and verbatim `=…=` may span line breaks up to the end of
+      their paragraph, as in Org 9.7: a blank line, or a line that starts
+      another element (heading, list item, table, keyword, fixed width,
+      comment, drawer, rule). They also end where an enclosing bold or
+      italic ends (`*a =x=* b`). The laptop check found such a code span
+      hiding a link in my notes.
+    - `[fn:label]` is a footnote, not an `fn:` link, also where `fn` is a
+      link type (Doom registers one). Links inside an inline footnote
+      count.
     - A link belongs to the nearest node above it. A link under a top-level
       heading that is not a node goes to the file node; if the file starts
       with a heading, to that first heading.
@@ -156,6 +165,18 @@ devices through Syncthing.
     links and `ROAM_REFS` count (`cite:key` does not; `@key` does). Both are
     parameters of the parser. If my Emacs differs, the laptop comparison
     shows it.
+    - **The link types are my Doom Emacs's** (`myEmacsLinkTypes`, read
+      from `org-link-parameters` on 2026-10-16). The laptop check found
+      that they differ from a plain Emacs's: Doom adds `org`, `doom`,
+      `kbd`, `fn` and others, and leaves out `eww`, `info`, `doi` and
+      others. So `#+filetags: :org:setup:` holds a plain `org:` link in
+      org-roam on the laptop, and in the app.
+    - The sample files' expected database was built by a plain Emacs, so
+      the tests and CI's comparisons on them use the plain list
+      (`plainOrgRoamLinkTypes`, the tools' `--plain-org-roam`).
+    - With both changes, `tool/org_roam_parity.py check-db` finds no
+      differences on my notes (2026-10-16: 461 files, 456 nodes, 5757
+      links, every table and column).
 
 22. **`roam/daily/` is not part of the graph** (#4). It is a symlink to the
     journal folder (`../journal/`), so the dailies are the journal, which
@@ -189,6 +210,11 @@ devices through Syncthing.
       to the foreground. Index updates run one at a time, in order.
     - `files.atime` holds the modification time: Android's folder access
       gives no access time.
+    - An index made by another parser is rebuilt once: the folder marker
+      also holds the parser's version and link types
+      (`parserFingerprint`), and a different one counts as no index. So an
+      update that changes how notes are read reaches unchanged notes too.
+      `tool/build_roam_db.dart` keeps the same in `OUT.db.parser`.
     - The parser fills every column, not only what the graph needs: `pos`,
       `level`, `todo`, `priority`, `scheduled`, `deadline`, `olp`, the
       `properties` list org-roam stores, all link types with their

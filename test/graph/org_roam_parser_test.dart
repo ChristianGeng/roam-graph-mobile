@@ -176,7 +176,10 @@ void main() {
 
     test('refs are read like org-roam reads them', () {
       List<List<String>> refs(String ref) =>
-          [for (final r in parseRoamRef(ref)) [r.ref, r.type]];
+          [
+            for (final r in parseRoamRef(ref, linkTypes: plainOrgRoamLinkTypes))
+              [r.ref, r.type],
+          ];
 
       expect(refs('https://example.com/a'), [
         ['//example.com/a', 'https'],
@@ -327,5 +330,84 @@ void main() {
         'x': ['a.org', 'b.org'],
       });
     });
+  });
+
+  group('the link types of my Emacs (decision 21)', () {
+    test('Doom registers org:, so a file tag can hold a plain link', () {
+      const text = ':PROPERTIES:\n:ID: n\n:END:\n#+title: N\n'
+          '#+filetags: :org:syncthing:setup:\n';
+      final mine = parseRoamFile('n.org', text);
+      expect([for (final l in mine.links) (l.type, l.dest)],
+          [('org', 'syncthing:setup')]);
+      // A plain Emacs registers no org: type.
+      final plain =
+          parseRoamFile('n.org', text, linkTypes: plainOrgRoamLinkTypes);
+      expect(plain.links, isEmpty);
+    });
+
+    test('Doom does not register doi:, so it is no ref there', () {
+      expect(parseRoamRef('doi:10.1000/xyz'), isEmpty);
+      expect(parseRoamRef('https://example.com').single.type, 'https');
+    });
+  });
+
+  // What Org 9.7's org-element-context says is at the link: code (the
+  // link is hidden) or not (it counts), for the same texts in Emacs.
+  group('code and verbatim across line breaks, as Org 9.7', () {
+    bool linkCounts(String body) {
+      final text = ':PROPERTIES:\n:ID: n\n:END:\n#+title: N\n$body';
+      return parseRoamFile('n.org', text)
+          .links
+          .any((l) => l.dest == '//x.org/LINK');
+    }
+
+    for (final (name, body, hidden) in [
+      ('one line', 'a ~b [[https://x.org/LINK][d]] c~ e\n', true),
+      ('one break', 'a ~b\n[[https://x.org/LINK][d]] c~ e\n', true),
+      ('three breaks', 'a ~b\nx\ny\n[[https://x.org/LINK][d]] c~ e\n', true),
+      ('blank line', 'a ~b\n\n[[https://x.org/LINK][d]] c~ e\n', false),
+      ('list items', '- a ~b\n- [[https://x.org/LINK][d]] c~ e\n', false),
+      ('item continued', '- a ~b\n  x\n  [[https://x.org/LINK][d]] c~ e\n',
+          true),
+      ('verbatim', 'a =b\n[[https://x.org/LINK][d]] c= e\n', true),
+      ('space before close', 'a ~b\n[[https://x.org/LINK][d]] c ~ e\n', false),
+      ('close before letter', 'a ~b\n[[https://x.org/LINK][d]] c~e\n', false),
+      ('heading', 'a ~b\n* H [[https://x.org/LINK][d]] c~ e\n', false),
+      ('table', 'a ~b\n| [[https://x.org/LINK][d]] c~ e |\n', false),
+      ('numbered item', 'a ~b\n1. [[https://x.org/LINK][d]] c~ e\n', false),
+      ('plus item', 'a ~b\n+ [[https://x.org/LINK][d]] c~ e\n', false),
+      ('drawer', 'a ~b\n:NOTE:\n[[https://x.org/LINK][d]] c~ e\n:END:\n', false),
+      ('rule', 'a ~b\n-----\n[[https://x.org/LINK][d]] c~ e\n', false),
+      ('indented text', 'a ~b\n   [[https://x.org/LINK][d]] c~ e\n', true),
+      // Verbatim ends with an enclosing bold or italic.
+      ('closing inside bold',
+          '- *a =x=* -\n  [[https://x.org/LINK][d]]\n  y =z= w\n', false),
+      ('closing inside italic',
+          '- /a ~x~/ -\n  [[https://x.org/LINK][d]]\n  y ~z~ w\n', false),
+      ('=x=* not at a bold end',
+          'a =x=*b c\n[[https://x.org/LINK][d]] =y= d\n', true),
+      // Links in inline footnotes count.
+      ('inline footnote', 'see [fn:tm:with [[https://x.org/LINK][d]]] here\n',
+          false),
+      ('anonymous footnote', 'see [fn::a [[https://x.org/LINK][d]]] here\n',
+          false),
+    ]) {
+      test(name, () => expect(linkCounts(body), !hidden));
+    }
+  });
+
+  // Doom registers fn: as a link type; Org still reads [fn:…] as a
+  // footnote, as org-element-context says in Org 9.7.
+  test('footnotes are no fn: links', () {
+    const head = ':PROPERTIES:\n:ID: n\n:END:\n#+title: N\n';
+    List<(String, String)> links(String body) => [
+          for (final l in parseRoamFile('n.org', '$head$body').links)
+            (l.type, l.dest),
+        ];
+    expect(links('see [fn:tm] here\n'), isEmpty);
+    expect(links('[fn:tm] The note.\n'), isEmpty);
+    expect(links('see fn:tm here\n'), [('fn', 'tm')]);
+    // Labels may hold letters of any script, as Org's [:word:].
+    expect(links('see [fn:über] and [fn:café-2] here\n'), isEmpty);
   });
 }

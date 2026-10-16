@@ -1,6 +1,9 @@
 // Prints the graph the app's parser builds from a roam folder, as JSON.
 //
-//   dart run tool/roam_graph_dump.dart ROAM_DIR
+//   dart run tool/roam_graph_dump.dart [--plain-org-roam] ROAM_DIR
+//
+// --plain-org-roam: the link types of a plain Emacs with org-roam, as for
+// the sample files (CI); without it, those of my Emacs, as the app.
 //
 // It reads the same files the app reads (lib/folder/org_files.dart) and
 // prints the format tool/org_roam_parity.py compares with an org-roam
@@ -13,9 +16,12 @@ import 'package:roam_graph_mobile/folder/org_files.dart';
 import 'package:roam_graph_mobile/graph/org_roam_parser.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 
-void main(List<String> args) {
+void main(List<String> arguments) {
+  final plain = arguments.contains('--plain-org-roam');
+  final args = [for (final a in arguments) if (a != '--plain-org-roam') a];
   if (args.length != 1) {
-    stderr.writeln('Usage: dart run tool/roam_graph_dump.dart ROAM_DIR');
+    stderr.writeln(
+        'Usage: dart run tool/roam_graph_dump.dart [--plain-org-roam] ROAM_DIR');
     exit(2);
   }
   final root = Directory(args.single).absolute;
@@ -30,7 +36,8 @@ void main(List<String> args) {
     final path = entity.path.substring(prefix.length);
     if (!isRoamFile(path)) continue;
     final text = utf8.decode(entity.readAsBytesSync(), allowMalformed: true);
-    files.add(parseRoamFile(path, text));
+    files.add(parseRoamFile(path, text,
+        linkTypes: plain ? plainOrgRoamLinkTypes : defaultLinkTypes));
   }
   final graph = RoamGraph.fromFiles(files);
   stdout.writeln(

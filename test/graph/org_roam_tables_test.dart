@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/folder/org_files.dart';
 import 'package:roam_graph_mobile/graph/indexer.dart';
+import 'package:roam_graph_mobile/graph/org_roam_parser.dart';
 import 'package:roam_graph_mobile/graph/roam_db.dart';
 
 /// The rows of one table, as sorted JSON strings, so they compare as a
@@ -29,7 +30,8 @@ void main() {
       listing[path] = 0;
       contents[path] = entity.readAsBytesSync();
     }
-    updateIndex(db, listing, contents);
+    // The expected database was built by a plain Emacs.
+    updateIndex(db, listing, contents, linkTypes: plainOrgRoamLinkTypes);
     final actual = db.dumpTables();
     final expected = jsonDecode(
       File('test/fixtures/org_roam_expected_tables.json').readAsStringSync(),

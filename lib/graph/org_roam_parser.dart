@@ -24,15 +24,46 @@ const doomTodoKeywords = [
   '[ ]', '[-]', '[?]', '[X]', 'OKAY', 'YES', 'NO',
 ];
 
-/// Link types registered in an Emacs with org-roam loaded. Org recognizes a
-/// plain link like `https://…` or `id:…` in text only for a registered
-/// type, and org-roam accepts a plain `ROAM_REFS` entry only for one.
-const defaultLinkTypes = [
+/// Link types registered in a plain Emacs with org-roam loaded, as the
+/// sample files' org-roam database was built (`tool/org_roam_parity/`).
+/// Org recognizes a plain link like `https://…` or `id:…` in text only for
+/// a registered type, and org-roam accepts a plain `ROAM_REFS` entry only
+/// for one.
+const plainOrgRoamLinkTypes = [
   'eww', 'rmail', 'mhe', 'irc', 'info', 'gnus', 'docview', 'bibtex', //
   'bbdb', 'w3m', 'doi', 'roam', 'attachment', 'id', 'file+sys', //
   'file+emacs', 'shell', 'news', 'mailto', 'https', 'http', 'ftp', 'help', //
   'file', 'elisp',
 ];
+
+/// Link types registered in my Doom Emacs (`org-link-parameters`, read on
+/// 2026-10-16), which the app uses: Doom adds `org`, `doom`, `kbd` and
+/// others, and leaves out `eww`, `info`, `doi` and others. So
+/// `#+filetags: :org:setup:` holds a plain `org:` link in org-roam on the
+/// laptop. If my Emacs changes, `tool/org_roam_parity.py check-db` shows
+/// the difference (decision 21).
+const myEmacsLinkTypes = [
+  'treemacs', 'orgit-rev', 'orgit-log', 'orgit', 'bibtex', 'download', //
+  'pdf', 'elfeed', 'orgit-topic', 'roam', 'id', 'img', 'doom-changelog', //
+  'doom-user', 'doom-ref', 'doom-executable', 'doom-module', //
+  'doom-package', 'cmd', 'face', 'fn', 'var', 'kbd', 'doom-modules', //
+  'doom-docs', 'doom', 'org', 'attachment', 'file+sys', 'file+emacs', //
+  'shell', 'news', 'mailto', 'https', 'http', 'ftp', 'help', 'file', //
+  'elisp',
+];
+
+/// The link types the parser uses unless told otherwise: my Emacs's.
+const defaultLinkTypes = myEmacsLinkTypes;
+
+/// Changes when the parser reads files differently, so that a stored index
+/// made by an older parser is built again (`graph_index.dart`). Raise it
+/// with every change to what the parser finds.
+const parserVersion = 2;
+
+/// What an index depends on besides the files: the parser and its link
+/// types. An index stored with another fingerprint is rebuilt.
+String parserFingerprint([List<String> linkTypes = defaultLinkTypes]) =>
+    'parser $parserVersion; link types ${linkTypes.join(' ')}';
 
 /// Parses one file. [path] is relative to `roam/` and is stored as given.
 /// [root] is the folder org-roam's absolute paths start with; it appears in
@@ -1001,9 +1032,44 @@ final _bracketLink = RegExp(r'\[\[((?:[^\[\]\\]|\\[\s\S])+)\](?:\[([\s\S]+?)\])?
 final _wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
 // Verbatim =…= and code ~…~ hide links. The marker must be followed by a
 // non-space, end with a non-space, and be followed by one of Org's
-// post-emphasis characters.
-final _verbatim = RegExp(r'''([=~])(\S|\S.*?\S)\1(?=[-\s.,:!?;'")}\\\[]|$)''',
-    multiLine: true);
+// post-emphasis characters. As in Org 9.7, the object may span line
+// breaks up to the end of its paragraph ([_paragraphEnd]); the pattern is
+// matched within the paragraph, so `$` is its end. The closing marker may
+// also be followed by the marker that ends an enclosing *bold*, /italic/,
+// _underline_ or +strike-through+, as in `*a =x=* b`: Org parses the bold
+// first and ends the verbatim with it.
+final _verbatim = RegExp(
+    r'''([=~])(\S|\S[\s\S]*?\S)\1'''
+    r'''(?=[-\s.,:!?;'")}\\\[]|$|[*/_+](?:[-\s.,:!?;'")}\\\[]|$))''');
+
+// A footnote reference or definition, `[fn:label]`, or the start of an
+// inline one, `[fn:label:` or `[fn::`. Org parses it before plain links, so
+// `fn:label` is no link even where `fn` is a link type (Doom registers
+// one); links in an inline definition still count. Labels are Org's
+// `[-_[:word:]]`, letters of any script included.
+final _footnoteStart = RegExp(r'\[fn:[-_\p{L}\p{N}]*[\]:]', unicode: true);
+
+// A line that ends a paragraph, as Org 9.7 parses one: a blank line, or a
+// line that starts another element (heading, list item, table, keyword or
+// block, fixed width, comment, drawer, horizontal rule, footnote).
+final _paragraphBreak = RegExp(
+  r'^(?:\s*$|\*+\s|\s*(?:[-+]|\d+[.)])(?:\s|$)|\s+\*(?:\s|$)|\s*\||\s*#\+'
+  r'|\s*:(?:\s|$)|\s*#(?:\s|$)|\s*:[\w-]+:\s*$|\s*-{5,}\s*$|\[fn:)',
+);
+
+/// The end of the paragraph that holds [start]: the line break before the
+/// next line that ends it ([_paragraphBreak]), or the end of [text].
+int _paragraphEnd(String text, int start) {
+  var lineEnd = text.indexOf('\n', start);
+  while (lineEnd >= 0) {
+    final next = lineEnd + 1;
+    final nextEnd = text.indexOf('\n', next);
+    final line = text.substring(next, nextEnd < 0 ? text.length : nextEnd);
+    if (_paragraphBreak.hasMatch(line)) return lineEnd;
+    lineEnd = nextEnd;
+  }
+  return text.length;
+}
 final _inlineSource = RegExp(r'src_[^\s{\[]+(?:\[[^\]\n]*\])?\{[^}\n]*\}');
 final _citationObject = RegExp(r'\[cite(?:/[^:\]\n]*)?:([^\]]*)\]');
 final _timestamp = RegExp(
@@ -1083,6 +1149,13 @@ class _LinkSyntax {
           continue;
         }
       }
+      if (c == '[' && text.startsWith('[fn:', i)) {
+        final m = _footnoteStart.matchAsPrefix(text, i);
+        if (m != null) {
+          i = m.end;
+          continue;
+        }
+      }
       if (c == '[' && text.startsWith('[cite', i)) {
         final m = _citationObject.matchAsPrefix(text, i);
         if (m != null) {
@@ -1116,9 +1189,10 @@ class _LinkSyntax {
       final atWordStart = i == 0 || !_wordChar.hasMatch(text[i - 1]);
       if ((c == '=' || c == '~') &&
           (i == 0 || text[i - 1].trim().isEmpty || _verbatimPre.contains(text[i - 1]))) {
-        final m = _verbatim.matchAsPrefix(text, i);
+        final paragraph = text.substring(i, _paragraphEnd(text, i));
+        final m = _verbatim.matchAsPrefix(paragraph);
         if (m != null) {
-          i = m.end;
+          i += m.end;
           continue;
         }
       }

@@ -46,6 +46,7 @@ RoamGraph updateIndex(
   Map<String, Uint8List?> contents, {
   bool replace = false,
   bool keepUnreadable = true,
+  List<String> linkTypes = defaultLinkTypes,
 }) {
   final failed = <RoamFileData>[];
   final duplicates = <String, List<String>>{};
@@ -75,6 +76,7 @@ RoamGraph updateIndex(
         path,
         utf8.decode(bytes, allowMalformed: true),
         root: db.root,
+        linkTypes: linkTypes,
       );
       if (file.error != null) {
         // org-roam stores nothing for a file it fails on.
