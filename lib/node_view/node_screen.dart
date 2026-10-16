@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 
+import '../ai/ai_settings.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/ai_share.dart';
@@ -236,8 +237,18 @@ class _NodeScreenState extends State<NodeScreen> {
   /// Shares [node] with an AI app (#41): its text as shown here, with its
   /// links and backlinks.
   Future<void> _shareWithAi(RoamNode node) async {
+    final settings = AiSettingsScope.of(context);
+    final visibility = settings.visibility;
+    if (visibility.hides(node)) {
+      final tags = node.tags.where(visibility.hiddenTags.contains);
+      _tell('This note is hidden from AI by its tag '
+          '${tags.map((t) => ':$t:').join(' ')}, so it is not shared. '
+          'The hidden tags are in AI settings.');
+      return;
+    }
     final file = await _text;
-    final text = nodesForAi(widget.graph.value, [(node, file)]);
+    final text =
+        nodesForAi(widget.graph.value, [(node, file)], visibility: visibility);
     if (text.length > maxShareLength) {
       _tell('This note is too large to share at once '
           '(${text.length ~/ 1000} KB).');

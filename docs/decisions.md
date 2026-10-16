@@ -809,6 +809,38 @@ devices through Syncthing.
       drawing of the current source, to see whether the PNG is out of date.
       It can be added if it is wanted.
 
+42. **Notes are hidden from AI by tag** (#57), `lib/ai/ai_visibility.dart`.
+    Some notes are private. Before an AI reads note texts (the chat of
+    milestone v6), the app has a rule for what it may not see.
+    - **The setting:** "Hidden from AI", a list of tags, by default
+      `private`, on the "AI settings" page (from the folder screen and the
+      graph's "More" menu). It is kept in the app's support folder
+      (`ai-settings.json`), not in the notes. An empty list hides nothing.
+    - **Which nodes:** a node with one of the tags. These are the tags
+      org-roam stores for the node, so a heading node also has its file's
+      `#+filetags` and the tags of the headings above it. Tags are compared
+      as written, as Org compares them.
+    - **A hidden node does not exist for an AI.** The graph export (#40,
+      decision 35) leaves it out with its links, and its header says how
+      many nodes are hidden, so the AI knows the graph is not complete.
+      "Share with AI" on a hidden node says that it is hidden, with its
+      tag, and shares nothing. A selection in search leaves hidden nodes
+      out and says how many.
+    - **Inside a visible note's text:** each heading with a hidden tag of
+      its own is replaced by `* (hidden)`, at its level, without its
+      subtree, also when it is no node. A link to a hidden node keeps its
+      ID, but its description becomes `(hidden)`, so its title does not
+      show. The links and backlinks listed with a shared node leave hidden
+      nodes out.
+    - **Headings are found line by line:** a line that starts with stars
+      and a space is a heading, also inside a block, as Org and the node
+      view read it (decision 36). Tags are read at the end of the heading
+      line, as Org's `org-tag-group-re` reads them.
+    - **Not covered:** a link written under a hidden heading that is no
+      node belongs to its file's node, as in org-roam, so it still counts
+      as that node's link in the graph export. The link's text is hidden;
+      the export shows only that the two visible nodes are linked.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

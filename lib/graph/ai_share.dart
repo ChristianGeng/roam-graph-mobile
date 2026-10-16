@@ -6,6 +6,7 @@ library;
 
 import 'package:org_parser/org_parser.dart';
 
+import '../ai/ai_visibility.dart';
 import '../capture/new_node.dart';
 import 'backlinks.dart';
 import 'roam_graph.dart';
@@ -23,7 +24,12 @@ const maxShareLength = 400000;
 /// Nodes get short numbers (`n1`, `n2`, …) for the link list, which would
 /// otherwise repeat each 36-character ID thousands of times. Nodes are in
 /// title order; links in the order of their source, then target.
-String graphForAi(RoamGraph graph) {
+///
+/// Nodes [visibility] hides are left out, with their links (#57); the
+/// header says how many.
+String graphForAi(RoamGraph full, {AiVisibility visibility = AiVisibility.none}) {
+  final graph = visibility.visibleGraph(full);
+  final hidden = full.nodes.length - graph.nodes.length;
   final nodes = graph.nodes.values.toList()
     ..sort((a, b) {
       final byTitle =
@@ -49,6 +55,10 @@ String graphForAi(RoamGraph graph) {
     ..writeln()
     ..writeln('This is the structure of my notes (org-roam, Org mode), '
         'shared from the app Roam Graph. It has no note texts.')
+    ..write(hidden == 0
+        ? ''
+        : '$hidden ${hidden == 1 ? 'note is' : 'notes are'} hidden from AI '
+            'by their tags, so the graph is not complete.\n')
     ..writeln('- Each node has a short number (n1, n2, …), its ID, its '
         'tags (- for none) and its title, in this order, separated by " | ". '
         'The title comes last and may itself contain " | ".')
@@ -89,7 +99,18 @@ String? nodeText(RoamNode node, String fileText) {
 /// ID, title, tags and file, the nodes it links to and the nodes linking
 /// to it (as Org links), and its Org text ([nodeText]). [files] has the
 /// text of each node's file; null when it could not be read.
-String nodesForAi(RoamGraph graph, List<(RoamNode, String?)> files) {
+///
+/// [files] must hold no node [visibility] hides; nodes it hides are left
+/// out of the link lists, and their headings and titles out of the texts
+/// (#57).
+String nodesForAi(
+  RoamGraph full,
+  List<(RoamNode, String?)> files, {
+  AiVisibility visibility = AiVisibility.none,
+}) {
+  assert(!files.any((f) => visibility.hides(f.$1)), 'a hidden node is shared');
+  final graph = visibility.visibleGraph(full);
+  final hiddenIds = visibility.hiddenIds(full);
   String ref(String id) {
     final title = graph.nodes[id]?.displayTitle;
     return title == null
@@ -99,7 +120,14 @@ String nodesForAi(RoamGraph graph, List<(RoamNode, String?)> files) {
 
   final texts = [
     for (final (node, file) in files)
-      (node, file, file == null ? null : nodeText(node, file)),
+      (
+        node,
+        file,
+        switch (file == null ? null : nodeText(node, file)) {
+          final text? => visibility.filterText(text, hiddenIds),
+          null => null,
+        },
+      ),
   ];
 
   final text = StringBuffer()
