@@ -8,6 +8,7 @@ import '../ai/ai_settings.dart';
 import '../help/help.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../edit/note_editor.dart';
 import '../graph/graph_index.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/graph_screen.dart';
@@ -38,9 +39,13 @@ class FolderScreen extends StatefulWidget {
     this.graphScreen = defaultGraphScreen,
     this.shareInbox = const PlatformShareInbox(),
     this.nodeMemory = const FileNodeMemory(),
+    this.editHistory = const FileEditHistory(),
   });
 
   final FolderAccess folderAccess;
+
+  /// Where old versions of edited notes are kept (#35).
+  final EditHistory editHistory;
   final String version;
   final GraphIndex graphIndex;
 
@@ -136,7 +141,18 @@ class _FolderScreenState extends State<FolderScreen>
   /// The folder [_conflictsSeen] belongs to.
   String? _conflictsFolder;
 
-  late final _writer = NoteWriter(create: _createNote, allowWriting: _choose);
+  late final _writer = NoteWriter(
+    create: _createNote,
+    allowWriting: _choose,
+    editor: NoteEditor(
+      store: _FolderNoteStore(this),
+      history: widget.editHistory,
+    ),
+  );
+
+  /// The URIs of the chosen folder's directories at the latest scan, by
+  /// path relative to it; the folder itself is "".
+  Map<String, String> _dirs = {};
 
   /// True while a share is being turned into a node.
   bool _sharing = false;
@@ -386,6 +402,11 @@ class _FolderScreenState extends State<FolderScreen>
           if (!entry.isDirectory) entry.path: entry,
       };
       _roamPrefix = prefix;
+      _dirs = {
+        '': folder.uri,
+        for (final entry in entries)
+          if (entry.isDirectory) entry.path: entry.uri,
+      };
       _scans++;
       // roam/ itself: the folder, or its roam/ subfolder.
       _roamDir = prefix.isEmpty
@@ -748,5 +769,63 @@ class _FolderNoteFiles implements NoteFiles {
     } on PlatformException {
       return null;
     }
+  }
+}
+
+/// [NoteStore] on the chosen folder (#35): reads a note's bytes, and
+/// replaces the file through `FolderAccess.replaceFile`, which checks the
+/// hash just before writing. Then the folder is indexed again, so the
+/// graph, the node view and the backlinks show the change.
+class _FolderNoteStore implements NoteStore {
+  _FolderNoteStore(this._state);
+
+  final _FolderScreenState _state;
+
+  FolderAccess get _access => _state.widget.folderAccess;
+
+  @override
+  Future<NoteVersion?> read(String path) async {
+    final file = _state._roamFiles[path];
+    if (file == null) return null;
+    try {
+      final bytes = (await _access.readFiles([file])).firstOrNull;
+      return bytes == null ? null : NoteVersion.of(bytes);
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  @override
+  Future<SaveResult> replace(String path, NoteVersion base, String text) async {
+    final folder = _state._folder;
+    final file = _state._roamFiles[path];
+    if (folder == null || file == null) return const NoteGone();
+    if (!folder.canWrite) return const NoWriteAccessToEdit();
+    final slash = file.path.lastIndexOf('/');
+    final dir = _state._dirs[slash < 0 ? '' : file.path.substring(0, slash)];
+    if (dir == null) return const SaveFailed('Its folder was not found.');
+    try {
+      await _access.replaceFile(
+        dir,
+        file.path.substring(slash + 1),
+        file.uri,
+        expected: base.hash,
+        bytes: Uint8List.fromList(utf8.encode(text)),
+      );
+    } on PlatformException catch (e) {
+      switch (e.code) {
+        case 'changed':
+          return ChangedMeanwhile(await read(path));
+        case 'missing':
+          return const NoteGone();
+        default:
+          return SaveFailed(e.message ?? e.code);
+      }
+    }
+    await _state._rescan();
+    if (_state._status != _Status.indexed) {
+      return SavedNotIndexed(path, _state._error);
+    }
+    return Saved(path);
   }
 }

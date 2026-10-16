@@ -11,6 +11,7 @@ import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 /**
@@ -44,6 +45,14 @@ import java.util.concurrent.Executors
  *   taken. The bytes go to a temporary file named as Syncthing names its
  *   own (.syncthing.NAME.tmp), which Syncthing does not sync, and the
  *   finished file is renamed into place (#13).
+ * - replaceFile({dir, name, uri, expected, bytes}) -> the file's URI after
+ *   replacing the file [uri], named [name] in the folder [dir], with
+ *   [bytes] (#35). Only if the file is still the version the app read: its
+ *   SHA-256 must be [expected] (hex), checked just before writing, else
+ *   error "changed". The bytes go to a temporary file first; then the old
+ *   file is renamed aside, the new one renamed into place, and the old one
+ *   deleted. If a step fails, the old file is put back. Errors: "changed",
+ *   "missing" (the file is gone), "write_failed".
  */
 class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHandler {
     companion object {
@@ -93,6 +102,18 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                     return
                 }
                 createFile(Uri.parse(dir), name, bytes, result)
+            }
+            "replaceFile" -> {
+                val dir = call.argument<String>("dir")
+                val name = call.argument<String>("name")
+                val uri = call.argument<String>("uri")
+                val expected = call.argument<String>("expected")
+                val bytes = call.argument<ByteArray>("bytes")
+                if (dir == null || name == null || uri == null || expected == null || bytes == null) {
+                    result.error("bad_args", "dir, name, uri, expected or bytes is missing", null)
+                    return
+                }
+                replaceFile(Uri.parse(dir), name, Uri.parse(uri), expected, bytes, result)
             }
             "openWith" -> {
                 val uri = call.argument<String>("uri")
@@ -300,6 +321,126 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
             }
             return renamed.toString()
         } catch (e: Exception) {
+            try {
+                DocumentsContract.deleteDocument(resolver, temp)
+            } catch (_: Exception) {
+                // Already renamed or gone.
+            }
+            throw e
+        }
+    }
+
+    private class ChangedException : Exception()
+    private class MissingException : Exception()
+
+    private fun replaceFile(
+        dir: Uri,
+        name: String,
+        file: Uri,
+        expected: String,
+        bytes: ByteArray,
+        result: MethodChannel.Result,
+    ) {
+        executor.execute {
+            val outcome: Pair<String?, Pair<String, String>?> = try {
+                Pair(writeReplacement(dir, name, file, expected, bytes), null)
+            } catch (e: ChangedException) {
+                Pair(null, Pair("changed", "$name changed since it was read"))
+            } catch (e: MissingException) {
+                Pair(null, Pair("missing", "$name is gone"))
+            } catch (e: Exception) {
+                Pair(null, Pair("write_failed", e.message ?: e.toString()))
+            }
+            mainThread.post {
+                val error = outcome.second
+                if (error == null) result.success(outcome.first) else result.error(error.first, error.second, null)
+            }
+        }
+    }
+
+    private fun sha256(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
+    /** The SHA-256 of [file], or MissingException if it cannot be read. */
+    private fun currentHash(file: Uri): String {
+        val current = try {
+            activity.contentResolver.openInputStream(file)?.use { it.readBytes() }
+        } catch (_: Exception) {
+            null
+        } ?: throw MissingException()
+        return sha256(current)
+    }
+
+    /** Deletes the child [name] of [parent] if it exists: a leftover of an
+     *  earlier attempt, under a name only this app uses. */
+    private fun deleteLeftover(parent: Uri, name: String) {
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(parent, DocumentsContract.getDocumentId(parent))
+        activity.contentResolver.query(
+            children,
+            arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(1) == name) {
+                    val child = DocumentsContract.buildDocumentUriUsingTree(parent, cursor.getString(0))
+                    DocumentsContract.deleteDocument(activity.contentResolver, child)
+                }
+            }
+        }
+    }
+
+    private fun displayName(doc: Uri): String? =
+        activity.contentResolver.query(doc, arrayOf(Document.COLUMN_DISPLAY_NAME), null, null, null)
+            ?.use { if (it.moveToFirst()) it.getString(0) else null }
+
+    /** Replaces [file] with [bytes]; see replaceFile. */
+    private fun writeReplacement(dir: Uri, name: String, file: Uri, expected: String, bytes: ByteArray): String {
+        val resolver = activity.contentResolver
+        val parent = documentUri(dir)
+        if (currentHash(file) != expected) throw ChangedException()
+        // Both names start with ".syncthing." and end with ".tmp", so
+        // Syncthing treats them as temporary files and never syncs them.
+        val tempName = ".syncthing.$name.edit.tmp"
+        val asideName = ".syncthing.$name.old.tmp"
+        deleteLeftover(parent, tempName)
+        deleteLeftover(parent, asideName)
+        val temp = DocumentsContract.createDocument(resolver, parent, "application/octet-stream", tempName)
+            ?: throw IllegalStateException("Could not create $tempName")
+        var aside: Uri? = null
+        try {
+            resolver.openOutputStream(temp, "w")?.use { it.write(bytes) }
+                ?: throw IllegalStateException("Could not write $tempName")
+            // Checked again just before the old file is moved: the laptop
+            // may have changed it while the new text was being written.
+            if (currentHash(file) != expected) throw ChangedException()
+            aside = DocumentsContract.renameDocument(resolver, file, asideName)
+                ?: throw IllegalStateException("Could not rename $name aside")
+            val renamed = DocumentsContract.renameDocument(resolver, temp, name)
+                ?: throw IllegalStateException("Could not rename $tempName")
+            if (displayName(renamed) != name) {
+                // The provider gave it another name: undo, and keep the old.
+                DocumentsContract.renameDocument(resolver, renamed, tempName)
+                throw IllegalStateException("$name could not be put back in place")
+            }
+            try {
+                DocumentsContract.deleteDocument(resolver, aside)
+            } catch (_: Exception) {
+                // The new file is in place; a leftover old copy under a
+                // temporary name is removed before the next replace.
+            }
+            aside = null
+            return renamed.toString()
+        } catch (e: Exception) {
+            // Put the old file back under its name, and drop the new one.
+            aside?.let {
+                try {
+                    DocumentsContract.renameDocument(resolver, it, name)
+                } catch (_: Exception) {
+                    // Still there under its temporary name.
+                }
+            }
             try {
                 DocumentsContract.deleteDocument(resolver, temp)
             } catch (_: Exception) {

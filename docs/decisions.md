@@ -1253,6 +1253,47 @@ devices through Syncthing.
       the graph is folded, with "Reset".
     - On a phone, and in portrait, nothing changes: one screen at a time.
 
+50. **Edits of existing notes are saved safely** (#35), as decision 10
+    says, `lib/edit/note_editor.dart` and `replaceFile` in
+    `FolderAccess.kt`. One path for appending (#36), editing (#37) and AI
+    edits (#39):
+    - **The version an edit is made on:** the note is read as bytes; its
+      SHA-256 is remembered with the text. A file that is not UTF-8 cannot
+      be edited, since it could not be written back unchanged.
+    - **The check:** `replaceFile` reads the file again on the Android side
+      and compares the hash, once before writing the new text and once
+      more just before the swap. If it differs (the laptop or Syncthing
+      changed the note meanwhile), nothing is written; the app gets the
+      note as it is now, to start again from it.
+    - **The swap:** the new text goes to `.syncthing.<name>.edit.tmp`; the
+      old file is renamed to `.syncthing.<name>.old.tmp`, the new one to
+      `<name>`, and the old one deleted. Syncthing treats names that start
+      with `.syncthing.` and end with `.tmp` as temporary and never syncs
+      them. If a step fails, the old file is renamed back. Android's
+      folder access cannot replace a file in one step: a rename onto an
+      existing name gives `<name> (1)` instead. So for a moment between the
+      two renames the name is free; Syncthing's watcher waits about ten
+      seconds before it scans, and then finds the new file in place.
+    - **Locked parts (rule 5):** an edit that changes, adds or removes a
+      property drawer, and with it an `:ID:`, is refused before anything is
+      written.
+    - **Old versions (rule 3):** before each save, the note's text as read
+      is kept in the app's own folder, `edit-history/`, one folder per note
+      named by the hash of its path. The newest 20 versions per note are
+      kept. If the save is refused or fails, that copy is dropped again.
+      Restoring an old version goes through the diff of #38.
+    - **Afterwards** the folder is indexed again, so the graph, the node
+      view and the backlinks show the change. If indexing fails, the edit
+      is saved and shows with the next scan.
+    - **The transport is an interface,** `NoteStore`: the Syncthing folder
+      now; git could take its place, as decision 10 describes.
+    - Tests: an unchanged file is saved, indexed and its old text kept; a
+      file changed meanwhile is refused and nothing is written or kept; a
+      gone file, the same text and a changed drawer are refused; a folder
+      with read access only is not written; at most 20 versions are kept.
+      The Android swap itself is not run by the tests; checking it against
+      the laptop is the owner's task on the device.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

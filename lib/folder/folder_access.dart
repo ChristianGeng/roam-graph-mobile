@@ -54,6 +54,21 @@ abstract interface class FolderAccess {
   /// code `exists` if [name] is taken. The file appears only when it is
   /// complete (#13).
   Future<String> createFile(String dir, String name, Uint8List bytes);
+
+  /// Replaces the file [uri], named [name] in the directory [dir], with
+  /// [bytes], and returns its URI afterwards (#35). Only if the file is
+  /// still the version the app read: its SHA-256 (hex) must be [expected],
+  /// checked just before writing. Otherwise a [PlatformException] with the
+  /// code `changed`, or `missing` if the file is gone. The new text is
+  /// written to a temporary file first and renamed into place, so the file
+  /// is never half-written (decision 10).
+  Future<String> replaceFile(
+    String dir,
+    String name,
+    String uri, {
+    required String expected,
+    required Uint8List bytes,
+  });
 }
 
 /// [FolderAccess] through the Android code in `FolderAccess.kt`.
@@ -112,6 +127,22 @@ class PlatformFolderAccess implements FolderAccess {
         'createFile',
         {'dir': dir, 'name': name, 'bytes': bytes},
       ))!;
+
+  @override
+  Future<String> replaceFile(
+    String dir,
+    String name,
+    String uri, {
+    required String expected,
+    required Uint8List bytes,
+  }) async =>
+      (await _channel.invokeMethod<String>('replaceFile', {
+        'dir': dir,
+        'name': name,
+        'uri': uri,
+        'expected': expected,
+        'bytes': bytes,
+      }))!;
 
   static ChosenFolder? _toFolder(Map<Object?, Object?>? map) {
     if (map == null) return null;
