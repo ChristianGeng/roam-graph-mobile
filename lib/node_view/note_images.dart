@@ -23,6 +23,10 @@ abstract interface class NoteFiles {
 
   /// The bytes of [file]; null if it could not be read.
   Future<Uint8List?> read(FolderFile file);
+
+  /// Changes when [file] may have changed: its modification time, or, for
+  /// a file whose folder gives none (0), each scan of the folder.
+  int version(FolderFile file);
 }
 
 /// The image files the app shows. Flutter decodes these itself; SVG is
@@ -188,15 +192,19 @@ bool _readableWidth(String? value) {
 
 /// An image file of the chosen folder, read through the folder access,
 /// decoded at most [width] pixels wide (never enlarged), so large images
-/// use little memory. Keyed by the file's URI and modification time and
+/// use little memory. Keyed by the file's URI, its [NoteFiles.version] and
 /// [width], so Flutter's image cache keeps it, and a changed file is read
 /// again.
 @immutable
 class FolderImage extends ImageProvider<FolderImage> {
-  const FolderImage(this.file, this.files, {this.width});
+  FolderImage(this.file, this.files, {this.width})
+      : version = files.version(file);
 
   final FolderFile file;
   final NoteFiles files;
+
+  /// [NoteFiles.version] of [file] when the image was made.
+  final int version;
 
   /// The widest the image is decoded, in pixels; null for its own width.
   final int? width;
@@ -236,11 +244,11 @@ class FolderImage extends ImageProvider<FolderImage> {
   bool operator ==(Object other) =>
       other is FolderImage &&
       other.file.uri == file.uri &&
-      other.file.modified == file.modified &&
+      other.version == version &&
       other.width == width;
 
   @override
-  int get hashCode => Object.hash(file.uri, file.modified, width);
+  int get hashCode => Object.hash(file.uri, version, width);
 }
 
 /// The `loadImage` of the node view for the note [note] (relative to
@@ -287,11 +295,12 @@ class NoteImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final pixels = width?.pixels;
-    // Decoded no wider than shown: at most the screen's width, in device
-    // pixels.
-    final shown = pixels ?? media.size.width;
-    final decodeWidth = (shown.clamp(1, media.size.width) * media.devicePixelRatio)
-        .ceil();
+    // Decoded no wider than shown, in device pixels. The text column is at
+    // most the screen's width; a fraction is of that width.
+    final screen = media.size.width;
+    final shown = pixels ?? screen * (width?.fraction ?? 1).clamp(0, 1);
+    final decodeWidth =
+        (shown.clamp(1, screen) * media.devicePixelRatio).ceil();
     Widget image = Image(
       image: FolderImage(file, files, width: decodeWidth),
       width: pixels,
@@ -351,14 +360,26 @@ class ImagePage extends StatelessWidget {
         ),
       );
 
+  /// How far the page zooms in.
+  static const maxScale = 8.0;
+
+  /// The widest the page decodes an image, in device pixels: enough to
+  /// zoom in four times on the screen's long side, and at most 4096, so
+  /// a very large photo does not use hundreds of megabytes.
+  static int decodeWidth(MediaQueryData media) =>
+      (media.size.longestSide * media.devicePixelRatio * 4)
+          .clamp(1, 4096)
+          .ceil();
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: Text(file.path.split('/').last)),
         body: InteractiveViewer(
-          maxScale: 8,
+          maxScale: maxScale,
           child: Center(
             child: Image(
-              image: FolderImage(file, files),
+              image: FolderImage(file, files,
+                  width: decodeWidth(MediaQuery.of(context))),
               errorBuilder: (context, error, stackTrace) =>
                   Text('Could not read ${file.path}.'),
             ),

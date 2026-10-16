@@ -685,10 +685,13 @@ devices through Syncthing.
       image (`org-image-max-width` only applies with
       `org-image-actual-width` t). `:align` is applied by `org_flutter`.
     - **Memory:** the image is decoded no wider than shown, at most the
-      screen width in device pixels, and never enlarged. The image cache
-      is keyed by the file's URI, modification time and that width, so a
-      changed image is read again when the index changes (decision 26);
-      an image that could not be read is tried again the next time.
+      screen width in device pixels (a `:width` fraction of it), and never
+      enlarged. The zoom page decodes up to four times the screen's long
+      side, at most 4096 pixels. The image cache is keyed by the file's
+      URI, modification time and that width, so a changed image is read
+      again when the index changes (decision 26); a file whose folder
+      gives no modification time is read again after each scan. An image
+      that could not be read is tried again the next time.
     - **Tap** opens the image on its own page with pinch zoom; Back
       returns to the node.
 

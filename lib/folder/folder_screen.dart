@@ -118,6 +118,10 @@ class _FolderScreenState extends State<FolderScreen>
   /// or empty when the chosen folder is roam/ itself.
   String _roamPrefix = '';
 
+  /// The number of scans that found roam/, for images whose folder gives
+  /// no modification time (#46).
+  int _scans = 0;
+
   late final NoteFiles _files = _FolderNoteFiles(this);
 
   /// The URI of roam/ itself, where new notes go (#11).
@@ -380,6 +384,7 @@ class _FolderScreenState extends State<FolderScreen>
           if (!entry.isDirectory) entry.path: entry,
       };
       _roamPrefix = prefix;
+      _scans++;
       // roam/ itself: the folder, or its roam/ subfolder.
       _roamDir = prefix.isEmpty
           ? folder.uri
@@ -715,6 +720,10 @@ class _FolderNoteFiles implements NoteFiles {
   @override
   FolderFile? find(String path) =>
       reaches(path) ? _state._folderFiles[_inFolder(path)] : null;
+
+  @override
+  int version(FolderFile file) =>
+      file.modified != 0 ? file.modified : -_state._scans;
 
   @override
   Future<Uint8List?> read(FolderFile file) async {

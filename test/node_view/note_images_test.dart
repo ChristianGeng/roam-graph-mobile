@@ -28,6 +28,13 @@ class FakeNoteFiles implements NoteFiles {
   final Set<String> unreadable;
   final reads = <String>[];
 
+  /// Raised to make every image new, as a scan does for files without a
+  /// modification time.
+  int scan = 0;
+
+  @override
+  int version(FolderFile file) => file.modified != 0 ? file.modified : -scan;
+
   @override
   bool reaches(String path) => !path.startsWith('../');
 
@@ -231,12 +238,37 @@ void main() {
     expect(shownText(tester), contains('file:./img/a.png'));
   });
 
+  testWidgets(':width 10% is decoded at a tenth of the screen',
+      (tester) async {
+    final files = FakeNoteFiles(['img/f.png']);
+    await show(tester, '#+ATTR_ORG: :width 10%\n[[file:./img/f.png]]\n',
+        files);
+    final view = tester.view;
+    final screen = view.physicalSize.width / view.devicePixelRatio;
+    expect((tester.widget<Image>(find.byType(Image)).image as FolderImage).width,
+        (screen * 0.1 * view.devicePixelRatio).ceil());
+  });
+
+  test('the zoom page decodes at most 4096 pixels wide', () {
+    expect(
+        ImagePage.decodeWidth(
+            const MediaQueryData(size: Size(400, 900), devicePixelRatio: 3)),
+        4096);
+    expect(
+        ImagePage.decodeWidth(
+            const MediaQueryData(size: Size(300, 200), devicePixelRatio: 1)),
+        1200);
+  });
+
   testWidgets('tapping an image shows it alone, with zoom', (tester) async {
     final files = FakeNoteFiles(['img/a.png']);
     await show(tester, '[[file:./img/a.png]]\n', files);
     await tester.tap(find.byType(Image));
     await tester.pumpAndSettle();
     expect(find.byType(InteractiveViewer), findsOneWidget);
+    final zoomed = tester.widget<Image>(find.descendant(
+        of: find.byType(InteractiveViewer), matching: find.byType(Image)));
+    expect((zoomed.image as FolderImage).width, isNotNull);
     expect(find.text('a.png'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
@@ -251,6 +283,11 @@ void main() {
         FolderFile(path: 'img/a.png', uri: 'content://a', modified: 2);
     expect(FolderImage(a, files), FolderImage(same, files));
     expect(FolderImage(a, files), isNot(FolderImage(changed, files)));
+    // Without a modification time, each scan makes it new.
+    const unknown = FolderFile(path: 'img/a.png', uri: 'content://a');
+    final before = FolderImage(unknown, files);
+    files.scan++;
+    expect(FolderImage(unknown, files), isNot(before));
   });
 
   testWidgets('an image is decoded smaller, never larger', (tester) async {
