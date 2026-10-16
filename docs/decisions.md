@@ -858,6 +858,44 @@ devices through Syncthing.
       as a link between two visible nodes; its text is hidden. Hiding it
       there needs the heading's tags for each link in the index.
 
+43. **Notes open with their sections collapsed, as a setting** (#63),
+    `lib/settings/view_settings.dart`, `lib/node_view/folding.dart`. Until
+    now every section was open, as in my Emacs (`org-startup-folded` is
+    `nil`); on a phone a long note was a long scroll. Orgro opens notes
+    folded, and that reads better on the device.
+    - **The setting** "Sections when a note opens" has the three values
+      Org's `#+STARTUP:` has for folding: **Collapsed** (`overview`, only
+      the top-level headings; **the default**), **Headings** (`content`,
+      all headings without their text) and **Expanded** (`showall`,
+      everything, as before). It is on a Settings page, reached from the
+      graph view's "More" menu.
+    - **A file's own `#+STARTUP:` comes first**, as in Emacs. `org_flutter`
+      puts the caller's settings before the file's and reads the file's
+      only when asked, so the app reads the folding word itself
+      (`OrgSettings.fromDocument`) and uses the setting only where the
+      file has none. None of my notes has `#+STARTUP:` today. Other
+      `#+STARTUP:` words are still not applied, as before.
+    - **The text before the first heading** (the title and the links at the
+      top of a file node) is always shown, as in Org.
+    - **A heading node** shows its own section open, its text and its
+      subheadings, which start folded as the setting says. Folded, a
+      heading node would show a single heading line.
+    - **Tapping a heading** opens and closes it, as before. A changed
+      setting applies to the note shown at once; the folding then starts
+      again.
+    - **How settings are kept.** A JSON file, `view-settings.json`, in the
+      app's support folder, next to the database: read once at the start,
+      written through a temporary file and a rename when a setting
+      changes, defaults where the file is missing or cannot be read.
+      Screens read it through `ViewSettingsScope`, given by
+      `ViewSettingsHost` above the navigator; tests use
+      `MemoryViewSettingsStore`. A new setting is a field in
+      `ViewSettings` with a default, its JSON key, and a tile on the
+      Settings page. The AI settings (#57) are kept the same way in their
+      own file; the two can share the Settings page later. **Secrets, such
+      as API keys, never go into these files**: they belong in Android's
+      secure storage.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

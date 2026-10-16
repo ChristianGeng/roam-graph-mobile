@@ -6,6 +6,7 @@ import 'folder/folder_access.dart';
 import 'folder/folder_screen.dart';
 import 'graph/graph_index.dart';
 import 'graph_view/node_memory.dart';
+import 'settings/view_settings.dart';
 
 /// The version the release workflow builds, passed in with
 /// `--dart-define=APP_VERSION=...`. Local builds show "dev".
@@ -24,6 +25,7 @@ class RoamGraphApp extends StatelessWidget {
     this.shareInbox = const PlatformShareInbox(),
     this.nodeMemory = const FileNodeMemory(),
     this.aiSettings = const FileAiSettingsStore(),
+    this.viewSettings = const FileViewSettingsStore(),
   });
 
   final FolderAccess folderAccess;
@@ -32,6 +34,7 @@ class RoamGraphApp extends StatelessWidget {
   final ShareInbox shareInbox;
   final NodeMemory nodeMemory;
   final AiSettingsStore aiSettings;
+  final ViewSettingsStore viewSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +42,9 @@ class RoamGraphApp extends StatelessWidget {
       store: aiSettings,
       child: MaterialApp(
         title: 'Roam Graph',
+        // Above the navigator, so every screen reads the same settings.
+        builder: (context, child) =>
+            ViewSettingsHost(store: viewSettings, child: child!),
         theme: ThemeData(colorSchemeSeed: Colors.indigo),
         darkTheme: ThemeData(
           colorSchemeSeed: Colors.indigo,

@@ -15,6 +15,7 @@ import '../graph/graph_scope.dart';
 import '../graph/roam_graph.dart';
 import '../node_view/node_screen.dart';
 import '../search/search_screen.dart';
+import '../settings/view_settings.dart';
 import 'node_memory.dart';
 import '../node_view/note_images.dart';
 
@@ -128,7 +129,8 @@ enum _MoreAction {
   circo,
   force,
   share,
-  aiSettings;
+  aiSettings,
+  settings;
 
   static _MoreAction layoutOf(LayoutKind kind) =>
       kind == LayoutKind.circo ? circo : force;
@@ -564,6 +566,8 @@ class _GraphScreenState extends State<GraphScreen> {
         _shareGraph();
       case _MoreAction.aiSettings:
         AiSettingsScreen.open(context);
+      case _MoreAction.settings:
+        SettingsScreen.open(context);
       case _MoreAction.circo || _MoreAction.force:
         _kind = action == _MoreAction.circo ? LayoutKind.circo : LayoutKind.force;
         _update();
@@ -720,6 +724,10 @@ class _GraphScreenState extends State<GraphScreen> {
               const PopupMenuItem(
                 value: _MoreAction.aiSettings,
                 child: Text('AI settings'),
+              ),
+              const PopupMenuItem(
+                value: _MoreAction.settings,
+                child: Text('Settings'),
               ),
             ],
           ),
