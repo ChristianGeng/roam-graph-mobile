@@ -78,9 +78,12 @@ devices through Syncthing.
        the file is still the version it read: the same content hash,
        checked just before writing. Otherwise it refuses and shows the
        newer version (#35).
-    2. **Whole files, written safely.** An edit replaces the file through a
-       temporary file and a rename, as capture writes new files (decision
-       31), so Syncthing never sees half a file.
+    2. **Whole files, written safely.** An edit writes the new text to a
+       temporary file under a name Syncthing does not sync, as capture
+       does (decision 31), and then puts it in place of the old file, so
+       Syncthing never sees half a file. Unlike a capture, an edit's
+       rename replaces the existing name; a capture's rename still refuses
+       to.
     3. **Nothing is lost.** Before replacing a file, the app keeps the old
        version in its own storage, and a wrong edit can be undone from
        there (#35).
@@ -526,8 +529,9 @@ devices through Syncthing.
         gives its own temporary files. Syncthing's scanner skips these, so
         a half-written file is never synced.
       - Then it renames the file into place.
-      - A name that exists already is never replaced: the capture says so,
-        and saving a second later gives a new name.
+      - A name that exists already is never replaced by a capture: the
+        capture says so, and saving a second later gives a new name. Only
+        an edit of an existing note replaces a file, under decision 10.
     - **Indexing:** the folder is indexed right after writing, so the new
       node is in the graph at once, and the capture opens it. The laptop
       picks it up with `org-roam-db-sync` after Syncthing has synced. If
@@ -540,9 +544,10 @@ devices through Syncthing.
     (#12), as decision 10 planned:
     - The link goes into the **new** file only, as the first line after
       the header: `[[id:<id>][<title>]]`. The node it came from then
-      shows the new node as a backlink, in org-roam and in the app. Its
-      file is never changed: the laptop may be editing it, and Syncthing
-      would make a conflict copy.
+      shows the new node as a backlink, in org-roam and in the app. A
+      capture never changes its file: the laptop may be editing it, and
+      Syncthing would make a conflict copy. Edits of existing notes follow
+      decision 10.
     - The link is written as Org's `org-link-make-string` writes it:
       - The target is escaped as `org-link-escape` does, so an ID with `[`
         or `]` still gives a backlink.
@@ -557,9 +562,10 @@ devices through Syncthing.
 
 33. **Writing next to Syncthing is safe, and conflicts are shown** (#13):
     - **No partial files, no overwriting:** a new file is written under
-      Syncthing's own temporary name and renamed into place, and an
-      existing name is never replaced (decision 31). The app never writes
-      into existing files (decision 32).
+      Syncthing's own temporary name and renamed into place, and a capture
+      never replaces an existing name (decision 31) or writes into an
+      existing file (decision 32). Edits of existing notes follow decision
+      10.
     - **Conflict copies:** Syncthing names them
       `<name>.sync-conflict-<date>-<time>-<device>.<ext>`. They were
       already left out of the graph (#4); now the counts screen counts
