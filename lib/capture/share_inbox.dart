@@ -44,6 +44,15 @@ abstract interface class ShareInbox {
   void listen(void Function() onArrived);
 }
 
+/// Sends text to another app through Android's share menu, for example
+/// the graph to an AI app (#40).
+typedef TextSharer = Future<void> Function(String text, {String? subject});
+
+/// [TextSharer] through `MainActivity.kt`.
+Future<void> shareTextOut(String text, {String? subject}) =>
+    const MethodChannel('roam_graph/share')
+        .invokeMethod<void>('shareText', {'text': text, 'subject': subject});
+
 /// [ShareInbox] through `MainActivity.kt`.
 class PlatformShareInbox implements ShareInbox {
   const PlatformShareInbox();

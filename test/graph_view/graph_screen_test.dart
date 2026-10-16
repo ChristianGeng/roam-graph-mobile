@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/graph/graph_algorithms.dart';
 import 'package:roam_graph_mobile/graph/graph_layout.dart';
@@ -218,7 +219,7 @@ void main() {
 
   testWidgets('both layouts, each centred on the node', (tester) async {
     await show(tester, remembered: 'b');
-    await tester.tap(find.byTooltip('Layout'));
+    await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Force-directed'));
     await tester.pumpAndSettle();
@@ -227,7 +228,7 @@ void main() {
 
     await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Layout'));
+    await tester.tap(find.byTooltip('More'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Circular (circo)'));
     await tester.pumpAndSettle();
@@ -240,7 +241,9 @@ void main() {
     await show(tester, remembered: 'e');
     await tester.drag(find.byType(InteractiveViewer), const Offset(300, 200));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Centre'));
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Centre'));
     await tester.pumpAndSettle();
     await tapMiddle(tester);
     expect(find.text('E'), findsOneWidget);
@@ -458,6 +461,62 @@ void main() {
       await tester.pumpAndSettle();
       expect(nodeTitle('HUB'), findsOneWidget);
     });
+  });
+
+  testWidgets('"Share graph with AI" shares the connectivity (#40)',
+      (tester) async {
+    final shared = <(String, String?)>[];
+    await tester.pumpWidget(MaterialApp(
+      home: GraphScreen(
+        graph: ValueNotifier(graph),
+        readNote: (path) async => '',
+        nodeMemory: MemoryNodeMemory('hub'),
+        computeLayout: layoutHere,
+        computeAlgorithms: algorithmsHere,
+        shareText: (text, {subject}) async => shared.add((text, subject)),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share graph with AI'));
+    await tester.pumpAndSettle();
+
+    final (text, subject) = shared.single;
+    expect(subject, 'My org-roam graph');
+    expect(text, startsWith('# My org-roam graph: 8 nodes, 7 links'));
+    expect(text, contains(' | hub | - | HUB'));
+  });
+
+  testWidgets('a share that fails says so', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GraphScreen(
+        graph: ValueNotifier(graph),
+        readNote: (path) async => '',
+        nodeMemory: MemoryNodeMemory('hub'),
+        computeLayout: layoutHere,
+        computeAlgorithms: algorithmsHere,
+        shareText: (text, {subject}) async =>
+            throw PlatformException(code: 'x', message: 'no app'),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share graph with AI'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not share the graph: no app'), findsOneWidget);
+  });
+
+  testWidgets('the bar fits a phone of 360 points', (tester) async {
+    // A node selected adds "Open node"; nothing overflows.
+    await show(tester, remembered: 'hub', screen: const Size(360, 780));
+    expect(tester.takeException(), isNull);
+    final bar = tester.getRect(find.byType(AppBar).first);
+    for (final tooltip in ['Search', 'Open node', 'Show', 'View', 'More']) {
+      final button = tester.getRect(find.byTooltip(tooltip).first);
+      expect(bar.contains(button.center), isTrue, reason: tooltip);
+    }
   });
 
   testWidgets('a graph without nodes says so', (tester) async {

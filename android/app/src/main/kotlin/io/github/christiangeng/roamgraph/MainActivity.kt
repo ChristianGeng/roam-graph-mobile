@@ -44,8 +44,9 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FolderAccess.CHANNEL)
             .setMethodCallHandler(access)
         // Methods: takeShare() -> {text, subject} of the oldest share not
-        // taken yet, or null. Calls to Dart: shareArrived(), when a share
-        // comes while the app runs.
+        // taken yet, or null; shareText({text, subject}) opens Android's share
+        // menu to send text to another app, such as an AI app (#40). Calls to
+        // Dart: shareArrived(), when a share comes while the app runs.
         val share = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
         share.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -56,6 +57,21 @@ class MainActivity : FlutterActivity() {
                             mapOf("text" to it.getString("text"), "subject" to it.getString("subject"))
                         },
                     )
+                }
+                "shareText" -> {
+                    val text = call.argument<String>("text")
+                    if (text == null) {
+                        result.error("bad_args", "text is missing", null)
+                    } else {
+                        val send = Intent(Intent.ACTION_SEND)
+                            .setType("text/plain")
+                            .putExtra(Intent.EXTRA_TEXT, text)
+                        call.argument<String>("subject")?.let {
+                            send.putExtra(Intent.EXTRA_SUBJECT, it)
+                        }
+                        startActivity(Intent.createChooser(send, null))
+                        result.success(null)
+                    }
                 }
                 else -> result.notImplemented()
             }
