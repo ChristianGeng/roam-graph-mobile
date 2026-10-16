@@ -10,6 +10,7 @@ import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
 import 'latex.dart';
+import 'mermaid.dart';
 import 'src_languages.dart';
 import '../search/search_screen.dart';
 import 'note_images.dart';
@@ -364,10 +365,20 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// The Org text of [node]: the file, or the heading's subtree.
   Widget _org(RoamNode node, String text) {
+    final files = widget.files;
     // Source blocks coloured as Emacs colours them (#45); display formulas
-    // in display mode (#50).
-    final document =
-        withDisplayFormulas(withHighlightLanguages(OrgDocument.parse(text)));
+    // in display mode (#50); mermaid blocks without a result image drawn
+    // (#49).
+    final document = withMermaidDrawings(
+      withDisplayFormulas(withHighlightLanguages(OrgDocument.parse(text))),
+      showsImage: (location) {
+        final path = linkedImagePath(node.file, location);
+        return files != null &&
+            path != null &&
+            files.reaches(path) &&
+            files.find(path) != null;
+      },
+    );
     final OrgTree? tree =
         node.isFile ? document : document.sectionWithId(node.id);
     if (tree == null) {
@@ -386,10 +397,12 @@ class _NodeScreenState extends State<NodeScreen> {
       child: OrgRootWidget(
         onLinkTap: _openLink,
         onLocalSectionLinkTap: _openSection,
-        loadImage: switch (widget.files) {
-          final files? => (link) => loadNoteImage(files, node.file, tree, link),
-          null => null,
-        },
+        loadImage: (link) =>
+            loadMermaidDrawing(link) ??
+            switch (files) {
+              final files? => loadNoteImage(files, node.file, tree, link),
+              null => null,
+            },
         child: tree is OrgSection
             ? Padding(
                 padding: const EdgeInsets.all(16),
