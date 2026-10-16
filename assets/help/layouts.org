@@ -1,0 +1,28 @@
+:PROPERTIES:
+:ID:       roam-graph-help-layouts
+:END:
+#+title: Layouts: circular and force-directed
+#+STARTUP: showall
+
+A layout decides where the dots go. The links are the same in both; only
+the picture changes. Switch in the graph's "More" menu.
+
+* Circular (circo)
+Puts the nodes on circles, as Graphviz's ~circo~ does, the layout
+~org-roam-graph~ uses. Nodes that link to each other share a circle, and
+the circles are joined where they link. It is tidy and keeps its shape when
+a note is added, so it is good for finding your way around a known graph.
+
+* Force-directed
+Treats links as springs and nodes as charges that push each other apart.
+Linked notes pull together; unlinked ones drift away. Clusters of notes on
+one topic show as clumps, and notes that join two topics sit between them.
+It is good for seeing the shape of the graph: topics, bridges and loners.
+
+* Which one
+- To find a note, or to compare with ~org-roam-graph~ on the laptop:
+  circular.
+- To see topics and how they connect: force-directed, together with the
+  [[id:roam-graph-help-views][Communities]] view.
+
+Back to [[id:roam-graph-help-graph-view][the graph view]].

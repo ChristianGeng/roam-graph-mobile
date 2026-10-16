@@ -33,7 +33,8 @@ talks to the provider I choose: Anthropic, Claude on AWS Bedrock in the
 EU, Mistral, DeepSeek and others, with the key in Android's secure storage
 (#59). "Ask AI" in the graph and node views opens the chat: tool calls
 are shown, `id:` links in answers open the node, and an answer can be
-saved as a new node after review (#60). What is decided and why is in
+saved as a new node after review (#60). Help pages, linked Org files shown
+like notes, explain the views and layouts (#62). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

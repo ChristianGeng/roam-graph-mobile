@@ -1,0 +1,15 @@
+:PROPERTIES:
+:ID:       roam-graph-help-settings
+:END:
+#+title: Settings
+#+STARTUP: showall
+
+"Settings" is in the graph's "More" menu.
+
+- *Sections when a note opens*: collapsed (the top headings only),
+  headings (all headings, no text), or expanded (everything). A note's own
+  ~#+STARTUP:~ line comes first.
+- *AI*: the tags that hide notes from AI, and the chat's provider, base
+  URL, models and key, with the limits of a chat. Keys are kept in
+  Android's secure storage, never in the notes. See
+  [[id:roam-graph-help-ai][AI]].

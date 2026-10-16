@@ -1,0 +1,28 @@
+:PROPERTIES:
+:ID:       roam-graph-help-start
+:END:
+#+title: Roam Graph help
+#+STARTUP: showall
+
+Roam Graph shows my org-roam notes on the phone and the tablet, without
+Emacs. Syncthing copies the notes from the laptop; the app reads the folder,
+builds the same graph org-roam builds, and draws it.
+
+The app writes only new notes
+([[id:roam-graph-help-capture][Capture and shared text]]); existing notes
+are never changed.
+
+* Pages
+- [[id:roam-graph-help-graph-view][The graph view]]
+- [[id:roam-graph-help-layouts][Layouts: circular and force-directed]]
+- [[id:roam-graph-help-views][Graph views: communities, importance, paths]]
+- [[id:roam-graph-help-algorithms][The other graph algorithms]]
+- [[id:roam-graph-help-node-view][The node view]]
+- [[id:roam-graph-help-capture][Capture and shared text]]
+- [[id:roam-graph-help-ai][AI: sharing, hidden notes and the chat]]
+- [[id:roam-graph-help-conflicts][Syncthing conflict copies]]
+- [[id:roam-graph-help-settings][Settings]]
+
+These help pages are Org files with their own IDs, like notes. Tapping a
+link opens the page, and Back returns, as in the node view. They are never
+part of my graph, my search or what is shared with an AI.

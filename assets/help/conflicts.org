@@ -1,0 +1,16 @@
+:PROPERTIES:
+:ID:       roam-graph-help-conflicts
+:END:
+#+title: Syncthing conflict copies
+#+STARTUP: showall
+
+When the same file changes on two devices before Syncthing has synced
+them, Syncthing keeps both: the file, and a copy named
+~<name>.sync-conflict-<date>-<device>.org~.
+
+The app lists these copies on its first screen and says when a new one
+appears. It does not merge them: which version is right is a decision for
+Emacs on the laptop. Merge or delete the copy there; Syncthing then removes
+it everywhere.
+
+The app writes only new files, so it does not cause conflicts itself.

@@ -1123,6 +1123,35 @@ devices through Syncthing.
     - A proposed title loses the stars of an Org heading (`* Title`), as it
       loses a Markdown `#`.
 
+47. **Help pages are Org files with `id:` links, shown by the node view**
+    (#62), `assets/help/`, `lib/help/help.dart`.
+    - Ten pages, written for the app: the start page, the graph view, the
+      layouts, the graph views, the other graph algorithms, the node view,
+      capture and shared text, AI (hidden notes, sharing, the chat),
+      Syncthing conflict copies, and the settings. Each is an Org file
+      with its own `:ID:` (`roam-graph-help-…`, never a UUID, so it cannot
+      be one of my notes) and `#+title:`, linked to the others with `id:`
+      links. None of my notes is in the repo.
+    - The app parses them as it parses notes and shows them with the node
+      view (decision 26), so a link in the help works as in a note, and
+      Back returns. The help is its own small graph, read from the app's
+      assets when help opens; it is never in my graph, search, AI shares
+      or the AI chat. A help page has no search and no AI menu, which
+      would act on the help, and is not remembered as the node viewed
+      last.
+    - Each page has `#+STARTUP: showall`: help pages are short and read
+      whole, and a file's own line wins over the setting of #63.
+    - **Where:** "Help" on the folder screen's bar and in the graph's
+      "More" menu opens the start page. The "?" next to a control: "About
+      the layouts" under the layouts in the "More" menu, and "About the
+      views" at the end of the "View" menu.
+    - Not built (optional in the issue): showing the help as a graph, and
+      links from the help to my notes by title.
+    - Tests: every file in `assets/help/` is listed and is one node; every
+      `id:` link points to a help page and every page is linked; the help
+      is not part of my graph; the entries open their pages, and a link
+      between pages works.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

@@ -43,3 +43,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # The help pages (#62).
+  assets:
+    - assets/help/

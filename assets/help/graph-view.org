@@ -1,0 +1,37 @@
+:PROPERTIES:
+:ID:       roam-graph-help-graph-view
+:END:
+#+title: The graph view
+#+STARTUP: showall
+
+Each dot is a node: a note, or a heading with an ID. A line is an ~id:~
+link; the arrow points to the linked note. Other links (web, files) are not
+drawn, as in ~org-roam-graph~.
+
+- *Tap* a node to select it and open it. On a tablet held sideways the
+  note opens beside the graph; otherwise on its own page.
+- *Pinch and drag* to zoom and move. Titles show once they are large enough
+  to read.
+- *Search* (the magnifier) finds notes by title, alias and tag.
+- *New node* (the plus button) writes a new note; see
+  [[id:roam-graph-help-capture][Capture and shared text]].
+
+* Show
+The "Show" menu (the hub icon) chooses which part of the graph is drawn:
+- *Whole graph*: every node.
+- *Connected part*: the nodes the selected node reaches through links, in
+  either direction.
+- *Neighbourhood: 1, 2 or 3 steps*: the nodes that many links away from the
+  selected node. A small part is faster to draw and easier to read.
+
+* View
+The "View" menu (the chart icon) colours or sizes the nodes by a graph
+algorithm; see [[id:roam-graph-help-views][Graph views]].
+
+* More
+- *Centre*: moves the selected node to the middle.
+- *Circular* and *Force-directed*: the layout; see
+  [[id:roam-graph-help-layouts][Layouts]].
+- *Share graph with AI*, *Ask AI*: see [[id:roam-graph-help-ai][AI]].
+- *Settings*: see [[id:roam-graph-help-settings][Settings]].
+- *Help*: these pages.
