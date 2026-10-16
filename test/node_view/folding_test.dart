@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -126,6 +127,31 @@ void main() {
       expect(await store.load(), const ViewSettings());
     });
 
+    testWidgets('quick choices: saved in order, and the latest is kept',
+        (tester) async {
+      final store = _GatedStore();
+      await tester.pumpWidget(MaterialApp(
+        builder: (context, child) =>
+            ViewSettingsHost(store: store, child: child!),
+        home: const SettingsScreen(),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('sections-headings')));
+      await tester.tap(find.byKey(const ValueKey('sections-expanded')));
+      await tester.pump();
+      // The second save waits for the first.
+      expect(store.started, [SectionsOnOpen.headings]);
+      store.finish();
+      await tester.pump();
+      expect(store.started, [SectionsOnOpen.headings, SectionsOnOpen.expanded]);
+      store.finish();
+      await tester.pumpAndSettle();
+      expect(store.saved, SectionsOnOpen.expanded);
+      final group = tester.widget<RadioGroup<SectionsOnOpen>>(
+          find.byType(RadioGroup<SectionsOnOpen>));
+      expect(group.groupValue, SectionsOnOpen.expanded);
+    });
+
     testWidgets('the settings page saves the choice', (tester) async {
       final store = MemoryViewSettingsStore();
       await tester.pumpWidget(MaterialApp(
@@ -142,4 +168,25 @@ void main() {
       expect(tile.groupValue, SectionsOnOpen.headings);
     });
   });
+}
+
+/// A store whose saves finish only when [finish] is called, one at a time.
+class _GatedStore implements ViewSettingsStore {
+  final started = <SectionsOnOpen>[];
+  final _pending = <Completer<void>>[];
+  SectionsOnOpen? saved;
+
+  void finish() => _pending.removeAt(0).complete();
+
+  @override
+  Future<ViewSettings> load() async => const ViewSettings();
+
+  @override
+  Future<void> save(ViewSettings settings) async {
+    started.add(settings.sectionsOnOpen);
+    final gate = Completer<void>();
+    _pending.add(gate);
+    await gate.future;
+    saved = settings.sectionsOnOpen;
+  }
 }

@@ -147,6 +147,13 @@ class ViewSettingsHost extends StatefulWidget {
 class _ViewSettingsHostState extends State<ViewSettingsHost> {
   final _settings = ValueNotifier(const ViewSettings());
 
+  /// The saves so far, one after the other, so the file ends with the
+  /// latest choice.
+  Future<void> _saves = Future.value();
+
+  /// Counts the changes; only the latest one is applied.
+  var _changes = 0;
+
   @override
   void initState() {
     super.initState();
@@ -157,8 +164,23 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
       } on Exception {
         settings = const ViewSettings();
       }
-      if (mounted) _settings.value = settings;
+      // A choice made while loading is newer than the file.
+      if (mounted && _changes == 0) _settings.value = settings;
     }();
+  }
+
+  /// Saves [settings] after any earlier save, then uses them, unless a
+  /// newer change came meanwhile. If saving fails, the settings in use
+  /// stay as they were, and the error is thrown.
+  Future<void> _change(ViewSettings settings) {
+    final change = ++_changes;
+    final saved = _saves
+        .catchError((Object _) {})
+        .then((_) => widget.store.save(settings));
+    _saves = saved;
+    return saved.then((_) {
+      if (mounted && change == _changes) _settings.value = settings;
+    });
   }
 
   @override
@@ -170,7 +192,7 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   @override
   Widget build(BuildContext context) => ViewSettingsScope(
         settings: _settings,
-        store: widget.store,
+        onChange: _change,
         child: widget.child,
       );
 }
@@ -180,11 +202,12 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
   const ViewSettingsScope({
     super.key,
     required ValueNotifier<ViewSettings> settings,
-    required this.store,
+    required this.onChange,
     required super.child,
   }) : super(notifier: settings);
 
-  final ViewSettingsStore store;
+  /// Saves and applies new settings; see [change].
+  final Future<void> Function(ViewSettings) onChange;
 
   /// The settings as they are now, or the defaults where there is no
   /// scope, as in tests of a single screen. Rebuilds [context] when they
@@ -196,13 +219,14 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
           ?.value ??
       const ViewSettings();
 
-  /// Saves [settings], then uses them. If saving fails, the settings in
-  /// use stay as they were, and the error is thrown.
+  /// Saves [settings], then uses them. Changes are saved in the order they
+  /// are made, and only the latest is used, so a slow earlier save cannot
+  /// bring back an older choice. If saving fails, the settings in use stay
+  /// as they were, and the error is thrown.
   static Future<void> change(BuildContext context, ViewSettings settings) async {
     final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
     if (scope == null) return;
-    await scope.store.save(settings);
-    scope.notifier!.value = settings;
+    await scope.onChange(settings);
   }
 }
 
