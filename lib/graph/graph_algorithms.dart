@@ -1,5 +1,5 @@
 /// Graph algorithms for the graph views (#7), computed as my org-roam MCP
-/// server computes them (`cgeng-ai-skills`, `mcps/org_roam`), so both give
+/// server computes them (github.com/ChristianGeng/org-roam-mcp), so both give
 /// the same communities, ranking and paths. The server uses networkx and
 /// python-louvain; `tool/graph_algorithms.py` writes their results for the
 /// tests.

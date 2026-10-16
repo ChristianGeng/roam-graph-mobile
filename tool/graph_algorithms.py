@@ -1,11 +1,12 @@
 """Write the results of my org-roam MCP server's graph algorithms (#7).
 
 The app's graph views must give the same results as the MCP server
-(cgeng-ai-skills, mcps/org_roam), which uses networkx and python-louvain.
+(https://github.com/ChristianGeng/org-roam-mcp), which uses networkx and
+python-louvain.
 This script builds the graph the way the server does and writes what the
 algorithms return to test/fixtures/graph_algorithms_expected.json, which
 test/graph/graph_algorithms_test.dart compares with the app. Run it with the
-server's library versions:
+server's library versions (its uv.lock):
 
     uv run --with networkx==3.6.1 --with python-louvain==0.16 \\
         --with scipy python tool/graph_algorithms.py
