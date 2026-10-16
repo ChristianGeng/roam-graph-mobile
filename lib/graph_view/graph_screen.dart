@@ -2,6 +2,7 @@ import 'dart:isolate';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../capture/capture_screen.dart';
@@ -112,6 +113,17 @@ enum _ScopeChoice {
         steps2 => Neighbourhood(centre, 2),
         steps3 => Neighbourhood(centre, 3),
       };
+}
+
+/// The actions of the graph's "More" menu.
+enum _MoreAction {
+  centre,
+  circo,
+  force,
+  share;
+
+  static _MoreAction layoutOf(LayoutKind kind) =>
+      kind == LayoutKind.circo ? circo : force;
 }
 
 /// The graph views of #7: what the drawing shows about each node.
@@ -534,6 +546,42 @@ class _GraphScreenState extends State<GraphScreen> {
     _openNode(context, id);
   }
 
+  void _more(_MoreAction action) {
+    switch (action) {
+      case _MoreAction.centre:
+        _centreView();
+      case _MoreAction.share:
+        _shareGraph();
+      case _MoreAction.circo || _MoreAction.force:
+        _kind = action == _MoreAction.circo ? LayoutKind.circo : LayoutKind.force;
+        _update();
+    }
+  }
+
+  /// Shares the graph's connectivity with an AI app (#40), and says so if
+  /// Android cannot.
+  Future<void> _shareGraph() async {
+    final text = graphForAi(_graph);
+    // Android hands shared text over in one transaction, limited to about
+    // 1 MB; stay well below it.
+    if (text.length > 400000) {
+      _tellUser('The graph is too large to share at once '
+          '(${text.length ~/ 1000} KB).');
+      return;
+    }
+    try {
+      await widget.shareText(text, subject: 'My org-roam graph');
+    } on PlatformException catch (e) {
+      _tellUser('Could not share the graph: ${e.message ?? e.code}');
+    }
+  }
+
+  void _tellUser(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
   void _showView(_GraphView view) => setState(() {
         _view = view;
         _pathTarget = null;
@@ -614,19 +662,6 @@ class _GraphScreenState extends State<GraphScreen> {
                 _openPage(_centre!);
               },
             ),
-          IconButton(
-            tooltip: 'Share graph with AI',
-            icon: const Icon(Icons.share_outlined),
-            onPressed: _graph.nodes.isEmpty
-                ? null
-                : () => widget.shareText(graphForAi(_graph),
-                    subject: 'My org-roam graph'),
-          ),
-          IconButton(
-            tooltip: 'Centre',
-            icon: const Icon(Icons.center_focus_strong),
-            onPressed: _centreView,
-          ),
           PopupMenuButton<_ScopeChoice>(
             tooltip: 'Show',
             icon: const Icon(Icons.hub_outlined),
@@ -647,17 +682,24 @@ class _GraphScreenState extends State<GraphScreen> {
                 PopupMenuItem(value: view, child: Text(view.label)),
             ],
           ),
-          PopupMenuButton<LayoutKind>(
-            tooltip: 'Layout',
-            icon: const Icon(Icons.scatter_plot_outlined),
-            initialValue: _kind,
-            onSelected: (kind) {
-              _kind = kind;
-              _update();
-            },
+          // Less used actions, so the bar fits a phone held upright.
+          PopupMenuButton<_MoreAction>(
+            tooltip: 'More',
+            onSelected: _more,
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                  value: _MoreAction.centre, child: Text('Centre')),
               for (final kind in LayoutKind.values)
-                PopupMenuItem(value: kind, child: Text(kind.label)),
+                CheckedPopupMenuItem(
+                  value: _MoreAction.layoutOf(kind),
+                  checked: kind == _kind,
+                  child: Text(kind.label),
+                ),
+              PopupMenuItem(
+                value: _MoreAction.share,
+                enabled: _graph.nodes.isNotEmpty,
+                child: const Text('Share graph with AI'),
+              ),
             ],
           ),
         ],

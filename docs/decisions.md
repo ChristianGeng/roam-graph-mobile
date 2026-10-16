@@ -587,7 +587,9 @@ devices through Syncthing.
     graph view sends, through Android's share menu, the structure of the
     whole graph (`lib/graph/ai_share.dart`):
     - Every node: a short number (`n1`, `n2`, …, in title order), its ID,
-      title and tags. Then every pair of nodes with an `id:` link, as
+      its tags (`-` for none) and its title, in that order: the title comes
+      last, so a ` | ` in it cannot look like another column. Then every
+      pair of nodes with an `id:` link, as
       `n3 -> n17`. The numbers keep the 2589 links from repeating 36-letter
       IDs; for my notes the text is about 57 KB, some 14,000 tokens.
     - No note texts: all of them are 3.4 MB, some 850,000 tokens, too much
@@ -598,6 +600,10 @@ devices through Syncthing.
       becomes a linked new node (#15).
     - Built from the app's index, so it is the graph org-roam has (#5).
       Links to IDs that are no node are left out. Nothing is written.
+    - The action is in the graph's "More" menu, with Centre and the
+      layouts, so the bar fits a phone. A share Android refuses says so; a
+      text over 400 KB is not sent, since Android hands shared text over in
+      one transaction of about 1 MB.
 
 ## Recommended, not decided
 

@@ -41,7 +41,8 @@ String graphForAi(RoamGraph graph) {
     ..writeln('This is the structure of my notes (org-roam, Org mode), '
         'shared from the app Roam Graph. It has no note texts.')
     ..writeln('- Each node has a short number (n1, n2, …), its ID, its '
-        'title and its tags.')
+        'tags (- for none) and its title, in this order, separated by " | ". '
+        'The title comes last and may itself contain " | ".')
     ..writeln('- "n3 -> n17" means: node n3 links to node n17.')
     ..writeln('- To read a node, ask me for it by title; I will share its '
         'text, its links and its backlinks.')
@@ -49,11 +50,11 @@ String graphForAi(RoamGraph graph) {
         'with their ID, in Org syntax: [[id:<ID>][<title>]]. Put the '
         "note's title on its first line.")
     ..writeln()
-    ..writeln('## Nodes (number | ID | title | tags)');
+    ..writeln('## Nodes (number | ID | tags | title)');
   for (final node in nodes) {
-    final tags = node.tags.isEmpty ? '' : ' | ${node.tags.join(' ')}';
-    text.writeln('${number[node.id]} | ${node.id} | '
-        '${_oneLine(node.displayTitle)}$tags');
+    final tags = node.tags.isEmpty ? '-' : node.tags.join(' ');
+    text.writeln('${number[node.id]} | ${node.id} | $tags | '
+        '${_oneLine(node.displayTitle)}');
   }
   text
     ..writeln()

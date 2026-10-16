@@ -22,22 +22,25 @@ void main() {
     file('id-b', 'Beta', tags: ['x', 'y'], to: ['id-a', 'id-a', 'gone']),
     file('id-a', 'alpha', to: ['id-b']),
     file('id-c', 'Gamma\nnote'),
+    file('id-d', 'Plan | Draft'),
   ]);
   final text = graphForAi(graph);
   final lines = text.split('\n');
 
   test('a header that says what it is and how to link', () {
-    expect(lines.first, '# My org-roam graph: 3 nodes, 2 links');
+    expect(lines.first, '# My org-roam graph: 4 nodes, 2 links');
     expect(text, contains('[[id:<ID>][<title>]]'));
     expect(text, contains('ask me for it by title'));
   });
 
   test('nodes numbered in title order, with ID, title and tags', () {
-    final start = lines.indexOf('## Nodes (number | ID | title | tags)');
-    expect(lines.sublist(start + 1, start + 4), [
-      'n1 | id-a | alpha',
-      'n2 | id-b | Beta | x y',
-      'n3 | id-c | Gamma note',
+    final start = lines.indexOf('## Nodes (number | ID | tags | title)');
+    expect(lines.sublist(start + 1, start + 5), [
+      'n1 | id-a | - | alpha',
+      'n2 | id-b | x y | Beta',
+      'n3 | id-c | - | Gamma note',
+      // The title comes last, so " | " in it cannot look like tags.
+      'n4 | id-d | - | Plan | Draft',
     ]);
   });
 
