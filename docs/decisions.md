@@ -605,6 +605,27 @@ devices through Syncthing.
       text over 400 KB is not sent, since Android hands shared text over in
       one transaction of about 1 MB.
 
+36. **Nodes can be shared with an AI, with their texts** (#41): the reading
+    half of decision 35. When an AI asks to see notes, I pass them on.
+    - "Share with AI" in the node view shares the node; in search, a long
+      press selects nodes (a tap then adds or removes one), and "Share with
+      AI" shares the selection together.
+    - Each node comes with its ID, file, tags, the nodes it links to and
+      those linking to it (as `[[id:<ID>][<title>]]`), and its Org text:
+      the whole file for a file node, the heading and its subtree for a
+      heading node. The heading is found by its `:ID:` in the file as it is
+      now, with org_parser, as the node view finds it; if the file no longer
+      has it, the share says so instead of sending what is now at the
+      indexed line. Links are written as `orgLink` writes them (#12), and
+      the text is fenced with more backticks than it contains. A header
+      asks the AI to link with the same `[[id:…]]` form.
+    - Over 400 KB is not sent (Android's limit for shared text is about
+      1 MB); the app asks to select fewer. A share Android refuses says
+      so.
+    - Shared through Android's share menu, as text; nothing is written.
+    - So an AI on the device reads on demand with me as the messenger. An
+      AI that fetches notes itself would need a remote MCP server (#42).
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

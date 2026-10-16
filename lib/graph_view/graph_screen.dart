@@ -488,6 +488,7 @@ class _GraphScreenState extends State<GraphScreen> {
         onShowInGraph: _showInGraph,
         openInOrgro: widget.openInOrgro,
         writer: widget.writer,
+        shareText: widget.shareText,
       );
 
   /// Shows [id] in the side pane, and marks it in the graph without moving
@@ -650,6 +651,7 @@ class _GraphScreenState extends State<GraphScreen> {
               openInOrgro: widget.openInOrgro,
               onOpenNode: _openNode,
               writer: widget.writer,
+              shareText: widget.shareText,
             ),
           ),
           // The quick switch to the node view, on one screen at a time.
@@ -741,6 +743,7 @@ class _GraphScreenState extends State<GraphScreen> {
                     onOpenNode: _openNode,
                     onBack: _history.length > 1 ? _paneBack : null,
                     writer: widget.writer,
+                    shareText: widget.shareText,
                   ),
                 ),
               ],

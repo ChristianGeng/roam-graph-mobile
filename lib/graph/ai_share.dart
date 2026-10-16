@@ -4,7 +4,16 @@
 /// Pure Dart (no Flutter), like `roam_graph.dart`.
 library;
 
+import 'package:org_parser/org_parser.dart';
+
+import '../capture/new_node.dart';
+import 'backlinks.dart';
 import 'roam_graph.dart';
+
+/// The longest text the app shares at once: Android hands shared text to
+/// the other app in one transaction of about 1 MB, which also holds the
+/// rest of the intent.
+const maxShareLength = 400000;
 
 /// The connectivity of [graph]: every node's ID, title and tags, and every
 /// pair of nodes with an `id:` link, with a header that says how to answer.
@@ -61,6 +70,83 @@ String graphForAi(RoamGraph graph) {
     ..writeln('## Links (source -> target)');
   for (final (source, target) in links) {
     text.writeln('n${source + 1} -> n${target + 1}');
+  }
+  return text.toString();
+}
+
+/// The Org text of [node] in [fileText], found as the node view finds it
+/// (#8): the whole file for a file node; for a heading node the section
+/// with the node's `:ID:`, parsed with org_parser, heading and subtree.
+/// Null if the file no longer has that heading: the index is older than
+/// the file, and the line it holds may now be another note's.
+String? nodeText(RoamNode node, String fileText) {
+  if (node.isFile) return fileText;
+  final section = OrgDocument.parse(fileText).sectionWithId(node.id);
+  return section is OrgSection ? section.toMarkup().trimRight() : null;
+}
+
+/// Nodes of [graph] with their texts, for an AI app (#41): each node's
+/// ID, title, tags and file, the nodes it links to and the nodes linking
+/// to it (as Org links), and its Org text ([nodeText]). [files] has the
+/// text of each node's file; null when it could not be read.
+String nodesForAi(RoamGraph graph, List<(RoamNode, String?)> files) {
+  String ref(String id) {
+    final title = graph.nodes[id]?.displayTitle;
+    return title == null
+        ? '[[${orgLinkEscape('id:$id')}]]'
+        : orgLink(id, _oneLine(title));
+  }
+
+  final texts = [
+    for (final (node, file) in files)
+      (node, file, file == null ? null : nodeText(node, file)),
+  ];
+
+  final text = StringBuffer()
+    ..writeln(texts.length == 1
+        ? '# A note from my org-roam graph'
+        : '# ${texts.length} notes from my org-roam graph')
+    ..writeln()
+    ..writeln('Shared from the app Roam Graph. The text is Org mode. To '
+        'link to a note when you write one for me, use its ID: '
+        '[[id:<ID>][<title>]].');
+  for (final (node, file, body) in texts) {
+    final linksTo = <String>{
+      for (final link in graph.links)
+        if (link.source == node.id && link.dest != node.id) link.dest,
+    };
+    final linkedFrom = <String>{
+      for (final b in backlinksOf(graph, node.id))
+        if (b.source.id != node.id) b.source.id,
+    };
+    text
+      ..writeln()
+      ..writeln('## ${_oneLine(node.displayTitle)}')
+      ..writeln()
+      ..writeln('- ID: ${node.id}')
+      ..writeln('- File: ${node.file}');
+    if (node.tags.isNotEmpty) text.writeln('- Tags: ${node.tags.join(' ')}');
+    text
+      ..writeln('- Links to: ${linksTo.isEmpty ? 'none' : linksTo.map(ref).join(', ')}')
+      ..writeln('- Linked from: '
+          '${linkedFrom.isEmpty ? 'none' : linkedFrom.map(ref).join(', ')}')
+      ..writeln();
+    if (file == null) {
+      text.writeln('(The file could not be read.)');
+    } else if (body == null) {
+      text.writeln('(The heading is no longer in ${node.file}; the file '
+          'changed since the app read it.)');
+    } else {
+      // A fence longer than any run of backticks in the text.
+      final longest = RegExp('`+')
+          .allMatches(body)
+          .fold(0, (m, match) => match.group(0)!.length > m ? match.group(0)!.length : m);
+      final fence = '`' * (longest < 3 ? 3 : longest + 1);
+      text
+        ..writeln('${fence}org')
+        ..writeln(body.trimRight())
+        ..writeln(fence);
+    }
   }
   return text.toString();
 }

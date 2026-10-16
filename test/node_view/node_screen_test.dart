@@ -1,7 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roam_graph_mobile/capture/share_inbox.dart';
 import 'package:roam_graph_mobile/graph/org_roam_parser.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
@@ -40,6 +42,7 @@ Future<MemoryNodeMemory> open(
   Map<String, String> texts = notes,
   void Function(BuildContext, String)? onShowInGraph,
   NoteOpener? openInOrgro,
+  TextSharer? shareText,
 }) async {
   final memory = MemoryNodeMemory();
   await tester.pumpWidget(MaterialApp(
@@ -55,6 +58,7 @@ Future<MemoryNodeMemory> open(
               nodeMemory: memory,
               onShowInGraph: onShowInGraph,
               openInOrgro: openInOrgro,
+              shareText: shareText ?? (text, {subject}) async {},
             ),
             child: const Text('open'),
           ),
@@ -235,6 +239,33 @@ void main() {
       await open(tester, 'a');
       expect(find.byTooltip('Open in Orgro'), findsNothing);
     });
+  });
+
+  testWidgets('"Share with AI" shares the node, its links and text (#41)',
+      (tester) async {
+    final shared = <(String, String?)>[];
+    await open(tester, 'p',
+        shareText: (text, {subject}) async => shared.add((text, subject)));
+    await tester.tap(find.byTooltip('Share with AI'));
+    await tester.pump();
+
+    final (text, subject) = shared.single;
+    expect(subject, 'Part');
+    expect(text, contains('## Part\n\n- ID: p\n- File: b.org\n'));
+    // The heading's subtree, not the whole file.
+    expect(text, contains('* Part\n'));
+    expect(text, contains('Deeper text.'));
+    expect(text, isNot(contains('Top text of B.')));
+    expect(text, isNot(contains('Other text')));
+  });
+
+  testWidgets('a share that fails says so', (tester) async {
+    await open(tester, 'a',
+        shareText: (text, {subject}) async =>
+            throw PlatformException(code: 'x', message: 'no app'));
+    await tester.tap(find.byTooltip('Share with AI'));
+    await tester.pump();
+    expect(find.text('Could not share the note: no app'), findsOneWidget);
   });
 
   testWidgets('a file that cannot be read', (tester) async {
