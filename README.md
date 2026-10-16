@@ -28,8 +28,10 @@ are left out of the notes that are (#57). Notes open with their sections
 collapsed, a setting that can also show all headings or everything; a
 note's own `#+STARTUP:` line comes first (#63). The tools of my org-roam
 MCP server (search, backlinks, paths, PageRank, communities and the
-others) run on the app's own index, for an AI chat in the app (#58). What
-is decided and why is in
+others) run on the app's own index, for an AI chat in the app (#58), which
+talks to the provider I choose: Anthropic, Claude on AWS Bedrock in the
+EU, Mistral, DeepSeek and others, with the key in Android's secure storage
+(#59). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

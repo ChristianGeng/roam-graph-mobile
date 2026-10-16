@@ -969,6 +969,115 @@ devices through Syncthing.
       against the modularity and community counts of 20 python-louvain
       runs at resolutions 0.5, 1 and 2.
 
+45. **The AI chat talks to a provider the owner chooses, over one of two
+    APIs** (#59), `lib/ai/ai_chat.dart`, `lib/ai/ai_providers.dart`.
+    - **The app goes online for this, and only for this.** Decisions 2 and
+      14 kept the app offline. The chat needs a model, and none runs on the
+      phone, so the app now has Android's `INTERNET` permission. It is
+      used only by the chat, and only when I send a message: then one
+      request per tool round goes to the provider I chose, with my message,
+      the conversation so far, the tools' descriptions and the tool
+      results the model asked for (note texts among them, without the
+      notes hidden by decision 42). Nothing is sent in the background, and
+      the rest of the app stays offline (web images stay links).
+    - **Two APIs, each with a tool loop:** Anthropic's Messages API
+      (`POST <base>/v1/messages`, `x-api-key`, `anthropic-version:
+      2023-06-01`, `tool_use` and `tool_result` blocks), and the
+      OpenAI-compatible Chat Completions API (`POST
+      <base>/chat/completions`, `Authorization: Bearer`, `tools`,
+      `tool_calls`, `role: tool`). The app runs the tools the model asks
+      for (decision 44) and sends the results back, until the model
+      answers. Anthropic's answers are sent back exactly as they came,
+      thinking blocks and their signatures included, which the API requires
+      in a tool loop; DeepSeek's `reasoning_content` likewise.
+    - **Presets** are one plain data list (`providerPresets`), so the list
+      can change without touching the logic; every value stays editable.
+      The settings list them in two groups, "Data stays in the EU" and
+      "Outside the EU", each with a one-line note on where the data goes,
+      shown when it is chosen. Checked against each provider's
+      documentation on 2026-10-17:
+
+      | Preset | API | Base URL | Model / strong model |
+      |---|---|---|---|
+      | Claude on AWS Bedrock (EU) | Anthropic | `https://bedrock-runtime.eu-central-1.amazonaws.com/anthropic` | `eu.anthropic.claude-sonnet-5-5` / `eu.anthropic.claude-opus-5-5` |
+      | Mistral | OpenAI | `https://api.mistral.ai/v1` | `mistral-large-4` |
+      | Scaleway | OpenAI | `https://api.scaleway.ai/v1` | (chosen from its list) |
+      | Vercel AI Gateway, "EU only" on | OpenAI | `https://ai-gateway.vercel.sh/v1` | (any) |
+      | Anthropic | Anthropic | `https://api.anthropic.com` | `claude-sonnet-5-5` / `claude-opus-5-5` |
+      | DeepSeek | OpenAI | `https://api.deepseek.com` | `deepseek-v4-pro` |
+      | Qwen (Alibaba Cloud) | OpenAI | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `qwen3.8-max` |
+      | OpenRouter | OpenAI | `https://openrouter.ai/api/v1` | (any) |
+      | Hugging Face | OpenAI | `https://router.huggingface.co/v1` | (any) |
+      | Custom | either | (any, for example IONOS, Nebius, OVHcloud, STACKIT, Infomaniak or Ollama) | (any) |
+
+      - Bedrock: AWS's model cards list the Messages API on
+        `bedrock-runtime` with EU inference profiles (`eu.` in front)
+        that keep requests in EU regions; `bedrock-mantle` serves these
+        models only outside the EU. A Bedrock API key goes in `x-api-key`,
+        as AWS's examples send it.
+      - Mistral Large 4 is in "public preview"; its page lists the API
+        names `mistral-large-4` and `mistral-large-4-0`.
+      - Vercel's "EU only" sends `providerOptions.gateway.inferenceRegion
+        = {scope: zone, geoRegion: eu}` in the body, as Vercel documents
+        it; a model without an EU route then fails instead of running
+        elsewhere.
+      - Value picks are named in the notes: Sonnet 5.5 "safe default",
+        Mistral Large 4 "best value in the EU", DeepSeek V4 Pro "best
+        value outside the EU". DeepSeek's note says that the data is
+        processed and stored in China, that reports say inputs may be used
+        for training, and that Chinese law can require access.
+      - No small model (such as Haiku) is a default or a strong model: the
+        chat may propose notes to save. Any model can be typed in.
+    - **Settings**, on the AI settings page, reached from "AI" on the
+      Settings page (#63) and from the folder screen; the graph's "More"
+      menu no longer has its own entry. They stay in `ai-settings.json`
+      with the hidden tags (decision 42), not in #63's
+      `view-settings.json`, so all AI settings are in one place: the
+      provider, and per provider its base URL, default model, optional strong model (the
+      chat can switch to it, #60), the API for Custom, and Vercel's "EU
+      only" (on by default). Also the most tool rounds per message
+      (default 10) and the most tokens per answer (default 8192, more than
+      the issue's 4096, because Claude's thinking counts towards it).
+    - **API keys** are kept per provider in Android's secure storage
+      (`flutter_secure_storage`: encrypted with a key the Android Keystore
+      holds), never in the notes or a plain file; the page never shows a
+      saved key, only that one is saved, and can remove it. Custom works
+      without a key, for a local Ollama.
+    - **Prompt caching.** Every request starts with the same bytes: the
+      system prompt, which never changes (no time, no counter, no node),
+      then the tools in their fixed order, then the conversation, which
+      only grows; the node a chat starts from goes into the first message
+      (#60). Anthropic: `cache_control: {type: ephemeral}` on the system
+      prompt (which caches the tools before it) and on the last block of
+      the conversation, so each round reads the earlier rounds from the
+      cache (5 minutes; at least 512 tokens for Sonnet and Opus 5.5, so
+      the tools alone qualify). OpenAI-compatible providers cache a
+      repeated start by themselves where they support it; the app reads
+      the cached tokens from `usage.prompt_tokens_details.cached_tokens`,
+      or DeepSeek's `prompt_cache_hit_tokens`. Each chat counts its input,
+      cached and output tokens. A test checks that each request starts
+      with the one before.
+    - **Limits:** a message may run the most tool rounds set; the last
+      round's result says it was the last. If the model still asks for
+      tools, they are not run and its text, if any, is its answer. The
+      count belongs to the message: "Send again" after an error goes on
+      counting. Every tool call gets a result, also when the tool fails
+      (as an error the model reads), since both APIs refuse a conversation
+      with a tool call left without one.
+    - **Errors say what to do:** no key, model or base URL (nothing is
+      sent); no network or no answer in time; 401 or 403 (the key); 429
+      (rate limit or credit); 404 (base URL or model); 400 that mentions
+      tools (the model may not support them); any other HTTP error with
+      the provider's own message. An answer cut at the token limit is
+      dropped, so "Send again" asks again. After an error, the chat can
+      send the conversation again from where it stopped.
+    - **Keys only over HTTPS; no redirects.** A key is never sent to an
+      `http://` base URL (Custom can reach a local server over HTTP without
+      a key, such as Ollama). Redirects are not followed, so the
+      conversation cannot go to another host than the base URL's.
+    - Answers are not streamed: an answer appears when it is complete.
+      Qwen does not allow streaming together with tools anyway.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

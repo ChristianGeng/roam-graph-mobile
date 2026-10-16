@@ -129,7 +129,6 @@ enum _MoreAction {
   circo,
   force,
   share,
-  aiSettings,
   settings;
 
   static _MoreAction layoutOf(LayoutKind kind) =>
@@ -564,8 +563,6 @@ class _GraphScreenState extends State<GraphScreen> {
         _centreView();
       case _MoreAction.share:
         _shareGraph();
-      case _MoreAction.aiSettings:
-        AiSettingsScreen.open(context);
       case _MoreAction.settings:
         SettingsScreen.open(context);
       case _MoreAction.circo || _MoreAction.force:
@@ -720,10 +717,6 @@ class _GraphScreenState extends State<GraphScreen> {
                 value: _MoreAction.share,
                 enabled: _graph.nodes.isNotEmpty,
                 child: const Text('Share graph with AI'),
-              ),
-              const PopupMenuItem(
-                value: _MoreAction.aiSettings,
-                child: Text('AI settings'),
               ),
               const PopupMenuItem(
                 value: _MoreAction.settings,
