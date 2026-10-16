@@ -1167,8 +1167,12 @@ devices through Syncthing.
       (pull requests whose own build was replaced by a later one name that
       later release). It is not rewritten before 1.x.
     - **The release text:** the build job, on `main` only, reads the
-      previous published release's `CHANGELOG.md` through the API (the
-      checkout is shallow) and runs `tool/release_notes.dart`: the entries
+      `CHANGELOG.md` of the newest published release built by an earlier
+      run (so re-running an old run does not compare with a newer release)
+      through the API (the checkout is shallow). Only a 404 counts as "no
+      changelog there"; any other failure stops the build, because
+      guessing would leave entries out of every later release text. Then
+      it runs `tool/release_notes.dart`: the entries
       whose heading the previous copy does not have, then "Built from
       <sha>". When the previous release has no changelog, or nothing is
       new (a release built again), the top entry only. The text travels
@@ -1179,8 +1183,10 @@ devices through Syncthing.
     - **The check:** a separate workflow, `changelog.yml`, on pull
       requests (also when labels change). It asks the API which files the
       pull request changes; it runs no code from the pull request and
-      uses no actions. A change under `lib/` or `android/` without
-      `CHANGELOG.md` fails, with a message that says what to add. The
+      uses no actions. A change under `lib/` or `android/` fails unless
+      the patch of `CHANGELOG.md` adds a `## ` heading (an edit to an old
+      entry alone would give the release no new text), with a message that
+      says what to add. A deleted `CHANGELOG.md` fails too. The
       label `skip-changelog` lets a change through that users do not see.
     - Tests: `test/tool/release_notes_test.dart` (new entries in order,
       no previous changelog, nothing new, no entries, and the headings of

@@ -20,7 +20,7 @@ each entry.
   shown by the node view. "Help" on the folder screen and in the graph's
   "More" menu; "About the layouts" and "About the views" next to those
   controls.
-- Closes [#62](https://github.com/ChristianGeng/roam-graph-mobile/issues/62).
+- Closes [#62](https://github.com/ChristianGeng/roam-graph-mobile/issues/62). Released as v0.1.114.
 
 ## 2026-10-16: AI chat ([#67](https://github.com/ChristianGeng/roam-graph-mobile/pull/67))
 

@@ -33,8 +33,10 @@ folder is the only connection.
 - **Every pull request adds a CHANGELOG.md entry** at the top:
   `## YYYY-MM-DD: <short title> ([#PR](<PR URL>))`, then 1 to 4 lines on
   what changed for the user (Added / Changed / Fixed) and the issue it
-  closes. No version number: the release text adds it. CI fails a pull
-  request that changes `lib/` or `android/` without an entry; the label
+  closes. No version number in a new entry: the release text adds it.
+  (The entries written before the changelog existed name their release;
+  they stay as they are.) CI fails a pull request that changes `lib/` or
+  `android/` without a new entry heading; the label
   `skip-changelog` lets a change through that users do not see
   (decision 48).
 - **Match org-roam exactly** where the app imitates it: which files are
