@@ -9,6 +9,7 @@ import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
+import 'src_languages.dart';
 import '../search/search_screen.dart';
 
 /// Reads a note's text, by its path relative to `roam/`; null if it cannot
@@ -352,7 +353,8 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// The Org text of [node]: the file, or the heading's subtree.
   Widget _org(RoamNode node, String text) {
-    final document = OrgDocument.parse(text);
+    // Source blocks coloured as Emacs colours them (#45).
+    final document = withHighlightLanguages(OrgDocument.parse(text));
     final OrgTree? tree =
         node.isFile ? document : document.sectionWithId(node.id);
     if (tree == null) {
