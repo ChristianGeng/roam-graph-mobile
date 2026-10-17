@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Undo the AI's changes after the chat is closed ([#102](https://github.com/ChristianGeng/roam-graph-mobile/pull/102))
+
+- Added: "Recent AI changes", the history button in the AI chat. It lists
+  what the AI changed in the last 30 days, by message, with each note's
+  change as a diff, and "Undo these changes" for each message.
+- Changes made before this update are listed but cannot be undone there.
+- Closes [#99](https://github.com/ChristianGeng/roam-graph-mobile/issues/99).
 ## 2026-10-17: Search the words inside notes ([#101](https://github.com/ChristianGeng/roam-graph-mobile/pull/101))
 
 - Added: an "In the text" chip in Search finds notes by the words in

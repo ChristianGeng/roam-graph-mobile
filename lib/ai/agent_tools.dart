@@ -5,7 +5,6 @@
 /// "Undo all".
 library;
 
-import 'dart:convert';
 import 'dart:math';
 
 import '../capture/capture_screen.dart';
@@ -226,8 +225,19 @@ class AgentWriter {
   /// The note key (folder and path) taken when the note was read.
   String? _folderKey;
 
-  /// Starts recording the changes of a new message; returns them.
-  AgentChanges startMessage() => changes = AgentChanges();
+  /// Starts recording the changes of a new message; returns them. The
+  /// log groups them by the message's ID and shows [prompt]'s first words
+  /// (#99).
+  AgentChanges startMessage({String prompt = ''}) {
+    final time = _now();
+    final words = prompt.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return changes = AgentChanges(
+      messageId: '${time.microsecondsSinceEpoch.toRadixString(36)}-'
+          '${(_random ?? Random()).nextInt(1 << 30).toRadixString(36)}',
+      prompt: words.length <= 80 ? words : '${words.substring(0, 79)}…',
+      time: time,
+    );
+  }
 
   /// The tools this writer runs, by name, for [ChatSession.handlers].
   Map<String, Future<String> Function(ToolCall call)> get handlers => {
@@ -587,20 +597,9 @@ class AgentWriter {
         ...lines.lines.sublist(0, lines.start),
         ...lines.lines.sublist(end),
       ].join(lines.newline);
+      // Undo puts the part back with its drawer.
       await _save(editor, 'delete_node', node, base, after, '',
           removed: removed.join(lines.newline));
-      // Undo puts the part back with its drawer.
-      final last = changes.changes.removeLast();
-      changes.changes.add(AgentChange(
-        tool: last.tool,
-        path: last.path,
-        noteKey: last.noteKey,
-        nodeId: last.nodeId,
-        title: last.title,
-        before: last.before,
-        after: last.after,
-        removed: removed.join(lines.newline),
-      ));
       removedText = [removed.join('\n')];
       done = 'Deleted the heading "${node.displayTitle}" with its subtree.';
     }
@@ -715,7 +714,7 @@ class AgentWriter {
     switch (result) {
       case Saved() || SavedNotIndexed():
         await _record(tool, node.file, node.id, node.displayTitle, base.text,
-            after);
+            after, removed: removed);
         return result is SavedNotIndexed
             ? '$done The graph shows it after the next scan.'
             : done;
@@ -739,10 +738,10 @@ class AgentWriter {
   }
 
   Future<void> _record(String tool, String path, String id, String title,
-      String? before, String? after) async {
+      String? before, String? after, {String removed = ''}) async {
     int links(String? text) =>
         text == null ? 0 : RegExp(r'\[\[id:').allMatches(text).length;
-    changes.changes.add(AgentChange(
+    final change = AgentChange(
       tool: tool,
       path: path,
       noteKey: writer.editor?.store.historyKey(path) ?? path,
@@ -751,15 +750,10 @@ class AgentWriter {
       before: before,
       after: after,
       linksAdded: (links(after) - links(before)).clamp(0, 1 << 30),
-    ));
-    await log.record(AgentLogEntry(
-      time: _now(),
-      folder: folder(),
-      path: path,
-      tool: tool,
-      oldHash: before == null ? null : contentHash(utf8.encode(before)),
-      newHash: after == null ? null : contentHash(utf8.encode(after)),
-    ));
+      removed: removed,
+    );
+    changes.changes.add(change);
+    await log.record(AgentLogEntry.of(changes, change, folder(), _now()));
   }
 }
 
