@@ -12,6 +12,7 @@ import 'package:roam_graph_mobile/edit/note_editor.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
+import 'package:roam_graph_mobile/node_view/web_links.dart';
 
 import '../graph_view/graph_screen_test.dart'
     show MemoryNodeMemory, algorithmsHere, layoutHere;
@@ -35,6 +36,7 @@ Future<void> openChat(
   AiSettings settings = const AiSettings(),
   AgentLog? agentLog,
   ValueNotifier<RoamGraph>? graphNotifier,
+  UrlOpener? openUrl,
 }) async {
   await tester.pumpWidget(AiSettingsHost(
     store: MemoryAiSettingsStore(settings),
@@ -48,6 +50,7 @@ Future<void> openChat(
         openNode: (_, id) => opened?.call(id),
         post: server.post,
         agentLog: agentLog ?? MemoryAgentLog(),
+        openUrl: openUrl ?? (uri) async => true,
       ),
     ),
   ));
@@ -241,6 +244,36 @@ void main() {
     expect(opened, isNotNull);
     expect(jsonEncode([for (final r in server.requests) r.body]),
         isNot(contains('My diary')));
+  });
+
+  testWidgets('a web link in an answer opens in the browser (#108)',
+      (tester) async {
+    final server = FakeServer([
+      anthropicReply([
+        {
+          'type': 'text',
+          'text': 'See [[https://example.org/doc][the docs]] and '
+              '[[file:x.org][a file]].',
+        },
+      ]),
+    ]);
+    final opened = <Uri>[];
+    await openChat(tester, server, openUrl: (uri) async {
+      opened.add(uri);
+      return true;
+    });
+    await ask(tester, 'Where?');
+    await tester.tapOnText(find.textRange.ofSubstring('the docs'));
+    await tester.pump();
+    expect(opened, [Uri.parse('https://example.org/doc')]);
+    expect(find.text('Opening https://example.org/doc'), findsOneWidget);
+    await tester.tapOnText(find.textRange.ofSubstring('a file'));
+    await tester.pump();
+    expect(opened, hasLength(1));
+    expect(
+        find.text('The chat opens id:, web, mail and phone links, not '
+            '"file:x.org".'),
+        findsOneWidget);
   });
 
   group('agent mode (#82)', () {

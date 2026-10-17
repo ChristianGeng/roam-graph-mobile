@@ -7,6 +7,7 @@ import 'package:roam_graph_mobile/capture/share_inbox.dart';
 import 'package:roam_graph_mobile/graph/org_roam_parser.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
+import 'package:roam_graph_mobile/node_view/web_links.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 import '../graph/graph_scope_test.dart' show fixtureGraph;
@@ -44,6 +45,7 @@ Future<MemoryNodeMemory> open(
   void Function(BuildContext, String)? onShowInGraph,
   NoteOpener? openInOrgro,
   TextSharer? shareText,
+  UrlOpener? openUrl,
   // Expanded, so the tests below see the text under headings; the
   // folding has its own tests.
   SectionsOnOpen sections = SectionsOnOpen.expanded,
@@ -67,6 +69,7 @@ Future<MemoryNodeMemory> open(
               onShowInGraph: onShowInGraph,
               openInOrgro: openInOrgro,
               shareText: shareText ?? (text, {subject}) async {},
+              openUrl: openUrl ?? (uri) async => true,
             ),
             child: const Text('open'),
           ),
@@ -160,9 +163,13 @@ void main() {
     expect(title('Part'), findsOneWidget);
   });
 
-  testWidgets('a link to a missing note or a web page says so',
+  testWidgets('a link to a missing note says so; a web link opens (#108)',
       (tester) async {
-    await open(tester, 'a');
+    final opened = <Uri>[];
+    await open(tester, 'a', openUrl: (uri) async {
+      opened.add(uri);
+      return true;
+    });
 
     await tester.tapOnText(find.textRange.ofSubstring('a lost note'));
     await tester.pump();
@@ -171,10 +178,74 @@ void main() {
 
     await tester.tapOnText(find.textRange.ofSubstring('the web'));
     await tester.pump();
+    expect(opened, [Uri.parse('https://example.com')]);
+    expect(find.text('Opening https://example.com'), findsOneWidget);
+    // The address can be copied, once the snack bar is in.
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SnackBarAction, 'Copy'));
+    await tester.pumpAndSettle();
+    expect(copied, 'https://example.com');
+    expect(title('A'), findsOneWidget);
+  });
+
+  testWidgets('mail, phone and plain web links open; file links do not',
+      (tester) async {
+    const texts = {
+      'w.org': ':PROPERTIES:\n:ID: w\n:END:\n#+title: W\n'
+          'Write [[mailto:a@example.org][mail]], call [[tel:+4930123][phone]].\n'
+          'Plain https://example.org/page here.\n'
+          'A [[file:other.org][file link]] and [[ftp://x.org/f][ftp]].\n',
+    };
+    final opened = <String>[];
+    var canOpen = true;
+    await open(tester, 'w',
+        graph: ValueNotifier(graphOf(texts)),
+        texts: texts,
+        openUrl: (uri) async {
+          opened.add(uri.toString());
+          return canOpen;
+        });
+    await tester.tapOnText(find.textRange.ofSubstring('mail'));
+    await tester.pump();
+    await tester.tapOnText(find.textRange.ofSubstring('phone'));
+    await tester.pump();
+    // A plain link is drawn with zero-width spaces between its letters,
+    // so it can wrap anywhere.
+    await tester.tapOnText(find.textRange
+        .ofSubstring('example.org/page'.split('').join('\u200b')));
+    await tester.pump();
+    expect(opened, [
+      'mailto:a@example.org',
+      'tel:+4930123',
+      'https://example.org/page',
+    ]);
+    await tester.tapOnText(find.textRange.ofSubstring('file link'));
+    await tester.pump();
     expect(
-      find.text('This app opens only id: links, not "https://example.com".'),
-      findsOneWidget,
-    );
+        find.text('This app opens id:, web, mail and phone links, not '
+            '"file:other.org".'),
+        findsOneWidget);
+    await tester.tapOnText(find.textRange.ofSubstring('ftp'));
+    await tester.pump();
+    expect(opened, hasLength(3));
+    // No app for it. The message above names mail links too: away with it.
+    canOpen = false;
+    ScaffoldMessenger.of(tester.element(find.byType(Scaffold).last))
+        .removeCurrentSnackBar();
+    await tester.pumpAndSettle();
+    await tester.tapOnText(find.textRange.ofSubstring('mail'));
+    await tester.pump();
+    expect(find.text('No app can open mailto:a@example.org'), findsOneWidget);
   });
 
   testWidgets('the backlinks, as org-roam lists them, open their nodes',

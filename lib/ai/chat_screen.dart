@@ -15,6 +15,7 @@ import '../edit/recent_changes_screen.dart';
 import '../edit/save_messages.dart';
 import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
+import '../node_view/web_links.dart';
 import 'agent_tools.dart';
 import 'ai_chat.dart';
 import 'ai_settings.dart';
@@ -41,7 +42,11 @@ class ChatScreen extends StatefulWidget {
     this.post = postWithDartIo,
     this.agentLog = const FileAgentLog(),
     this.searchText,
+    this.openUrl = openUrlOnDevice,
   });
+
+  /// Opens web, mail and phone links in answers in another app (#108).
+  final UrlOpener openUrl;
 
   /// The app's full-text index, for the AI's text search (#98).
   final Future<List<TextHit>> Function(String query, {int limit})? searchText;
@@ -72,6 +77,7 @@ class ChatScreen extends StatefulWidget {
     NoteWriter? writer,
     OpenNode? openNode,
     Future<List<TextHit>> Function(String query, {int limit})? searchText,
+    UrlOpener openUrl = openUrlOnDevice,
   }) => Navigator.push(
     context,
     MaterialPageRoute<void>(
@@ -82,6 +88,7 @@ class ChatScreen extends StatefulWidget {
         writer: writer,
         openNode: openNode,
         searchText: searchText,
+        openUrl: openUrl,
       ),
     ),
   );
@@ -328,8 +335,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _openLink(OrgLink link) {
     final location = link.location;
+    if (externalLinkTarget(location) case final uri?) {
+      // Web, mail and phone links open in their app (#108).
+      openExternalLink(context, uri, widget.openUrl);
+      return;
+    }
     if (!location.startsWith('id:')) {
-      _tell('The chat opens only id: links, not "$location".');
+      _tell('The chat opens id:, web, mail and phone links, not '
+          '"$location".');
       return;
     }
     final id = location.substring(3).split('::').first.trim();

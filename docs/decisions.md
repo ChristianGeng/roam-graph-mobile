@@ -1763,6 +1763,22 @@ devices through Syncthing.
       `#+title`/`#+filetags` lines locked, the old version in the history.
       "Back to the instruction" keeps the instruction to change and ask
       again.
+67. **Web, mail and phone links open in their app** (#108),
+    `lib/node_view/web_links.dart`. A tap on a web link in a note or in the
+    chat only said that the app opens `id:` links.
+    - **Handed to other apps:** `http:`, `https:` (with a host), `mailto:`
+      and `tel:`, as bracket links and as Org's plain links; `doi:` opens
+      at `https://doi.org/`, as Org's `org-link-doi-server-url`. Android's
+      `ACTION_VIEW` picks the app (`openUrl` in `FolderAccess.kt`); web
+      links only go to apps that accept links (`CATEGORY_BROWSABLE`).
+    - **Not handed out:** `file:` links, links to other Org files, and
+      every other scheme (`javascript:`, `intent:`, `ftp:`, …) keep the
+      message. Android checks the scheme again.
+    - **Images stay inline** (#46, #47): image links are drawn by
+      `loadImage` and open the image page on a tap, as before.
+    - **The address shows:** a snack bar names the address that opens,
+      with "Copy", so a link whose text hides its address can be checked;
+      it says so when no app can open it.
 
 ## Recommended, not decided
 
