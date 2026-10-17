@@ -10,6 +10,7 @@ import '../capture/share_inbox.dart';
 import '../edit/append_screen.dart';
 import '../edit/edit_screen.dart';
 import '../edit/history_screen.dart';
+import '../edit/meta_screen.dart';
 import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
@@ -243,6 +244,12 @@ class _NodeScreenState extends State<NodeScreen> {
     if (message != null && mounted) _tell(message);
   }
 
+  /// Changes the node's title, tags and aliases (#97).
+  Future<void> _meta(NoteWriter writer, RoamNode node) async {
+    final message = await MetaScreen.open(context, writer, node);
+    if (message != null && mounted) _tell(message);
+  }
+
   /// Opens the node's file in Orgro, at the top: Orgro has no way to jump
   /// to a heading from outside (decision 6).
   Future<void> _openInOrgro(NoteOpener open, RoamNode node) async {
@@ -382,6 +389,7 @@ class _NodeScreenState extends State<NodeScreen> {
               onSelected: (action) => switch (action) {
                 _EditAction.append => _append(writer, node),
                 _EditAction.edit => _edit(writer, node),
+                _EditAction.meta => _meta(writer, node),
                 _EditAction.history => HistoryScreen.open(context, writer, node),
               },
               itemBuilder: (_) => const [
@@ -390,6 +398,9 @@ class _NodeScreenState extends State<NodeScreen> {
                     child: Text('Add to this node')),
                 PopupMenuItem(
                     value: _EditAction.edit, child: Text('Edit text')),
+                PopupMenuItem(
+                    value: _EditAction.meta,
+                    child: Text('Title, tags and aliases')),
                 PopupMenuItem(
                     value: _EditAction.history,
                     child: Text('Earlier versions')),
@@ -527,4 +538,4 @@ class _NodeScreenState extends State<NodeScreen> {
 enum _AiAction { ask, share }
 
 /// The edits of an existing note (v4).
-enum _EditAction { append, edit, history }
+enum _EditAction { append, edit, meta, history }

@@ -347,6 +347,30 @@ void main() {
     expect(store.files['plan.org'], endsWith('From the laptop.\n'));
     expect(agent.changes.isEmpty, isTrue);
   });
+
+  test('rename_node, set_tags and set_aliases change only the head (#97)',
+      () async {
+    final changes = agent.startMessage();
+    expect(await call('rename_node', {'id': 'open', 'title': 'Opened'}),
+        'Renamed "Open" to "Opened".');
+    expect(await call('set_tags', {'id': 'open', 'tags': ['fungi', ':x:']}),
+        'Set the tags of "Opened": fungi x.');
+    expect(
+        await call('set_aliases', {
+          'id': 'open',
+          'aliases': ['Open note', 'Op'],
+        }),
+        'Set the aliases of "Opened": Open note, Op.');
+    expect(
+        store.files['open.org'],
+        ':PROPERTIES:\n:ID: open\n:ROAM_ALIASES: "Open note" Op\n:END:\n'
+        '#+title: Opened\n#+filetags: :fungi:x:\n'
+        'Some words. [[id:plan][Plan]] and [[id:plan][again]].\n');
+    expect(await call('set_tags', {'id': 'open', 'tags': ['private']}),
+        contains('hides a note'));
+    await changes.undoAll(editor, create: agent.writer.create);
+    expect(store.files, start);
+  });
 }
 
 /// The same files, seen as another folder.

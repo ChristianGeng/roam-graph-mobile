@@ -192,7 +192,9 @@ class AgentChanges {
       ].join('\n');
       final result = original == null
           ? await editor.store.delete(path, now)
-          : await editor.save(path, now, original, restored: restored);
+          // The text from before may have other aliases (#97).
+          : await editor.save(path, now, original,
+              restored: restored, aliasesMayChange: true);
       outcome[path] = switch (result) {
         Saved() || SavedNotIndexed() || NothingToSave() =>
           original == null ? UndoOutcome.deleted : UndoOutcome.restored,
