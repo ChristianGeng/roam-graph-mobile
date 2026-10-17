@@ -679,6 +679,40 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     );
   }
 
+  /// "Reset to the defaults": the preset's base URL, models and "EU only",
+  /// for example after trying another model. Saved with Save, as every
+  /// change here. Not shown when they are the preset's already.
+  Widget _resetModels(ProviderPreset preset, _Draft draft) {
+    final base = ProviderSettings.of(preset);
+    return ListenableBuilder(
+      listenable: Listenable.merge(
+          [draft.baseUrl, draft.defaultModel, draft.strongModel]),
+      builder: (context, _) {
+        final differs = draft.baseUrl.text.trim() != base.baseUrl ||
+            draft.defaultModel.text.trim() != base.defaultModel ||
+            draft.strongModel.text.trim() != base.strongModel ||
+            (preset.euSwitch && draft.euOnly != base.euOnly);
+        if (!differs) return const SizedBox.shrink();
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: ValueKey('reset-models-${preset.id}'),
+            icon: const Icon(Icons.restart_alt),
+            label: Text(base.defaultModel.isEmpty
+                ? 'Reset to the defaults'
+                : 'Reset to the defaults (${base.defaultModel})'),
+            onPressed: () => setState(() {
+              draft.baseUrl.text = base.baseUrl;
+              draft.defaultModel.text = base.defaultModel;
+              draft.strongModel.text = base.strongModel;
+              draft.euOnly = base.euOnly;
+            }),
+          ),
+        );
+      },
+    );
+  }
+
   List<Widget> _providerSection(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final draft = _drafts[_provider]!;
@@ -757,6 +791,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           suffixIcon: _chooseModel(preset, draft, draft.strongModel, 'strong'),
         ),
       ),
+      _resetModels(preset, draft),
       TextField(
         key: ValueKey('api-key-${preset.id}'),
         controller: draft.key,
