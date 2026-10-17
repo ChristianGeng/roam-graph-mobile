@@ -187,6 +187,49 @@ void main() {
       expect(headers['anthropic-version'], '2023-06-01');
     });
 
+    test('another key fetches again', () async {
+      final get = FakeGet([vercelList, vercelList]);
+      Future<void> fetch(String key) => fetchModels(
+          provider: 'Vercel AI Gateway',
+          api: ApiKind.openAi,
+          baseUrl: 'https://ai-gateway.vercel.sh/v1',
+          apiKey: key,
+          get: get.call);
+      await fetch('key-a');
+      await fetch('key-a');
+      expect(get.requests, hasLength(1));
+      await fetch('key-b');
+      expect(get.requests, hasLength(2));
+    });
+
+    test("Anthropic's pages are all fetched", () async {
+      final get = FakeGet([
+        {
+          'data': [
+            {'id': 'claude-b'},
+          ],
+          'has_more': true,
+          'last_id': 'claude-b',
+        },
+        {
+          'data': [
+            {'id': 'claude-a'},
+          ],
+          'has_more': false,
+          'last_id': 'claude-a',
+        },
+      ]);
+      final models = await fetchModels(
+          provider: 'Anthropic',
+          api: ApiKind.anthropic,
+          baseUrl: 'https://api.anthropic.com',
+          apiKey: 'sk-pages',
+          get: get.call);
+      expect([for (final m in models) m.id], ['claude-a', 'claude-b']);
+      expect(get.requests.last.$1.queryParameters,
+          {'limit': '1000', 'after_id': 'claude-b'});
+    });
+
     test('errors say what to do', () async {
       Future<String> error(Object reply, {String key = 'k', String base = 'https://x.example/v1'}) async {
         try {
@@ -213,6 +256,14 @@ void main() {
           contains('cannot read'));
       expect(await error(const HttpReply(200, '{}'), base: 'http://x.example'),
           contains('only over HTTPS'));
+      expect(await error(const HttpReply(200, '{}'), base: 'https://[bad'),
+          contains('not a valid URL'));
+      expect(await error(const HttpReply(200, '{}'), base: 'x.example/v1'),
+          contains('not a valid URL'));
+      expect(await error(HandshakeException('bad certificate')),
+          contains('No secure connection to x.example'));
+      expect(await error(const FormatException('Unexpected extension byte')),
+          contains('could not be fetched from x.example'));
     });
   });
 

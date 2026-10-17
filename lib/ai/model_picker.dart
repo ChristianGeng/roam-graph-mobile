@@ -66,6 +66,11 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
       if (mounted) setState(() => _models = models);
     } on AiError catch (e) {
       if (mounted) setState(() => _error = e.message);
+    } catch (e) {
+      // Anything else still ends the spinner, with a message.
+      if (mounted) {
+        setState(() => _error = 'The model list could not be fetched: $e');
+      }
     }
   }
 
@@ -87,7 +92,8 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
     ];
     final shown = [
       for (final m in models ?? const <ModelInfo>[])
-        if (_all || !knowsTools || m.tools == true)
+        // A model the list says nothing about is shown: it may call tools.
+        if (_all || !knowsTools || m.tools != false)
           if (words.every('${m.id} ${m.name ?? ''}'.toLowerCase().contains)) m,
     ];
     return Scaffold(

@@ -1355,7 +1355,11 @@ devices through Syncthing.
       marked and cannot be picked. Where a list says nothing about
       regions, the page says a model may fail.
     - Fetched only when the button is pressed, kept for the session per
-      provider and base URL, "Fetch again" to renew. No key, a refused
+      provider, base URL and key (a hash of it), "Fetch again" to renew.
+      Anthropic's list is read page by page (`has_more`, `after_id`). A
+      model the list says nothing about tools for is shown with those
+      that call tools. A malformed base URL, a TLS failure or any other
+      error ends in a message, never a spinner that stays. No key, a refused
       key, 404, no network, an unreadable list: a message, and the field
       still works. Keys only over HTTPS, no redirects (decision 45).
 

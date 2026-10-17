@@ -9,6 +9,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
+
 import 'ai_chat.dart';
 import 'ai_providers.dart';
 
@@ -136,7 +138,7 @@ List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
   return models;
 }
 
-/// Model lists fetched this session, by provider and base URL.
+/// Model lists fetched this session, by provider, base URL and key.
 final _cache = <String, List<ModelInfo>>{};
 
 /// The models of the provider at [baseUrl] with [apiKey]: `GET
@@ -158,18 +160,59 @@ Future<List<ModelInfo>> fetchModels({
   if (base.isEmpty) {
     throw AiError('No base URL for $provider. Enter it first.');
   }
-  final key = '$provider $api $base';
+  // The list can differ by account, so the key is part of the cache key,
+  // as a hash: the key itself is not kept here.
+  final account = sha256.convert(utf8.encode(apiKey)).toString();
+  final key = '$provider $api $base $account';
   final cached = _cache[key];
   if (!refresh && cached != null) return cached;
-  final url = Uri.parse(
-    api == ApiKind.anthropic ? '$base/v1/models?limit=1000' : '$base/models',
-  );
-  if (url.scheme != 'https' && apiKey.isNotEmpty) {
+  final Uri first;
+  try {
+    first = Uri.parse(
+      api == ApiKind.anthropic ? '$base/v1/models?limit=1000' : '$base/models',
+    );
+  } on FormatException {
+    throw AiError('The base URL of $provider is not a valid URL: $base');
+  }
+  if (!first.hasScheme || first.host.isEmpty) {
+    throw AiError('The base URL of $provider is not a valid URL: $base');
+  }
+  if (first.scheme != 'https' && apiKey.isNotEmpty) {
     throw const AiError(
       'The app sends an API key only over HTTPS. Use an '
       'https:// base URL.',
     );
   }
+  final models = <ModelInfo>[];
+  var url = first;
+  // Anthropic's list comes in pages: `has_more` and `last_id`.
+  for (var page = 0; page < 20; page++) {
+    final json = await _getList(provider, api, url, apiKey, get);
+    models.addAll(readModelList(json, api: api));
+    final lastId = json is Map ? json['last_id'] : null;
+    if (api != ApiKind.anthropic ||
+        json is! Map ||
+        json['has_more'] != true ||
+        lastId is! String) {
+      break;
+    }
+    url = first.replace(
+      queryParameters: {...first.queryParameters, 'after_id': lastId},
+    );
+  }
+  models.sort((a, b) => a.id.compareTo(b.id));
+  _cache[key] = models;
+  return models;
+}
+
+/// One page of a model list, decoded; null if it is not JSON.
+Future<Object?> _getList(
+  String provider,
+  ApiKind api,
+  Uri url,
+  String apiKey,
+  HttpGet get,
+) async {
   HttpReply reply;
   try {
     reply = await get(url, {
@@ -185,6 +228,11 @@ Future<List<ModelInfo>> fetchModels({
     throw AiError('${url.host} did not answer in time.');
   } on HttpException catch (e) {
     throw AiError('The connection to ${url.host} failed: ${e.message}.');
+  } on TlsException catch (e) {
+    throw AiError('No secure connection to ${url.host}: ${e.message}.');
+  } on Exception catch (e) {
+    // Bad UTF-8 in the answer, a URL the client refuses, and the like.
+    throw AiError('The model list could not be fetched from ${url.host}: $e');
   }
   if (reply.status == 401 || reply.status == 403) {
     throw AiError(
@@ -206,15 +254,11 @@ Future<List<ModelInfo>> fetchModels({
       '${reply.status}). Type the model instead.',
     );
   }
-  Object? json;
   try {
-    json = jsonDecode(reply.body);
+    return jsonDecode(reply.body);
   } on FormatException {
-    json = null;
+    return null;
   }
-  final models = readModelList(json, api: api);
-  _cache[key] = models;
-  return models;
 }
 
 /// Forgets the lists of this session, for tests.
