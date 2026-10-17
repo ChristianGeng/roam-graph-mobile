@@ -57,6 +57,9 @@ import java.util.concurrent.Executors
  *   (#82: undoing a note the AI created). Only if it is still the version
  *   the app wrote: its SHA-256 must be [expected], else error "changed".
  *   Errors: "changed", "missing", "write_failed".
+ * - openUrl({url}) -> true if an app was started to show [url]
+ *   (ACTION_VIEW), false if none can (#108). Only http, https, mailto and
+ *   tel; other schemes return false without asking Android.
  */
 class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHandler {
     companion object {
@@ -137,7 +140,31 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                 }
                 result.success(openWith(Uri.parse(uri), packageName))
             }
+            "openUrl" -> {
+                val url = call.argument<String>("url")
+                if (url == null) {
+                    result.error("bad_args", "url is missing", null)
+                    return
+                }
+                result.success(openUrl(Uri.parse(url)))
+            }
             else -> result.notImplemented()
+        }
+    }
+
+    private fun openUrl(uri: Uri): Boolean {
+        val scheme = uri.scheme?.lowercase() ?: return false
+        if (scheme !in setOf("http", "https", "mailto", "tel")) return false
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+        // As a browser opens a web link: only apps that accept links.
+        if (scheme == "http" || scheme == "https") {
+            intent.addCategory(Intent.CATEGORY_BROWSABLE)
+        }
+        return try {
+            activity.startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
         }
     }
 

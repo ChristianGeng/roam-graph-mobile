@@ -23,6 +23,7 @@ import 'mermaid.dart';
 import 'src_languages.dart';
 import '../search/search_screen.dart';
 import 'note_images.dart';
+import 'web_links.dart';
 
 /// Reads a note's text, by its path relative to `roam/`; null if it cannot
 /// be read.
@@ -57,6 +58,7 @@ class NodeScreen extends StatefulWidget {
     this.onBack,
     this.writer,
     this.shareText = shareTextOut,
+    this.openUrl = openUrlOnDevice,
     this.help = false,
   });
 
@@ -88,6 +90,10 @@ class NodeScreen extends StatefulWidget {
   /// Sends text to an AI app (#41); tests replace it.
   final TextSharer shareText;
 
+  /// Opens web, mail and phone links in another app (#108); tests replace
+  /// it.
+  final UrlOpener openUrl;
+
   /// A help page (#62): no search and no AI menu, which would act on the
   /// help instead of my notes.
   final bool help;
@@ -108,6 +114,7 @@ class NodeScreen extends StatefulWidget {
     NoteOpener? openInOrgro,
     NoteWriter? writer,
     TextSharer shareText = shareTextOut,
+    UrlOpener openUrl = openUrlOnDevice,
     bool help = false,
   }) {
     nodeMemory.remember(id);
@@ -124,6 +131,7 @@ class NodeScreen extends StatefulWidget {
           openInOrgro: openInOrgro,
           writer: writer,
           shareText: shareText,
+          openUrl: openUrl,
           help: help,
         ),
       ),
@@ -169,8 +177,12 @@ class _NodeScreenState extends State<NodeScreen> {
     final location = link.location;
     if (location.startsWith('id:')) {
       _openId(location.substring(3).split('::').first.trim());
+    } else if (externalLinkTarget(location) case final uri?) {
+      // Web, mail and phone links open in their app (#108).
+      openExternalLink(context, uri, widget.openUrl);
     } else {
-      _tell('This app opens only id: links, not "$location".');
+      _tell('This app opens id:, web, mail and phone links, not '
+          '"$location".');
     }
   }
 
@@ -218,6 +230,7 @@ class _NodeScreenState extends State<NodeScreen> {
       openInOrgro: widget.openInOrgro,
       writer: widget.writer,
       shareText: widget.shareText,
+      openUrl: widget.openUrl,
       help: widget.help,
     );
   }
@@ -339,7 +352,9 @@ class _NodeScreenState extends State<NodeScreen> {
           openInOrgro: widget.openInOrgro,
           writer: widget.writer,
           shareText: widget.shareText,
+          openUrl: widget.openUrl,
         ),
+        openUrl: widget.openUrl,
       );
 
   void _tell(String message) {

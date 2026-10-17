@@ -8,6 +8,16 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Web links open in the browser ([#109](https://github.com/ChristianGeng/roam-graph-mobile/pull/109))
+
+- Added: web links in notes and in the AI chat open in your browser,
+  also plain addresses in the text; `mailto:` and `tel:` links open the
+  mail or phone app, and `doi:` links open at doi.org.
+- A short message names the address that opens, with "Copy".
+- Images in notes are still shown in the note. `file:` links and other
+  kinds of links are not opened.
+- Closes [#108](https://github.com/ChristianGeng/roam-graph-mobile/issues/108).
+
 ## 2026-10-17: Reset a provider's models to the defaults ([#107](https://github.com/ChristianGeng/roam-graph-mobile/pull/107))
 
 - Added: "Reset to the defaults" in AI settings, below the model fields,
