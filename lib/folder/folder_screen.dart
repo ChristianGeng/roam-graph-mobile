@@ -8,6 +8,10 @@ import '../ai/ai_settings.dart';
 import '../help/help.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../edit/append_screen.dart';
+import '../edit/edit_proposal.dart';
+import '../edit/edit_screen.dart';
+import '../edit/node_picker.dart';
 import '../edit/note_editor.dart';
 import '../graph/graph_index.dart';
 import '../graph/roam_graph.dart';
@@ -189,6 +193,9 @@ class _FolderScreenState extends State<FolderScreen>
     final proposal = proposeNode(shared);
     final last = notifier.value.nodes[await widget.nodeMemory.lastNode()];
     if (!mounted) return false;
+    // Set when the share goes to an existing node instead; the next share
+    // waits until that is done.
+    Future<void>? intoNode;
     final id = await CaptureScreen.open(
       context,
       _writer,
@@ -197,7 +204,14 @@ class _FolderScreenState extends State<FolderScreen>
       // Offered, not on: a shared text is often about something else.
       linkTo: last == null ? null : (id: last.id, title: last.displayTitle),
       linkByDefault: false,
+      // Or the share changes an existing node (#39).
+      useForExisting: (use) =>
+          intoNode = _shareIntoNode(use, shared.text, last),
     );
+    if (intoNode != null) {
+      await intoNode;
+      return true;
+    }
     if (id != null && mounted) {
       NodeScreen.open(
         context,
@@ -211,6 +225,28 @@ class _FolderScreenState extends State<FolderScreen>
       );
     }
     return true;
+  }
+
+  /// Shared text added to, or replacing the text of, a node the user
+  /// chooses (#39); the node viewed last is proposed. Replacing goes
+  /// through the editor and its diff, so nothing is saved unseen.
+  Future<void> _shareIntoNode(ShareUse use, String text, RoamNode? last) async {
+    final graph = _graph?.value;
+    if (graph == null || !mounted) return;
+    final node = await NodePicker.pick(context, graph,
+        proposed: last,
+        title: use == ShareUse.append
+            ? 'Add the shared text to'
+            : 'Replace the text of');
+    if (node == null || !mounted) return;
+    final message = use == ShareUse.append
+        ? await AppendScreen.open(context, _writer, node, initialText: text)
+        : await EditScreen.open(context, _writer, node,
+            initialBody: bodyFor(text, node));
+    if (message != null && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   /// Writes a new note into roam/ and indexes the folder (#11).

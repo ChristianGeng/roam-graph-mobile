@@ -1485,6 +1485,41 @@ devices through Syncthing.
       before anything is written; "Back to editing" writes nothing; a note
       changed on the laptop meanwhile is not overwritten.
 
+54. **AI edits: the AI proposes, I see the diff, the app saves** (#39),
+    `lib/edit/edit_proposal.dart`, `lib/ai/edit_tools.dart`. The AI never
+    writes. Two ways in:
+    - **The in-app chat (#60)** offers the tool `propose_edit` (node ID,
+      mode `append` or `replace`, Org text, reason), but only where edits
+      can be saved. The tool writes nothing: it records the proposal and
+      tells the model so. Notes hidden from AI (decision 42) cannot be
+      proposed, since the tool only knows the visible graph. In the chat
+      the proposal shows as a card with "Review": the diff (decision 52)
+      against the note as it is now, with the AI's reason and any `id:`
+      links that point at no node; only "Save" writes (decision 50). The
+      tool is in the request from the first message on, so the request
+      still starts with the same bytes and the provider's cache holds
+      (prompt caching).
+    - **The share menu (#15):** the capture screen for shared text also
+      offers "Use for an existing node": "Add to a node" (decision 51) or
+      "Replace a node's text" (decision 53), with the node chosen from a
+      list that proposes the node viewed last. A replacement goes through
+      the editor and its diff. An AI app often returns the whole note;
+      when the shared text starts with the node's own drawer, the drawer
+      and the keywords after it are dropped, since the head stays as it
+      is.
+    - **For change sets (#76):** a proposal is an `EditProposal`; applying
+      it (`applyProposal`), checking its links (`unknownLinkIds`), the
+      diff screen and the save are separate pieces, so a set of proposals
+      can be reviewed one diff per file and saved one file at a time.
+    - Workflow with the Claude app: share the note to it (#41), ask for a
+      revised version, share the answer back, choose "Replace a node's
+      text", read the diff, and save.
+    - Tests: applying both modes to a file node and a heading node, a whole
+      returned note losing its head, unknown links, the tool's checks; in
+      the chat, a proposal saved only after the diff, and a hidden note
+      refused; in the app, shared text added to the node viewed last, and
+      a revised note replacing a node's text after the diff.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

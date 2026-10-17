@@ -963,6 +963,63 @@ void main() {
     });
   });
 
+  group('shared text changes an existing node (#39)', () {
+    testWidgets('added to the node viewed last', (tester) async {
+      final shares = FakeShareInbox()
+        ..queue.add(const SharedText('A thought from the Claude app.'));
+      final access = withNotes(saved: writableOrg);
+      await start(tester, access,
+          shares: shares, memory: MemoryNodeMemory('a'));
+      final before = access.texts['roam/a.org']!;
+      await tester.tap(find.byTooltip('Use for an existing node'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add to a node'));
+      await tester.pumpAndSettle();
+      // The node viewed last is proposed.
+      await tester.tap(find.byKey(const ValueKey('picker-proposed')));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, 'A thought from the Claude app.'),
+          findsOneWidget);
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      expect(access.texts['roam/a.org'],
+          '${before}A thought from the Claude app.\n');
+      expect(access.created, isEmpty);
+      expect(shares.queue, isEmpty);
+    });
+
+    testWidgets("a revised note replaces a node's text after the diff",
+        (tester) async {
+      // The AI app returns the whole note, with its drawer and title,
+      // which stay as they are.
+      final shares = FakeShareInbox()
+        ..queue.add(const SharedText(':PROPERTIES:\n:ID: a\n:END:\n'
+            '#+title: A (revised)\nRevised: [[id:b]].\n'));
+      final access = withNotes(saved: writableOrg);
+      await start(tester, access,
+          shares: shares, memory: MemoryNodeMemory('a'));
+      await tester.tap(find.byTooltip('Use for an existing node'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text("Replace a node's text"));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('picker-proposed')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Review'));
+      await tester.pumpAndSettle();
+      expect(find.text('-[[id:b]] [[id:gone]]'), findsOneWidget);
+      expect(find.text('+Revised: [[id:b]].'), findsOneWidget);
+      // Nothing is written before "Save".
+      expect(access.replaced, isEmpty);
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(access.texts['roam/a.org'],
+          ':PROPERTIES:\n:ID: a\n:ROAM_ALIASES: Alpha\n:END:\n'
+          '#+title: A\nRevised: [[id:b]].\n');
+    });
+  });
+
   group('link to the current node (#12)', () {
     Future<FakeFolderAccess> showA(WidgetTester tester) async {
       final access = withNotes(saved: writableOrg);
