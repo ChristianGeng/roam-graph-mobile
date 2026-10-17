@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-17: Change a note's title, tags and aliases ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-17: Change a note's title, tags and aliases ([#100](https://github.com/ChristianGeng/roam-graph-mobile/pull/100))
 
 - Added: "Title, tags and aliases" in the node view's Edit menu. The ID
   and the file name stay, so every link still works.
