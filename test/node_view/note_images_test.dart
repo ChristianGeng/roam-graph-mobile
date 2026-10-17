@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 import 'package:roam_graph_mobile/folder/org_files.dart';
+import 'package:roam_graph_mobile/graph/roam_db.dart' show TextHit;
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
 import 'package:roam_graph_mobile/node_view/note_images.dart';
 
@@ -43,6 +44,13 @@ class FakeNoteFiles implements NoteFiles {
 
   @override
   bool reaches(String path) => !path.startsWith('../');
+
+  /// What [searchText] finds, for tests.
+  List<TextHit> hits = const [];
+
+  @override
+  Future<List<TextHit>> searchText(String query, {int limit = 30}) async =>
+      hits;
 
   @override
   FolderFile? find(String path) => files[path];

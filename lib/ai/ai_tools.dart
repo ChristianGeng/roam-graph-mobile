@@ -14,6 +14,7 @@ import 'dart:math';
 
 import '../graph/graph_algorithms.dart';
 import '../graph/graph_measures.dart';
+import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
 import 'ai_visibility.dart';
 
@@ -136,6 +137,17 @@ final aiTools = <AiTool>[
     _object({}),
   ),
   AiTool(
+    'org_roam_search_text',
+    'Find notes whose text contains the words: all of them, each also as '
+        'the start of a longer word, case and accents ignored. Best matches '
+        'first, with a snippet of the text around the match. Not in the '
+        'laptop\'s MCP server; the app has its own full-text index.',
+    _object({
+      'query': _string('The words to find'),
+      'limit': _integer('Number of notes to return', 20),
+    }, ['query']),
+  ),
+  AiTool(
     'org_roam_read_node',
     'Read the full content of an org-roam node file (Org mode). For a '
         'heading node, the whole file it is in.',
@@ -211,6 +223,7 @@ class RoamTools {
     RoamGraph full, {
     required this.readNote,
     this.visibility = AiVisibility.none,
+    this.searchText,
   }) : graph = visibility.visibleGraph(full),
        _hiddenIds = visibility.hiddenIds(full);
 
@@ -219,6 +232,10 @@ class RoamTools {
   final NoteTextReader readNote;
   final AiVisibility visibility;
   final Set<String> _hiddenIds;
+
+  /// The app's full-text index (#98); without it, the text search tool
+  /// says it is not available.
+  final Future<List<TextHit>> Function(String query, {int limit})? searchText;
 
   AlgorithmGraph? _algorithmGraph;
 
@@ -256,6 +273,8 @@ class RoamTools {
         return orphans();
       case 'org_roam_read_node':
         return readNode(_id_(args, 'node_id'));
+      case 'org_roam_search_text':
+        return searchTextFor(_required(args, 'query'), _int(args, 'limit', 20));
       case 'org_roam_pagerank':
         return _ranking(
           pageRank(algorithmGraph),
@@ -457,6 +476,49 @@ class RoamTools {
   /// `org_roam_read_node`: the whole file of the node, without hidden
   /// headings and with hidden titles left out (#57), at most
   /// [maxReadLength] characters.
+  /// `org_roam_search_text` (#98): the index's hits, without notes hidden
+  /// from AI and without hits only in hidden parts of a note: each hit is
+  /// checked against the note's text as `org_roam_read_node` shows it.
+  Future<String> searchTextFor(String query, int limit) async {
+    final search = searchText;
+    if (search == null) {
+      throw const ToolError('Text search is not available here.');
+    }
+    final words = [
+      for (final w in query.toLowerCase().split(RegExp(r'\s+')))
+        if (w.isNotEmpty) w,
+    ];
+    if (words.isEmpty) throw const ToolError('query is empty.');
+    final rows = <String>[];
+    for (final hit in await search(query, limit: limit * 3)) {
+      if (rows.length >= limit) break;
+      final inFile = [
+        for (final node in graph.nodes.values)
+          if (node.file == hit.path) node,
+      ];
+      if (inFile.isEmpty) continue;
+      final node = inFile.where((n) => n.isFile).firstOrNull ?? inFile.first;
+      final text = await readNote(node.file);
+      if (text == null || visibility.hidesInText(node, text)) continue;
+      final shown = visibility.filterText(
+          text.replaceAll('\r\n', '\n').replaceAll('\r', '\n'), _hiddenIds);
+      final lower = shown.toLowerCase();
+      // Every word must be in what the AI may see.
+      if (!words.every(lower.contains)) continue;
+      final at = lower.indexOf(words.first);
+      final from = (at - 60).clamp(0, shown.length);
+      final to = (at + words.first.length + 60).clamp(0, shown.length);
+      final snippet = shown
+          .substring(from, to)
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      rows.add('${node.id} | ${node.displayTitle} | ${node.file} | '
+          '${from > 0 ? '…' : ''}$snippet${to < shown.length ? '…' : ''}');
+    }
+    if (rows.isEmpty) return 'No notes contain: $query';
+    return ['Notes containing "$query" (${rows.length}):', ...rows].join('\n');
+  }
+
   Future<String> readNode(String id) async {
     final node = graph.nodes[id];
     if (node == null) return 'Error: No node found with id $id';

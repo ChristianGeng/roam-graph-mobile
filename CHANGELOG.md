@@ -8,6 +8,16 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Search the words inside notes ([#101](https://github.com/ChristianGeng/roam-graph-mobile/pull/101))
+
+- Added: an "In the text" chip in Search finds notes by the words in
+  their text, with a short snippet around the words. Accents and case do
+  not matter.
+- Added: the AI chat can search the text too, but never finds notes or
+  headings hidden from AI.
+- The index is rebuilt once after the update.
+- Closes [#98](https://github.com/ChristianGeng/roam-graph-mobile/issues/98).
+
 ## 2026-10-17: The AI can delete notes when you ask ([#96](https://github.com/ChristianGeng/roam-graph-mobile/pull/96))
 
 - Added: in agent mode, the AI deletes a note, or a heading with its

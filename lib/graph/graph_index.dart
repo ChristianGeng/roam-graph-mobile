@@ -37,6 +37,9 @@ abstract interface class GraphIndex {
     required String folder,
     bool replace = false,
   });
+
+  /// The files whose text has the words of [query], best first (#98).
+  Future<List<TextHit>> searchText(String query, {int limit = 30});
 }
 
 /// The marker kept next to the database: the indexed folder, and the
@@ -128,4 +131,8 @@ class SqliteGraphIndex implements GraphIndex {
         marker.writeAsStringSync(folderMarker(folder));
         return graph;
       });
+
+  @override
+  Future<List<TextHit>> searchText(String query, {int limit = 30}) =>
+      _run((db, _) => db.searchText(query, limit: limit));
 }

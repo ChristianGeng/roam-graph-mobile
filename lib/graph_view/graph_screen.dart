@@ -620,6 +620,7 @@ class _GraphScreenState extends State<GraphScreen> {
           readNote: widget.readNote,
           startNode: _graph.nodes[_centre],
           writer: widget.writer,
+          searchText: widget.files?.searchText,
           // On a page above the chat, also on a tablet, where the side
           // pane would be hidden behind it.
           openNode: (_, id) {

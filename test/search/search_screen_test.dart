@@ -1,18 +1,22 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/capture/share_inbox.dart';
+import 'package:roam_graph_mobile/graph/roam_db.dart' show TextHit;
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
+import 'package:roam_graph_mobile/node_view/note_images.dart' show NoteFiles;
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
 import 'package:roam_graph_mobile/search/search_screen.dart';
 
 import '../graph/node_search_test.dart' show graph;
 import '../graph_view/graph_screen_test.dart' show MemoryNodeMemory;
+import '../node_view/note_images_test.dart' show FakeNoteFiles;
 
 Future<MemoryNodeMemory> open(
   WidgetTester tester, {
   RoamGraph? of,
   void Function(BuildContext, String)? onShowInGraph,
   TextSharer? shareText,
+  NoteFiles? files,
 }) async {
   final memory = MemoryNodeMemory();
   await tester.pumpWidget(MaterialApp(
@@ -22,6 +26,7 @@ Future<MemoryNodeMemory> open(
       nodeMemory: memory,
       onShowInGraph: onShowInGraph,
       shareText: shareText ?? (text, {subject}) async {},
+      files: files,
     ),
   ));
   await tester.pumpAndSettle();
@@ -37,6 +42,29 @@ List<String> results(WidgetTester tester) => [
     ];
 
 void main() {
+  testWidgets('"In the text" finds words in the notes (#98)', (tester) async {
+    await open(tester);
+    // Without the folder's index there is no text search.
+    expect(find.byKey(const ValueKey('search-in-text')), findsNothing);
+
+    final files = FakeNoteFiles(const [])
+      ..hits = const [
+        TextHit('flutter.org', 'widgets  and\n state'),
+        TextHit('gone.org', 'not in the graph'),
+      ];
+    await open(tester, files: files);
+    await tester.tap(find.byKey(const ValueKey('search-in-text')));
+    await tester.pump();
+    expect(find.text('Type words to find in the notes.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'state');
+    await tester.pumpAndSettle();
+    expect(find.text('1 note'), findsOneWidget);
+    expect(find.text('Flutter and Dart'), findsOneWidget);
+    expect(find.text('widgets and state'), findsOneWidget);
+    expect(find.text('not in the graph'), findsNothing);
+  });
+
   testWidgets('finds as you type, and the field has the focus',
       (tester) async {
     await open(tester);

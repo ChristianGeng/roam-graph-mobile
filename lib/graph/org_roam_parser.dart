@@ -58,7 +58,9 @@ const defaultLinkTypes = myEmacsLinkTypes;
 /// Changes when the parser reads files differently, so that a stored index
 /// made by an older parser is built again (`graph_index.dart`). Raise it
 /// with every change to what the parser finds.
-const parserVersion = 2;
+// 3: the index also holds the notes' text for full-text search (#98), so
+// an index made before is built again once to fill it.
+const parserVersion = 3;
 
 /// What an index depends on besides the files: the parser and its link
 /// types. An index stored with another fingerprint is rebuilt.

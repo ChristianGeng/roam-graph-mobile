@@ -12,6 +12,7 @@ import '../edit/diff_screen.dart';
 import '../edit/edit_proposal.dart';
 import '../edit/note_editor.dart';
 import '../edit/save_messages.dart';
+import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
 import 'agent_tools.dart';
 import 'ai_chat.dart';
@@ -38,7 +39,11 @@ class ChatScreen extends StatefulWidget {
     this.openNode,
     this.post = postWithDartIo,
     this.agentLog = const FileAgentLog(),
+    this.searchText,
   });
+
+  /// The app's full-text index, for the AI's text search (#98).
+  final Future<List<TextHit>> Function(String query, {int limit})? searchText;
 
   final ValueListenable<RoamGraph> graph;
   final NoteTextReader readNote;
@@ -65,6 +70,7 @@ class ChatScreen extends StatefulWidget {
     RoamNode? startNode,
     NoteWriter? writer,
     OpenNode? openNode,
+    Future<List<TextHit>> Function(String query, {int limit})? searchText,
   }) => Navigator.push(
     context,
     MaterialPageRoute<void>(
@@ -74,6 +80,7 @@ class ChatScreen extends StatefulWidget {
         startNode: startNode,
         writer: writer,
         openNode: openNode,
+        searchText: searchText,
       ),
     ),
   );
@@ -166,6 +173,7 @@ class _ChatScreenState extends State<ChatScreen> {
     widget.graph.value,
     readNote: widget.readNote,
     visibility: settings.visibility,
+    searchText: widget.searchText,
   );
 
   /// The tools on the graph and the hidden tags as they are now: after a

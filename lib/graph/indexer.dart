@@ -72,9 +72,10 @@ RoamGraph updateIndex(
         db.touchFile(path, mtime);
         continue;
       }
+      final text = utf8.decode(bytes, allowMalformed: true);
       final file = parseRoamFile(
         path,
-        utf8.decode(bytes, allowMalformed: true),
+        text,
         root: db.root,
         linkTypes: linkTypes,
       );
@@ -84,6 +85,8 @@ RoamGraph updateIndex(
         failed.add(file);
       } else {
         final found = db.putFile(file, hash: hash, mtime: mtime);
+        // For full-text search (#98), as Python's read_text gives it.
+        db.putText(path, text.replaceAll('\r\n', '\n'));
         for (final MapEntry(key: id, value: other) in found.entries) {
           duplicates[id] = [other, path];
         }

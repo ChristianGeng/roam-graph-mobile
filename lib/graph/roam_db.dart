@@ -69,6 +69,37 @@ class RoamDatabase {
         _db.userVersion = orgRoamDbVersion;
       });
     }
+    // The notes' text for full-text search (#98), beside org-roam's tables,
+    // which stay exactly as org-roam has them. Filled as files are read.
+    _db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS note_text USING fts5("
+        "path UNINDEXED, body, tokenize = 'unicode61 remove_diacritics 2')");
+  }
+
+  /// Stores [text], the file at [path] (relative to [root]), for full-text
+  /// search, in place of what was stored for it.
+  void putText(String path, String text) {
+    _db.execute('DELETE FROM note_text WHERE path = ?', [path]);
+    _db.execute(
+        'INSERT INTO note_text (path, body) VALUES (?, ?)', [path, text]);
+  }
+
+  /// The files whose text has all words of [query], best first, with a
+  /// snippet around the match (#98). Words are matched as prefixes, with
+  /// case and accents ignored.
+  List<TextHit> searchText(String query, {int limit = 30}) {
+    final words = [
+      for (final w in query.split(RegExp(r'\s+')))
+        if (w.trim().isNotEmpty) w.trim().replaceAll('"', '""'),
+    ];
+    if (words.isEmpty) return const [];
+    final match = words.map((w) => '"$w"*').join(' ');
+    return [
+      for (final row in _db.select(
+          "SELECT path, snippet(note_text, 1, '', '', '…', 12) "
+          'FROM note_text WHERE note_text MATCH ? ORDER BY rank LIMIT ?',
+          [match, limit]).rows)
+        TextHit(row[0]! as String, row[1]! as String),
+    ];
   }
 
   /// SQLite's `user_version`, which org-roam sets to its schema version.
@@ -225,6 +256,7 @@ class RoamDatabase {
   void removeFile(String path) {
     _db.execute(
         'DELETE FROM files WHERE file = ?', [elispString(_absolute(path))]);
+    _db.execute('DELETE FROM note_text WHERE path = ?', [path]);
   }
 
   /// Removes everything, for a full rebuild. Run it inside [transaction]
@@ -233,6 +265,7 @@ class RoamDatabase {
     for (final table in roamTables.reversed) {
       _db.execute('DELETE FROM $table');
     }
+    _db.execute('DELETE FROM note_text');
   }
 
   /// The graph as stored. Lines are not stored, so they are 0; [extra]
@@ -360,4 +393,13 @@ int _parseTime(Object? value) {
   final seconds = (int.parse(m.group(1)!) << 16) + int.parse(m.group(2)!);
   final micros = int.parse(m.group(3) ?? '0');
   return seconds * 1000 + micros ~/ 1000;
+}
+
+/// A file found by full-text search (#98): its path relative to `roam/`,
+/// and a snippet of its text around the match.
+class TextHit {
+  const TextHit(this.path, this.snippet);
+
+  final String path;
+  final String snippet;
 }

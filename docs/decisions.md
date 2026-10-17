@@ -1676,6 +1676,26 @@ devices through Syncthing.
       text, so the same `:ID:`, if no file of that name is there
       meanwhile; removed headings and changed links come back as every
       edit does.
+64. **Full-text search, for me and for the AI** (#98). Search found only
+    titles and aliases; the words inside notes could not be found.
+    - **The index:** an SQLite FTS5 table `note_text` beside org-roam's
+      tables in the app's own database (decision 23), filled by the
+      indexer with each file's text, also when a single file changes or
+      is removed. The tokenizer is `unicode61 remove_diacritics 2`, so
+      "cafe" finds "Café" and case does not matter. org-roam has no such
+      table; it is the app's own, and the parser version (now 3) makes the
+      index rebuild once, so the table is filled for every file.
+    - **The query:** every word must be in the note, each also as the start
+      of a longer word ("noth" finds "nothing"). Words are quoted, so
+      `OR`, `-` or quotes are words, not FTS5 syntax. Best matches first
+      (FTS5's `rank`), at most 30.
+    - **For me:** an "In the text" chip in Search shows the notes with a
+      snippet around the words; a tap opens the note.
+    - **For the AI:** the tool `org_roam_search_text` (query, limit). The
+      index knows the whole file, so every hit is checked again on the
+      text the AI may see (decision 57's filter): hidden notes and hidden
+      headings are never found, and the snippet is cut from the visible
+      text.
 
 ## Recommended, not decided
 

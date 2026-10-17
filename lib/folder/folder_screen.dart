@@ -14,6 +14,7 @@ import '../edit/edit_screen.dart';
 import '../edit/node_picker.dart';
 import '../edit/note_editor.dart';
 import '../graph/graph_index.dart';
+import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
 import '../graph_view/graph_screen.dart';
 import '../graph_view/node_memory.dart';
@@ -810,6 +811,10 @@ class _FolderNoteFiles implements NoteFiles {
   @override
   int version(FolderFile file) =>
       file.modified != 0 ? file.modified : -_state._scans;
+
+  @override
+  Future<List<TextHit>> searchText(String query, {int limit = 30}) =>
+      _state.widget.graphIndex.searchText(query, limit: limit);
 
   @override
   Future<Uint8List?> read(FolderFile file) async {
