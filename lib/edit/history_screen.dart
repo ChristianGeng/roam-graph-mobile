@@ -28,6 +28,17 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   late Future<List<KeptVersion>> _versions = _load();
 
+  /// The note's folder and path when the screen opened. Its versions are
+  /// that note's; after another folder is chosen, the same path there is
+  /// another note, and nothing is restored into it.
+  String? _noteKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _noteKey = widget.writer.editor?.store.historyKey(widget.node.file);
+  }
+
   Future<List<KeptVersion>> _load() async =>
       await widget.writer.editor?.versions(widget.node.file) ?? const [];
 
@@ -41,6 +52,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final editor = widget.writer.editor;
     final file = widget.node.file;
     if (editor == null) return;
+    if (editor.store.historyKey(file) != _noteKey) {
+      _tell('Another folder is open now. These versions belong to the '
+          'note in the folder opened before; nothing was restored.');
+      return;
+    }
     final current = await editor.read(file);
     if (!mounted) return;
     if (current == null) {

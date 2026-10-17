@@ -806,6 +806,38 @@ void main() {
       expect(find.byKey(const ValueKey('version-1')), findsOneWidget);
     });
 
+    testWidgets('after another folder is chosen, nothing is restored',
+        (tester) async {
+      final history = MemoryEditHistory();
+      // A version kept from an earlier edit, in the read-only folder.
+      await history.keep('content://tree/org\na.org', 'Old text.\n',
+          DateTime(2026, 10, 1));
+      final access = withNotes(saved: org)
+        ..picked = const ChosenFolder(
+            uri: 'content://tree/other',
+            name: 'org',
+            hasAccess: true,
+            canWrite: true);
+      await start(tester, access, history: history);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Earlier versions'));
+      await tester.pumpAndSettle();
+      // No write access: the picker opens, and another folder is chosen.
+      await tester.tap(find.byKey(const ValueKey('version-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+      expect(access.pickCalls, 1);
+      // Restoring again would write into the other folder's a.org.
+      await tester.tap(find.byKey(const ValueKey('version-0')));
+      await tester.pumpAndSettle();
+      expect(access.replaced, isEmpty);
+      expect(find.textContaining('Another folder is open now'), findsOneWidget);
+    });
+
     testWidgets('no earlier versions yet says so', (tester) async {
       await start(tester, withNotes(saved: writableOrg));
       await tapText(tester, 'Show graph');
