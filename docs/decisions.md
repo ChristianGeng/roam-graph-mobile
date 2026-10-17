@@ -1253,6 +1253,26 @@ devices through Syncthing.
       the graph is folded, with "Reset".
     - On a phone, and in portrait, nothing changes: one screen at a time.
 
+50. **The graph starts force-directed, as a setting** (#71). The graph
+    view always started with the circular layout; I use force-directed
+    most of the time, because it shows the clusters.
+    - **"Graph layout at start"** on the Settings page: Force-directed (the
+      default), Circular (circo), or Last used: the layout chosen last in
+      the "More" menu.
+    - **Kept in the view settings** (`view-settings.json`, decision 43):
+      the choice, and the layout chosen last in the menu, which every
+      switch in the menu stores, so "Last used" works from the first
+      switch on.
+    - **When:** the graph view reads it when it opens (at app start, or
+      when the folder is opened again). A graph already showing keeps its
+      layout; the menu still switches it for the session.
+    - The force-directed layout runs off the UI isolate as before
+      (`computeLayout`), with the progress circle while it runs.
+    - An unknown stored value falls back to the default. The layouts help
+      page (decision 47) mentions the setting.
+    - The older graph-view tests were written for the circular start; they
+      now set it explicitly.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

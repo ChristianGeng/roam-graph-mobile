@@ -177,7 +177,8 @@ class _Algorithms {
 class _GraphScreenState extends State<GraphScreen> {
   final _transform = TransformationController();
   _ScopeChoice _choice = _ScopeChoice.whole;
-  LayoutKind _kind = LayoutKind.circo;
+  /// The layout; the view settings choose it when the view opens (#71).
+  LayoutKind _kind = LayoutKind.force;
 
   /// The node the view centres on: the one tapped last.
   String? _centre;
@@ -268,6 +269,8 @@ class _GraphScreenState extends State<GraphScreen> {
   Future<void> _start() async {
     final remembered = await widget.nodeMemory.lastNode();
     if (!mounted) return;
+    // Only when the view opens: a graph already showing keeps its layout.
+    _kind = ViewSettingsScope.read(context).layoutAtStart;
     _centre = _graph.nodes.containsKey(remembered)
         ? remembered
         : _mostLinked(_graph);
@@ -605,6 +608,12 @@ class _GraphScreenState extends State<GraphScreen> {
       case _MoreAction.circo || _MoreAction.force:
         _kind = action == _MoreAction.circo ? LayoutKind.circo : LayoutKind.force;
         _update();
+        // Remembered for "Last used" (#71).
+        final view = ViewSettingsScope.read(context);
+        if (view.lastLayout != _kind) {
+          ViewSettingsScope.change(context, view.copyWith(lastLayout: _kind))
+              .catchError((Object _) {});
+        }
     }
   }
 

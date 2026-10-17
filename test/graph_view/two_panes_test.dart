@@ -118,6 +118,10 @@ void main() {
       home: const SettingsScreen(),
     ));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('settings-graph-width-reset')), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
     expect(find.textContaining('folded away'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('settings-graph-width-reset')));
     await tester.pumpAndSettle();
