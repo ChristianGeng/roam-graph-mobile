@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-17: Add text to a node ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-17: Add text to a node ([#85](https://github.com/ChristianGeng/roam-graph-mobile/pull/85))
 
 - Added: "Add to this node" in the node view's Edit menu. The text goes to
   the end of the note, or of the heading's section, and is saved safely
