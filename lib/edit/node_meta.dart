@@ -200,11 +200,16 @@ String withMeta(String text, RoamNode node, NodeMeta meta) {
   }
 
   if (node.isFile) {
-    int? titleAt, tagsAt;
+    int? titleAt;
+    final tagLines = <int>[];
     for (var i = lines.start; i < lines.bodyStart; i++) {
       if (titleAt == null && _titleLine.hasMatch(out[i])) titleAt = i;
-      if (tagsAt == null && _filetagsLine.hasMatch(out[i])) tagsAt = i;
+      if (_filetagsLine.hasMatch(out[i])) tagLines.add(i);
     }
+    // Org merges every #+filetags line; the new tags go on the first, and
+    // the others go, so no old tag stays.
+    final tagsAt = tagLines.firstOrNull;
+    removes.addAll(tagLines.skip(1));
     final afterDrawer = drawerEnd == null ? 0 : drawerEnd + 1;
     if (titleAt != null) {
       out[titleAt] = '#+title: $title';
@@ -229,13 +234,22 @@ String withMeta(String text, RoamNode node, NodeMeta meta) {
     final heading = out[lines.start];
     final m = _heading(_todoOf(lines.lines)).firstMatch(heading);
     if (m == null) throw const MetaError('The heading line is not readable.');
+    final todo = _todoOf(lines.lines);
     out[lines.start] = [
       m.group(1)!,
-      if (m.group(2) case final todo?) todo,
-      if (m.group(3) case final priority?) priority,
+      ?m.group(2),
+      ?m.group(3),
       title,
       if (meta.tags.isNotEmpty) ':${meta.tags.join(':')}:',
     ].join(' ');
+    // A title that starts with a TODO keyword or a priority, or ends with
+    // tags, would be read as those, not as the title.
+    final back = _heading(todo).firstMatch(out[lines.start]);
+    if (back?.group(4)?.trim() != title ||
+        _tagsOf(back?.group(5)).join(':') != meta.tags.join(':')) {
+      throw const MetaError('Org would read part of the title as a TODO '
+          'keyword, a priority or tags.');
+    }
   }
 
   final result = <String>[];

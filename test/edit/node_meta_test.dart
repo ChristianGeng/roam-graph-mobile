@@ -57,6 +57,28 @@ void main() {
     expect(after, startsWith(text.substring(0, text.indexOf('* TODO'))));
   });
 
+  test('several #+filetags lines become one, so no old tag stays', () {
+    final two = text.replaceFirst('#+filetags: :a:b:\n',
+        '#+filetags: :a:\n#+filetags: :b:\n');
+    expect(readMeta(two, fileNode)!.tags, ['a', 'b']);
+    final after =
+        withMeta(two, fileNode, const NodeMeta(title: 'F', tags: ['c']));
+    expect(after, contains('#+title: F\n#+filetags: :c:\nIntro.'));
+    expect(parseRoamFile('f.org', after).nodes.first.tags, ['c']);
+    final none = withMeta(two, fileNode, const NodeMeta(title: 'F'));
+    expect(none, isNot(contains('#+filetags')));
+  });
+
+  test('a heading title Org would read as keyword, priority or tags', () {
+    for (final title in ['DONE call', '[#B] call', 'call :x:', 'TODO']) {
+      expect(() => withMeta(text, heading, NodeMeta(title: title)),
+          throwsA(isA<MetaError>()), reason: title);
+    }
+    // In a file node's #+title they are plain text.
+    expect(withMeta(text, fileNode, const NodeMeta(title: 'DONE call')),
+        contains('#+title: DONE call\n'));
+  });
+
   test('bad tags and a title with a line break are refused', () {
     expect(() => withMeta(text, fileNode, const NodeMeta(title: 'A\nB')),
         throwsA(isA<MetaError>()));

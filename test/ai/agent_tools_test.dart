@@ -354,13 +354,13 @@ void main() {
     expect(await call('rename_node', {'id': 'open', 'title': 'Opened'}),
         'Renamed "Open" to "Opened".');
     expect(await call('set_tags', {'id': 'open', 'tags': ['fungi', ':x:']}),
-        'Set the tags of "Open": fungi x.');
+        'Set the tags of "Opened": fungi x.');
     expect(
         await call('set_aliases', {
           'id': 'open',
           'aliases': ['Open note', 'Op'],
         }),
-        'Set the aliases of "Open": Open note, Op.');
+        'Set the aliases of "Opened": Open note, Op.');
     expect(
         store.files['open.org'],
         ':PROPERTIES:\n:ID: open\n:ROAM_ALIASES: "Open note" Op\n:END:\n'
