@@ -70,6 +70,18 @@ enum UndoOutcome {
 
 /// The changes the agent made for one message, in order.
 class AgentChanges {
+  AgentChanges({this.messageId = '', this.prompt = '', DateTime? time})
+      : time = time ?? DateTime.now();
+
+  /// Unique for the message, so the log can group its changes (#99).
+  final String messageId;
+
+  /// The first words of the message.
+  final String prompt;
+
+  /// When the message was sent.
+  final DateTime time;
+
   final changes = <AgentChange>[];
 
   /// Set once "Undo all" ran: what became of each file.
@@ -206,6 +218,32 @@ class AgentChanges {
   }
 }
 
+/// "Undone." or which notes stayed, for a snack bar.
+String undoMessage(Map<String, UndoOutcome> outcome) {
+  final kept = outcome.values.where((o) =>
+      o != UndoOutcome.restored &&
+      o != UndoOutcome.deleted &&
+      o != UndoOutcome.recreated);
+  return kept.isEmpty
+      ? 'Undone.'
+      : 'Undone, except ${kept.length} '
+          '${kept.length == 1 ? 'note' : 'notes'} changed since or not '
+          'writable; those stay as they are.';
+}
+
+/// Runs [AgentChanges.undoAll] and, once nothing failed, logs that the
+/// message is undone, so "Recent AI changes" shows it so (#99).
+Future<Map<String, UndoOutcome>> undoAndLog(
+    AgentChanges changes, NoteEditor editor, AgentLog log,
+    {Future<CreateResult> Function(String fileName, String text)? create,
+    DateTime? now}) async {
+  final outcome = await changes.undoAll(editor, create: create);
+  if (changes.messageId.isNotEmpty && !changes.canUndo) {
+    await log.record(AgentLogEntry.undo(changes.messageId, now ?? DateTime.now()));
+  }
+  return outcome;
+}
+
 /// One line of the log of agent changes.
 class AgentLogEntry {
   const AgentLogEntry({
@@ -215,7 +253,64 @@ class AgentLogEntry {
     required this.tool,
     required this.oldHash,
     required this.newHash,
+    this.messageId = '',
+    this.prompt = '',
+    this.noteKey = '',
+    this.nodeId = '',
+    this.title = '',
+    this.before,
+    this.after,
+    this.removed = '',
+    this.linksAdded = 0,
+    this.full = true,
   });
+
+  /// The line that says the changes of message [messageId] were undone.
+  AgentLogEntry.undo(this.messageId, this.time)
+      : folder = '',
+        path = '',
+        tool = undoTool,
+        oldHash = null,
+        newHash = null,
+        prompt = '',
+        noteKey = '',
+        nodeId = '',
+        title = '',
+        before = null,
+        after = null,
+        removed = '',
+        linksAdded = 0,
+        full = true;
+
+  /// A change of the log as it is written, for [AgentLog.read]. Lines of
+  /// the first format (decision 59) have hashes only: [full] is false, and
+  /// they cannot be undone.
+  factory AgentLogEntry.fromJson(Map<String, Object?> json) {
+    String text(String key) => json[key] as String? ?? '';
+    return AgentLogEntry(
+      time: DateTime.parse(text('time')).toLocal(),
+      folder: text('folder'),
+      path: text('path'),
+      tool: text('tool'),
+      oldHash: json['oldHash'] as String?,
+      newHash: json['newHash'] as String?,
+      messageId: text('message'),
+      prompt: text('prompt'),
+      noteKey: text('noteKey'),
+      nodeId: text('nodeId'),
+      title: text('title'),
+      before: json['before'] as String?,
+      after: json['after'] as String?,
+      removed: text('removed'),
+      linksAdded: (json['linksAdded'] as num?)?.toInt() ?? 0,
+      full: json['v'] == 2,
+    );
+  }
+
+  /// The [tool] of an undo line.
+  static const undoTool = 'undo';
+
+  bool get isUndo => tool == undoTool;
 
   final DateTime time;
 
@@ -230,19 +325,148 @@ class AgentLogEntry {
   /// The SHA-256 of the file after; null for a deleted one.
   final String? newHash;
 
-  Map<String, Object?> toJson() => {
-        'time': time.toUtc().toIso8601String(),
-        'folder': folder,
-        'path': path,
-        'tool': tool,
-        'oldHash': oldHash,
-        'newHash': newHash,
-      };
+  /// The message the change was made for, and its first words (#99).
+  final String messageId;
+  final String prompt;
+
+  /// What undo needs: [AgentChange]'s fields.
+  final String noteKey;
+  final String nodeId;
+  final String title;
+  final String? before;
+  final String? after;
+  final String removed;
+  final int linksAdded;
+
+  /// Whether the line has what undo needs.
+  final bool full;
+
+  /// The entry for one change of [changes].
+  factory AgentLogEntry.of(
+          AgentChanges changes, AgentChange change, String folder, DateTime time) =>
+      AgentLogEntry(
+        time: time,
+        folder: folder,
+        path: change.path,
+        tool: change.tool,
+        oldHash: change.before == null
+            ? null
+            : contentHash(utf8.encode(change.before!)),
+        newHash:
+            change.after == null ? null : contentHash(utf8.encode(change.after!)),
+        messageId: changes.messageId,
+        prompt: changes.prompt,
+        noteKey: change.noteKey,
+        nodeId: change.nodeId,
+        title: change.title,
+        before: change.before,
+        after: change.after,
+        removed: change.removed,
+        linksAdded: change.linksAdded,
+      );
+
+  AgentChange get change => AgentChange(
+        tool: tool,
+        path: path,
+        noteKey: noteKey,
+        nodeId: nodeId,
+        title: title,
+        before: before,
+        after: after,
+        removed: removed,
+        linksAdded: linksAdded,
+      );
+
+  Map<String, Object?> toJson() => isUndo
+      ? {
+          'v': 2,
+          'time': time.toUtc().toIso8601String(),
+          'tool': tool,
+          'message': messageId,
+        }
+      : {
+          'v': 2,
+          'time': time.toUtc().toIso8601String(),
+          'folder': folder,
+          'path': path,
+          'tool': tool,
+          'oldHash': oldHash,
+          'newHash': newHash,
+          'message': messageId,
+          'prompt': prompt,
+          'noteKey': noteKey,
+          'nodeId': nodeId,
+          'title': title,
+          'before': before,
+          'after': after,
+          if (removed.isNotEmpty) 'removed': removed,
+          'linksAdded': linksAdded,
+        };
 }
 
 /// Where agent changes are logged. An interface so tests need no files.
 abstract interface class AgentLog {
   Future<void> record(AgentLogEntry entry);
+
+  /// Every line, oldest first.
+  Future<List<AgentLogEntry>> read();
+}
+
+/// The changes of one message, as the log has them (#99).
+class LoggedMessage {
+  LoggedMessage(this.changes, {required this.undoable, required this.undone});
+
+  final AgentChanges changes;
+
+  /// Every line has what undo needs.
+  final bool undoable;
+
+  /// "Undo" ran for it, in the chat or here.
+  bool undone;
+
+  DateTime get time => changes.time;
+}
+
+/// How long changes are shown in "Recent AI changes".
+const recentDays = 30;
+
+/// The log's messages of the last [recentDays] days, newest first. Lines
+/// without a message (the first format) are each their own message.
+List<LoggedMessage> recentMessages(List<AgentLogEntry> entries,
+    {DateTime? now}) {
+  final since =
+      (now ?? DateTime.now()).subtract(const Duration(days: recentDays));
+  final undone = {
+    for (final e in entries)
+      if (e.isUndo) e.messageId,
+  };
+  final groups = <String, List<AgentLogEntry>>{};
+  for (final (i, e) in entries.indexed) {
+    if (e.isUndo) continue;
+    groups.putIfAbsent(e.messageId.isEmpty ? '#$i' : e.messageId, () => [])
+        .add(e);
+  }
+  final messages = [
+    for (final MapEntry(key: id, value: lines) in groups.entries)
+      if (!lines.last.time.isBefore(since))
+        LoggedMessage(
+          AgentChanges(
+            messageId: lines.first.messageId,
+            prompt: lines.first.prompt,
+            time: lines.first.time,
+          )..changes.addAll([for (final e in lines) e.change]),
+          undoable: lines.first.messageId.isNotEmpty &&
+              lines.every((e) => e.full),
+          undone: undone.contains(id),
+        ),
+  ];
+  // Newest first; of the same time, the one logged later first.
+  final order = {for (final (i, m) in messages.indexed) m: i};
+  messages.sort((a, b) {
+    final byTime = b.time.compareTo(a.time);
+    return byTime != 0 ? byTime : order[b]!.compareTo(order[a]!);
+  });
+  return messages;
 }
 
 /// [AgentLog] in `agent-changes.jsonl` in the app's support folder, one
@@ -254,16 +478,81 @@ class FileAgentLog implements AgentLog {
 
   final String? path;
 
+  /// The most lines kept: [read] drops older ones.
+  static const keep = 1000;
+
+  Future<File> _file() async => File(path ??
+      '${(await getApplicationSupportDirectory()).path}/agent-changes.jsonl');
+
+  /// [record] and [read] run one after the other, also from two screens:
+  /// a trim in [read] must not drop a line appended meanwhile.
+  static Future<void> _queue = Future.value();
+
+  static Future<T> _serial<T>(Future<T> Function() work) {
+    final run = _queue.then((_) => work());
+    _queue = run.then((_) {}, onError: (Object _) {});
+    return run;
+  }
+
   @override
-  Future<void> record(AgentLogEntry entry) async {
+  Future<void> record(AgentLogEntry entry) => _serial(() => _record(entry));
+
+  @override
+  Future<List<AgentLogEntry>> read() => _serial(_read);
+
+  Future<void> _record(AgentLogEntry entry) async {
     try {
-      final file = File(path ??
-          '${(await getApplicationSupportDirectory()).path}/agent-changes.jsonl');
-      await file.writeAsString('${jsonEncode(entry.toJson())}\n',
+      await (await _file()).writeAsString('${jsonEncode(entry.toJson())}\n',
           mode: FileMode.append, flush: true);
     } on Exception {
       // The log helps later; it must not stop a change that was saved.
     }
+  }
+
+  /// Reads the log; when it has more than [keep] lines, the oldest are
+  /// dropped from the file, through a temporary file.
+  Future<List<AgentLogEntry>> _read() async {
+    try {
+      final file = await _file();
+      if (!await file.exists()) return const [];
+      final lines = [
+        for (final line in await file.readAsLines())
+          if (line.trim().isNotEmpty) line,
+      ];
+      final parsed = <AgentLogEntry?>[
+        for (final line in lines) _parse(line),
+      ];
+      if (lines.length > keep) {
+        // Cut between messages: the rest of a message cut in half goes
+        // too, so no message is undone from its middle.
+        var cut = lines.length - keep;
+        String id(int i) => parsed[i]?.messageId ?? '';
+        while (cut < lines.length &&
+            id(cut).isNotEmpty &&
+            id(cut) == id(cut - 1) &&
+            !(parsed[cut]?.isUndo ?? false)) {
+          cut++;
+        }
+        final temp = File('${file.path}.tmp');
+        await temp.writeAsString(
+            lines.sublist(cut).map((l) => '$l\n').join(),
+            flush: true);
+        await temp.rename(file.path);
+        return [...parsed.sublist(cut).nonNulls];
+      }
+      return [...parsed.nonNulls];
+    } on Exception {
+      return const [];
+    }
+  }
+}
+
+AgentLogEntry? _parse(String line) {
+  try {
+    return AgentLogEntry.fromJson(jsonDecode(line) as Map<String, Object?>);
+  } on Object {
+    // A line cut short by a crash is skipped.
+    return null;
   }
 }
 
@@ -273,4 +562,12 @@ class MemoryAgentLog implements AgentLog {
 
   @override
   Future<void> record(AgentLogEntry entry) async => entries.add(entry);
+
+  /// Through JSON, as the file log reads its lines.
+  @override
+  Future<List<AgentLogEntry>> read() async => [
+        for (final e in entries)
+          AgentLogEntry.fromJson(
+              jsonDecode(jsonEncode(e.toJson())) as Map<String, Object?>),
+      ];
 }

@@ -1723,6 +1723,29 @@ devices through Syncthing.
       text the AI may see (decision 57's filter): hidden notes and hidden
       headings are never found, and the snippet is cut from the visible
       text.
+65. **"Recent AI changes": undo after the chat is closed** (#99),
+    `lib/edit/recent_changes_screen.dart`. "Undo all" lived only in the
+    chat, so closing it lost the undo, although every change was logged.
+    - **The log has what undo needs:** each line of `agent-changes.jsonl`
+      (format 2) adds the message's ID and first 80 characters, and the
+      change itself: the note key, node, title, the file before and after,
+      and a removed heading. The full texts, not a reference into the edit
+      history, because the history keeps only 20 versions of a note and
+      would lose older ones; the log is in the app's private folder, as
+      the history is. Lines of the first format are shown, without undo.
+    - **The screen,** from the history button in the chat's app bar (the
+      chat has the folder's writer; Settings does not): the messages of
+      the last 30 days, newest first, with time, first words and the
+      summary; each opens to its notes, and a note's change opens as a
+      diff.
+    - **"Undo these changes"** runs the chat's "Undo all" (decision 59) on
+      the changes read back from the log: only files still as the agent
+      left them, only in the folder of the change, created files deleted,
+      deleted files written again. Notes that stay are named. When no
+      file failed, an `undo` line marks the message undone, in the chat
+      too.
+    - **Size:** the log keeps its newest 1000 lines; older ones are
+      dropped when the screen reads it, through a temporary file.
 
 ## Recommended, not decided
 
