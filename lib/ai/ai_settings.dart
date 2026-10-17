@@ -20,7 +20,7 @@ class ProviderSettings {
     required this.baseUrl,
     required this.defaultModel,
     required this.strongModel,
-    this.euOnly = true,
+    this.euOnly = false,
   });
 
   /// The preset's values.
@@ -39,7 +39,8 @@ class ProviderSettings {
   /// Empty when there is none.
   final String strongModel;
 
-  /// Vercel AI Gateway's "EU only" switch; on by default.
+  /// Vercel AI Gateway's "EU only" switch; off by default, as its
+  /// default model has no EU route.
   final bool euOnly;
 
   Map<String, Object?> toJson() => {
@@ -725,13 +726,14 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               child: Text(title, style: text.titleSmall),
             ),
             for (final p in providerPresets)
-              if ((p.dataStaysInEu || p.euSwitch) == eu)
+              if (p.dataStaysInEu == eu)
                 RadioListTile<String>(
                   key: ValueKey('provider-${p.id}'),
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                   value: p.id,
-                  title: Text(p.euSwitch ? '${p.name} (with "EU only" on)' : p.name),
+                  title: Text(
+                      p.euSwitch ? '${p.name} ("EU only" possible)' : p.name),
                 ),
           ],
         );

@@ -663,7 +663,8 @@ void main() {
     expect(presetById('anthropic').strongModel, 'claude-opus-5-5');
     expect(presetById('nothing').id, 'anthropic');
     expect(
-        [for (final p in providerPresets) if (p.dataStaysInEu || p.euSwitch) p.id],
-        ['bedrock-eu', 'mistral', 'scaleway', 'vercel']);
+        [for (final p in providerPresets) if (p.dataStaysInEu) p.id],
+        ['bedrock-eu', 'mistral', 'scaleway']);
+    expect(presetById('vercel').defaultModel, 'deepseek/deepseek-v4-pro');
   });
 }

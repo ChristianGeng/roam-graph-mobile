@@ -268,7 +268,16 @@ void main() {
   });
 
   testWidgets('choosing a model for Vercel fills the field', (tester) async {
-    final store = MemoryAiSettingsStore(const AiSettings(provider: 'vercel'));
+    final vercel = presetById('vercel');
+    final store = MemoryAiSettingsStore(AiSettings(provider: 'vercel', providers: {
+      'vercel': ProviderSettings(
+        api: vercel.api,
+        baseUrl: vercel.baseUrl,
+        defaultModel: vercel.defaultModel,
+        strongModel: vercel.strongModel,
+        euOnly: true,
+      ),
+    }));
     final keys = MemoryKeyStore()..keys['vercel'] = 'v-key';
     final get = FakeGet([vercelList]);
     await tester.pumpWidget(AiSettingsHost(

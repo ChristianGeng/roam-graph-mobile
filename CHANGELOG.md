@@ -13,6 +13,28 @@ each entry.
 - Added: "Reset to the defaults" in AI settings, below the model fields,
   when the base URL, a model or "EU only" differs from the provider's
   defaults. It puts them back; Save keeps them.
+## 2026-10-17: A default model for Vercel ([#105](https://github.com/ChristianGeng/roam-graph-mobile/pull/105))
+
+- Changed: Vercel AI Gateway now starts with the model
+  deepseek/deepseek-v4-pro, and with "EU only" off, which that model
+  needs; it is processed outside the EU. Vercel is now listed with the
+  providers outside the EU. For EU only, turn the switch on and use
+  anthropic/claude-sonnet-5.5.
+- A model or "EU only" choice you saved yourself stays.
+
+## 2026-10-17: Edit one note with AI ([#104](https://github.com/ChristianGeng/roam-graph-mobile/pull/104))
+
+- Added: "Edit with AI" in a note's edit menu. Type what to change, such
+  as "fix the typos"; the AI rewrites only this note, and the change is
+  saved only after you see it as a diff and tap Save.
+- Parts of the note hidden from AI are not sent and stay as they are.
+- Closes [#103](https://github.com/ChristianGeng/roam-graph-mobile/issues/103).
+## 2026-10-17: No AI change lost from the log while it is trimmed ([#106](https://github.com/ChristianGeng/roam-graph-mobile/pull/106))
+
+- Fixed: opening "Recent AI changes" while the AI was still changing notes
+  could drop a change from the log when the log was trimmed, so "Undo
+  these changes" undid only part of a message. Writing and trimming the
+  log now run one after the other.
 
 ## 2026-10-17: Undo the AI's changes after the chat is closed ([#102](https://github.com/ChristianGeng/roam-graph-mobile/pull/102))
 
