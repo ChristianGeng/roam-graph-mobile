@@ -70,10 +70,17 @@ void main() {
   });
 
   test('a heading title Org would read as keyword, priority or tags', () {
+    final plain = text.replaceFirst('* TODO [#A] Heading H :x:', '* Heading H');
     for (final title in ['DONE call', '[#B] call', 'call :x:', 'TODO']) {
-      expect(() => withMeta(text, heading, NodeMeta(title: title)),
+      expect(() => withMeta(plain, heading, NodeMeta(title: title)),
           throwsA(isA<MetaError>()), reason: title);
     }
+    // After the heading's own keyword and priority, Org reads no second
+    // one: such a title is plain text there; tags at the end still are not.
+    expect(withMeta(text, heading, const NodeMeta(title: 'DONE call')),
+        contains('* TODO [#A] DONE call\n'));
+    expect(() => withMeta(text, heading, const NodeMeta(title: 'call :x:')),
+        throwsA(isA<MetaError>()));
     // In a file node's #+title they are plain text.
     expect(withMeta(text, fileNode, const NodeMeta(title: 'DONE call')),
         contains('#+title: DONE call\n'));
