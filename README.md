@@ -39,7 +39,9 @@ existing notes are agreed (#34): an edit is saved only over the version it
 was made on, through a temporary file, with the old version kept, and the
 `:ID:` and property drawer stay as they are. The app saves edits that way,
 keeping the newest 20 old versions of each note (#35). "Add to this node"
-adds text at the end of a note or heading (#36). What changed in each
+adds text at the end of a note or heading (#36). A diff shows what an edit
+changes before it is saved, and earlier versions can be restored through
+it (#38). What changed in each
 release is in [CHANGELOG.md](CHANGELOG.md), and the release text repeats it
 (#70). On a tablet in landscape, the divider between graph and note can be
 dragged, and the graph folded away (#69). What is decided and why is in

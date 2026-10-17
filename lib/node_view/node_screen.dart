@@ -8,6 +8,7 @@ import '../ai/chat_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../edit/append_screen.dart';
+import '../edit/history_screen.dart';
 import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
@@ -374,11 +375,15 @@ class _NodeScreenState extends State<NodeScreen> {
               icon: const Icon(Icons.edit_note_outlined),
               onSelected: (action) => switch (action) {
                 _EditAction.append => _append(writer, node),
+                _EditAction.history => HistoryScreen.open(context, writer, node),
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(
                     value: _EditAction.append,
                     child: Text('Add to this node')),
+                PopupMenuItem(
+                    value: _EditAction.history,
+                    child: Text('Earlier versions')),
               ],
             ),
           if (widget.writer case final writer? when node != null)
@@ -513,4 +518,4 @@ class _NodeScreenState extends State<NodeScreen> {
 enum _AiAction { ask, share }
 
 /// The edits of an existing note (v4).
-enum _EditAction { append }
+enum _EditAction { append, history }
