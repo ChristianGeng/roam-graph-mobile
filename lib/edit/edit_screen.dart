@@ -121,6 +121,12 @@ class _EditScreenState extends State<EditScreen> {
       after: after,
     );
     if (!save || !mounted) return;
+    // The folder may have changed while the diff was open.
+    if (editor.store.historyKey(widget.node.file) != _noteKey) {
+      _tell('Another folder is open now. Open the node there again to edit '
+          'it; nothing was saved.');
+      return;
+    }
     setState(() => _saving = true);
     final SaveResult result;
     try {
