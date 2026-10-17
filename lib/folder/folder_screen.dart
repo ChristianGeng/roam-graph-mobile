@@ -381,15 +381,16 @@ class _FolderScreenState extends State<FolderScreen>
     final index = widget.graphIndex;
     final replace =
         rebuild || await index.indexedFolder() != folder.uri;
+    // Notes saved by an edit (#35), even if their folder reports the same
+    // modification time as before. They stay in [_mustRead] until an
+    // update has stored them, so a failed or superseded scan keeps them.
+    final forced = {..._mustRead};
     final toRead = replace
         ? listing.keys.toList()
         : {
             ...await index.filesToRead(listing),
-            // A note saved by an edit (#35), even if its folder reports
-            // the same modification time as before.
-            ..._mustRead.where(listing.containsKey),
+            ...forced.where(listing.containsKey),
           }.toList();
-    _mustRead.clear();
     final bytes = await widget.folderAccess
         .readFiles([for (final path in toRead) byPath[path]!]);
     final contents = {
@@ -402,6 +403,7 @@ class _FolderScreenState extends State<FolderScreen>
     if (generation != _generation) return;
     final graph = await index.update(listing, contents,
         folder: folder.uri, replace: replace);
+    _mustRead.removeAll(forced);
     final unreadable = [
       for (final MapEntry(key: path, value: content) in contents.entries)
         if (content == null) path,
