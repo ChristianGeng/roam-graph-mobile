@@ -10,6 +10,8 @@ import 'package:roam_graph_mobile/graph/graph_algorithms.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 
 import '../graph/graph_scope_test.dart' show fixtureGraph;
+import 'package:roam_graph_mobile/graph/roam_db.dart' show TextHit;
+
 import 'ai_visibility_test.dart' as hidden;
 
 /// What my org-roam MCP server's tools return; tool/ai_tools_expected.py
@@ -517,6 +519,64 @@ void main() {
     );
   });
 
+  group('text search (#98)', () {
+    final graph = hidden.graphOf(hidden.notes);
+    // The index finds every file; the tool must still hide what is hidden.
+    final tools = RoamTools(
+      graph,
+      readNote: (path) async => hidden.notes[path],
+      visibility: const AiVisibility({'private'}),
+      searchText: (query, {limit = 30}) async => [
+        for (final path in hidden.notes.keys) TextHit(path, ''),
+      ],
+    );
+
+    test('finds words in the text, not in hidden notes or headings',
+        () async {
+      final open = await tools.call('org_roam_search_text', {'query': 'open'});
+      expect(open, contains('ideas | Ideas | ideas.org | '));
+      expect(open, contains('Open text.'));
+      expect(open, isNot(contains('Salary')));
+      for (final secret in ['numbers', 'visit', 'back to']) {
+        expect(
+          await tools.call('org_roam_search_text', {'query': secret}),
+          'No notes contain: $secret',
+        );
+      }
+      // Every word must be there.
+      expect(
+        await tools.call('org_roam_search_text', {'query': 'open nowhere'}),
+        'No notes contain: open nowhere',
+      );
+    });
+
+    test('accents and case fold as in the index', () async {
+      const cafe = {
+        'cafe.org': ':PROPERTIES:\n:ID: cafe\n:END:\n#+title: Café\n'
+            'Das Café Ölberg öffnet früh.\n',
+      };
+      final accents = RoamTools(
+        hidden.graphOf(cafe),
+        readNote: (path) async => cafe[path],
+        searchText: (query, {limit = 30}) async =>
+            const [TextHit('cafe.org', '')],
+      );
+      final text =
+          await accents.call('org_roam_search_text', {'query': 'cafe OLBERG'});
+      expect(text, contains('cafe | Café | cafe.org | '));
+      expect(text, contains('Das Café Ölberg öffnet früh.'));
+      expect(foldForSearch('Ölberg ÉTÉ ß'), 'olberg ete ß');
+    });
+
+    test('without an index, the tool says so', () async {
+      final plain = RoamTools(graph, readNote: (path) async => null);
+      expect(
+        await plain.call('org_roam_search_text', {'query': 'x'}),
+        contains('not available'),
+      );
+    });
+  });
+
   group('text for the model', () {
     final graph = hidden.graphOf(hidden.notes);
     final tools = RoamTools(
@@ -633,7 +693,7 @@ void main() {
 
   test('every tool has a name, a description and an object schema', () {
     expect(aiTools.map((t) => t.name).toSet().length, aiTools.length);
-    expect(aiTools.length, 16);
+    expect(aiTools.length, 17);
     for (final tool in aiTools) {
       expect(tool.name, matches(RegExp(r'^org_roam_[a-z_]+$')));
       expect(tool.description, isNotEmpty);

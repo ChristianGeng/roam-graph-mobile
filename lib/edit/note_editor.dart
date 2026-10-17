@@ -254,6 +254,7 @@ class MemoryEditHistory implements EditHistory {
       List.of(_kept[key] ?? const []);
 }
 
+final _aliases = RegExp(r'^[ \t]*:ROAM_ALIASES:', caseSensitive: false);
 final _drawerStart = RegExp(r'^[ \t]*:PROPERTIES:[ \t]*$', caseSensitive: false);
 final _drawerEnd = RegExp(r'^[ \t]*:END:[ \t]*$', caseSensitive: false);
 
@@ -313,14 +314,24 @@ class NoteEditor {
   /// such as a heading node with its subtree (#93): its drawers may go,
   /// every other drawer must stay as it is. [restored] is such a part
   /// put back, by undo: its drawers may come back.
+  /// With [aliasesMayChange], the `:ROAM_ALIASES:` lines of the drawers
+  /// may change, be added or go (#97); every other drawer line stays.
   Future<SaveResult> save(String path, NoteVersion base, String text,
-      {String removed = '', String restored = ''}) async {
+      {String removed = '',
+      String restored = '',
+      bool aliasesMayChange = false}) async {
     if (text == base.text) return const NothingToSave();
-    final before = propertyDrawers(base.text), after = propertyDrawers(text);
-    for (final drawer in propertyDrawers(removed)) {
+    List<String> drawers(String t) => [
+          for (final d in propertyDrawers(t))
+            aliasesMayChange
+                ? d.split('\n').where((l) => !_aliases.hasMatch(l)).join('\n')
+                : d,
+        ];
+    final before = drawers(base.text), after = drawers(text);
+    for (final drawer in drawers(removed)) {
       before.remove(drawer);
     }
-    for (final drawer in propertyDrawers(restored)) {
+    for (final drawer in drawers(restored)) {
       after.remove(drawer);
     }
     if (before.length != after.length ||

@@ -5,13 +5,13 @@
 /// "Undo all".
 library;
 
-import 'dart:convert';
 import 'dart:math';
 
 import '../capture/capture_screen.dart';
 import '../capture/new_node.dart';
 import '../edit/agent_changes.dart';
 import '../edit/append.dart';
+import '../edit/node_meta.dart';
 import '../edit/node_text.dart';
 import '../edit/note_editor.dart';
 import '../graph/roam_graph.dart';
@@ -107,12 +107,65 @@ const deleteNodeTool = AiTool(
   },
 );
 
+const renameNodeTool = AiTool(
+  'rename_node',
+  'Change a note\'s title: a file node\'s #+title, a heading node\'s '
+      'heading text (its TODO keyword, priority and tags stay). The :ID: and '
+      'the file name stay, so every link to it still works.',
+  {
+    'type': 'object',
+    'properties': {
+      'id': {'type': 'string', 'description': 'The ID of the note'},
+      'title': {'type': 'string', 'description': 'The new title, one line'},
+    },
+    'required': ['id', 'title'],
+  },
+);
+
+const setTagsTool = AiTool(
+  'set_tags',
+  'Set a note\'s own tags: a file node\'s #+filetags, a heading node\'s '
+      'tags. Give the whole list; an empty list removes them. Tags are '
+      'letters, digits and _@#%, without colons.',
+  {
+    'type': 'object',
+    'properties': {
+      'id': {'type': 'string', 'description': 'The ID of the note'},
+      'tags': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+    },
+    'required': ['id', 'tags'],
+  },
+);
+
+const setAliasesTool = AiTool(
+  'set_aliases',
+  'Set a note\'s aliases (ROAM_ALIASES), the other names it is found by. '
+      'Give the whole list; an empty list removes them.',
+  {
+    'type': 'object',
+    'properties': {
+      'id': {'type': 'string', 'description': 'The ID of the note'},
+      'aliases': {
+        'type': 'array',
+        'items': {'type': 'string'},
+      },
+    },
+    'required': ['id', 'aliases'],
+  },
+);
+
 const agentTools = [
   createNodeTool,
   appendToNodeTool,
   editNodeTextTool,
   addLinkTool,
   deleteNodeTool,
+  renameNodeTool,
+  setTagsTool,
+  setAliasesTool,
 ];
 
 /// The system prompt in agent mode: as [systemPrompt], but notes are
@@ -122,7 +175,9 @@ final agentSystemPrompt = systemPrompt.replaceFirst(
       'the first line; I review it before it is saved.',
   'When I ask you to create, change or link notes, do it yourself with the '
       'tools create_node, append_to_node, edit_node_text and add_link, as '
-      'many as the task needs; they save at once, and I can undo all '
+      'many as the task needs, and rename_node, set_tags and set_aliases '
+      'for a note\'s title, tags and aliases; they save at once, and I can '
+      'undo all '
       'changes of a message afterwards. Delete notes with delete_node only '
       'when I ask you to delete them. Read a note before you change it. '
       'If a tool returns an error, read again and retry, or tell me.',
@@ -170,8 +225,19 @@ class AgentWriter {
   /// The note key (folder and path) taken when the note was read.
   String? _folderKey;
 
-  /// Starts recording the changes of a new message; returns them.
-  AgentChanges startMessage() => changes = AgentChanges();
+  /// Starts recording the changes of a new message; returns them. The
+  /// log groups them by the message's ID and shows [prompt]'s first words
+  /// (#99).
+  AgentChanges startMessage({String prompt = ''}) {
+    final time = _now();
+    final words = prompt.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return changes = AgentChanges(
+      messageId: '${time.microsecondsSinceEpoch.toRadixString(36)}-'
+          '${(_random ?? Random()).nextInt(1 << 30).toRadixString(36)}',
+      prompt: words.length <= 80 ? words : '${words.substring(0, 79)}…',
+      time: time,
+    );
+  }
 
   /// The tools this writer runs, by name, for [ChatSession.handlers].
   Map<String, Future<String> Function(ToolCall call)> get handlers => {
@@ -195,6 +261,10 @@ class AgentWriter {
         'edit_node_text' => await _edit(editor, call.input),
         'add_link' => await _link(editor, call.input),
         'delete_node' => await _delete(editor, call.input),
+        'rename_node' ||
+        'set_tags' ||
+        'set_aliases' =>
+          await _meta(editor, call.name, call.input),
         _ => 'Error: unknown tool ${call.name}.',
       };
     } on ToolError catch (e) {
@@ -395,6 +465,68 @@ class AgentWriter {
         'Linked "${from.displayTitle}" to "${to.displayTitle}".');
   }
 
+  /// `rename_node`, `set_tags` and `set_aliases` (#97): the node's head,
+  /// and nothing else of it.
+  Future<String> _meta(
+      NoteEditor editor, String tool, Map<String, Object?> args) async {
+    final node = _node(_string(args, 'id'));
+    List<String> list(String key) {
+      final value = args[key];
+      if (value is List) return [for (final v in value) '$v'.trim()];
+      if (value is String) return [value.trim()];
+      throw ToolError('$key is missing.');
+    }
+
+    final (base, _) = await _read(editor, node);
+    final current = readMeta(base.text, node);
+    if (current == null) {
+      throw ToolError('The note ${node.id} was not found in ${node.file}.');
+    }
+    final meta = switch (tool) {
+      'rename_node' => NodeMeta(
+          title: oneLine(_string(args, 'title')),
+          tags: current.tags,
+          aliases: current.aliases),
+      'set_tags' => NodeMeta(
+          title: current.title,
+          tags: [
+            for (final t in list('tags'))
+              if (t.isNotEmpty) t.replaceAll(':', ''),
+          ],
+          aliases: current.aliases),
+      _ => NodeMeta(
+          title: current.title,
+          tags: current.tags,
+          aliases: [
+            for (final a in list('aliases'))
+              if (a.isNotEmpty) a,
+          ]),
+    };
+    final hidden = meta.tags.where(visibility.hiddenTags.contains).toList();
+    if (hidden.isNotEmpty) {
+      throw ToolError('The tag ${hidden.first} hides a note from you; leave '
+          'it out.');
+    }
+    final String after;
+    try {
+      after = withMeta(base.text, node, meta);
+    } on MetaError catch (e) {
+      throw ToolError(e.message);
+    }
+    final what = switch (tool) {
+      'rename_node' => 'Renamed "${node.displayTitle}" to "${meta.title}".',
+      'set_tags' => meta.tags.isEmpty
+          ? 'Removed the tags of "${node.displayTitle}".'
+          : 'Set the tags of "${node.displayTitle}": ${meta.tags.join(' ')}.',
+      _ => meta.aliases.isEmpty
+          ? 'Removed the aliases of "${node.displayTitle}".'
+          : 'Set the aliases of "${node.displayTitle}": '
+              '${meta.aliases.join(', ')}.',
+    };
+    return _save(editor, tool, node, base, after, what,
+        aliasesMayChange: true);
+  }
+
   /// `delete_node` (#93): deletes the note, then turns the links to it in
   /// the other notes the AI may see into their text.
   Future<String> _delete(NoteEditor editor, Map<String, Object?> args) async {
@@ -465,20 +597,9 @@ class AgentWriter {
         ...lines.lines.sublist(0, lines.start),
         ...lines.lines.sublist(end),
       ].join(lines.newline);
+      // Undo puts the part back with its drawer.
       await _save(editor, 'delete_node', node, base, after, '',
           removed: removed.join(lines.newline));
-      // Undo puts the part back with its drawer.
-      final last = changes.changes.removeLast();
-      changes.changes.add(AgentChange(
-        tool: last.tool,
-        path: last.path,
-        noteKey: last.noteKey,
-        nodeId: last.nodeId,
-        title: last.title,
-        before: last.before,
-        after: last.after,
-        removed: removed.join(lines.newline),
-      ));
       removedText = [removed.join('\n')];
       done = 'Deleted the heading "${node.displayTitle}" with its subtree.';
     }
@@ -581,18 +702,19 @@ class AgentWriter {
 
   Future<String> _save(NoteEditor editor, String tool, RoamNode node,
       NoteVersion base, String after, String done,
-      {String removed = ''}) async {
+      {String removed = '', bool aliasesMayChange = false}) async {
     // Another folder may have been chosen since the note was read: the
     // same path there is another note.
     if (editor.store.historyKey(node.file) != _folderKey) {
       throw const ToolError('another folder was opened in the app; nothing '
           'was written. Stop here.');
     }
-    final result = await editor.save(node.file, base, after, removed: removed);
+    final result = await editor.save(node.file, base, after,
+        removed: removed, aliasesMayChange: aliasesMayChange);
     switch (result) {
       case Saved() || SavedNotIndexed():
         await _record(tool, node.file, node.id, node.displayTitle, base.text,
-            after);
+            after, removed: removed);
         return result is SavedNotIndexed
             ? '$done The graph shows it after the next scan.'
             : done;
@@ -616,10 +738,10 @@ class AgentWriter {
   }
 
   Future<void> _record(String tool, String path, String id, String title,
-      String? before, String? after) async {
+      String? before, String? after, {String removed = ''}) async {
     int links(String? text) =>
         text == null ? 0 : RegExp(r'\[\[id:').allMatches(text).length;
-    changes.changes.add(AgentChange(
+    final change = AgentChange(
       tool: tool,
       path: path,
       noteKey: writer.editor?.store.historyKey(path) ?? path,
@@ -628,15 +750,10 @@ class AgentWriter {
       before: before,
       after: after,
       linksAdded: (links(after) - links(before)).clamp(0, 1 << 30),
-    ));
-    await log.record(AgentLogEntry(
-      time: _now(),
-      folder: folder(),
-      path: path,
-      tool: tool,
-      oldHash: before == null ? null : contentHash(utf8.encode(before)),
-      newHash: after == null ? null : contentHash(utf8.encode(after)),
-    ));
+      removed: removed,
+    );
+    changes.changes.add(change);
+    await log.record(AgentLogEntry.of(changes, change, folder(), _now()));
   }
 }
 

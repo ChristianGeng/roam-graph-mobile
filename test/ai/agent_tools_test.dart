@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -346,6 +347,138 @@ void main() {
         contains('changed since it was read; nothing was deleted'));
     expect(store.files['plan.org'], endsWith('From the laptop.\n'));
     expect(agent.changes.isEmpty, isTrue);
+  });
+
+  group('Recent AI changes (#99)', () {
+    final later = DateTime(2026, 10, 20);
+
+    test('a message is undone from the log, after its chat is gone',
+        () async {
+      agent.startMessage(prompt: '  Tidy up   the\nnotes please ');
+      final id = idIn(await call('create_node', {'title': 'New', 'text': 'x'}));
+      await call('add_link', {'from_id': 'open', 'to_id': id});
+      await call('delete_node', {'id': 'branch'});
+      await call('delete_node', {'id': 'twin'});
+      agent.startMessage(prompt: 'Second');
+      await call('append_to_node', {'id': 'plan', 'text': 'Later.'});
+
+      final messages = recentMessages(await log.read(), now: later);
+      expect([for (final m in messages) m.changes.prompt],
+          ['Second', 'Tidy up the notes please']);
+      final first = messages.last;
+      expect(first.undoable, isTrue);
+      expect(first.changes.summary,
+          '1 note created, 2 changed, 1 deleted, 1 link added');
+
+      await undoAndLog(messages.first.changes, editor, log,
+          create: agent.writer.create);
+      final outcome = await undoAndLog(first.changes, editor, log,
+          create: agent.writer.create);
+      expect(outcome.values.toSet(), {
+        UndoOutcome.deleted,
+        UndoOutcome.restored,
+        UndoOutcome.recreated,
+      });
+      expect(store.files, start);
+      // Both are marked undone in the log.
+      expect([
+        for (final m in recentMessages(await log.read(), now: later)) m.undone
+      ], [true, true]);
+    });
+
+    test('a note changed since stays, and is named in the outcome', () async {
+      agent.startMessage(prompt: 'Add');
+      await call('append_to_node', {'id': 'plan', 'text': 'Agent.'});
+      await call('append_to_node', {'id': 'open', 'text': 'Agent.'});
+      store.files['plan.org'] = '${store.files['plan.org']}Laptop.\n';
+      final message = recentMessages(await log.read(), now: later).single;
+      final outcome = await undoAndLog(message.changes, editor, log);
+      expect(outcome['plan.org'], UndoOutcome.changedSince);
+      expect(outcome['open.org'], UndoOutcome.restored);
+      expect(store.files['plan.org'], endsWith('Agent.\nLaptop.\n'));
+      expect(store.files['open.org'], start['open.org']);
+    });
+
+    test('old lines are shown without undo; old messages not at all', () {
+      final old = AgentLogEntry.fromJson({
+        'time': '2026-10-16T10:00:00Z',
+        'folder': 'content://tree/org',
+        'path': 'plan.org',
+        'tool': 'append_to_node',
+        'oldHash': 'a',
+        'newHash': 'b',
+      });
+      final shown = recentMessages([old], now: later).single;
+      expect(shown.undoable, isFalse);
+      expect(shown.changes.files, ['plan.org']);
+      expect(recentMessages([old], now: DateTime(2026, 11, 20)), isEmpty);
+    });
+
+    test('the file log keeps the newest 1000 lines', () async {
+      final dir = Directory.systemTemp.createTempSync('agent-log');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = FileAgentLog(path: '${dir.path}/agent-changes.jsonl');
+      for (var i = 0; i < FileAgentLog.keep + 5; i++) {
+        await file.record(AgentLogEntry.undo('m$i', DateTime(2026)));
+      }
+      File('${dir.path}/agent-changes.jsonl')
+          .writeAsStringSync('{"cut', mode: FileMode.append);
+      final entries = await file.read();
+      expect(entries, hasLength(FileAgentLog.keep - 1));
+      expect(entries.first.messageId, 'm6');
+      expect(
+          File('${dir.path}/agent-changes.jsonl').readAsLinesSync(),
+          hasLength(FileAgentLog.keep));
+    });
+
+    test('the file log is cut between messages', () async {
+      final dir = Directory.systemTemp.createTempSync('agent-log');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = FileAgentLog(path: '${dir.path}/agent-changes.jsonl');
+      AgentLogEntry change(String message) => AgentLogEntry(
+            time: DateTime(2026),
+            folder: 'f',
+            path: 'a.org',
+            tool: 'append_to_node',
+            oldHash: 'a',
+            newHash: 'b',
+            messageId: message,
+          );
+      // Three lines of message "big", then the rest of the log.
+      for (var i = 0; i < 3; i++) {
+        await file.record(change('big'));
+      }
+      for (var i = 0; i < FileAgentLog.keep - 2; i++) {
+        await file.record(change('m$i'));
+      }
+      final entries = await file.read();
+      expect(entries.map((e) => e.messageId), isNot(contains('big')));
+      expect(entries, hasLength(FileAgentLog.keep - 2));
+    });
+  });
+
+  test('rename_node, set_tags and set_aliases change only the head (#97)',
+      () async {
+    final changes = agent.startMessage();
+    expect(await call('rename_node', {'id': 'open', 'title': 'Opened'}),
+        'Renamed "Open" to "Opened".');
+    expect(await call('set_tags', {'id': 'open', 'tags': ['fungi', ':x:']}),
+        'Set the tags of "Opened": fungi x.');
+    expect(
+        await call('set_aliases', {
+          'id': 'open',
+          'aliases': ['Open note', 'Op'],
+        }),
+        'Set the aliases of "Opened": Open note, Op.');
+    expect(
+        store.files['open.org'],
+        ':PROPERTIES:\n:ID: open\n:ROAM_ALIASES: "Open note" Op\n:END:\n'
+        '#+title: Opened\n#+filetags: :fungi:x:\n'
+        'Some words. [[id:plan][Plan]] and [[id:plan][again]].\n');
+    expect(await call('set_tags', {'id': 'open', 'tags': ['private']}),
+        contains('hides a note'));
+    await changes.undoAll(editor, create: agent.writer.create);
+    expect(store.files, start);
   });
 }
 

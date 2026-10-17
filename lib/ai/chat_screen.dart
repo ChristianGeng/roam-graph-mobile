@@ -11,7 +11,9 @@ import '../edit/change_set_screen.dart';
 import '../edit/diff_screen.dart';
 import '../edit/edit_proposal.dart';
 import '../edit/note_editor.dart';
+import '../edit/recent_changes_screen.dart';
 import '../edit/save_messages.dart';
+import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
 import 'agent_tools.dart';
 import 'ai_chat.dart';
@@ -38,7 +40,11 @@ class ChatScreen extends StatefulWidget {
     this.openNode,
     this.post = postWithDartIo,
     this.agentLog = const FileAgentLog(),
+    this.searchText,
   });
+
+  /// The app's full-text index, for the AI's text search (#98).
+  final Future<List<TextHit>> Function(String query, {int limit})? searchText;
 
   final ValueListenable<RoamGraph> graph;
   final NoteTextReader readNote;
@@ -65,6 +71,7 @@ class ChatScreen extends StatefulWidget {
     RoamNode? startNode,
     NoteWriter? writer,
     OpenNode? openNode,
+    Future<List<TextHit>> Function(String query, {int limit})? searchText,
   }) => Navigator.push(
     context,
     MaterialPageRoute<void>(
@@ -74,6 +81,7 @@ class ChatScreen extends StatefulWidget {
         startNode: startNode,
         writer: writer,
         openNode: openNode,
+        searchText: searchText,
       ),
     ),
   );
@@ -166,6 +174,7 @@ class _ChatScreenState extends State<ChatScreen> {
     widget.graph.value,
     readNote: widget.readNote,
     visibility: settings.visibility,
+    searchText: widget.searchText,
   );
 
   /// The tools on the graph and the hidden tags as they are now: after a
@@ -278,7 +287,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _input.clear();
     // The agent's changes for this message are kept under its index.
     if (_agent case final agent?) {
-      _turnChanges[session.transcript.length] = agent.startMessage();
+      _turnChanges[session.transcript.length] =
+          agent.startMessage(prompt: text);
     }
     await _run(() => session.send(text, context: _context, onUpdate: _changed));
   }
@@ -539,6 +549,13 @@ class _ChatScreenState extends State<ChatScreen> {
                   child: Text('Strong: $_strongModel'),
                 ),
               ],
+            ),
+          if (widget.writer case final writer? when writer.editor != null)
+            IconButton(
+              tooltip: 'Recent AI changes',
+              icon: const Icon(Icons.history),
+              onPressed: () => RecentChangesScreen.open(context,
+                  writer: writer, log: widget.agentLog),
             ),
           IconButton(
             tooltip: 'New chat',
@@ -842,7 +859,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ListTile(
             leading: const Icon(Icons.auto_fix_high_outlined),
             title: Text(changes.summary, key: ValueKey('agent-counts-$turn')),
-            subtitle: undone == null ? null : Text(_undoText(undone)),
+            subtitle: undone == null ? null : Text(undoMessage(undone)),
           ),
           for (final path in changes.files)
             ListTile(
@@ -899,18 +916,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  static String _undoText(Map<String, UndoOutcome> outcome) {
-    final kept = outcome.values.where((o) =>
-        o != UndoOutcome.restored &&
-        o != UndoOutcome.deleted &&
-        o != UndoOutcome.recreated);
-    return kept.isEmpty
-        ? 'Undone.'
-        : 'Undone, except ${kept.length} '
-            '${kept.length == 1 ? 'note' : 'notes'} changed since or not '
-            'writable; those stay as they are.';
-  }
-
   /// Undoes every change the agent made for the message at [turn].
   Future<void> _undo(int turn) async {
     final changes = _turnChanges[turn];
@@ -918,9 +923,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (changes == null || editor == null) return;
     setState(() => _undoing = turn);
     try {
-      final outcome =
-          await changes.undoAll(editor, create: widget.writer?.create);
-      if (mounted) _tell(_undoText(outcome));
+      final outcome = await undoAndLog(changes, editor, widget.agentLog,
+          create: widget.writer?.create);
+      if (mounted) _tell(undoMessage(outcome));
     } finally {
       if (mounted) setState(() => _undoing = null);
     }

@@ -1676,6 +1676,74 @@ devices through Syncthing.
       text, so the same `:ID:`, if no file of that name is there
       meanwhile; removed headings and changed links come back as every
       edit does.
+63. **Title, tags and aliases can be edited, by me and by the AI**
+    (#97), `lib/edit/node_meta.dart`, `meta_screen.dart`. Replacing a note
+    meant a new note and deleting the old one, since the head was locked.
+    The owner decided on 2026-10-17 to allow editing it, under these rules
+    (they widen rule 5 of decision 10 for these three, nothing else):
+    - The `:ID:`, every other property and the file name stay; links to
+      the node keep their text, as on the laptop.
+    - **Title:** a file node's `#+title:` line; a heading node's heading
+      text, read as Org's `org-complex-heading-regexp` reads it, with its
+      TODO keyword (Doom's, or the file's own `#+TODO:`) and priority
+      kept.
+    - **Tags:** a file node's `#+filetags:` line, added or removed as
+      needed, after the title; a heading node's own tags at the end of its
+      line. Only Org tag characters; inherited tags are not edited here.
+    - **Aliases:** the `:ROAM_ALIASES:` line of the node's drawer, written
+      as `org-roam-alias-add` writes it (`combine-and-quote-strings`:
+      quoted with a space, quote or backslash in it). It is the only drawer
+      line that may change: `NoteEditor.save(aliasesMayChange:)` compares
+      the drawers without it.
+    - **By hand:** "Title, tags and aliases" in the node view's Edit menu,
+      a form, then the diff (decision 55), then Save, over the version
+      read and in the folder it was read in.
+    - **By the AI:** `rename_node`, `set_tags`, `set_aliases`, as the other
+      agent tools (decision 59): counted, summarized, logged, undoable. The
+      AI cannot set a tag hidden from AI.
+64. **Full-text search, for me and for the AI** (#98). Search found only
+    titles and aliases; the words inside notes could not be found.
+    - **The index:** an SQLite FTS5 table `note_text` beside org-roam's
+      tables in the app's own database (decision 23), filled by the
+      indexer with each file's text, also when a single file changes or
+      is removed. The tokenizer is `unicode61 remove_diacritics 2`, so
+      "cafe" finds "Café" and case does not matter. org-roam has no such
+      table; it is the app's own, and the parser version (now 3) makes the
+      index rebuild once, so the table is filled for every file.
+    - **The query:** every word must be in the note, each also as the start
+      of a longer word ("noth" finds "nothing"). Words are quoted, so
+      `OR`, `-` or quotes are words, not FTS5 syntax. Best matches first
+      (FTS5's `rank`), at most 30.
+    - **For me:** an "In the text" chip in Search shows the notes with a
+      snippet around the words; a tap opens the note.
+    - **For the AI:** the tool `org_roam_search_text` (query, limit). The
+      index knows the whole file, so every hit is checked again on the
+      text the AI may see (decision 57's filter): hidden notes and hidden
+      headings are never found, and the snippet is cut from the visible
+      text.
+65. **"Recent AI changes": undo after the chat is closed** (#99),
+    `lib/edit/recent_changes_screen.dart`. "Undo all" lived only in the
+    chat, so closing it lost the undo, although every change was logged.
+    - **The log has what undo needs:** each line of `agent-changes.jsonl`
+      (format 2) adds the message's ID and first 80 characters, and the
+      change itself: the note key, node, title, the file before and after,
+      and a removed heading. The full texts, not a reference into the edit
+      history, because the history keeps only 20 versions of a note and
+      would lose older ones; the log is in the app's private folder, as
+      the history is. Lines of the first format are shown, without undo.
+    - **The screen,** from the history button in the chat's app bar (the
+      chat has the folder's writer; Settings does not): the messages of
+      the last 30 days, newest first, with time, first words and the
+      summary; each opens to its notes, and a note's change opens as a
+      diff.
+    - **"Undo these changes"** runs the chat's "Undo all" (decision 59) on
+      the changes read back from the log: only files still as the agent
+      left them, only in the folder of the change, created files deleted,
+      deleted files written again. Notes that stay are named. When no
+      file failed, an `undo` line marks the message undone, in the chat
+      too.
+    - **Size:** the log keeps its newest 1000 lines; older ones are
+      dropped when the screen reads it, through a temporary file.
 66. **"Edit with AI": one note, one instruction, one diff** (#103),
     `lib/edit/ai_edit_screen.dart`, in the note's edit menu. Agent mode
     may change any note; for a quick change to the note I am reading that

@@ -299,6 +299,62 @@ void main() {
       expect(find.text('Undone.'), findsWidgets);
     });
 
+    testWidgets('"Recent AI changes" undoes them after the chat is closed '
+        '(#99)', (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {
+            'type': 'tool_use',
+            'id': 'a1',
+            'name': 'create_node',
+            'input': {'title': 'Morel', 'text': 'A mushroom.'},
+          },
+          {
+            'type': 'tool_use',
+            'id': 'a2',
+            'name': 'append_to_node',
+            'input': {'id': 'plan', 'text': 'Mushrooms come next.'},
+          },
+        ], stop: 'tool_use'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Done.'},
+        ]),
+      ]);
+      final store = MemoryNoteStore(Map.of(notes));
+      final writer = NoteWriter(
+        create: (name, text) async {
+          store.files[name] = text;
+          return Created(name);
+        },
+        allowWriting: () async {},
+        editor: NoteEditor(store: store, history: MemoryEditHistory()),
+      );
+      final log = MemoryAgentLog();
+      await openChat(tester, server, writer: writer, agentLog: log);
+      await ask(tester, 'Make a note on morels.');
+      expect(store.files.length, notes.length + 1);
+
+      // A new chat: the old one's "Undo all" is gone.
+      await tester.pumpWidget(const SizedBox());
+      await openChat(tester, FakeServer([]), writer: writer, agentLog: log);
+      await tester.tap(find.byTooltip('Recent AI changes'));
+      await tester.pumpAndSettle();
+      expect(find.text('Make a note on morels.'), findsOneWidget);
+      expect(find.textContaining('1 note created, 1 changed'), findsOneWidget);
+
+      await tester.tap(find.text('Make a note on morels.'));
+      await tester.pumpAndSettle();
+      expect(find.text('Plan'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('recent-undo-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('confirm-undo')));
+      await tester.pumpAndSettle();
+      expect(store.files, notes);
+      expect(find.text('Undone.'), findsOneWidget);
+      expect(find.text('Undone'), findsOneWidget);
+      expect(find.textContaining('· undone'), findsOneWidget);
+    });
+
     testWidgets('"Off" offers no write tools', (tester) async {
       final server = FakeServer([
         anthropicReply([

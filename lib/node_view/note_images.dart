@@ -13,6 +13,7 @@ import 'package:vector_graphics_compiler/vector_graphics_compiler.dart'
     as compiler;
 
 import '../folder/org_files.dart';
+import '../graph/roam_db.dart' show TextHit;
 
 /// The files of the chosen folder, for images in notes.
 abstract interface class NoteFiles {
@@ -31,6 +32,10 @@ abstract interface class NoteFiles {
   /// Changes when [file] may have changed: its modification time, or, for
   /// a file whose folder gives none (0), each scan of the folder.
   int version(FolderFile file);
+
+  /// The notes whose text has the words of [query], best first, from the
+  /// index (#98).
+  Future<List<TextHit>> searchText(String query, {int limit = 30});
 }
 
 /// The image files the app shows. Flutter decodes these itself, and

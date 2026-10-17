@@ -47,7 +47,7 @@ menu; they are saved only after the diff (#39). The AI can also propose a
 change set, edits to several notes reviewed and saved together, and undone
 together (#76). In agent mode, the default, the AI creates, edits and
 links notes itself, under the same rules, and the chat shows what it
-changed afterwards, with "Undo all" (#82). "Edit with AI" changes just the note shown, by an instruction, after a diff (#103). What changed in each
+changed afterwards, with "Undo all" (#82). "Recent AI changes" undoes them later too, after the chat is closed (#99). "Edit with AI" changes just the note shown, by an instruction, after a diff (#103). What changed in each
 release is in [CHANGELOG.md](CHANGELOG.md), and the release text repeats it
 (#70). On a tablet in landscape, the divider between graph and note can be
 dragged, and the graph folded away (#69). The graph starts force-directed,
@@ -55,7 +55,7 @@ or as set in Settings (#71). The theme is light, dark, or as Android is
 set, a choice in Settings (#90). The AI model can be picked from the
 provider's list, with prices and tool support where the list gives them
 (#75). Mistral's answers after tool calls, which come as a list of parts,
-are shown, and follow-ups work (#79). What is decided and why is in
+are shown, and follow-ups work (#79). Search also finds the words inside notes, and so can the AI, except in notes hidden from it (#98). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 
