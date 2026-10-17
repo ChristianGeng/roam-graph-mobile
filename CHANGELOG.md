@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-17: The AI proposes edits, you review them ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-17: The AI proposes edits, you review them ([#88](https://github.com/ChristianGeng/roam-graph-mobile/pull/88))
 
 - Added: in the chat, the AI can propose an edit of a note, or a change set
   of edits to several notes. Each shows as a diff; nothing is saved until
