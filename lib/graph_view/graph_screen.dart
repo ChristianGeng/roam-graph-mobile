@@ -616,14 +616,18 @@ class _GraphScreenState extends State<GraphScreen> {
         openHelp(context);
       case _MoreAction.circo || _MoreAction.force:
         _layoutChosen = true;
-        _kind = action == _MoreAction.circo ? LayoutKind.circo : LayoutKind.force;
+        final kind =
+            action == _MoreAction.circo ? LayoutKind.circo : LayoutKind.force;
+        _kind = kind;
         _update();
-        // Remembered for "Last used" (#71).
-        final view = ViewSettingsScope.read(context);
-        if (view.lastLayout != _kind) {
-          ViewSettingsScope.change(context, view.copyWith(lastLayout: _kind))
+        // Remembered for "Last used" (#71), on top of the settings as
+        // loaded, so a choice made while the file is read does not save
+        // the defaults over it (#81).
+        ViewSettingsScope.current(context).then((view) {
+          if (!mounted || view.lastLayout == kind) return;
+          ViewSettingsScope.change(context, view.copyWith(lastLayout: kind))
               .catchError((Object _) {});
-        }
+        });
     }
   }
 

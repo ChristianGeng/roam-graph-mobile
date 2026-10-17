@@ -88,19 +88,25 @@ void main() {
 
   testWidgets('a layout chosen before the settings loaded wins (#81)',
       (tester) async {
-    final store =
-        SlowViewSettingsStore(const ViewSettings(startLayout: StartLayout.circo));
+    final store = SlowViewSettingsStore(const ViewSettings(
+        sectionsOnOpen: SectionsOnOpen.expanded,
+        startLayout: StartLayout.force,
+        lastLayout: LayoutKind.force));
     final kinds = await openSlow(tester, store);
     await tester.tap(find.byTooltip('More'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.text(LayoutKind.force.label));
+    await tester.tap(find.text(LayoutKind.circo.label));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     store.finish();
     await tester.pumpAndSettle();
-    expect(kinds, [LayoutKind.force]);
-    expect(store.settings.lastLayout, LayoutKind.force);
+    // The choice, not the saved start layout.
+    expect(kinds, [LayoutKind.circo]);
+    // Saved on top of the file, which keeps its other settings.
+    expect(store.settings.lastLayout, LayoutKind.circo);
+    expect(store.settings.sectionsOnOpen, SectionsOnOpen.expanded);
+    expect(store.settings.startLayout, StartLayout.force);
   });
 
   testWidgets('a file that cannot be read in time does not stop the graph',
