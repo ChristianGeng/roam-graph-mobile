@@ -745,6 +745,34 @@ void main() {
       expect(access.replaced, isEmpty);
       expect(access.pickCalls, 1);
     });
+
+    testWidgets('another folder chosen meanwhile gets nothing',
+        (tester) async {
+      final access = withNotes(saved: org)
+        ..picked = const ChosenFolder(
+            uri: 'content://tree/other',
+            name: 'org',
+            hasAccess: true,
+            canWrite: true);
+      await start(tester, access);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add to this node'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('append-text')), 'x');
+      await tester.pump();
+      // No write access: the picker opens, and another folder is chosen.
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(access.pickCalls, 1);
+      // Its a.org is another note: saving again changes nothing.
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(access.replaced, isEmpty);
+      expect(find.textContaining('Another folder is open now'), findsOneWidget);
+    });
   });
 
   group('link to the current node (#12)', () {

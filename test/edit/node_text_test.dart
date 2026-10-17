@@ -34,7 +34,13 @@ void main() {
     expect(NodeLines.find(t, fileNode)!.body, 'Body.\n');
   });
 
-  test('a file without drawer or keywords: all of it is the body', () {
-    expect(NodeLines.find('Just text.\n', fileNode)!.head, '');
+  test('a file without the node\'s drawer is not found', () {
+    expect(NodeLines.find('Just text.\n', fileNode), isNull);
+  });
+
+  test('a file node with only a drawer: the rest is the body', () {
+    final lines =
+        NodeLines.find(':PROPERTIES:\n:ID: f\n:END:\nJust text.\n', fileNode)!;
+    expect(lines.body, 'Just text.\n');
   });
 }

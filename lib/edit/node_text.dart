@@ -16,10 +16,13 @@ final _planning =
     RegExp(r'^[ \t]*(SCHEDULED|DEADLINE|CLOSED):', caseSensitive: false);
 final _keyword = RegExp(r'^[ \t]*#\+[^:\s]*:');
 
-/// The `:ID:` property line of [id].
+/// The `:ID:` property line of [id]: the key in any case, as Org reads
+/// property keys; the value exactly, as the index keys nodes by it.
 RegExp _idLine(String id) =>
-    RegExp('^[ \\t]*:ID:[ \\t]+${RegExp.escape(id)}[ \\t]*\$',
-        caseSensitive: false);
+    RegExp('^[ \\t]*:[Ii][Dd]:[ \\t]+${RegExp.escape(id)}[ \\t]*\$');
+
+/// A comment line, which may come before a file's property drawer.
+final _comment = RegExp(r'^[ \t]*#(?: |$)');
 
 /// A node's place in the lines of its file: lines [start] to [end]
 /// (exclusive) are the node: the whole file for a file node, the heading
@@ -32,39 +35,65 @@ class NodeLines {
   NodeLines._(this.lines, this.newline, this.start, this.bodyStart, this.end,
       {required this.isFile});
 
-  /// Finds [node] in [text]; null if its heading is no longer there.
+  /// Finds [node] in [text]: the file node or heading whose property
+  /// drawer holds the node's `:ID:`, as the index found it. Null if no
+  /// drawer holds it any more, for example after the laptop changed the
+  /// note.
   static NodeLines? find(String text, RoamNode node) {
     final newline = text.contains('\r\n') ? '\r\n' : '\n';
     final lines = text.split(newline);
+    final idLine = _idLine(node.id);
     if (node.isFile) {
+      // Only comment lines may come before the file's drawer (decision 20).
+      var first = 0;
+      while (first < lines.length && _comment.hasMatch(lines[first])) {
+        first++;
+      }
+      if (!_drawerHolds(lines, first, idLine)) return null;
       return NodeLines._(
-          lines, newline, 0, _headEnd(lines, 0, file: true), lines.length,
+          lines, newline, 0, _headEnd(lines, first, file: true), lines.length,
           isFile: true);
     }
-    final idLine = _idLine(node.id);
-    int? heading;
-    int? level;
-    var found = false;
-    for (var i = 0; i < lines.length && !found; i++) {
-      if (headingLine.firstMatch(lines[i]) case final match?) {
-        heading = i;
-        level = match.group(1)!.length;
-      } else if (heading != null && idLine.hasMatch(lines[i])) {
-        found = true;
+    for (var heading = 0; heading < lines.length; heading++) {
+      final match = headingLine.firstMatch(lines[heading]);
+      if (match == null) continue;
+      // The drawer directly after the heading, or after its planning line.
+      var drawer = heading + 1;
+      if (drawer < lines.length && _planning.hasMatch(lines[drawer])) drawer++;
+      if (!_drawerHolds(lines, drawer, idLine)) continue;
+      final level = match.group(1)!.length;
+      var end = lines.length;
+      for (var i = heading + 1; i < lines.length; i++) {
+        final next = headingLine.firstMatch(lines[i]);
+        if (next != null && next.group(1)!.length <= level) {
+          end = i;
+          break;
+        }
+      }
+      return NodeLines._(lines, newline, heading,
+          _headEnd(lines, heading + 1, file: false), end,
+          isFile: false);
+    }
+    return null;
+  }
+
+  /// Whether a property drawer starts at line [at], is closed, and holds
+  /// a line that matches [idLine].
+  static bool _drawerHolds(List<String> lines, int at, RegExp idLine) {
+    if (at >= lines.length || !_drawerStart.hasMatch(lines[at])) return false;
+    for (var i = at + 1; i < lines.length; i++) {
+      if (_drawerEnd.hasMatch(lines[i])) return false;
+      if (headingLine.hasMatch(lines[i])) return false;
+      if (idLine.hasMatch(lines[i])) {
+        // Only if the drawer is closed before the next heading.
+        for (var j = i + 1; j < lines.length; j++) {
+          if (_drawerEnd.hasMatch(lines[j])) return true;
+          if (headingLine.hasMatch(lines[j])) return false;
+        }
+        return false;
       }
     }
-    if (!found || heading == null || level == null) return null;
-    var end = lines.length;
-    for (var i = heading + 1; i < lines.length; i++) {
-      final match = headingLine.firstMatch(lines[i]);
-      if (match != null && match.group(1)!.length <= level) {
-        end = i;
-        break;
-      }
-    }
-    return NodeLines._(lines, newline, heading,
-        _headEnd(lines, heading + 1, file: false), end,
-        isFile: false);
+    return false;
   }
 
   /// The end of the head that starts at [from]: a planning line (for a
@@ -129,7 +158,12 @@ class NodeLines {
     while (at > floor && lines[at - 1].trim().isEmpty) {
       at--;
     }
-    final added = addition.trimRight().split(RegExp(r'\r?\n'));
+    // Blank lines at the end of the typed text are dropped; spaces at the
+    // end of its last line stay.
+    final added = addition.split(RegExp(r'\r?\n'));
+    while (added.isNotEmpty && added.last.trim().isEmpty) {
+      added.removeLast();
+    }
     final result = [...lines]..insertAll(at, added);
     // A file that did not end with a newline gets one after the addition.
     if (at + added.length == result.length) result.add('');

@@ -39,14 +39,48 @@ void main() {
   });
 
   test('several lines, trailing blank lines dropped, CRLF kept', () {
-    const t = '#+title: F\r\nText.\r\n';
-    expect(appendToNode(t, fileNode, 'one\ntwo\n\n'),
-        '#+title: F\r\nText.\r\none\r\ntwo\r\n');
+    const t = ':PROPERTIES:\r\n:ID: f\r\n:END:\r\n#+title: F\r\nText.\r\n';
+    expect(appendToNode(t, fileNode, 'one\ntwo  \n\n'),
+        '${t}one\r\ntwo  \r\n');
   });
 
   test('a file without a final newline gets one', () {
-    expect(appendToNode('#+title: F\nText.', fileNode, 'x'),
-        '#+title: F\nText.\nx\n');
+    const t = ':PROPERTIES:\n:ID: f\n:END:\n#+title: F\nText.';
+    expect(appendToNode(t, fileNode, 'x'), '$t\nx\n');
+  });
+
+  test('comment lines may come before the file drawer', () {
+    const t = '# A comment\n:PROPERTIES:\n:ID: f\n:END:\nText.\n';
+    expect(appendToNode(t, fileNode, 'x'), '${t}x\n');
+  });
+
+  test("a file whose drawer no longer holds the node's ID gives null", () {
+    expect(
+        appendToNode(':PROPERTIES:\n:ID: other\n:END:\nText.\n', fileNode,
+            'x'),
+        isNull);
+    expect(appendToNode('#+title: F\nText.\n', fileNode, 'x'), isNull);
+  });
+
+  test('an :ID: line in the text of an earlier heading is no match', () {
+    const t = '* Notes\n:ID: h1\n* Target\n:PROPERTIES:\n:ID: h1\n:END:\n'
+        'Its text.\n* After\n';
+    expect(appendToNode(t, h1, 'x'),
+        t.replaceFirst('Its text.\n', 'Its text.\nx\n'));
+  });
+
+  test('the drawer may follow a planning line', () {
+    const t = '* A\nSCHEDULED: <2026-10-17 Sat>\n:PROPERTIES:\n:ID: h1\n'
+        ':END:\n* B\n';
+    expect(appendToNode(t, h1, 'x'), t.replaceFirst('* B', 'x\n* B'));
+  });
+
+  test('IDs that differ only in case are different nodes', () {
+    const t = '* Upper\n:PROPERTIES:\n:ID: Task\n:END:\nU.\n'
+        '* Lower\n:PROPERTIES:\n:id: task\n:END:\nL.\n';
+    const lower =
+        RoamNode(id: 'task', file: 'f.org', level: 1, title: 'Lower', line: 6);
+    expect(appendToNode(t, lower, 'x'), '${t}x\n');
   });
 
   test('a heading that is gone gives null', () {

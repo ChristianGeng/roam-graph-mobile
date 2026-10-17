@@ -15,13 +15,13 @@ class AppendScreen extends StatefulWidget {
   final NoteWriter writer;
   final RoamNode node;
 
-  /// Opens the screen; true if text was added.
-  static Future<bool> open(
-          BuildContext context, NoteWriter writer, RoamNode node) async =>
-      await Navigator.of(context).push<bool>(MaterialPageRoute(
+  /// Opens the screen. Returns what to tell the user when text was added,
+  /// or null if nothing was added.
+  static Future<String?> open(
+          BuildContext context, NoteWriter writer, RoamNode node) =>
+      Navigator.of(context).push<String>(MaterialPageRoute(
         builder: (_) => AppendScreen(writer: writer, node: node),
-      )) ??
-      false;
+      ));
 
   @override
   State<AppendScreen> createState() => _AppendScreenState();
@@ -31,10 +31,16 @@ class _AppendScreenState extends State<AppendScreen> {
   final _text = TextEditingController();
   bool _saving = false;
 
+  /// The note's folder and path when the screen opened. If another folder
+  /// is chosen meanwhile (for write access), the same path there is
+  /// another note, so nothing is saved.
+  String? _noteKey;
+
   @override
   void initState() {
     super.initState();
     _text.addListener(() => setState(() {}));
+    _noteKey = widget.writer.editor?.store.historyKey(widget.node.file);
   }
 
   @override
@@ -53,6 +59,11 @@ class _AppendScreenState extends State<AppendScreen> {
     final editor = widget.writer.editor;
     final node = widget.node;
     if (editor == null || _text.text.trim().isEmpty) return;
+    if (editor.store.historyKey(node.file) != _noteKey) {
+      _tell('Another folder is open now. Open the node there again to add '
+          'to it; your text is still here.');
+      return;
+    }
     setState(() => _saving = true);
     try {
       final base = await editor.read(node.file);
@@ -63,18 +74,19 @@ class _AppendScreenState extends State<AppendScreen> {
       }
       final text = appendToNode(base.text, node, _text.text);
       if (text == null) {
-        _tell('The heading is no longer in ${node.file}; the file changed '
-            'since the app read it.');
+        _tell('${node.displayTitle} is no longer in ${node.file} with its '
+            ':ID:; the file changed since the app read it. Your text is '
+            'still here.');
         return;
       }
       final result = await editor.save(node.file, base, text);
       if (!mounted) return;
       switch (result) {
         case Saved() || NothingToSave():
-          Navigator.of(context).pop(true);
+          Navigator.of(context).pop('Added to ${node.displayTitle}.');
         case SavedNotIndexed(:final message):
-          _tell('Added; the graph shows it after the next scan ($message).');
-          Navigator.of(context).pop(true);
+          Navigator.of(context).pop('Added to ${node.displayTitle}; the '
+              'graph shows it after the next scan ($message).');
         case ChangedMeanwhile():
           _tell('${node.file} changed while saving. Your text is still '
               'here: save again to add it to the new version.');

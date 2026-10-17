@@ -231,9 +231,8 @@ class _NodeScreenState extends State<NodeScreen> {
   /// Adds text at the end of [node] (#36). The index changes after the
   /// save, so the note is read again and shows the text.
   Future<void> _append(NoteWriter writer, RoamNode node) async {
-    if (await AppendScreen.open(context, writer, node) && mounted) {
-      _tell('Added to ${node.displayTitle}.');
-    }
+    final message = await AppendScreen.open(context, writer, node);
+    if (message != null && mounted) _tell(message);
   }
 
   /// Opens the node's file in Orgro, at the top: Orgro has no way to jump
