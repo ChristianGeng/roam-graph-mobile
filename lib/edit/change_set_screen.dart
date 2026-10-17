@@ -276,6 +276,8 @@ class _ChangeSetScreenState extends State<ChangeSetScreen> {
 
   static String _changeCounts(ChangeEntry entry) {
     final lines = diffLines(entry.base.text, entry.after);
+    // Too many changes for a line-by-line diff (decision 55).
+    if (lines == null) return 'many lines changed';
     final removed = lines.where((l) => l.kind == DiffKind.removed).length;
     final added = lines.where((l) => l.kind == DiffKind.added).length;
     return '−$removed +$added lines';
