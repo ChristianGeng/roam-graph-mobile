@@ -1419,6 +1419,40 @@ devices through Syncthing.
       heading; and in the app, text added in the node view, and a folder
       with read access only, which offers to choose it again.
 
+55. **The diff before saving, and earlier versions** (#38),
+    `lib/edit/line_diff.dart`, `lib/edit/diff_screen.dart` and
+    `lib/edit/history_screen.dart`:
+    - **The diff** compares the note as it is with the note as it will
+      be, line by line, as `diff -u` does: Myers' shortest edit script,
+      the algorithm of GNU diff, removed lines before the lines that
+      replace them, and three lines of context, with nearby changes in one
+      block. It counts the lines removed and added, and marks each line
+      `-`, `+` or blank, in colour, in a monospace font that fits a phone.
+      It is computed once per screen, and only up to 2000 changed lines:
+      the search keeps, per step, only what that step reads. Beyond that
+      the screen gives the line counts instead of the lines. A change the
+      lines cannot show, only line endings or the final newline, is named
+      as such; any difference can be saved.
+    - **Nothing is written in the diff:** "Save" returns to the screen that
+      opened it, which saves as every edit is saved (decision 51); "Back to
+      editing" writes nothing. Lines above the diff can say more, such as
+      an AI's reason for the edit or links to IDs that are no note (#39).
+    - **Who uses it:** restoring an earlier version now; editing a node's
+      text (#37) and AI edits (#39) next. Appending (#36) needs none, since
+      it only adds.
+    - **Earlier versions,** in the node view's "Edit" menu: the versions
+      the app kept before each edit made here (rule 3), newest first. One
+      is restored through the diff against the note as it is now, and
+      saved as every edit is, so restoring keeps the version it replaces
+      too. The list belongs to the folder it was opened in: if another
+      folder is chosen meanwhile (for write access), nothing is restored
+      there, as for appending (decision 54).
+    - Tests: added, removed and changed lines, line numbers on both sides,
+      a moved block as one removal and one addition, hunks with context
+      that merge when close, and 200 random edits from which both texts
+      are rebuilt; in the app, a version restored through the diff, and
+      the list without versions.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

@@ -775,6 +775,82 @@ void main() {
     });
   });
 
+  group('the diff before saving, and earlier versions (#38)', () {
+    testWidgets('an earlier version is restored through the diff',
+        (tester) async {
+      final history = MemoryEditHistory();
+      final access = withNotes(saved: writableOrg);
+      await start(tester, access, history: history);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      final original = access.texts['roam/a.org']!;
+      // An edit made here keeps the original.
+      final editor = lastWriter!.editor!;
+      final base = (await editor.read('a.org'))!;
+      final saving = editor.save('a.org', base, '${base.text}Later.\n');
+      await tester.pumpAndSettle();
+      expect(await saving, isA<Saved>());
+
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Earlier versions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('version-0')));
+      await tester.pumpAndSettle();
+      expect(find.text('-Later.'), findsOneWidget);
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+
+      expect(access.texts['roam/a.org'], original);
+      // Restoring kept the version it replaced.
+      expect(find.byKey(const ValueKey('version-1')), findsOneWidget);
+    });
+
+    testWidgets('after another folder is chosen, nothing is restored',
+        (tester) async {
+      final history = MemoryEditHistory();
+      // A version kept from an earlier edit, in the read-only folder.
+      // It keeps a's drawer, so restoring it changes no locked part.
+      await history.keep('content://tree/org\na.org',
+          '${someTexts['roam/a.org']}An old line.\n', DateTime(2026, 10, 1));
+      final access = withNotes(saved: org)
+        ..picked = const ChosenFolder(
+            uri: 'content://tree/other',
+            name: 'org',
+            hasAccess: true,
+            canWrite: true);
+      await start(tester, access, history: history);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Earlier versions'));
+      await tester.pumpAndSettle();
+      // No write access: the picker opens, and another folder is chosen.
+      await tester.tap(find.byKey(const ValueKey('version-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Restore'));
+      await tester.pumpAndSettle();
+      expect(access.pickCalls, 1);
+      // Restoring again would write into the other folder's a.org.
+      await tester.tap(find.byKey(const ValueKey('version-0')));
+      await tester.pumpAndSettle();
+      expect(access.replaced, isEmpty);
+      expect(find.textContaining('Another folder is open now'), findsOneWidget);
+    });
+
+    testWidgets('no earlier versions yet says so', (tester) async {
+      await start(tester, withNotes(saved: writableOrg));
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Earlier versions'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('No earlier versions.'), findsOneWidget);
+    });
+  });
+
   group('link to the current node (#12)', () {
     Future<FakeFolderAccess> showA(WidgetTester tester) async {
       final access = withNotes(saved: writableOrg);
