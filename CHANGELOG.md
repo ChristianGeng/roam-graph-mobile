@@ -8,6 +8,16 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Agent mode: the AI changes notes itself ([#89](https://github.com/ChristianGeng/roam-graph-mobile/pull/89))
+
+- Added: in the chat, the AI can create notes, add to them, change their
+  text and link them, without a tap per change. Afterwards the chat shows
+  what changed, each change as a diff, and "Undo all changes of this
+  message".
+- Added: AI settings, "Let the AI change notes": Off, Review each change
+  first, or Agent (the default), and the most changes per message.
+- Closes [#82](https://github.com/ChristianGeng/roam-graph-mobile/issues/82).
+
 ## 2026-10-17: The AI proposes edits, you review them ([#88](https://github.com/ChristianGeng/roam-graph-mobile/pull/88))
 
 - Added: in the chat, the AI can propose an edit of a note, or a change set

@@ -136,6 +136,24 @@ class FakeFolderAccess implements FolderAccess {
     return uri;
   }
 
+  /// The paths of files deleted, in order.
+  final deleted = <String>[];
+
+  @override
+  Future<void> deleteFile(String uri, {required String expected}) async {
+    final file = files.where((f) => f.uri == uri).firstOrNull;
+    final text = file == null ? null : texts[file.path];
+    if (file == null || text == null) {
+      throw PlatformException(code: 'missing', message: 'gone');
+    }
+    if (contentHash(utf8.encode(text)) != expected) {
+      throw PlatformException(code: 'changed', message: 'changed');
+    }
+    deleted.add(file.path);
+    files = [for (final f in files) if (f.uri != uri) f];
+    texts = {...texts}..remove(file.path);
+  }
+
   @override
   Future<List<Uint8List?>> readFiles(List<FolderFile> files) async {
     readPaths.addAll([for (final file in files) file.path]);

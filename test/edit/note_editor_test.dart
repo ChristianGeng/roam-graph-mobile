@@ -31,6 +31,18 @@ class MemoryNoteStore implements NoteStore {
   }
 
   @override
+  Future<SaveResult> delete(String path, NoteVersion base) async {
+    final now = files[path];
+    if (now == null) return const NoteGone();
+    if (contentHash(utf8.encode(now)) != base.hash) {
+      return ChangedMeanwhile(await read(path));
+    }
+    files.remove(path);
+    writes++;
+    return Saved(path);
+  }
+
+  @override
   String historyKey(String path) => path;
 }
 

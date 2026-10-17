@@ -4,6 +4,7 @@ import 'package:org_flutter/org_flutter.dart';
 
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../edit/agent_changes.dart';
 import '../edit/change_set.dart';
 import '../edit/change_set_screen.dart';
 import '../edit/diff_screen.dart';
@@ -11,6 +12,7 @@ import '../edit/edit_proposal.dart';
 import '../edit/note_editor.dart';
 import '../edit/save_messages.dart';
 import '../graph/roam_graph.dart';
+import 'agent_tools.dart';
 import 'ai_chat.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
@@ -34,6 +36,7 @@ class ChatScreen extends StatefulWidget {
     this.writer,
     this.openNode,
     this.post = postWithDartIo,
+    this.agentLog = const FileAgentLog(),
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -50,6 +53,9 @@ class ChatScreen extends StatefulWidget {
 
   /// HTTP; tests replace it.
   final HttpPost post;
+
+  /// Where the agent's changes are logged (#82).
+  final AgentLog agentLog;
 
   static Future<void> open(
     BuildContext context, {
@@ -106,6 +112,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// The limit on notes per change set, from AI settings.
   int _maxFiles = 20;
+
+  /// The agent's writes (#82), when AI settings let the AI change notes
+  /// itself; null otherwise.
+  AgentWriter? _agent;
+
+  /// What the agent changed, by the index of the message in the
+  /// transcript that asked for it.
+  final _turnChanges = <int, AgentChanges>{};
+
+  /// Undo is running for this message.
+  int? _undoing;
 
   @override
   void initState() {
@@ -182,6 +199,7 @@ class _ChatScreenState extends State<ChatScreen> {
       // A new chat: tool-call IDs can repeat across chats, so nothing of
       // the old one may be found under them.
       _proposals.clear();
+      _turnChanges.clear();
       _proposalStatus.clear();
       _setProposals.clear();
       _sets.clear();
@@ -199,6 +217,23 @@ class _ChatScreenState extends State<ChatScreen> {
           : config.keyRequired && config.apiKey.isEmpty
           ? 'Enter the API key for ${config.name} in AI settings.'
           : null;
+      final editor = widget.writer?.editor;
+      // What the AI may change, as AI settings say, and only where notes
+      // can be saved.
+      final mode = editor == null ? AiEditMode.off : settings.editMode;
+      _agent = mode == AiEditMode.agent
+          ? AgentWriter(
+              writer: widget.writer!,
+              visibleGraph: () =>
+                  settings.visibility.visibleGraph(widget.graph.value),
+              hiddenIds: () =>
+                  settings.visibility.hiddenIds(widget.graph.value),
+              visibility: settings.visibility,
+              folder: () => editor!.store.historyKey('').split('\n').first,
+              limit: settings.maxAgentChanges,
+              log: widget.agentLog,
+            )
+          : null;
       _session = config == null
           ? null
           : ChatSession(
@@ -206,17 +241,22 @@ class _ChatScreenState extends State<ChatScreen> {
               config: config,
               post: widget.post,
               maxToolRounds: settings.maxToolRounds,
-              // Edits are offered only where they can be saved.
-              toolList: widget.writer?.editor == null
-                  ? null
-                  : [
-                      ...aiTools,
-                      proposeEditTool,
-                      proposeEditsTool(settings.maxChangeSetFiles),
-                    ],
+              toolList: switch (mode) {
+                AiEditMode.off => null,
+                AiEditMode.review => [
+                    ...aiTools,
+                    proposeEditTool,
+                    proposeEditsTool(settings.maxChangeSetFiles),
+                  ],
+                AiEditMode.agent => [...aiTools, ...agentTools],
+              },
+              system: mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt,
               handlers: {
-                'propose_edit': _propose,
-                'propose_edits': _proposeSet,
+                if (mode == AiEditMode.review) ...{
+                  'propose_edit': _propose,
+                  'propose_edits': _proposeSet,
+                },
+                ...?_agent?.handlers,
               },
             );
     });
@@ -235,6 +275,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _input.text.trim();
     if (session == null || text.isEmpty || _sending) return;
     _input.clear();
+    // The agent's changes for this message are kept under its index.
+    if (_agent case final agent?) {
+      _turnChanges[session.transcript.length] = agent.startMessage();
+    }
     await _run(() => session.send(text, context: _context, onUpdate: _changed));
   }
 
@@ -565,7 +609,13 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       );
     }
-    for (final (i, entry) in (session?.transcript ?? const []).indexed) {
+    final transcript = session?.transcript ?? const <ChatEntry>[];
+    var turn = 0;
+    for (final (i, entry) in transcript.indexed) {
+      if (entry is UserMessage) turn = i;
+      // The agent's summary goes after the last entry of its message.
+      final lastOfTurn =
+          i == transcript.length - 1 || transcript[i + 1] is UserMessage;
       switch (entry) {
         case UserMessage():
           children.add(
@@ -703,6 +753,14 @@ class _ChatScreenState extends State<ChatScreen> {
             }
           }
       }
+      // After the answer: what the agent changed for this message.
+      final changes = _turnChanges[turn];
+      if (lastOfTurn &&
+          !(_sending && i == transcript.length - 1) &&
+          changes != null &&
+          !changes.isEmpty) {
+        children.add(_agentSummary(turn, changes));
+      }
     }
     if (_error case final error?) {
       children.add(
@@ -748,6 +806,99 @@ class _ChatScreenState extends State<ChatScreen> {
       controller: _scroll,
       children: children,
     );
+  }
+
+  /// The summary of what the agent changed for the message at [turn]:
+  /// each note, to open or to see the change as a diff, and "Undo all".
+  Widget _agentSummary(int turn, AgentChanges changes) {
+    final undone = changes.undone;
+    return Card(
+      key: ValueKey('agent-summary-$turn'),
+      margin: const EdgeInsets.fromLTRB(8, 4, 24, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.auto_fix_high_outlined),
+            title: Text(changes.summary, key: ValueKey('agent-counts-$turn')),
+            subtitle: undone == null ? null : Text(_undoText(undone)),
+          ),
+          for (final path in changes.files)
+            ListTile(
+              key: ValueKey('agent-file-$path'),
+              dense: true,
+              title: Text(changes.first(path).title),
+              subtitle: Text(
+                '${changes.createdFiles.contains(path) ? 'Created' : 'Changed'}'
+                '${switch (undone?[path]) {
+                  UndoOutcome.restored => ', restored',
+                  UndoOutcome.deleted => ', deleted again',
+                  UndoOutcome.changedSince => ', changed since: kept',
+                  UndoOutcome.otherFolder =>
+                    ', in the folder opened before: kept',
+                  UndoOutcome.failed => ', could not be undone',
+                  null => ''
+                }}',
+              ),
+              onTap: () {
+                final id = changes.first(path).nodeId;
+                if (widget.graph.value.nodes.containsKey(id)) {
+                  widget.openNode?.call(context, id);
+                } else {
+                  _tell('That note is not in the graph now.');
+                }
+              },
+              trailing: IconButton(
+                tooltip: 'Show the change',
+                icon: const Icon(Icons.difference_outlined),
+                onPressed: () => DiffScreen.view(
+                  context,
+                  title: changes.first(path).title,
+                  before: changes.before(path) ?? '',
+                  after: changes.after(path),
+                ),
+              ),
+            ),
+          if (changes.canUndo)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: TextButton.icon(
+                key: ValueKey('agent-undo-$turn'),
+                onPressed:
+                    _sending || _undoing != null ? null : () => _undo(turn),
+                icon: const Icon(Icons.undo),
+                label: Text(undone == null
+                    ? 'Undo all changes of this message'
+                    : 'Try the rest again'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _undoText(Map<String, UndoOutcome> outcome) {
+    final kept = outcome.values.where((o) => o != UndoOutcome.restored &&
+        o != UndoOutcome.deleted);
+    return kept.isEmpty
+        ? 'Undone.'
+        : 'Undone, except ${kept.length} '
+            '${kept.length == 1 ? 'note' : 'notes'} changed since or not '
+            'writable; those stay as they are.';
+  }
+
+  /// Undoes every change the agent made for the message at [turn].
+  Future<void> _undo(int turn) async {
+    final changes = _turnChanges[turn];
+    final editor = widget.writer?.editor;
+    if (changes == null || editor == null) return;
+    setState(() => _undoing = turn);
+    try {
+      final outcome = await changes.undoAll(editor);
+      if (mounted) _tell(_undoText(outcome));
+    } finally {
+      if (mounted) setState(() => _undoing = null);
+    }
   }
 
   Widget _composer(BuildContext context) {

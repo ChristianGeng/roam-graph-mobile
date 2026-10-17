@@ -70,6 +70,23 @@ class ProviderSettings {
   }
 }
 
+/// "Let the AI change notes" (#82).
+enum AiEditMode {
+  /// The AI only reads.
+  off('Off: the AI only reads'),
+
+  /// The AI proposes edits; each is saved only after my OK (#39, #76).
+  review('Review each change first'),
+
+  /// The AI creates, edits and links notes itself; I see a summary
+  /// afterwards and can undo all changes of a message.
+  agent('Agent: it changes notes itself, I can undo');
+
+  const AiEditMode(this.label);
+
+  final String label;
+}
+
 /// The settings of the AI features: which tags hide a note from AI (#57),
 /// and the provider the chat uses (#59). Kept in the app's own storage,
 /// not in the notes; API keys are in [ApiKeyStore].
@@ -81,6 +98,8 @@ class AiSettings {
     this.maxToolRounds = 10,
     this.maxOutputTokens = 8192,
     this.maxChangeSetFiles = 20,
+    this.editMode = AiEditMode.agent,
+    this.maxAgentChanges = 30,
   });
 
   /// Tags that hide a note from AI; by default `private`.
@@ -101,6 +120,13 @@ class AiSettings {
   /// The most notes one AI change set may edit (#76).
   final int maxChangeSetFiles;
 
+  /// How the AI may change notes (#82): not at all, through edits I
+  /// review first, or on its own as an agent.
+  final AiEditMode editMode;
+
+  /// The most changes the agent may make for one message (#82).
+  final int maxAgentChanges;
+
   AiVisibility get visibility => AiVisibility(hiddenTags.toSet());
 
   ProviderPreset get preset => presetById(provider);
@@ -118,6 +144,8 @@ class AiSettings {
     int? maxToolRounds,
     int? maxOutputTokens,
     int? maxChangeSetFiles,
+    AiEditMode? editMode,
+    int? maxAgentChanges,
   }) =>
       AiSettings(
         hiddenTags: hiddenTags ?? this.hiddenTags,
@@ -126,6 +154,8 @@ class AiSettings {
         maxToolRounds: maxToolRounds ?? this.maxToolRounds,
         maxOutputTokens: maxOutputTokens ?? this.maxOutputTokens,
         maxChangeSetFiles: maxChangeSetFiles ?? this.maxChangeSetFiles,
+        editMode: editMode ?? this.editMode,
+        maxAgentChanges: maxAgentChanges ?? this.maxAgentChanges,
       );
 
   Map<String, Object?> toJson() => {
@@ -138,6 +168,8 @@ class AiSettings {
         'maxToolRounds': maxToolRounds,
         'maxOutputTokens': maxOutputTokens,
         'maxChangeSetFiles': maxChangeSetFiles,
+        'editMode': editMode.name,
+        'maxAgentChanges': maxAgentChanges,
       };
 
   /// Settings from [json]; a missing or unreadable value keeps its default.
@@ -168,6 +200,11 @@ class AiSettings {
       maxOutputTokens: positive('maxOutputTokens', defaults.maxOutputTokens),
       maxChangeSetFiles:
           positive('maxChangeSetFiles', defaults.maxChangeSetFiles),
+      editMode: AiEditMode.values
+              .where((m) => m.name == json['editMode'])
+              .firstOrNull ??
+          defaults.editMode,
+      maxAgentChanges: positive('maxAgentChanges', defaults.maxAgentChanges),
     );
   }
 }
@@ -441,6 +478,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _rounds = TextEditingController();
   final _tokens = TextEditingController();
   final _files = TextEditingController();
+  final _changes = TextEditingController();
+  AiEditMode _editMode = AiEditMode.agent;
   AiSettings? _loaded;
   String? _problem;
 
@@ -456,6 +495,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _rounds.text = '${settings.maxToolRounds}';
       _tokens.text = '${settings.maxOutputTokens}';
       _files.text = '${settings.maxChangeSetFiles}';
+      _changes.text = '${settings.maxAgentChanges}';
+      _editMode = settings.editMode;
       await _draft(_provider);
       if (mounted) {
         setState(() => _tags = TextEditingController(
@@ -485,6 +526,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _rounds.dispose();
     _tokens.dispose();
     _files.dispose();
+    _changes.dispose();
     for (final d in _drafts.values) {
       d.dispose();
     }
@@ -502,6 +544,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final rounds = int.tryParse(_rounds.text.trim());
     final tokens = int.tryParse(_tokens.text.trim());
     final files = int.tryParse(_files.text.trim());
+    final changes = int.tryParse(_changes.text.trim());
+    if (changes == null || changes < 1) {
+      setState(() => _problem =
+          'The changes per message must be at least 1.');
+      return;
+    }
     if (rounds == null ||
         rounds < 1 ||
         tokens == null ||
@@ -523,6 +571,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       maxToolRounds: rounds,
       maxOutputTokens: tokens,
       maxChangeSetFiles: files,
+      editMode: _editMode,
+      maxAgentChanges: changes,
     );
     final keys = AiSettingsScope.keysOf(context);
     try {
@@ -755,6 +805,28 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(
           labelText: 'Most tokens per answer, thinking included',
+        ),
+      ),
+      DropdownButtonFormField<AiEditMode>(
+        key: const ValueKey('edit-mode'),
+        initialValue: _editMode,
+        isExpanded: true,
+        decoration:
+            const InputDecoration(labelText: 'Let the AI change notes'),
+        items: [
+          for (final mode in AiEditMode.values)
+            DropdownMenuItem(value: mode, child: Text(mode.label)),
+        ],
+        onChanged: (mode) {
+          if (mode != null) setState(() => _editMode = mode);
+        },
+      ),
+      TextField(
+        key: const ValueKey('max-agent-changes'),
+        controller: _changes,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: 'Most changes the agent may make for one message',
         ),
       ),
       TextField(

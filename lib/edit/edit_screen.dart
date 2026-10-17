@@ -137,7 +137,7 @@ class _EditScreenState extends State<EditScreen> {
     }
     // `#+title:` and `#+filetags:` count anywhere in the file, so their
     // lines in the text stay as they are too (rule 5).
-    if (!_sameLockedKeywords(widget.lines.body, _text.text)) {
+    if (!sameLockedKeywords(widget.lines.body, _text.text)) {
       _tell('Lines with #+title: or #+filetags: stay as they are: they set '
           "the note's title and tags. Nothing was saved.");
       return;
@@ -294,20 +294,3 @@ class _EditScreenState extends State<EditScreen> {
 
 /// What a page pops with for "Start again from the new version".
 const _startAgain = #startAgain;
-
-/// The `#+title:` and `#+filetags:` lines, which set a file's title and
-/// tags wherever they are.
-final _lockedKeyword =
-    RegExp(r'^[ \t]*#\+(title|filetags):', caseSensitive: false);
-
-/// Whether [before] and [after] have the same `#+title:` and
-/// `#+filetags:` lines, in the same order.
-bool _sameLockedKeywords(String before, String after) {
-  List<String> of(String text) => [
-        for (final line in text.split(RegExp(r'\r?\n')))
-          if (_lockedKeyword.hasMatch(line)) line.trim(),
-      ];
-  final a = of(before), b = of(after);
-  return a.length == b.length &&
-      [for (var i = 0; i < a.length; i++) a[i] == b[i]].every((same) => same);
-}

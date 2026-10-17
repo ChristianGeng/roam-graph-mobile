@@ -880,5 +880,30 @@ class _FolderNoteStore implements NoteStore {
   }
 
   @override
+  Future<SaveResult> delete(String path, NoteVersion base) async {
+    final folder = _state._folder;
+    final file = _state._roamFiles[path];
+    if (folder == null || file == null) return const NoteGone();
+    if (!folder.canWrite) return const NoWriteAccessToEdit();
+    try {
+      await _access.deleteFile(file.uri, expected: base.hash);
+    } on PlatformException catch (e) {
+      switch (e.code) {
+        case 'changed':
+          return ChangedMeanwhile(await read(path));
+        case 'missing':
+          return const NoteGone();
+        default:
+          return SaveFailed(e.message ?? e.code);
+      }
+    }
+    await _state._rescan();
+    if (_state._status != _Status.indexed) {
+      return SavedNotIndexed(path, _state._error);
+    }
+    return Saved(path);
+  }
+
+  @override
   String historyKey(String path) => '${_state._folder?.uri ?? ''}\n$path';
 }

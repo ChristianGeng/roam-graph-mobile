@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 import 'package:roam_graph_mobile/ai/chat_screen.dart';
 import 'package:roam_graph_mobile/capture/capture_screen.dart';
+import 'package:roam_graph_mobile/edit/agent_changes.dart';
 import 'package:roam_graph_mobile/edit/note_editor.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
@@ -30,18 +31,22 @@ Future<void> openChat(
   RoamNode? startNode,
   NoteWriter? writer,
   void Function(String id)? opened,
+  AiSettings settings = const AiSettings(),
+  AgentLog? agentLog,
+  ValueNotifier<RoamGraph>? graphNotifier,
 }) async {
   await tester.pumpWidget(AiSettingsHost(
-    store: MemoryAiSettingsStore(),
+    store: MemoryAiSettingsStore(settings),
     keys: keys ?? keysWithAnthropic(),
     child: MaterialApp(
       home: ChatScreen(
-        graph: ValueNotifier(graph),
+        graph: graphNotifier ?? ValueNotifier(graph),
         readNote: (path) async => notes[path],
         startNode: startNode,
         writer: writer,
         openNode: (_, id) => opened?.call(id),
         post: server.post,
+        agentLog: agentLog ?? MemoryAgentLog(),
       ),
     ),
   ));
@@ -197,6 +202,87 @@ void main() {
         isNot(contains('My diary')));
   });
 
+  group('agent mode (#82)', () {
+    testWidgets('the AI changes notes itself; a summary and "Undo all"',
+        (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {
+            'type': 'tool_use',
+            'id': 'a1',
+            'name': 'create_node',
+            'input': {'title': 'Morel', 'text': 'A mushroom.'},
+          },
+          {
+            'type': 'tool_use',
+            'id': 'a2',
+            'name': 'append_to_node',
+            'input': {'id': 'plan', 'text': 'Mushrooms come next.'},
+          },
+        ], stop: 'tool_use'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Done.'},
+        ]),
+      ]);
+      final store = MemoryNoteStore(Map.of(notes));
+      final writer = NoteWriter(
+        create: (name, text) async {
+          store.files[name] = text;
+          return Created(name);
+        },
+        allowWriting: () async {},
+        editor: NoteEditor(store: store, history: MemoryEditHistory()),
+      );
+      final log = MemoryAgentLog();
+      await openChat(tester, server, writer: writer, agentLog: log);
+      await ask(tester, 'Make a note on morels.');
+
+      // Agent is the default: the write tools are offered, the review
+      // tools are not.
+      final tools = [
+        for (final t in server.requests.first.body['tools'] as List) t['name']
+      ];
+      expect(tools, containsAll(['create_node', 'append_to_node',
+          'edit_node_text', 'add_link']));
+      expect(tools, isNot(contains('propose_edit')));
+      // Both changes made, without a tap.
+      expect(store.files.length, notes.length + 1);
+      expect(store.files['plan.org'], endsWith('Mushrooms come next.\n'));
+      expect(log.entries, hasLength(2));
+      expect(find.text('1 note created, 1 changed'), findsOneWidget);
+      expect(find.byKey(const ValueKey('agent-file-plan.org')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('agent-undo-0')));
+      await tester.pumpAndSettle();
+      expect(store.files, notes);
+      expect(find.text('Undone.'), findsWidgets);
+    });
+
+    testWidgets('"Off" offers no write tools', (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Hi.'},
+        ]),
+      ]);
+      final writer = NoteWriter(
+        create: (name, text) async => Created(name),
+        allowWriting: () async {},
+        editor: NoteEditor(
+            store: MemoryNoteStore(Map.of(notes)),
+            history: MemoryEditHistory()),
+      );
+      await openChat(tester, server,
+          writer: writer,
+          settings: const AiSettings(editMode: AiEditMode.off));
+      await ask(tester, 'Hi');
+      final tools = [
+        for (final t in server.requests.first.body['tools'] as List) t['name']
+      ];
+      expect(tools, isNot(contains('create_node')));
+      expect(tools, isNot(contains('propose_edit')));
+    });
+  });
+
   group('AI edits (#39)', () {
     var lastBody = '';
     Future<(MemoryNoteStore, MemoryEditHistory)> proposeAndOpen(
@@ -221,7 +307,9 @@ void main() {
         allowWriting: () async {},
         editor: NoteEditor(store: store, history: history),
       );
-      await openChat(tester, server, writer: writer);
+      await openChat(tester, server,
+          writer: writer,
+          settings: const AiSettings(editMode: AiEditMode.review));
       await ask(tester, 'Link Plan to Health.');
       // The tool is offered, and its result tells the model nothing is
       // saved yet.
@@ -309,7 +397,9 @@ void main() {
       allowWriting: () async {},
       editor: NoteEditor(store: store, history: MemoryEditHistory()),
     );
-    await openChat(tester, server, writer: writer);
+    await openChat(tester, server,
+        writer: writer,
+        settings: const AiSettings(editMode: AiEditMode.review));
     await ask(tester, 'Link my plan and ideas.');
     final tool = (server.requests.first.body['tools'] as List)
         .firstWhere((t) => t['name'] == 'propose_edits');

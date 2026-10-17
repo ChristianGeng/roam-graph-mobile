@@ -170,3 +170,24 @@ class NodeLines {
     return result.join(newline);
   }
 }
+
+/// The `#+title:` and `#+filetags:` lines, which set a file's title and
+/// tags wherever they are.
+final _lockedKeyword =
+    RegExp(r'^[ \t]*#\+(title|filetags):', caseSensitive: false);
+
+/// Whether [before] and [after] have the same `#+title:` and
+/// `#+filetags:` lines, in the same order: an edit may not change a
+/// note's title or tags through them (decision 10, rule 5).
+bool sameLockedKeywords(String before, String after) {
+  List<String> of(String text) => [
+        for (final line in text.split(RegExp(r'\r?\n')))
+          if (_lockedKeyword.hasMatch(line)) line.trim(),
+      ];
+  final a = of(before), b = of(after);
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}

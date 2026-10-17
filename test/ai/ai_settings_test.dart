@@ -350,6 +350,17 @@ void main() {
     });
   });
 
+  test('how the AI may change notes: agent by default, saved (#82)', () {
+    expect(const AiSettings().editMode, AiEditMode.agent);
+    expect(const AiSettings().maxAgentChanges, 30);
+    const settings =
+        AiSettings(editMode: AiEditMode.review, maxAgentChanges: 5);
+    final back = AiSettings.fromJson(jsonDecode(jsonEncode(settings.toJson())));
+    expect(back.editMode, AiEditMode.review);
+    expect(back.maxAgentChanges, 5);
+    expect(AiSettings.fromJson({'editMode': 'gone'}).editMode, AiEditMode.agent);
+  });
+
   group('providers (#59)', () {
     test('saved provider values come back; unknown ones keep defaults', () {
       final settings = AiSettings(
