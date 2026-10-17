@@ -180,7 +180,7 @@ void main() {
     await tester.pump();
     expect(opened, [Uri.parse('https://example.com')]);
     expect(find.text('Opening https://example.com'), findsOneWidget);
-    // The address can be copied.
+    // The address can be copied, once the snack bar is in.
     String? copied;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform, (call) async {
@@ -189,8 +189,11 @@ void main() {
       }
       return null;
     });
-    await tester.tap(find.text('Copy'));
-    await tester.pump();
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SnackBarAction, 'Copy'));
+    await tester.pumpAndSettle();
     expect(copied, 'https://example.com');
     expect(title('A'), findsOneWidget);
   });
@@ -216,7 +219,10 @@ void main() {
     await tester.pump();
     await tester.tapOnText(find.textRange.ofSubstring('phone'));
     await tester.pump();
-    await tester.tapOnText(find.textRange.ofSubstring('example.org/page'));
+    // A plain link is drawn with zero-width spaces between its letters,
+    // so it can wrap anywhere.
+    await tester.tapOnText(find.textRange
+        .ofSubstring('example.org/page'.split('').join('\u200b')));
     await tester.pump();
     expect(opened, [
       'mailto:a@example.org',
