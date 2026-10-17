@@ -418,6 +418,44 @@ void main() {
       expect(vercel.model, 'deepseek/deepseek-v4-pro');
     });
 
+    testWidgets('"Reset to the defaults" brings back the preset\'s models',
+        (tester) async {
+      final store = MemoryAiSettingsStore();
+      await pumpIn(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => AiSettingsScreen.open(context),
+            child: const Text('open'),
+          ),
+        ),
+        store: store,
+        keys: MemoryKeyStore(),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      final reset = find.byKey(const ValueKey('reset-models-anthropic'),
+          skipOffstage: false);
+      // As the preset: nothing to reset.
+      expect(reset, findsNothing);
+      final model = find.byKey(const ValueKey('default-model-anthropic'));
+      await scrollTo(tester, model);
+      await tester.enterText(model, 'gemini-x');
+      await tester.enterText(
+          find.byKey(const ValueKey('strong-model-anthropic')), '');
+      await tester.pump();
+      await scrollTo(tester, reset);
+      await tester.tap(reset);
+      await tester.pump();
+      expect(reset, findsNothing);
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(store.settings.providerSettings('anthropic').defaultModel,
+          'claude-sonnet-5-5');
+      expect(store.settings.providerSettings('anthropic').strongModel,
+          'claude-opus-5-5');
+    });
+
     testWidgets('choosing a provider, its note, its key', (tester) async {
       final store = MemoryAiSettingsStore();
       final keys = MemoryKeyStore();

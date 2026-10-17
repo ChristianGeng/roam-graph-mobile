@@ -8,6 +8,11 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Reset a provider's models to the defaults ([#107](https://github.com/ChristianGeng/roam-graph-mobile/pull/107))
+
+- Added: "Reset to the defaults" in AI settings, below the model fields,
+  when the base URL, a model or "EU only" differs from the provider's
+  defaults. It puts them back; Save keeps them.
 ## 2026-10-17: A default model for Vercel ([#105](https://github.com/ChristianGeng/roam-graph-mobile/pull/105))
 
 - Changed: Vercel AI Gateway now starts with the model
