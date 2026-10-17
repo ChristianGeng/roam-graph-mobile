@@ -1366,6 +1366,27 @@ devices through Syncthing.
       are rebuilt; in the app, a version restored through the diff, and
       the list without versions.
 
+53. **"Edit text" changes a node's text, with its head locked** (#37),
+    `lib/edit/edit_screen.dart`:
+    - **What can be edited:** a file node's text below its head, or a
+      heading node's subtree below its head. The head stays as it is
+      (rule 5) and is shown above the text field, not editable: for a
+      heading node its heading line (title and tags), planning line and
+      property drawer; for a file node its property drawer and the keyword
+      lines after it, such as `#+title:` and `#+filetags:`. Drawers of
+      other headings in the text are guarded on saving (decision 50).
+    - **Saving:** "Review" shows the diff (decision 52) of the whole file;
+      only "Save" there writes, and only over the version the editor
+      opened (rule 1). If the laptop changed the note meanwhile, nothing is
+      written: the typed text is copied to the clipboard, and the editor
+      can start again from the new version.
+    - Leaving with unsaved changes asks first.
+    - Links are typed as in Emacs, `[[id:…][…]]`; inserting a link from
+      search is left for later.
+    - Tests: in the app, the head shown but not editable and the diff
+      before anything is written; "Back to editing" writes nothing; a note
+      changed on the laptop meanwhile is not overwritten.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
