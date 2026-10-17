@@ -95,6 +95,13 @@ void main() {
     expect(opened, 'plan');
   });
 
+  testWidgets('an answer without text says so', (tester) async {
+    final server = FakeServer([anthropicReply([])]);
+    await openChat(tester, server);
+    await ask(tester, 'Hello?');
+    expect(find.text('The model sent no text.'), findsOneWidget);
+  });
+
   testWidgets('without a key, the chat says where to enter it',
       (tester) async {
     final server = FakeServer([]);

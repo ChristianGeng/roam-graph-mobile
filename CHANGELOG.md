@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Mistral answers after tool calls ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Fixed: with the Mistral preset, the answer after tool calls was not
+  shown, and a follow-up failed with HTTP 400.
+- Changed: an answer without text says "The model sent no text.", and
+  HTTP 400 errors show the provider's message first.
+- Closes [#79](https://github.com/ChristianGeng/roam-graph-mobile/issues/79).
+
 ## 2026-10-17: Choose the AI model from the provider's list ([#83](https://github.com/ChristianGeng/roam-graph-mobile/pull/83))
 
 - Added: "Choose model" next to the model fields in the AI settings. It
