@@ -24,6 +24,7 @@ class EditScreen extends StatefulWidget {
     required this.base,
     required this.lines,
     required this.noteKey,
+    this.initialBody,
   });
 
   final NoteWriter writer;
@@ -39,12 +40,17 @@ class EditScreen extends StatefulWidget {
   /// note, and nothing is saved into it.
   final String noteKey;
 
+  /// The text to start with instead of the node's, such as a revised
+  /// version shared from an AI app (#39).
+  final String? initialBody;
+
   /// Reads the note and opens the editor. Returns what to tell the user
   /// when an edit was saved, or null if nothing was saved. "Start again
   /// from the new version" opens the editor again within this call, so
-  /// its save is reported too.
-  static Future<String?> open(
-      BuildContext context, NoteWriter writer, RoamNode node) async {
+  /// its save is reported too; it starts from the new version's text, not
+  /// from [initialBody].
+  static Future<String?> open(BuildContext context, NoteWriter writer,
+      RoamNode node, {String? initialBody}) async {
     final editor = writer.editor;
     if (editor == null) return null;
     final messenger = ScaffoldMessenger.of(context);
@@ -72,8 +78,10 @@ class EditScreen extends StatefulWidget {
             node: node,
             base: base,
             lines: lines,
-            noteKey: noteKey),
+            noteKey: noteKey,
+            initialBody: initialBody),
       ));
+      initialBody = null;
       if (result == _startAgain) continue;
       return result is String ? result : null;
     }
@@ -84,7 +92,8 @@ class EditScreen extends StatefulWidget {
 }
 
 class _EditScreenState extends State<EditScreen> {
-  late final _text = TextEditingController(text: widget.lines.body);
+  late final _text =
+      TextEditingController(text: widget.initialBody ?? widget.lines.body);
   bool _saving = false;
 
   /// Set when the user chose to leave, so the page may close.

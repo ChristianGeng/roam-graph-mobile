@@ -8,6 +8,15 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: The AI proposes edits, you review them ([#88](https://github.com/ChristianGeng/roam-graph-mobile/pull/88))
+
+- Added: in the chat, the AI can propose an edit of a note, or a change set
+  of edits to several notes. Each shows as a diff; nothing is saved until
+  you accept it, and a saved change set can be undone together.
+- Added: text shared from an AI app can be added to, or replace the text
+  of, an existing node, again through the diff.
+- Closes [#39](https://github.com/ChristianGeng/roam-graph-mobile/issues/39) and [#76](https://github.com/ChristianGeng/roam-graph-mobile/issues/76).
+
 ## 2026-10-17: Edit a node's text ([#87](https://github.com/ChristianGeng/roam-graph-mobile/pull/87))
 
 - Added: "Edit text" in the node view's Edit menu. The ID, the property

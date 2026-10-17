@@ -542,6 +542,7 @@ class ChatSession {
     this.post = postWithDartIo,
     this.maxToolRounds = 10,
     this.toolList,
+    this.handlers = const {},
   }) : _config = config;
 
   /// The tools; the chat screen replaces them when the graph or the
@@ -555,6 +556,11 @@ class ChatSession {
 
   /// The tools offered; all of [aiTools] by default.
   final List<AiTool>? toolList;
+
+  /// Tools the chat runs itself rather than [tools], by name, such as
+  /// `propose_edit` (#39), which records a proposal for the user to
+  /// review. Each gets the call and returns the text for the model.
+  final Map<String, Future<String> Function(ToolCall call)> handlers;
 
   ProviderConfig _config;
   ProviderConfig get config => _config;
@@ -654,6 +660,7 @@ class ChatSession {
       return 'Error: the arguments are not valid JSON: ${call.badArguments}';
     }
     try {
+      if (handlers[call.name] case final handler?) return await handler(call);
       return await tools.call(call.name, call.input);
     } catch (e) {
       return 'Error: the tool failed: $e';

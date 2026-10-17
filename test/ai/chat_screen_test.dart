@@ -6,12 +6,14 @@ import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 import 'package:roam_graph_mobile/ai/chat_screen.dart';
 import 'package:roam_graph_mobile/capture/capture_screen.dart';
+import 'package:roam_graph_mobile/edit/note_editor.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
 
 import '../graph_view/graph_screen_test.dart'
     show MemoryNodeMemory, algorithmsHere, layoutHere;
+import '../edit/note_editor_test.dart' show MemoryNoteStore;
 import 'ai_chat_test.dart' show FakeServer, anthropicReply;
 import 'ai_settings_test.dart' show MemoryAiSettingsStore, MemoryKeyStore;
 import 'ai_visibility_test.dart' show graphOf, notes;
@@ -193,6 +195,153 @@ void main() {
     expect(opened, isNotNull);
     expect(jsonEncode([for (final r in server.requests) r.body]),
         isNot(contains('My diary')));
+  });
+
+  group('AI edits (#39)', () {
+    var lastBody = '';
+    Future<(MemoryNoteStore, MemoryEditHistory)> proposeAndOpen(
+        WidgetTester tester, Map<String, Object?> input) async {
+      final server = FakeServer([
+        anthropicReply([
+          {
+            'type': 'tool_use',
+            'id': 'e1',
+            'name': 'propose_edit',
+            'input': input,
+          },
+        ], stop: 'tool_use'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Proposed; please review it.'},
+        ]),
+      ]);
+      final store = MemoryNoteStore(Map.of(notes));
+      final history = MemoryEditHistory();
+      final writer = NoteWriter(
+        create: (name, text) async => Created(name),
+        allowWriting: () async {},
+        editor: NoteEditor(store: store, history: history),
+      );
+      await openChat(tester, server, writer: writer);
+      await ask(tester, 'Link Plan to Health.');
+      // The tool is offered, and its result tells the model nothing is
+      // saved yet.
+      final tools = [
+        for (final t in server.requests.first.body['tools'] as List) t['name']
+      ];
+      expect(tools, contains('propose_edit'));
+      lastBody = jsonEncode(server.requests.last.body);
+      return (store, history);
+    }
+
+    testWidgets('a proposal is saved only after the diff', (tester) async {
+      final (store, history) = await proposeAndOpen(tester, {
+        'node_id': 'plan',
+        'mode': 'append',
+        'text': 'Also [[id:health][Health]] and [[id:nope][X]].',
+        'reason': 'Plan mentions health.',
+      });
+      expect(lastBody, contains('it is not saved yet'));
+      expect(find.text('Add to "Plan"'), findsOneWidget);
+      // Nothing is written by the tool.
+      expect(store.writes, 0);
+      await tester.tap(find.text('Review'));
+      await tester.pumpAndSettle();
+      expect(find.text('The AI: Plan mentions health.'), findsOneWidget);
+      expect(find.text('Links to IDs that are no note: nope.'), findsOneWidget);
+      expect(find.text('+Also [[id:health][Health]] and [[id:nope][X]].'),
+          findsOneWidget);
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(store.files['plan.org'],
+          endsWith('[[id:ideas][Ideas]].\nAlso [[id:health][Health]] and '
+              '[[id:nope][X]].\n'));
+      expect((await history.versions('plan.org')).single.text,
+          notes['plan.org']);
+      expect(find.text('Saved.'), findsOneWidget);
+    });
+
+    testWidgets('a note hidden from AI cannot be proposed', (tester) async {
+      final (store, _) = await proposeAndOpen(tester, {
+        'node_id': 'diary',
+        'mode': 'append',
+        'text': 'x',
+      });
+      expect(lastBody, contains('There is no note with the ID diary'));
+      expect(find.text('Review'), findsNothing);
+      expect(store.writes, 0);
+    });
+  });
+
+  testWidgets('a change set: accept one, reject one, save, undo (#76)',
+      (tester) async {
+    final server = FakeServer([
+      anthropicReply([
+        {
+          'type': 'tool_use',
+          'id': 's1',
+          'name': 'propose_edits',
+          'input': {
+            'summary': 'Link Plan and Ideas.',
+            'edits': [
+              {
+                'node_id': 'plan',
+                'mode': 'append',
+                'text': 'See also [[id:ideas][Ideas]].',
+                'reason': 'Related.',
+              },
+              {
+                'node_id': 'ideas',
+                'mode': 'append',
+                'text': 'See also [[id:plan][Plan]].',
+              },
+            ],
+          },
+        },
+      ], stop: 'tool_use'),
+      anthropicReply([
+        {'type': 'text', 'text': 'Please review the two edits.'},
+      ]),
+    ]);
+    final store = MemoryNoteStore(Map.of(notes));
+    final writer = NoteWriter(
+      create: (name, text) async => Created(name),
+      allowWriting: () async {},
+      editor: NoteEditor(store: store, history: MemoryEditHistory()),
+    );
+    await openChat(tester, server, writer: writer);
+    await ask(tester, 'Link my plan and ideas.');
+    final tool = (server.requests.first.body['tools'] as List)
+        .firstWhere((t) => t['name'] == 'propose_edits');
+    expect(tool['description'], contains('at most 20 notes'));
+    expect(find.text('Changes to 2 notes'), findsOneWidget);
+    expect(store.writes, 0);
+
+    await tester.tap(find.descendant(
+        of: find.byKey(const ValueKey('chat-change-set-2-0')),
+        matching: find.text('Review')));
+    await tester.pumpAndSettle();
+    expect(find.text('AI change set'), findsOneWidget);
+    await tester.tap(find.descendant(
+        of: find.byKey(const ValueKey('change-0')),
+        matching: find.text('Accept')));
+    await tester.tap(find.descendant(
+        of: find.byKey(const ValueKey('change-1')),
+        matching: find.text('Reject')));
+    await tester.pump();
+    expect(find.textContaining('1 accepted, which change 1 file and add 1 link'),
+        findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('change-save')));
+    await tester.pumpAndSettle();
+
+    expect(store.files['plan.org'], endsWith('See also [[id:ideas][Ideas]].\n'));
+    expect(store.files['ideas.org'], notes['ideas.org']);
+    expect(find.text('1 saved, 0 refused, 1 rejected.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('change-undo')));
+    await tester.pumpAndSettle();
+    expect(store.files['plan.org'], notes['plan.org']);
+    expect(find.text('The change set is undone.'), findsOneWidget);
   });
 
   testWidgets('"Ask AI" from the graph and from a node', (tester) async {

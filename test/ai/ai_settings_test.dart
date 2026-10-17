@@ -421,11 +421,17 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      // The providers are grouped; the first group is above the note.
+      expect(find.text('Data stays in the EU', skipOffstage: false),
+          findsOneWidget);
       await scrollTo(tester, find.byKey(const ValueKey('provider-note')));
-      expect(find.text('Data stays in the EU'), findsOneWidget);
       expect(find.textContaining('Safe default (Sonnet 5.5)'), findsOneWidget);
 
-      await scrollTo(tester, find.byKey(const ValueKey('provider-mistral')));
+      // Mistral is above the note: scroll back up.
+      await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('provider-mistral')), -200,
+          scrollable: find.byType(Scrollable).first);
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('provider-mistral')));
       await tester.pumpAndSettle();
       await scrollTo(tester, find.byKey(const ValueKey('provider-note')));

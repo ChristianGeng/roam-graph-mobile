@@ -15,7 +15,29 @@ class DiffScreen extends StatefulWidget {
     this.saveLabel = 'Save',
     this.backLabel = 'Back to editing',
     this.notes = const [],
+    this.viewOnly = false,
   });
+
+  /// Only shows the change, with "Close": for a change saved already,
+  /// such as one the AI agent made (#82).
+  final bool viewOnly;
+
+  /// Shows a change that is saved already.
+  static Future<void> view(
+    BuildContext context, {
+    required String title,
+    required String before,
+    required String after,
+  }) =>
+      Navigator.of(context).push<bool>(MaterialPageRoute(
+        builder: (_) => DiffScreen(
+          title: title,
+          before: before,
+          after: after,
+          backLabel: 'Close',
+          viewOnly: true,
+        ),
+      ));
 
   final String title;
   final String before;
@@ -153,6 +175,7 @@ class _DiffScreenState extends State<DiffScreen> {
                     onPressed: () => Navigator.of(context).pop(false),
                     child: Text(widget.backLabel),
                   ),
+                  if (!widget.viewOnly) ...[
                   const SizedBox(width: 8),
                   FilledButton(
                     // Any difference can be saved, also one the lines do
@@ -162,6 +185,7 @@ class _DiffScreenState extends State<DiffScreen> {
                         : () => Navigator.of(context).pop(true),
                     child: Text(widget.saveLabel),
                   ),
+                  ],
                 ],
               ),
             ),

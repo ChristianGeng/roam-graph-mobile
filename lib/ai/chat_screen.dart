@@ -4,10 +4,17 @@ import 'package:org_flutter/org_flutter.dart';
 
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../edit/change_set.dart';
+import '../edit/change_set_screen.dart';
+import '../edit/diff_screen.dart';
+import '../edit/edit_proposal.dart';
+import '../edit/note_editor.dart';
+import '../edit/save_messages.dart';
 import '../graph/roam_graph.dart';
 import 'ai_chat.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
+import 'edit_tools.dart';
 
 /// Opens a node by its ID, from a link in an answer.
 typedef OpenNode = void Function(BuildContext context, String id);
@@ -86,6 +93,20 @@ class _ChatScreenState extends State<ChatScreen> {
   /// The hidden tags the tools were made with.
   Set<String>? _hiddenTags;
 
+  /// The edits the AI proposed (#39), by the ID of the tool call, and
+  /// what became of those reviewed.
+  final _proposals = <String, EditProposal>{};
+  final _proposalStatus = <String, String>{};
+
+  /// The change sets the AI proposed (#76), by the ID of the tool call;
+  /// built when first reviewed, and kept, so their state stays.
+  final _setProposals =
+      <String, ({List<EditProposal> edits, String summary})>{};
+  final _sets = <String, ChangeSet>{};
+
+  /// The limit on notes per change set, from AI settings.
+  int _maxFiles = 20;
+
   @override
   void initState() {
     super.initState();
@@ -158,12 +179,19 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     _session?.cancel();
     setState(() {
+      // A new chat: tool-call IDs can repeat across chats, so nothing of
+      // the old one may be found under them.
+      _proposals.clear();
+      _proposalStatus.clear();
+      _setProposals.clear();
+      _sets.clear();
       _startShown = startShown;
       _hiddenTags = settings.hiddenTags.toSet();
       _error = null;
       _config = config;
       _defaultModel = values.defaultModel;
       _strongModel = values.strongModel;
+      _maxFiles = settings.maxChangeSetFiles;
       _setupProblem = config == null
           ? 'The AI settings are not available.'
           : config.model.isEmpty
@@ -178,6 +206,18 @@ class _ChatScreenState extends State<ChatScreen> {
               config: config,
               post: widget.post,
               maxToolRounds: settings.maxToolRounds,
+              // Edits are offered only where they can be saved.
+              toolList: widget.writer?.editor == null
+                  ? null
+                  : [
+                      ...aiTools,
+                      proposeEditTool,
+                      proposeEditsTool(settings.maxChangeSetFiles),
+                    ],
+              handlers: {
+                'propose_edit': _propose,
+                'propose_edits': _proposeSet,
+              },
             );
     });
   }
@@ -243,6 +283,152 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
     widget.openNode?.call(context, id);
+  }
+
+  /// Throws [ToolError] if a note of [ids] got a hidden tag since the
+  /// index was built, as the read tools check it: its title must not
+  /// reach the AI.
+  Future<void> _checkStillVisible(List<String> ids) async {
+    final visibility = AiSettingsScope.of(context).visibility;
+    for (final id in ids) {
+      final node = widget.graph.value.nodes[id];
+      if (node == null) continue;
+      final text = await widget.readNote(node.file);
+      if (text != null && visibility.hidesInText(node, text)) {
+        throw ToolError('There is no note with the ID $id that you may see.');
+      }
+    }
+  }
+
+  /// Records an edit the AI proposes (#39); the tool writes nothing.
+  Future<String> _propose(ToolCall call) async {
+    final session = _session;
+    if (session == null) return 'Error: the chat has ended.';
+    try {
+      final proposal = proposalFrom(call.input, session.tools.graph);
+      await _checkStillVisible([proposal.nodeId]);
+      _proposals[call.id] = proposal;
+      final title = session.tools.graph.nodes[proposal.nodeId]!.displayTitle;
+      return 'Recorded. I review the change to "$title" as a diff in the '
+          'app before anything is saved; it is not saved yet.';
+    } on ToolError catch (e) {
+      return 'Error: ${e.message}';
+    }
+  }
+
+  /// Records a change set the AI proposes (#76); the tool writes nothing.
+  Future<String> _proposeSet(ToolCall call) async {
+    final session = _session;
+    if (session == null) return 'Error: the chat has ended.';
+    try {
+      final edits = proposalsFrom(call.input, session.tools.graph);
+      await _checkStillVisible([for (final e in edits) e.nodeId]);
+      final files = {
+        for (final e in edits) session.tools.graph.nodes[e.nodeId]!.file,
+      };
+      if (files.length != edits.length) {
+        return 'Error: two edits are for the same file; give one edit per '
+            'file, with both changes in it.';
+      }
+      if (files.length > _maxFiles) {
+        return 'Error: the set has ${files.length} notes; the limit is '
+            '$_maxFiles. Propose fewer at a time.';
+      }
+      final summary = call.input['summary'];
+      _setProposals[call.id] =
+          (edits: edits, summary: summary is String ? summary.trim() : '');
+      return 'Recorded a change set of ${edits.length} notes. I review each '
+          'diff in the app before anything is saved; nothing is saved yet.';
+    } on ToolError catch (e) {
+      return 'Error: ${e.message}';
+    }
+  }
+
+  /// Opens the review of a change set (#76), built from the notes as they
+  /// are now on first opening.
+  Future<void> _reviewSet(String callId) async {
+    final writer = widget.writer;
+    final editor = writer?.editor;
+    final proposed = _setProposals[callId];
+    if (writer == null || editor == null || proposed == null) return;
+    var set = _sets[callId];
+    if (set == null) {
+      final settings = AiSettingsScope.of(context);
+      final graph = widget.graph.value;
+      try {
+        set = await ChangeSet.build(
+          proposed.edits,
+          editor: editor,
+          visible: settings.visibility.visibleGraph(graph),
+          graph: graph,
+          maxFiles: _maxFiles,
+          summary: proposed.summary,
+          visibility: settings.visibility,
+        );
+      } on ChangeSetError catch (e) {
+        if (mounted) _tell(e.message);
+        return;
+      }
+      _sets[callId] = set;
+    }
+    if (!mounted) return;
+    await ChangeSetScreen.open(context, set, writer, widget.graph.value);
+    if (mounted) setState(() {});
+  }
+
+  /// Shows the diff of a proposal against the note as it is now, and
+  /// saves it only on "Save" (#38, #35).
+  Future<void> _review(String callId) async {
+    final proposal = _proposals[callId];
+    final editor = widget.writer?.editor;
+    if (proposal == null || editor == null) return;
+    final graph = widget.graph.value;
+    final node = graph.nodes[proposal.nodeId];
+    if (node == null) {
+      _tell('The note is no longer in the graph.');
+      return;
+    }
+    final base = await editor.read(node.file);
+    if (!mounted) return;
+    if (base == null) {
+      _tell('Could not read ${node.file}.');
+      return;
+    }
+    if (AiSettingsScope.of(context).visibility.hidesInText(node, base.text)) {
+      _tell('${node.file} is hidden from AI now; nothing was saved.');
+      return;
+    }
+    final after = applyProposal(base.text, node, proposal);
+    if (after == null) {
+      _tell('The heading is no longer in ${node.file}.');
+      return;
+    }
+    final unknown = unknownLinkIds(proposal.text, graph);
+    final save = await DiffScreen.confirm(
+      context,
+      title: 'AI edit of ${node.displayTitle}',
+      before: base.text,
+      after: after,
+      notes: [
+        if (proposal.reason.isNotEmpty) 'The AI: ${proposal.reason}',
+        if (unknown.isNotEmpty)
+          'Links to IDs that are no note: ${unknown.join(', ')}.',
+      ],
+    );
+    if (!save || !mounted) return;
+    final result = await editor.save(node.file, base, after);
+    if (!mounted) return;
+    final message = saveMessage(result, node.file);
+    setState(() {
+      // Saved, also when indexing afterwards failed: not to save twice.
+      if (result is Saved || result is SavedNotIndexed) {
+        _proposalStatus[callId] = 'Saved.';
+      }
+    });
+    _tell(message ?? 'Saved ${node.displayTitle}.');
+    if (message != null && result is NoWriteAccessToEdit) {
+      await widget.writer?.allowWriting();
+    }
   }
 
   /// An answer as a new node, through the capture screen (#11): the title
@@ -457,6 +643,64 @@ class _ChatScreenState extends State<ChatScreen> {
             children.add(
               _ToolCallTile(key: ValueKey('chat-tool-$i-$j'), result: result),
             );
+            final callId = result.call.id;
+            if (_setProposals[callId] case final proposed?) {
+              final set = _sets[callId];
+              final saved = set?.entries
+                      .where((e) => e.state == EntryState.saved)
+                      .length ??
+                  0;
+              children.add(
+                Card(
+                  key: ValueKey('chat-change-set-$i-$j'),
+                  margin: const EdgeInsets.fromLTRB(8, 4, 24, 4),
+                  child: ListTile(
+                    leading: const Icon(Icons.library_books_outlined),
+                    title: Text(
+                        'Changes to ${proposed.edits.length} notes'),
+                    subtitle: Text(set == null
+                        ? (proposed.summary.isEmpty
+                            ? 'Not saved; review them first.'
+                            : proposed.summary)
+                        : '$saved saved'),
+                    trailing: TextButton(
+                      onPressed: () => _reviewSet(callId),
+                      child: const Text('Review'),
+                    ),
+                  ),
+                ),
+              );
+            }
+            if (_proposals[callId] case final proposal?) {
+              final title = widget.graph.value.nodes[proposal.nodeId]
+                      ?.displayTitle ??
+                  proposal.nodeId;
+              final status = _proposalStatus[callId];
+              children.add(
+                Card(
+                  key: ValueKey('chat-proposal-$i-$j'),
+                  margin: const EdgeInsets.fromLTRB(8, 4, 24, 4),
+                  child: ListTile(
+                    leading: const Icon(Icons.edit_note_outlined),
+                    title: Text(
+                      proposal.mode == EditMode.append
+                          ? 'Add to "$title"'
+                          : 'Change the text of "$title"',
+                    ),
+                    subtitle: Text(status ??
+                        (proposal.reason.isEmpty
+                            ? 'Not saved; review it first.'
+                            : proposal.reason)),
+                    trailing: status != null
+                        ? const Icon(Icons.check)
+                        : TextButton(
+                            onPressed: () => _review(callId),
+                            child: const Text('Review'),
+                          ),
+                  ),
+                ),
+              );
+            }
           }
       }
     }

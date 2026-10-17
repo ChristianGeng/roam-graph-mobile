@@ -80,6 +80,7 @@ class AiSettings {
     this.providers = const {},
     this.maxToolRounds = 10,
     this.maxOutputTokens = 8192,
+    this.maxChangeSetFiles = 20,
   });
 
   /// Tags that hide a note from AI; by default `private`.
@@ -97,6 +98,9 @@ class AiSettings {
   /// The most tokens for one answer, thinking included.
   final int maxOutputTokens;
 
+  /// The most notes one AI change set may edit (#76).
+  final int maxChangeSetFiles;
+
   AiVisibility get visibility => AiVisibility(hiddenTags.toSet());
 
   ProviderPreset get preset => presetById(provider);
@@ -113,6 +117,7 @@ class AiSettings {
     Map<String, ProviderSettings>? providers,
     int? maxToolRounds,
     int? maxOutputTokens,
+    int? maxChangeSetFiles,
   }) =>
       AiSettings(
         hiddenTags: hiddenTags ?? this.hiddenTags,
@@ -120,6 +125,7 @@ class AiSettings {
         providers: providers ?? this.providers,
         maxToolRounds: maxToolRounds ?? this.maxToolRounds,
         maxOutputTokens: maxOutputTokens ?? this.maxOutputTokens,
+        maxChangeSetFiles: maxChangeSetFiles ?? this.maxChangeSetFiles,
       );
 
   Map<String, Object?> toJson() => {
@@ -131,6 +137,7 @@ class AiSettings {
         },
         'maxToolRounds': maxToolRounds,
         'maxOutputTokens': maxOutputTokens,
+        'maxChangeSetFiles': maxChangeSetFiles,
       };
 
   /// Settings from [json]; a missing or unreadable value keeps its default.
@@ -159,6 +166,8 @@ class AiSettings {
       },
       maxToolRounds: positive('maxToolRounds', defaults.maxToolRounds),
       maxOutputTokens: positive('maxOutputTokens', defaults.maxOutputTokens),
+      maxChangeSetFiles:
+          positive('maxChangeSetFiles', defaults.maxChangeSetFiles),
     );
   }
 }
@@ -431,6 +440,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _drafts = <String, _Draft>{};
   final _rounds = TextEditingController();
   final _tokens = TextEditingController();
+  final _files = TextEditingController();
   AiSettings? _loaded;
   String? _problem;
 
@@ -445,6 +455,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _provider = settings.provider;
       _rounds.text = '${settings.maxToolRounds}';
       _tokens.text = '${settings.maxOutputTokens}';
+      _files.text = '${settings.maxChangeSetFiles}';
       await _draft(_provider);
       if (mounted) {
         setState(() => _tags = TextEditingController(
@@ -473,6 +484,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _tags?.dispose();
     _rounds.dispose();
     _tokens.dispose();
+    _files.dispose();
     for (final d in _drafts.values) {
       d.dispose();
     }
@@ -489,9 +501,15 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     if (tags == null || loaded == null) return;
     final rounds = int.tryParse(_rounds.text.trim());
     final tokens = int.tryParse(_tokens.text.trim());
-    if (rounds == null || rounds < 1 || tokens == null || tokens < 256) {
-      setState(() => _problem = 'Tool rounds must be at least 1, and tokens '
-          'per answer at least 256.');
+    final files = int.tryParse(_files.text.trim());
+    if (rounds == null ||
+        rounds < 1 ||
+        tokens == null ||
+        tokens < 256 ||
+        files == null ||
+        files < 1) {
+      setState(() => _problem = 'Tool rounds and notes per change set must '
+          'be at least 1, and tokens per answer at least 256.');
       return;
     }
     final settings = AiSettingsScope.of(context).copyWith(
@@ -504,6 +522,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       },
       maxToolRounds: rounds,
       maxOutputTokens: tokens,
+      maxChangeSetFiles: files,
     );
     final keys = AiSettingsScope.keysOf(context);
     try {
@@ -736,6 +755,14 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(
           labelText: 'Most tokens per answer, thinking included',
+        ),
+      ),
+      TextField(
+        key: const ValueKey('max-change-set-files'),
+        controller: _files,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: 'Most notes one AI change set may edit',
         ),
       ),
     ];

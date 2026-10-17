@@ -1485,6 +1485,73 @@ devices through Syncthing.
       before anything is written; "Back to editing" writes nothing; a note
       changed on the laptop meanwhile is not overwritten.
 
+57. **AI edits: the AI proposes, I see the diff, the app saves** (#39),
+    `lib/edit/edit_proposal.dart`, `lib/ai/edit_tools.dart`. The AI never
+    writes. Two ways in:
+    - **The in-app chat (#60)** offers the tool `propose_edit` (node ID,
+      mode `append` or `replace`, Org text, reason), but only where edits
+      can be saved. The tool writes nothing: it records the proposal and
+      tells the model so. Notes hidden from AI (decision 42) cannot be
+      proposed, since the tool only knows the visible graph. In the chat
+      the proposal shows as a card with "Review": the diff (decision 55)
+      against the note as it is now, with the AI's reason and any `id:`
+      links that point at no node; only "Save" writes (decision 51). The
+      tool is in the request from the first message on, so the request
+      still starts with the same bytes and the provider's cache holds
+      (prompt caching).
+    - **The share menu (#15):** the capture screen for shared text also
+      offers "Use for an existing node": "Add to a node" (decision 54) or
+      "Replace a node's text" (decision 56), with the node chosen from a
+      list that proposes the node viewed last. A replacement goes through
+      the editor and its diff. An AI app often returns the whole note;
+      when the shared text starts with the node's own drawer, the drawer
+      and the keywords after it are dropped, since the head stays as it
+      is.
+    - **For change sets (#76):** a proposal is an `EditProposal`; applying
+      it (`applyProposal`), checking its links (`unknownLinkIds`), the
+      diff screen and the save are separate pieces, so a set of proposals
+      can be reviewed one diff per file and saved one file at a time.
+    - Workflow with the Claude app: share the note to it (#41), ask for a
+      revised version, share the answer back, choose "Replace a node's
+      text", read the diff, and save.
+    - Tests: applying both modes to a file node and a heading node, a whole
+      returned note losing its head, unknown links, the tool's checks; in
+      the chat, a proposal saved only after the diff, and a hidden note
+      refused; in the app, shared text added to the node viewed last, and
+      a revised note replacing a node's text after the diff.
+
+58. **AI change sets: edits to several notes, reviewed together** (#76),
+    `lib/edit/change_set.dart`, `lib/edit/change_set_screen.dart`, and the
+    chat tool `propose_edits`. Built from the pieces of decision 57:
+    - **The tool** takes a list of edits, each as in `propose_edit` (node,
+      `append` or `replace`, text, reason), and a summary. It writes
+      nothing. One edit per file; at most the limit set in AI settings
+      ("Most notes one AI change set may edit", 20 by default), which the
+      tool's description tells the model. Notes hidden from AI cannot be
+      part of a set.
+    - **The set is built when it is first reviewed:** each note is read
+      then, and the edit applied to it, so every diff is against the note
+      as it is. `id:` links to IDs that are no note are flagged.
+    - **Review:** one card per file, with its reason, the lines removed and
+      added, and Diff, Accept, Reject and Edit (the proposed text, before
+      accepting); "Accept all"; the number of files and links the accepted
+      entries change.
+    - **Saving:** the accepted files are saved one after the other, each
+      as every edit is (decision 51), each over the version the set was
+      built on. A file changed meanwhile is refused alone; the others
+      still save. The end says how many were saved, refused and rejected.
+      Each file is replaced whole, so a sync meanwhile sees whole files;
+      conflict copies stay the laptop's (rule 4).
+    - **Undo:** "Undo this change set" gives every saved file back the text
+      it had before, but only if it is still as the set saved it;
+      otherwise it names the files it could not undo. Undoing is itself
+      saved as an edit, so the old versions stay.
+    - Tests: three files, two accepted and one rejected; one file changed
+      between proposal and save, refused alone; undo of all saved files
+      except one changed since; an unknown link flagged; a hidden note,
+      two edits of one file and too many files refused; an entry edited
+      before accepting; in the chat, a set reviewed, saved and undone.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
