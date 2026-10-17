@@ -239,7 +239,6 @@ class _NodeScreenState extends State<NodeScreen> {
     if (message != null && mounted) _tell(message);
   }
 
-  /// Edits the text of [node] (#37); the diff (#38) comes before saving.
   /// Changes this one note by an instruction to the AI, after a diff
   /// (#103). Not for a note hidden from AI.
   Future<void> _aiEdit(NoteWriter writer, RoamNode node) async {
@@ -254,6 +253,7 @@ class _NodeScreenState extends State<NodeScreen> {
     if (message != null && mounted) _tell(message);
   }
 
+  /// Edits the text of [node] (#37); the diff (#38) comes before saving.
   Future<void> _edit(NoteWriter writer, RoamNode node) async {
     final message = await EditScreen.open(context, writer, node);
     if (message != null && mounted) _tell(message);

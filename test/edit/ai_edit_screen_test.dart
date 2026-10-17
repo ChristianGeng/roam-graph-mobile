@@ -18,8 +18,8 @@ const shownIdeas = 'Open text.\n'
     '* (hidden)\n'
     '* Health\n:PROPERTIES:\n:ID: health\n:END:\nTagged below.\n'
     '** (hidden)\n'
-    '* Public part\nSee [[id:doctor][(hidden)]] and '
-    '[[id:diary][(hidden)]].\n';
+    '* Public part\nSee [[id:doctor][(hidden 1)]] and '
+    '[[id:diary][(hidden 2)]].\n';
 
 void main() {
   final graph = graphOf(notes);
@@ -28,9 +28,12 @@ void main() {
   test('hidden parts go out as placeholders and come back in place', () {
     final body = notes['ideas.org']!.substring(
         notes['ideas.org']!.indexOf('Open text.'));
-    final split = private.splitHidden(body, private.hiddenIds(graph));
+    final split = private.splitHidden(body, private.hiddenIds(graph),
+        numberLinks: true);
     expect(split.text, shownIdeas);
-    expect(split.text, private.filterText(body, private.hiddenIds(graph)));
+    // Without numbers, as every other tool shows it.
+    expect(private.splitHidden(body, private.hiddenIds(graph)).text,
+        private.filterText(body, private.hiddenIds(graph)));
     expect(split.parts, hasLength(2));
     expect(split.restore(split.text), body);
     expect(
@@ -42,6 +45,16 @@ void main() {
     expect(
         split.restore(shownIdeas.replaceFirst('** (hidden)', '*** (hidden)')),
         isNull);
+  });
+
+  test('each hidden link comes back as it was', () {
+    const body = 'See [[id:doctor][Dr A]] and [[id:doctor::notes][Dr B]].\n';
+    final split = private.splitHidden(body, {'doctor'}, numberLinks: true);
+    expect(split.text,
+        'See [[id:doctor][(hidden 1)]] and [[id:doctor][(hidden 2)]].\n');
+    expect(
+        split.restore(split.text.replaceFirst('See', 'Ask')),
+        body.replaceFirst('See', 'Ask'));
   });
 
   test('a code fence around the answer goes', () {

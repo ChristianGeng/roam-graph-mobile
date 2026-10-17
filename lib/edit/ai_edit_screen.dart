@@ -8,7 +8,6 @@ import 'package:material_ui/material_ui.dart';
 import '../ai/ai_chat.dart';
 import '../ai/ai_settings.dart';
 import '../ai/ai_tools.dart';
-import '../ai/ai_visibility.dart';
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
 import 'diff_screen.dart';
@@ -25,7 +24,7 @@ const aiEditPrompt = 'You edit one note of an org-roam notes collection. '
     'no property drawer. Keep Org syntax, keep every [[id:...]] link unless '
     'the instruction says otherwise, and keep each line "* (hidden)" (with '
     'its stars) exactly as it is, in its place: it stands for a part you '
-    'may not see.';
+    'may not see. Keep links with the text "(hidden N)" as they are.';
 
 /// The model's answer without a code fence around it.
 String withoutFence(String answer) {
@@ -118,7 +117,8 @@ class _AiEditScreenState extends State<AiEditScreen> {
           'its :ID:.';
     }
     final hidden = visibility.splitHidden(
-        lines.body, visibility.hiddenIds(widget.graph));
+        lines.body, visibility.hiddenIds(widget.graph),
+        numberLinks: true);
     final session = _session = ChatSession(
       tools: RoamTools(widget.graph, readNote: (_) async => null),
       config: config,

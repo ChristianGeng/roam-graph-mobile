@@ -90,8 +90,11 @@ class AiVisibility {
   }
 
   /// [filterText], with what it left out, so a text the AI rewrote can get
-  /// it back ([HiddenParts.restore], #103).
-  HiddenParts splitHidden(String text, Set<String> hiddenIds) {
+  /// it back ([HiddenParts.restore], #103). With [numberLinks], each link
+  /// to a hidden note gets its own description, `(hidden 1)`, …, so each
+  /// comes back as it was.
+  HiddenParts splitHidden(String text, Set<String> hiddenIds,
+      {bool numberLinks = false}) {
     final out = <String>[];
     final parts = <List<String>>[];
     int? skipLevel;
@@ -121,7 +124,9 @@ class AiVisibility {
       if (!target.startsWith('id:')) return match[0]!;
       final id = target.substring(3).split('::').first.trim();
       if (!hiddenIds.contains(id)) return match[0]!;
-      final shown = '[[id:$id][(hidden)]]';
+      final shown = numberLinks
+          ? '[[id:$id][(hidden ${links.length + 1})]]'
+          : '[[id:$id][(hidden)]]';
       links.putIfAbsent(shown, () => match[0]!);
       return shown;
     });
@@ -190,8 +195,8 @@ class HiddenParts {
   /// The hidden headings with their subtrees, in order.
   final List<String> parts;
 
-  /// Each link as the AI sees it, `[[id:x][(hidden)]]`, and the first link
-  /// it stands for.
+  /// Each link as the AI sees it, `[[id:x][(hidden 1)]]`, and the link it
+  /// stands for; without numbers, the first such link.
   final Map<String, String> links;
 
   static final _placeholder = RegExp(r'^(\*+) \(hidden\)[ \t]*$');
