@@ -7,6 +7,7 @@ import '../ai/ai_settings.dart';
 import '../ai/chat_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../edit/append_screen.dart';
 import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
@@ -227,6 +228,14 @@ class _NodeScreenState extends State<NodeScreen> {
     if (id != null && mounted) _openId(id);
   }
 
+  /// Adds text at the end of [node] (#36). The index changes after the
+  /// save, so the note is read again and shows the text.
+  Future<void> _append(NoteWriter writer, RoamNode node) async {
+    if (await AppendScreen.open(context, writer, node) && mounted) {
+      _tell('Added to ${node.displayTitle}.');
+    }
+  }
+
   /// Opens the node's file in Orgro, at the top: Orgro has no way to jump
   /// to a heading from outside (decision 6).
   Future<void> _openInOrgro(NoteOpener open, RoamNode node) async {
@@ -355,6 +364,21 @@ class _NodeScreenState extends State<NodeScreen> {
                 PopupMenuItem(value: _AiAction.ask, child: Text('Ask AI')),
                 PopupMenuItem(
                     value: _AiAction.share, child: Text('Share with AI')),
+              ],
+            ),
+          // Edits of this note (v4), in one menu.
+          if (widget.writer case final writer?
+              when node != null && writer.editor != null && !widget.help)
+            PopupMenuButton<_EditAction>(
+              tooltip: 'Edit',
+              icon: const Icon(Icons.edit_note_outlined),
+              onSelected: (action) => switch (action) {
+                _EditAction.append => _append(writer, node),
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                    value: _EditAction.append,
+                    child: Text('Add to this node')),
               ],
             ),
           if (widget.writer case final writer? when node != null)
@@ -487,3 +511,6 @@ class _NodeScreenState extends State<NodeScreen> {
 
 /// The actions of the node view's AI menu.
 enum _AiAction { ask, share }
+
+/// The edits of an existing note (v4).
+enum _EditAction { append }
