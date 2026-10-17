@@ -1385,7 +1385,6 @@ devices through Syncthing.
       either content or tool_calls" is about the history.
 
 51. **"Add to this node" appends without touching what is there** (#36),
-
 54. **"Add to this node" appends without touching what is there** (#36),
     `lib/edit/append.dart`, `lib/edit/node_text.dart` and
     `lib/edit/append_screen.dart`:
