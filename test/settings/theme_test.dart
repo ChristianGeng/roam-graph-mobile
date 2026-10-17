@@ -30,6 +30,9 @@ void main() {
     final dark = find.byKey(const ValueKey('theme-dark'));
     await tester.scrollUntilVisible(dark, 200,
         scrollable: find.byType(Scrollable).first);
+    // Fully on screen, so the tap lands on it.
+    await tester.ensureVisible(dark);
+    await tester.pumpAndSettle();
     await tester.tap(dark);
     await tester.pumpAndSettle();
     expect(store.settings.theme, AppTheme.dark);
