@@ -39,7 +39,8 @@ existing notes are agreed (#34): an edit is saved only over the version it
 was made on, through a temporary file, with the old version kept, and the
 `:ID:` and property drawer stay as they are. What changed in each
 release is in [CHANGELOG.md](CHANGELOG.md), and the release text repeats it
-(#70). What is decided and why is in
+(#70). On a tablet in landscape, the divider between graph and note can be
+dragged, and the graph folded away (#69). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

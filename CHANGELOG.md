@@ -8,6 +8,16 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Tablet layout: a divider to drag, and a graph to fold away ([#72](https://github.com/ChristianGeng/roam-graph-mobile/pull/72))
+
+- Added: on a tablet held sideways, drag the divider between graph and note
+  to give the note more room; double-tap it for the default again.
+- Added: fold the graph into a narrow strip with its arrow button, and
+  unfold it again.
+- Changed: the note now gets 60 % of the width by default. The layout is
+  remembered, and Settings shows it with a Reset button.
+- Closes [#69](https://github.com/ChristianGeng/roam-graph-mobile/issues/69).
+
 ## 2026-10-17: Rules for editing existing notes ([#73](https://github.com/ChristianGeng/roam-graph-mobile/pull/73))
 
 - Changed: the rules for editing existing notes are agreed and written down

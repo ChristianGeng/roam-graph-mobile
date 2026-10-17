@@ -19,6 +19,7 @@ import '../node_view/node_screen.dart';
 import '../search/search_screen.dart';
 import '../settings/view_settings.dart';
 import 'node_memory.dart';
+import 'two_panes.dart';
 import '../node_view/note_images.dart';
 
 /// Computes a layout; by default on another isolate.
@@ -218,6 +219,13 @@ class _GraphScreenState extends State<GraphScreen> {
     });
     return null;
   }
+
+  /// The graph's width when the view was last centred; null to centre
+  /// again, as when the folded graph unfolds (#69).
+  double? _centredWidth;
+
+  /// Whether the divider beside the note is being dragged (#69).
+  bool _paneDragging = false;
 
   /// The overlay of the last build, and what it was made from, so the
   /// drawing keeps its edges while the view moves.
@@ -539,6 +547,12 @@ class _GraphScreenState extends State<GraphScreen> {
     Navigator.of(nodeContext).popUntil((r) => r == route);
     if (!mounted || !_graph.nodes.containsKey(id)) return;
     setState(() => _select(id));
+    // A graph folded away beside the note unfolds (#69).
+    final view = ViewSettingsScope.of(context);
+    if (view.graphCollapsed && isTwoPane(MediaQuery.sizeOf(context))) {
+      ViewSettingsScope.change(context, view.copyWith(graphCollapsed: false))
+          .catchError((Object _) {});
+    }
     if (_choice == _ScopeChoice.whole) {
       _centreView();
     } else {
@@ -642,7 +656,9 @@ class _GraphScreenState extends State<GraphScreen> {
         // Not for a change in height alone, so the view stays when the
         // keyboard of the search page opens and closes.
         final size = constraints.biggest;
-        if (_viewport.isEmpty || _viewport.width != size.width) {
+        // Not while the divider is dragged (#69): once, when it is let go.
+        if (!_paneDragging && _centredWidth != size.width) {
+          _centredWidth = size.width;
           WidgetsBinding.instance.addPostFrameCallback((_) => _centreView());
         }
         _viewport = size;
@@ -790,13 +806,20 @@ class _GraphScreenState extends State<GraphScreen> {
       ),
       body: !twoPane || paneId == null
           ? graph
-          : Row(
-              children: [
-                Expanded(flex: 3, child: graph),
-                const VerticalDivider(width: 1),
-                Expanded(
-                  flex: 2,
-                  child: NodeScreen(
+          : TwoPanes(
+              graph: graph,
+              // Unfolded: centred on the current note, which may have
+              // changed while the graph was folded.
+              onUnfold: () => _centredWidth = null,
+              onDragging: (dragging) {
+                _paneDragging = dragging;
+                if (!dragging && _centredWidth != _viewport.width) {
+                  _centredWidth = _viewport.width;
+                  WidgetsBinding.instance
+                      .addPostFrameCallback((_) => _centreView());
+                }
+              },
+              note: NodeScreen(
                     key: const ValueKey('node-pane'),
                     graph: widget.graph,
                     id: paneId,
@@ -810,8 +833,6 @@ class _GraphScreenState extends State<GraphScreen> {
                     writer: widget.writer,
                     shareText: widget.shareText,
                   ),
-                ),
-              ],
             ),
     );
   }
