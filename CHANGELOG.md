@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: The graph starts force-directed, as a setting ([#78](https://github.com/ChristianGeng/roam-graph-mobile/pull/78))
+
+- Changed: the graph now opens with the force-directed layout, which shows
+  the clusters.
+- Added: Settings, "Graph layout at start": force-directed, circular, or the
+  layout chosen last in the More menu.
+- Closes [#71](https://github.com/ChristianGeng/roam-graph-mobile/issues/71).
+
 ## 2026-10-17: Tablet layout: a divider to drag, and a graph to fold away ([#72](https://github.com/ChristianGeng/roam-graph-mobile/pull/72))
 
 - Added: on a tablet held sideways, drag the divider between graph and note
