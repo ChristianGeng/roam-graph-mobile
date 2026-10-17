@@ -11,9 +11,11 @@ each entry.
 ## 2026-10-17: A default model for Vercel ([#105](https://github.com/ChristianGeng/roam-graph-mobile/pull/105))
 
 - Changed: Vercel AI Gateway now starts with the model
-  deepseek/deepseek-v4-pro. It works only with "EU only" off, as the
-  provider's note says; with "EU only" on, use anthropic/claude-sonnet-5.5.
-  A model you chose yourself stays.
+  deepseek/deepseek-v4-pro, and with "EU only" off, which that model
+  needs; it is processed outside the EU. Vercel is now listed with the
+  providers outside the EU. For EU only, turn the switch on and use
+  anthropic/claude-sonnet-5.5.
+- A model or "EU only" choice you saved yourself stays.
 
 ## 2026-10-17: Search the words inside notes ([#101](https://github.com/ChristianGeng/roam-graph-mobile/pull/101))
 

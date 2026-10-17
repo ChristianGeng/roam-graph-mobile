@@ -413,7 +413,9 @@ void main() {
       expect(mistral.apiKey, '');
       final vercel =
           await providerConfig(settings.copyWith(provider: 'vercel'), keys);
-      expect(vercel.euOnly, isTrue);
+      // Off by default: the default model has no EU route.
+      expect(vercel.euOnly, isFalse);
+      expect(vercel.model, 'deepseek/deepseek-v4-pro');
     });
 
     testWidgets('choosing a provider, its note, its key', (tester) async {
