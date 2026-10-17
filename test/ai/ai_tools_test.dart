@@ -550,6 +550,24 @@ void main() {
       );
     });
 
+    test('accents and case fold as in the index', () async {
+      const cafe = {
+        'cafe.org': ':PROPERTIES:\n:ID: cafe\n:END:\n#+title: Café\n'
+            'Das Café Ölberg öffnet früh.\n',
+      };
+      final accents = RoamTools(
+        hidden.graphOf(cafe),
+        readNote: (path) async => cafe[path],
+        searchText: (query, {limit = 30}) async =>
+            const [TextHit('cafe.org', '')],
+      );
+      final text =
+          await accents.call('org_roam_search_text', {'query': 'cafe OLBERG'});
+      expect(text, contains('cafe | Café | cafe.org | '));
+      expect(text, contains('Das Café Ölberg öffnet früh.'));
+      expect(foldForSearch('Ölberg ÉTÉ ß'), 'olberg ete ß');
+    });
+
     test('without an index, the tool says so', () async {
       final plain = RoamTools(graph, readNote: (path) async => null);
       expect(

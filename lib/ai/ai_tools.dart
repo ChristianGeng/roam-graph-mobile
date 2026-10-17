@@ -485,7 +485,7 @@ class RoamTools {
       throw const ToolError('Text search is not available here.');
     }
     final words = [
-      for (final w in query.toLowerCase().split(RegExp(r'\s+')))
+      for (final w in foldForSearch(query).split(RegExp(r'\s+')))
         if (w.isNotEmpty) w,
     ];
     if (words.isEmpty) throw const ToolError('query is empty.');
@@ -502,7 +502,10 @@ class RoamTools {
       if (text == null || visibility.hidesInText(node, text)) continue;
       final shown = visibility.filterText(
           text.replaceAll('\r\n', '\n').replaceAll('\r', '\n'), _hiddenIds);
-      final lower = shown.toLowerCase();
+      // Folded as the index folds, so "cafe" also finds "Café" here;
+      // folding keeps the length, so the snippet's place is the same.
+      final folded = foldForSearch(shown);
+      final lower = folded.length == shown.length ? folded : shown.toLowerCase();
       // Every word must be in what the AI may see.
       if (!words.every(lower.contains)) continue;
       final at = lower.indexOf(words.first);
@@ -943,4 +946,23 @@ double _double(Map<String, Object?> args, String name, double defaultValue) {
   if (value is num) return value.toDouble();
   return double.tryParse('$value'.trim()) ??
       (throw ToolError('$name must be a number, not "$value".'));
+}
+
+/// Letters with accents, and what the index's `remove_diacritics 2` makes
+/// of them, for the letters of Latin-1 and Latin Extended-A.
+const _accented =
+    'àáâãäåçèéêëìíîïñòóôõöùúûüýÿāăąćĉċčďēĕėęěĝğġģĥĩīĭįĵķĺļľńņňōŏőŕŗřśŝşšţťũūŭůűųŵŷźżžđħıłøŧ';
+const _plain =
+    'aaaaaaceeeeiiiinooooouuuuyyaaaccccdeeeeegggghiiiijklllnnnooorrrssssttuuuuuuwyzzzdhilot';
+
+/// [text] in lower case without accents, one letter for one, as the
+/// full-text index matches (#98).
+String foldForSearch(String text) {
+  final lower = text.toLowerCase();
+  final out = StringBuffer();
+  for (final char in lower.split('')) {
+    final at = _accented.indexOf(char);
+    out.write(at < 0 ? char : _plain[at]);
+  }
+  return out.toString();
 }
