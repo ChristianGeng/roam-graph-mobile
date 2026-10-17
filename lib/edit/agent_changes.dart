@@ -499,29 +499,44 @@ class FileAgentLog implements AgentLog {
     try {
       final file = await _file();
       if (!await file.exists()) return const [];
-      var lines = [
+      final lines = [
         for (final line in await file.readAsLines())
           if (line.trim().isNotEmpty) line,
       ];
+      final parsed = <AgentLogEntry?>[
+        for (final line in lines) _parse(line),
+      ];
       if (lines.length > keep) {
-        lines = lines.sublist(lines.length - keep);
-        final temp = File('${file.path}.tmp');
-        await temp.writeAsString('${lines.join('\n')}\n', flush: true);
-        await temp.rename(file.path);
-      }
-      final entries = <AgentLogEntry>[];
-      for (final line in lines) {
-        try {
-          entries.add(AgentLogEntry.fromJson(
-              jsonDecode(line) as Map<String, Object?>));
-        } on Object {
-          // A line cut short by a crash is skipped.
+        // Cut between messages: the rest of a message cut in half goes
+        // too, so no message is undone from its middle.
+        var cut = lines.length - keep;
+        String id(int i) => parsed[i]?.messageId ?? '';
+        while (cut < lines.length &&
+            id(cut).isNotEmpty &&
+            id(cut) == id(cut - 1) &&
+            !(parsed[cut]?.isUndo ?? false)) {
+          cut++;
         }
+        final temp = File('${file.path}.tmp');
+        await temp.writeAsString(
+            lines.sublist(cut).map((l) => '$l\n').join(),
+            flush: true);
+        await temp.rename(file.path);
+        return [...parsed.sublist(cut).nonNulls];
       }
-      return entries;
+      return [...parsed.nonNulls];
     } on Exception {
       return const [];
     }
+  }
+}
+
+AgentLogEntry? _parse(String line) {
+  try {
+    return AgentLogEntry.fromJson(jsonDecode(line) as Map<String, Object?>);
+  } on Object {
+    // A line cut short by a crash is skipped.
+    return null;
   }
 }
 

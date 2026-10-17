@@ -348,14 +348,6 @@ void main() {
     expect(store.files['plan.org'], endsWith('From the laptop.\n'));
     expect(agent.changes.isEmpty, isTrue);
   });
-}
-
-/// The same files, seen as another folder.
-class OtherFolderStore extends MemoryNoteStore {
-  OtherFolderStore(super.files);
-
-  @override
-  String historyKey(String path) => 'other\n$path';
 
   group('Recent AI changes (#99)', () {
     final later = DateTime(2026, 10, 20);
@@ -438,5 +430,38 @@ class OtherFolderStore extends MemoryNoteStore {
           File('${dir.path}/agent-changes.jsonl').readAsLinesSync(),
           hasLength(FileAgentLog.keep));
     });
+
+    test('the file log is cut between messages', () async {
+      final dir = Directory.systemTemp.createTempSync('agent-log');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = FileAgentLog(path: '${dir.path}/agent-changes.jsonl');
+      AgentLogEntry change(String message) => AgentLogEntry(
+            time: DateTime(2026),
+            folder: 'f',
+            path: 'a.org',
+            tool: 'append_to_node',
+            oldHash: 'a',
+            newHash: 'b',
+            messageId: message,
+          );
+      // Three lines of message "big", then the rest of the log.
+      for (var i = 0; i < 3; i++) {
+        await file.record(change('big'));
+      }
+      for (var i = 0; i < FileAgentLog.keep - 2; i++) {
+        await file.record(change('m$i'));
+      }
+      final entries = await file.read();
+      expect(entries.map((e) => e.messageId), isNot(contains('big')));
+      expect(entries, hasLength(FileAgentLog.keep - 2));
+    });
   });
+}
+
+/// The same files, seen as another folder.
+class OtherFolderStore extends MemoryNoteStore {
+  OtherFolderStore(super.files);
+
+  @override
+  String historyKey(String path) => 'other\n$path';
 }
