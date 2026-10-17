@@ -1622,6 +1622,24 @@ devices through Syncthing.
       in the app, the summary and "Undo all", and no write tools when
       Off.
 
+60. **The theme is a setting: System, Light or Dark** (#90). The app
+    had a light and a dark theme and followed Android's setting, with no
+    way to choose. Now "Theme" on the Settings page says which, kept in
+    the view settings (decision 43) and applied at once.
+    - `MaterialApp.themeMode` reads it, so `ViewSettingsHost` moved from
+      `MaterialApp.builder` to above the app; every screen still reads
+      the same settings.
+    - **Checked in both themes:** colours come from the theme's colour
+      scheme almost everywhere (diff, chat, node view). Two places have
+      their own: the graph's community colours, which get lighter shades
+      of the same hues in the dark theme, and SVG images, which stay on
+      white in the dark theme on purpose (#47), since most are drawn for
+      a white page. Source blocks (#45) and mermaid (#49) already follow
+      the theme.
+    - Tests: the setting saved and read back, an unknown value giving
+      System; `MaterialApp` gets each mode; the Settings page switches at
+      once; the graph view in the dark theme.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
