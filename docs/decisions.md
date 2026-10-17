@@ -1265,7 +1265,11 @@ devices through Syncthing.
       switch on.
     - **When:** the graph view reads it when it opens (at app start, or
       when the folder is opened again). A graph already showing keeps its
-      layout; the menu still switches it for the session.
+      layout; the menu still switches it for the session. It waits until
+      the view settings are loaded from the file, so it never starts with
+      the defaults by mistake, but at most a second, so a file that
+      cannot be read never stops the graph; a layout chosen in the menu
+      before that wins (#81).
     - The force-directed layout runs off the UI isolate as before
       (`computeLayout`), with the progress circle while it runs.
     - An unknown stored value falls back to the default. The layouts help
