@@ -24,8 +24,14 @@ void main() {
     expect(
         applyProposal(text, h,
             const EditProposal(
-                nodeId: 'h', mode: EditMode.replace, text: 'New.\n\n')),
+                nodeId: 'h', mode: EditMode.replace, text: 'New.\n')),
         text.replaceFirst('Text of H.\n', 'New.\n'));
+    // A blank line before the next heading stays, as proposed.
+    expect(
+        applyProposal(text, h,
+            const EditProposal(
+                nodeId: 'h', mode: EditMode.replace, text: 'New.\n\n')),
+        text.replaceFirst('Text of H.\n', 'New.\n\n'));
     expect(
         applyProposal(text, fileNode,
             const EditProposal(

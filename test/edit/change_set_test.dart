@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roam_graph_mobile/ai/ai_visibility.dart';
 import 'package:roam_graph_mobile/edit/change_set.dart';
 import 'package:roam_graph_mobile/edit/edit_proposal.dart';
 import 'package:roam_graph_mobile/edit/note_editor.dart';
@@ -112,5 +113,28 @@ void main() {
     expect(store.files['a.org'], endsWith('See [[id:c][JACK]].\n'));
     expect(contentHash(utf8.encode(store.files['a.org']!)),
         set.entries.single.savedHash);
+  });
+
+  test('a note that got a hidden tag since the index was built is refused',
+      () async {
+    store.files['a.org'] = '${files['a.org']}#+filetags: :private:\n';
+    await expectLater(
+        ChangeSet.build([see('a', 'b')],
+            editor: editor,
+            visible: visible,
+            graph: graph,
+            maxFiles: 20,
+            visibility: const AiVisibility({'private'})),
+        throwsA(isA<ChangeSetError>()));
+  });
+
+  test('undo of an entry that saved no change is no failure', () async {
+    final set = await build([
+      EditProposal(
+          nodeId: 'a', mode: EditMode.replace, text: 'Text of Audio.\n'),
+    ]);
+    set.entries.single.state = EntryState.accepted;
+    await set.save(editor);
+    expect(await set.undo(editor), isEmpty);
   });
 }

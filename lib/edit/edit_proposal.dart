@@ -59,12 +59,15 @@ String? applyProposal(String fileText, RoamNode node, EditProposal proposal) {
   };
 }
 
-/// A replaced body keeps the file's line structure: inside the file it
-/// ends without a newline, so the next heading stays on its own line; at
-/// the end of the file it ends with one.
+/// A replaced body keeps the file's line structure: inside the file its
+/// one final newline goes, since the next heading's line follows, but
+/// blank lines before that heading stay; at the end of the file it ends
+/// with a newline.
 String _withFinalNewline(String body, NodeLines lines) {
-  final trimmed = body.replaceFirst(RegExp(r'(\r?\n)+$'), '');
-  return lines.end == lines.lines.length ? '$trimmed\n' : trimmed;
+  if (lines.end == lines.lines.length) {
+    return body.endsWith('\n') ? body : '$body\n';
+  }
+  return body.replaceFirst(RegExp(r'\r?\n$'), '');
 }
 
 final _idLink = RegExp(r'\[\[id:([^\]\[]+?)(?:::[^\]]*)?\](?:\[|\])');

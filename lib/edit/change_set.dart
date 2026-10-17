@@ -6,6 +6,7 @@ library;
 
 import 'dart:convert';
 
+import '../ai/ai_visibility.dart';
 import '../graph/roam_graph.dart';
 import 'edit_proposal.dart';
 import 'note_editor.dart';
@@ -100,6 +101,7 @@ class ChangeSet {
     required RoamGraph graph,
     required int maxFiles,
     String summary = '',
+    AiVisibility visibility = AiVisibility.none,
   }) async {
     if (proposals.isEmpty) throw const ChangeSetError('The set is empty.');
     final nodes = <RoamNode>[];
@@ -126,6 +128,11 @@ class ChangeSet {
       final base = await editor.read(node.file);
       if (base == null) {
         throw ChangeSetError('${node.file} cannot be read.');
+      }
+      // The file may have got a hidden tag since the index was built.
+      if (visibility.hidesInText(node, base.text)) {
+        throw ChangeSetError(
+            'There is no note with the ID ${node.id} that you may see.');
       }
       final after = applyProposal(base.text, node, proposals[i]);
       if (after == null) {
@@ -216,7 +223,10 @@ class ChangeSet {
         continue;
       }
       final result = await editor.save(entry.file, now, entry.base.text);
-      if (result is Saved || result is SavedNotIndexed) {
+      // NothingToSave: the entry saved no change, so there is none to undo.
+      if (result is Saved ||
+          result is SavedNotIndexed ||
+          result is NothingToSave) {
         entry
           ..state = EntryState.undone
           ..savedHash = null;

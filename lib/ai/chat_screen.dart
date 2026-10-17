@@ -179,6 +179,12 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     _session?.cancel();
     setState(() {
+      // A new chat: tool-call IDs can repeat across chats, so nothing of
+      // the old one may be found under them.
+      _proposals.clear();
+      _proposalStatus.clear();
+      _setProposals.clear();
+      _sets.clear();
       _startShown = startShown;
       _hiddenTags = settings.hiddenTags.toSet();
       _error = null;
@@ -279,12 +285,28 @@ class _ChatScreenState extends State<ChatScreen> {
     widget.openNode?.call(context, id);
   }
 
+  /// Throws [ToolError] if a note of [ids] got a hidden tag since the
+  /// index was built, as the read tools check it: its title must not
+  /// reach the AI.
+  Future<void> _checkStillVisible(List<String> ids) async {
+    final visibility = AiSettingsScope.of(context).visibility;
+    for (final id in ids) {
+      final node = widget.graph.value.nodes[id];
+      if (node == null) continue;
+      final text = await widget.readNote(node.file);
+      if (text != null && visibility.hidesInText(node, text)) {
+        throw ToolError('There is no note with the ID $id that you may see.');
+      }
+    }
+  }
+
   /// Records an edit the AI proposes (#39); the tool writes nothing.
   Future<String> _propose(ToolCall call) async {
     final session = _session;
     if (session == null) return 'Error: the chat has ended.';
     try {
       final proposal = proposalFrom(call.input, session.tools.graph);
+      await _checkStillVisible([proposal.nodeId]);
       _proposals[call.id] = proposal;
       final title = session.tools.graph.nodes[proposal.nodeId]!.displayTitle;
       return 'Recorded. I review the change to "$title" as a diff in the '
@@ -300,6 +322,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (session == null) return 'Error: the chat has ended.';
     try {
       final edits = proposalsFrom(call.input, session.tools.graph);
+      await _checkStillVisible([for (final e in edits) e.nodeId]);
       final files = {
         for (final e in edits) session.tools.graph.nodes[e.nodeId]!.file,
       };
@@ -340,9 +363,10 @@ class _ChatScreenState extends State<ChatScreen> {
           graph: graph,
           maxFiles: _maxFiles,
           summary: proposed.summary,
+          visibility: settings.visibility,
         );
       } on ChangeSetError catch (e) {
-        _tell(e.message);
+        if (mounted) _tell(e.message);
         return;
       }
       _sets[callId] = set;
@@ -370,6 +394,10 @@ class _ChatScreenState extends State<ChatScreen> {
       _tell('Could not read ${node.file}.');
       return;
     }
+    if (AiSettingsScope.of(context).visibility.hidesInText(node, base.text)) {
+      _tell('${node.file} is hidden from AI now; nothing was saved.');
+      return;
+    }
     final after = applyProposal(base.text, node, proposal);
     if (after == null) {
       _tell('The heading is no longer in ${node.file}.');
@@ -392,7 +420,10 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     final message = saveMessage(result, node.file);
     setState(() {
-      if (message == null) _proposalStatus[callId] = 'Saved.';
+      // Saved, also when indexing afterwards failed: not to save twice.
+      if (result is Saved || result is SavedNotIndexed) {
+        _proposalStatus[callId] = 'Saved.';
+      }
     });
     _tell(message ?? 'Saved ${node.displayTitle}.');
     if (message != null && result is NoWriteAccessToEdit) {

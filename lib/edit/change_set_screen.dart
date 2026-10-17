@@ -56,6 +56,15 @@ class _ChangeSetScreenState extends State<ChangeSetScreen> {
       setState(() => entry.state = state);
 
   Future<void> _showDiff(ChangeEntry entry) async {
+    // Once the set is saved, a diff is only to look at: accepting again
+    // would take a saved entry out of Undo.
+    if (_decided) {
+      await DiffScreen.view(context,
+          title: entry.node.displayTitle,
+          before: entry.base.text,
+          after: entry.after);
+      return;
+    }
     final accept = await DiffScreen.confirm(
       context,
       title: entry.node.displayTitle,
@@ -259,7 +268,12 @@ class _ChangeSetScreenState extends State<ChangeSetScreen> {
           : !_decided
               ? FloatingActionButton.extended(
                   key: const ValueKey('change-save'),
-                  onPressed: accepted.isEmpty ? null : _save,
+                  // Every note is decided before the first save: the set is
+                  // saved once, so none is left without controls.
+                  onPressed: accepted.isEmpty ||
+                          entries.any((e) => e.state == EntryState.pending)
+                      ? null
+                      : _save,
                   icon: const Icon(Icons.save_outlined),
                   label: Text('Save ${accepted.length}'),
                 )
