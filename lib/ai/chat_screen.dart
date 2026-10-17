@@ -436,6 +436,21 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             );
+          } else if (entry.toolCalls.isEmpty) {
+            // A final answer without text: say so rather than show nothing.
+            children.add(
+              Padding(
+                key: ValueKey('chat-empty-$i'),
+                padding: const EdgeInsets.fromLTRB(16, 8, 24, 4),
+                child: Text(
+                  'The model sent no text.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            );
           }
         case ToolResults():
           for (final (j, result) in entry.results.indexed) {

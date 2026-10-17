@@ -200,6 +200,106 @@ void main() {
     });
   });
 
+  group('Mistral: content as a list of parts (#79)', () {
+    const mistral = ProviderConfig(
+      name: 'Mistral',
+      api: ApiKind.openAi,
+      baseUrl: 'https://api.mistral.ai/v1',
+      model: 'mistral-large-4',
+      apiKey: 'm-test',
+    );
+    // As Mistral Large 4 answered on 2026-10-17, after tool results.
+    const parts = [
+      {
+        'type': 'thinking',
+        'thinking': [
+          {'type': 'text', 'text': 'The tool found Plan.'},
+        ],
+      },
+      {'type': 'text', 'text': 'Plan links to '},
+      {'type': 'text', 'text': 'Ideas.'},
+    ];
+
+    test('the text parts are the answer; the thinking is not shown',
+        () async {
+      final server = FakeServer([
+        openAiReply({
+          'role': 'assistant',
+          'content': null,
+          'tool_calls': [
+            {
+              'id': 'c1',
+              'type': 'function',
+              'function': {
+                'name': 'org_roam_find',
+                'arguments': '{"search": "Plan"}',
+              },
+            },
+          ],
+        }, finish: 'tool_calls'),
+        openAiReply({'role': 'assistant', 'content': parts}),
+      ]);
+      final session =
+          ChatSession(tools: tools(), config: mistral, post: server.post);
+      await session.send('What does Plan link to?');
+      final answer = session.transcript.last as AssistantMessage;
+      expect(answer.text, 'Plan links to Ideas.');
+      expect(answer.text, isNot(contains('The tool found')));
+    });
+
+    test('a follow-up replays the answer with its parts', () async {
+      final server = FakeServer([
+        openAiReply({'role': 'assistant', 'content': parts}),
+        openAiReply({'role': 'assistant', 'content': 'Yes.'}),
+      ]);
+      final session =
+          ChatSession(tools: tools(), config: mistral, post: server.post);
+      await session.send('What does Plan link to?');
+      await session.send('Sure?');
+      final messages = server.requests.last.body['messages'] as List;
+      expect(messages[2], {'role': 'assistant', 'content': parts});
+      for (final message in messages) {
+        final m = message as Map;
+        if (m['role'] != 'assistant') continue;
+        expect(m['content'] != null || m['tool_calls'] != null, isTrue,
+            reason: 'Mistral rejects an assistant message with neither');
+      }
+    });
+
+    test('an empty answer is left out of the history', () async {
+      final server = FakeServer([
+        openAiReply({'role': 'assistant', 'content': null}),
+        openAiReply({'role': 'assistant', 'content': []}),
+        openAiReply({'role': 'assistant', 'content': 'Hello.'}),
+      ]);
+      final session =
+          ChatSession(tools: tools(), config: mistral, post: server.post);
+      await session.send('Hi');
+      expect((session.transcript.last as AssistantMessage).text, '');
+      // An empty list of parts is no content either.
+      await session.send('Hello?');
+      expect((session.transcript.last as AssistantMessage).text, '');
+      await session.send('Anyone?');
+      final messages = server.requests.last.body['messages'] as List;
+      expect([for (final m in messages) (m as Map)['role']],
+          ['system', 'user', 'user', 'user']);
+    });
+
+    test('odd parts do not crash', () {
+      expect(contentText(null), '');
+      expect(contentText('plain'), 'plain');
+      expect(
+          contentText([
+            'not a map',
+            {'type': 'text'},
+            {'type': 'text', 'text': 3},
+            {'type': 'thinking', 'thinking': 'flat'},
+            {'type': 'text', 'text': 'ok'},
+          ]),
+          'ok');
+    });
+  });
+
   group('OpenAI-compatible Chat Completions', () {
     test('tool calls, tool messages, and DeepSeek\'s reasoning', () async {
       final server = FakeServer([
@@ -495,7 +595,15 @@ void main() {
       expect(
           await errorOf(const HttpReply(
               400, '{"message":"This model does not support tools"}')),
-          startsWith('The model "claude-sonnet-5-5" may not support tools'));
+          'Anthropic answered with an error (HTTP 400). This model does not '
+          'support tools The model "claude-sonnet-5-5" may not support '
+          'tools, which the chat needs; if so, choose another model.');
+      // Mistral's message names tool_calls but is about the history.
+      final history = await errorOf(const HttpReply(400,
+          '{"message":"Assistant message must have either content or tool_calls, but not none.","type":"invalid_request_assistant_message","code":"3240"}'));
+      expect(history,
+          'Anthropic answered with an error (HTTP 400). Assistant message '
+          'must have either content or tool_calls, but not none.');
       expect(await errorOf(const HttpReply(404, 'Not Found')),
           contains('Check the base URL and the model'));
       expect(await errorOf(const HttpReply(500, '<html>oops</html>')),

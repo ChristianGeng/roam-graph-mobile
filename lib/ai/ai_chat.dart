@@ -393,9 +393,21 @@ class OpenAiApi extends ModelApi {
           messages.add({'role': 'user', 'content': entry.forModel});
         case AssistantMessage():
           final raw = entry.raw;
+          // Mistral answers with a list of parts (thinking and text) and
+          // wants the whole message replayed, thinking included.
+          final parts = raw is Map &&
+                  raw['content'] is List &&
+                  (raw['content'] as List).isNotEmpty
+              ? raw['content']
+              : null;
+          final content =
+              parts ?? (entry.text.isEmpty ? null : entry.text);
+          // An answer with no content and no tool calls is rejected by
+          // Mistral ("must have either content or tool_calls"): leave it out.
+          if (content == null && entry.toolCalls.isEmpty) continue;
           messages.add({
             'role': 'assistant',
-            'content': entry.text.isEmpty ? null : entry.text,
+            'content': content,
             if (entry.toolCalls.isNotEmpty)
               'tool_calls': [
                 for (final call in entry.toolCalls)
@@ -492,7 +504,7 @@ class OpenAiApi extends ModelApi {
     int n(Object? value) => (value as num?)?.toInt() ?? 0;
     return ApiReply(
       AssistantMessage(
-        text: message['content'] is String ? message['content'] as String : '',
+        text: contentText(message['content']),
         toolCalls: calls,
         model: json['model'] as String? ?? config.model,
         raw: message,
@@ -506,6 +518,19 @@ class OpenAiApi extends ModelApi {
       cut: choice['finish_reason'] == 'length',
     );
   }
+}
+
+/// The text of an OpenAI-style `content`: a string, or a list of parts, of
+/// which the `text` parts are joined. Other parts, such as Mistral's
+/// `thinking`, are not shown; they stay in the raw message.
+String contentText(Object? content) {
+  if (content is String) return content;
+  if (content is! List) return '';
+  return [
+    for (final part in content)
+      if (part is Map && part['type'] == 'text' && part['text'] is String)
+        part['text'] as String,
+  ].join();
 }
 
 /// One chat: the conversation, and the loop that runs the tools the model
@@ -714,9 +739,20 @@ String _httpError(ProviderConfig config, int status, String message) {
         '429). Wait a moment, or check the account.$detail',
     404 => 'Not found at ${config.name} (HTTP 404). Check the base URL and '
         'the model "${config.model}".$detail',
-    400 when message.toLowerCase().contains('tool') =>
-      'The model "${config.model}" may not support tools, which the chat '
-          'needs (HTTP 400). Choose another model.$detail',
+    400 when _saysNoTools(message) =>
+      '${config.name} answered with an error (HTTP 400).$detail The model '
+          '"${config.model}" may not support tools, which the chat needs; '
+          'if so, choose another model.',
     _ => '${config.name} answered with an error (HTTP $status).$detail',
   };
 }
+
+/// Whether a provider's error says that the model cannot use tools, and
+/// not just mentions them (Mistral: "must have either content or
+/// tool_calls").
+bool _saysNoTools(String message) => RegExp(
+      r"(does not|doesn't|do not|don't) support (tools|tool use|tool calling|function calling)"
+      r'|(tools?|tool use|tool calling|function calling) (is |are )?not supported'
+      r'|no endpoints found that support tool use',
+      caseSensitive: false,
+    ).hasMatch(message);

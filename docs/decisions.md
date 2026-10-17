@@ -1363,6 +1363,27 @@ devices through Syncthing.
       key, 404, no network, an unreadable list: a message, and the field
       still works. Keys only over HTTPS, no redirects (decision 45).
 
+53. **Answers whose content is a list of parts are read and replayed**
+    (#79), `contentText` and `OpenAiApi` in `lib/ai/ai_chat.dart`.
+    Mistral Large 4 answers after tool results with `message.content` as
+    a list: `thinking` parts and `text` parts. The app read only a string,
+    so the answer was empty, and the next request sent an assistant
+    message with neither content nor tool calls, which Mistral rejects
+    with HTTP 400.
+    - **Shown:** the `text` parts, joined. `thinking` parts and anything
+      else are not shown. Parts that are not maps, or whose `text` is not
+      a string, are skipped.
+    - **Sent back:** a received list goes back unchanged, thinking
+      included, as Mistral's reasoning docs ask ("always replay the full
+      assistant message"). A string answer goes back as a string.
+    - **An answer with no content and no tool calls** is left out of the
+      history, since Mistral rejects it; the chat shows "The model sent
+      no text." in its place.
+    - **HTTP 400:** the provider's message comes first. "May not support
+      tools" is added only when the message says that tools are not
+      supported, not whenever it contains "tool": Mistral's "must have
+      either content or tool_calls" is about the history.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
