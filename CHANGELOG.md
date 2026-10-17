@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Add text to a node ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Added: "Add to this node" in the node view's Edit menu. The text goes to
+  the end of the note, or of the heading's section, and is saved safely
+  over the note as it is now, so what the laptop wrote meanwhile stays.
+- Closes [#36](https://github.com/ChristianGeng/roam-graph-mobile/issues/36).
+
 ## 2026-10-17: Mistral answers after tool calls ([#84](https://github.com/ChristianGeng/roam-graph-mobile/pull/84))
 
 - Fixed: with the Mistral preset, the answer after tool calls was not

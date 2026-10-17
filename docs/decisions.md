@@ -1385,6 +1385,8 @@ devices through Syncthing.
       either content or tool_calls" is about the history.
 
 51. **"Add to this node" appends without touching what is there** (#36),
+
+54. **"Add to this node" appends without touching what is there** (#36),
     `lib/edit/append.dart`, `lib/edit/node_text.dart` and
     `lib/edit/append_screen.dart`:
     - **Where it goes:** for a file node, at the end of the file; for a
@@ -1398,7 +1400,7 @@ devices through Syncthing.
       blank lines before the next heading stay where they are. Trailing
       blank lines of the typed text are dropped; the file's line endings
       are kept, and a file without a final newline gets one.
-    - **Saved as every edit** (decision 50). The note is read again when
+    - **Saved as every edit** (decision 51). The note is read again when
       saving, and the text is added to that version, so what the laptop
       wrote meanwhile stays: appending replaces nothing that was shown. A
       change in the split second between that read and the write is still
