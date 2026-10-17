@@ -67,11 +67,41 @@ devices through Syncthing.
    Capture brings org-roam-compatible file names and IDs and Syncthing
    conflicts, which deserve their own milestone.
 
-10. **v2 capture writes only new files**, never into existing ones. A new
-    node links to the current node from inside the new file, so it shows up
-    as a backlink. Editing an existing file risks a Syncthing conflict with
-    the laptop. File names follow my capture template, which is org-roam's
-    default: `roam/<%Y%m%d%H%M%S>-<slug>.org`.
+10. **Existing notes are edited only under five rules** (#34, agreed on
+    2026-10-17). Until v4 the app wrote only new files (v2 capture): a new
+    node links to the current node from inside the new file, so it shows
+    up as a backlink, and file names follow my capture template, which is
+    org-roam's default: `roam/<%Y%m%d%H%M%S>-<slug>.org`. v4 lets the app
+    change existing notes, also with an AI, while the laptop edits the same
+    graph with Emacs and the org-roam MCP server. So:
+    1. **Only what was shown is replaced.** The app saves an edit only if
+       the file is still the version it read: the same content hash,
+       checked just before writing. Otherwise it refuses and shows the
+       newer version (#35).
+    2. **Whole files, written safely.** An edit writes the new text to a
+       temporary file under a name Syncthing does not sync, as capture
+       does (decision 31), and then puts it in place of the old file, so
+       Syncthing never sees half a file. Unlike a capture, an edit's
+       rename replaces the existing name; a capture's rename still refuses
+       to.
+    3. **Nothing is lost.** Before replacing a file, the app keeps the old
+       version in its own storage, and a wrong edit can be undone from
+       there (#35).
+    4. **The laptop stays the reference.** Syncthing's conflict copies are
+       listed (decision 33) and resolved in Emacs; the app does not merge
+       them.
+    5. **Text only.** A file node's whole text, or a heading node's
+       subtree, can be edited. The `:ID:` and the property drawer stay as
+       they are. Editing tags, the title or aliases (`ROAM_ALIASES`) is
+       left for later, since the index must follow such changes.
+
+    Rules 1, 2, 3 and 5 do not depend on Syncthing; rule 4 is Syncthing's.
+    The writing is kept behind an interface, so that notes could later
+    reach the device through git instead: rule 4 would then become "pull
+    before an edit, push after; if the push is refused, pull, merge, and
+    show a conflict when the same lines changed", and git's history would
+    cover rule 3. For now Syncthing stays the transport, and git runs only
+    on the laptop.
 
 11. **AI input through Android's share menu, not MCP.** The Claude Android
     app cannot write to device storage, but it can share text. The app
@@ -499,8 +529,9 @@ devices through Syncthing.
         gives its own temporary files. Syncthing's scanner skips these, so
         a half-written file is never synced.
       - Then it renames the file into place.
-      - A name that exists already is never replaced: the capture says so,
-        and saving a second later gives a new name.
+      - A name that exists already is never replaced by a capture: the
+        capture says so, and saving a second later gives a new name. Only
+        an edit of an existing note replaces a file, under decision 10.
     - **Indexing:** the folder is indexed right after writing, so the new
       node is in the graph at once, and the capture opens it. The laptop
       picks it up with `org-roam-db-sync` after Syncthing has synced. If
@@ -513,9 +544,10 @@ devices through Syncthing.
     (#12), as decision 10 planned:
     - The link goes into the **new** file only, as the first line after
       the header: `[[id:<id>][<title>]]`. The node it came from then
-      shows the new node as a backlink, in org-roam and in the app. Its
-      file is never changed: the laptop may be editing it, and Syncthing
-      would make a conflict copy.
+      shows the new node as a backlink, in org-roam and in the app. A
+      capture never changes its file: the laptop may be editing it, and
+      Syncthing would make a conflict copy. Edits of existing notes follow
+      decision 10.
     - The link is written as Org's `org-link-make-string` writes it:
       - The target is escaped as `org-link-escape` does, so an ID with `[`
         or `]` still gives a backlink.
@@ -530,9 +562,10 @@ devices through Syncthing.
 
 33. **Writing next to Syncthing is safe, and conflicts are shown** (#13):
     - **No partial files, no overwriting:** a new file is written under
-      Syncthing's own temporary name and renamed into place, and an
-      existing name is never replaced (decision 31). The app never writes
-      into existing files (decision 32).
+      Syncthing's own temporary name and renamed into place, and a capture
+      never replaces an existing name (decision 31) or writes into an
+      existing file (decision 32). Edits of existing notes follow decision
+      10.
     - **Conflict copies:** Syncthing names them
       `<name>.sync-conflict-<date>-<time>-<device>.<ext>`. They were
       already left out of the graph (#4); now the counts screen counts
