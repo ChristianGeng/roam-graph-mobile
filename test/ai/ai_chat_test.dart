@@ -269,16 +269,20 @@ void main() {
     test('an empty answer is left out of the history', () async {
       final server = FakeServer([
         openAiReply({'role': 'assistant', 'content': null}),
+        openAiReply({'role': 'assistant', 'content': []}),
         openAiReply({'role': 'assistant', 'content': 'Hello.'}),
       ]);
       final session =
           ChatSession(tools: tools(), config: mistral, post: server.post);
       await session.send('Hi');
       expect((session.transcript.last as AssistantMessage).text, '');
+      // An empty list of parts is no content either.
       await session.send('Hello?');
+      expect((session.transcript.last as AssistantMessage).text, '');
+      await session.send('Anyone?');
       final messages = server.requests.last.body['messages'] as List;
       expect([for (final m in messages) (m as Map)['role']],
-          ['system', 'user', 'user']);
+          ['system', 'user', 'user', 'user']);
     });
 
     test('odd parts do not crash', () {

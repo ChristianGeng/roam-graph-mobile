@@ -395,8 +395,11 @@ class OpenAiApi extends ModelApi {
           final raw = entry.raw;
           // Mistral answers with a list of parts (thinking and text) and
           // wants the whole message replayed, thinking included.
-          final parts =
-              raw is Map && raw['content'] is List ? raw['content'] : null;
+          final parts = raw is Map &&
+                  raw['content'] is List &&
+                  (raw['content'] as List).isNotEmpty
+              ? raw['content']
+              : null;
           final content =
               parts ?? (entry.text.isEmpty ? null : entry.text);
           // An answer with no content and no tool calls is rejected by
