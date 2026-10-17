@@ -41,7 +41,8 @@ was made on, through a temporary file, with the old version kept, and the
 keeping the newest 20 old versions of each note (#35). "Add to this node"
 adds text at the end of a note or heading (#36). A diff shows what an edit
 changes before it is saved, and earlier versions can be restored through
-it (#38). What changed in each
+it (#38). "Edit text" changes a note's text, with its ID, drawer and title
+locked (#37). What changed in each
 release is in [CHANGELOG.md](CHANGELOG.md), and the release text repeats it
 (#70). On a tablet in landscape, the divider between graph and note can be
 dragged, and the graph folded away (#69). The graph starts force-directed,
