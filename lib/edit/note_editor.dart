@@ -311,13 +311,17 @@ class NoteEditor {
   ///
   /// [removed] is a part of the note that the edit deletes on purpose,
   /// such as a heading node with its subtree (#93): its drawers may go,
-  /// every other drawer must stay as it is.
+  /// every other drawer must stay as it is. [restored] is such a part
+  /// put back, by undo: its drawers may come back.
   Future<SaveResult> save(String path, NoteVersion base, String text,
-      {String removed = ''}) async {
+      {String removed = '', String restored = ''}) async {
     if (text == base.text) return const NothingToSave();
     final before = propertyDrawers(base.text), after = propertyDrawers(text);
     for (final drawer in propertyDrawers(removed)) {
       before.remove(drawer);
+    }
+    for (final drawer in propertyDrawers(restored)) {
+      after.remove(drawer);
     }
     if (before.length != after.length ||
         [for (var i = 0; i < before.length; i++) before[i] != after[i]]

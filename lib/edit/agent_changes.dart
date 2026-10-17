@@ -22,7 +22,12 @@ class AgentChange {
     required this.before,
     required this.after,
     this.linksAdded = 0,
+    this.removed = '',
   });
+
+  /// A part of the note the change removed on purpose, such as a heading
+  /// with its subtree (#93): undo puts it back, with its drawers.
+  final String removed;
 
   /// The tool that made it: `create_node`, `append_to_node`, ….
   final String tool;
@@ -181,9 +186,13 @@ class AgentChanges {
         await editor.history
             .keep(editor.store.historyKey(path), now.text, DateTime.now());
       }
+      final restored = [
+        for (final c in changes)
+          if (c.path == path && c.removed.isNotEmpty) c.removed,
+      ].join('\n');
       final result = original == null
           ? await editor.store.delete(path, now)
-          : await editor.save(path, now, original);
+          : await editor.save(path, now, original, restored: restored);
       outcome[path] = switch (result) {
         Saved() || SavedNotIndexed() || NothingToSave() =>
           original == null ? UndoOutcome.deleted : UndoOutcome.restored,

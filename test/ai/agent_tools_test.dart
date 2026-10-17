@@ -45,6 +45,9 @@ final start = {
       '* Branch\n:PROPERTIES:\n:ID: branch\n:END:\nBranch text, see '
       '[[id:open][Open]].\n',
   'sub/deep.org': ':PROPERTIES:\n:ID: deep\n:END:\n#+title: Deep\n',
+  'twin.org': ':PROPERTIES:\n:ID: twin\n:END:\n#+title: Twin\n'
+      'See [[id:child][the child]].\n'
+      '* Child\n:PROPERTIES:\n:ID: child\n:END:\nChild text.\n',
 };
 
 void main() {
@@ -309,6 +312,26 @@ void main() {
         ':PROPERTIES:\n:ID: tree\n:END:\n#+title: Tree\nTop text.\n');
     expect(graphOf(store.files).nodes.containsKey('branch'), isFalse);
     await changes.undoAll(editor, create: agent.writer.create);
+    expect(store.files, start);
+  });
+
+  test('delete_node: a link to a heading in its own file becomes text',
+      () async {
+    final changes = agent.startMessage();
+    expect(await call('delete_node', {'id': 'child'}),
+        'Deleted the heading "Child" with its subtree. Links to it in 1 note '
+        'became their text: Twin.');
+    expect(store.files['twin.org'],
+        ':PROPERTIES:\n:ID: twin\n:END:\n#+title: Twin\nSee the child.\n');
+    expect(await changes.undoAll(editor, create: agent.writer.create),
+        {'twin.org': UndoOutcome.restored});
+    expect(store.files, start);
+  });
+
+  test('a note with hidden parts in it cannot be deleted', () async {
+    // Ideas has a heading tagged private.
+    expect(await call('delete_node', {'id': 'ideas'}),
+        contains('parts hidden from you'));
     expect(store.files, start);
   });
 
