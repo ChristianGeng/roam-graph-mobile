@@ -8,6 +8,7 @@ import '../ai/chat_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../edit/append_screen.dart';
+import '../edit/edit_screen.dart';
 import '../edit/history_screen.dart';
 import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
@@ -236,6 +237,13 @@ class _NodeScreenState extends State<NodeScreen> {
     if (message != null && mounted) _tell(message);
   }
 
+  /// Edits the text of [node] (#37); the diff (#38) comes before saving.
+  Future<void> _edit(NoteWriter writer, RoamNode node) async {
+    if (await EditScreen.open(context, writer, node) && mounted) {
+      _tell('Saved ${node.displayTitle}.');
+    }
+  }
+
   /// Opens the node's file in Orgro, at the top: Orgro has no way to jump
   /// to a heading from outside (decision 6).
   Future<void> _openInOrgro(NoteOpener open, RoamNode node) async {
@@ -374,12 +382,15 @@ class _NodeScreenState extends State<NodeScreen> {
               icon: const Icon(Icons.edit_note_outlined),
               onSelected: (action) => switch (action) {
                 _EditAction.append => _append(writer, node),
+                _EditAction.edit => _edit(writer, node),
                 _EditAction.history => HistoryScreen.open(context, writer, node),
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(
                     value: _EditAction.append,
                     child: Text('Add to this node')),
+                PopupMenuItem(
+                    value: _EditAction.edit, child: Text('Edit text')),
                 PopupMenuItem(
                     value: _EditAction.history,
                     child: Text('Earlier versions')),
@@ -517,4 +528,4 @@ class _NodeScreenState extends State<NodeScreen> {
 enum _AiAction { ask, share }
 
 /// The edits of an existing note (v4).
-enum _EditAction { append, history }
+enum _EditAction { append, edit, history }

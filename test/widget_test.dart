@@ -775,6 +775,89 @@ void main() {
     });
   });
 
+  group('edit a note, with the diff before saving (#37)', () {
+    Future<FakeFolderAccess> openEdit(WidgetTester tester,
+        {MemoryEditHistory? history}) async {
+      final access = withNotes(saved: writableOrg);
+      await start(tester, access, history: history);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit text'));
+      await tester.pumpAndSettle();
+      return access;
+    }
+
+    testWidgets('the head is shown but not editable; the diff comes first',
+        (tester) async {
+      final history = MemoryEditHistory();
+      final access = await openEdit(tester, history: history);
+      final before = access.texts['roam/a.org']!;
+      // a.org: drawer and #+title are the head; the link line is the body.
+      expect(find.byKey(const ValueKey('edit-head')), findsOneWidget);
+      expect(
+          tester
+              .widget<TextField>(find.byKey(const ValueKey('edit-text')))
+              .controller!
+              .text,
+          '[[id:b]] [[id:gone]]\n');
+      await tester.enterText(find.byKey(const ValueKey('edit-text')),
+          '[[id:b]] [[id:gone]]\nA second line.\n');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Review'));
+      await tester.pumpAndSettle();
+
+      // Nothing is written before "Save" in the diff.
+      expect(access.replaced, isEmpty);
+      expect(find.text('0 lines removed, 1 line added.'), findsOneWidget);
+      expect(find.text('+A second line.'), findsOneWidget);
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(access.texts['roam/a.org'], '${before}A second line.\n');
+      expect(find.text('Saved A.'), findsOneWidget);
+      expect((await history.versions('content://tree/org\na.org')).single.text, before);
+    });
+
+    testWidgets('"Back to editing" writes nothing', (tester) async {
+      final access = await openEdit(tester);
+      await tester.enterText(
+          find.byKey(const ValueKey('edit-text')), 'Replaced.\n');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Review'));
+      await tester.pumpAndSettle();
+      expect(find.text('-[[id:b]] [[id:gone]]'), findsOneWidget);
+      await tester.tap(find.text('Back to editing'));
+      await tester.pumpAndSettle();
+
+      expect(access.replaced, isEmpty);
+      expect(find.byKey(const ValueKey('edit-text')), findsOneWidget);
+    });
+
+    testWidgets('a note changed on the laptop meanwhile is not overwritten',
+        (tester) async {
+      final access = await openEdit(tester);
+      await tester.enterText(
+          find.byKey(const ValueKey('edit-text')), 'Mine.\n');
+      await tester.pump();
+      access.texts = {
+        ...access.texts,
+        'roam/a.org': '${access.texts['roam/a.org']}From the laptop.\n',
+      };
+      await tester.tap(find.byTooltip('Review'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('The note changed meanwhile'), findsOneWidget);
+      expect(access.replaced, isEmpty);
+      expect(access.texts['roam/a.org'], contains('From the laptop.'));
+      expect(access.texts['roam/a.org'], isNot(contains('Mine.')));
+    });
+
+  });
+
   group('the diff before saving, and earlier versions (#38)', () {
     testWidgets('an earlier version is restored through the diff',
         (tester) async {
