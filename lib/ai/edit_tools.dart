@@ -66,3 +66,56 @@ EditProposal proposalFrom(Map<String, Object?> args, RoamGraph visible) {
     reason: reason is String ? reason.trim() : '',
   );
 }
+
+/// The change-set tool (#76): edits to several notes at once, reviewed
+/// together. [maxFiles] is the limit the user set; the model is told it.
+AiTool proposeEditsTool(int maxFiles) => AiTool(
+      'propose_edits',
+      'Propose edits to several existing notes at once, for example links '
+          'between related notes or a "See also" line in each. Nothing is '
+          'saved by this tool: I review every file\'s diff in the app, '
+          'accept or reject each, and save. One edit per note, at most '
+          '$maxFiles notes. Each edit works as in propose_edit: mode '
+          '"append" adds text at the end of the note, mode "replace" '
+          'replaces its text below its head. Read the notes first. Link to '
+          'notes as [[id:<ID>][<title>]] with IDs the tools gave you.',
+      {
+        'type': 'object',
+        'properties': {
+          'summary': {
+            'type': 'string',
+            'description': 'One sentence: what the set does',
+          },
+          'edits': {
+            'type': 'array',
+            'maxItems': maxFiles,
+            'items': proposeEditTool.parameters,
+          },
+        },
+        'required': ['edits'],
+      },
+    );
+
+/// The proposals in a `propose_edits` call; each checked as in
+/// [proposalFrom]. Throws [ToolError].
+List<EditProposal> proposalsFrom(Map<String, Object?> args, RoamGraph visible) {
+  final edits = args['edits'];
+  if (edits is! List || edits.isEmpty) {
+    throw const ToolError('edits is missing or empty.');
+  }
+  return [
+    for (final (i, edit) in edits.indexed)
+      if (edit is Map<String, Object?>)
+        _numbered(i, () => proposalFrom(edit, visible))
+      else
+        throw ToolError('edits[$i] is not an object.'),
+  ];
+}
+
+EditProposal _numbered(int i, EditProposal Function() parse) {
+  try {
+    return parse();
+  } on ToolError catch (e) {
+    throw ToolError('edits[$i]: ${e.message}');
+  }
+}

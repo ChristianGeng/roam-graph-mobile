@@ -1520,6 +1520,38 @@ devices through Syncthing.
       refused; in the app, shared text added to the node viewed last, and
       a revised note replacing a node's text after the diff.
 
+55. **AI change sets: edits to several notes, reviewed together** (#76),
+    `lib/edit/change_set.dart`, `lib/edit/change_set_screen.dart`, and the
+    chat tool `propose_edits`. Built from the pieces of decision 54:
+    - **The tool** takes a list of edits, each as in `propose_edit` (node,
+      `append` or `replace`, text, reason), and a summary. It writes
+      nothing. One edit per file; at most the limit set in AI settings
+      ("Most notes one AI change set may edit", 20 by default), which the
+      tool's description tells the model. Notes hidden from AI cannot be
+      part of a set.
+    - **The set is built when it is first reviewed:** each note is read
+      then, and the edit applied to it, so every diff is against the note
+      as it is. `id:` links to IDs that are no note are flagged.
+    - **Review:** one card per file, with its reason, the lines removed and
+      added, and Diff, Accept, Reject and Edit (the proposed text, before
+      accepting); "Accept all"; the number of files and links the accepted
+      entries change.
+    - **Saving:** the accepted files are saved one after the other, each
+      as every edit is (decision 50), each over the version the set was
+      built on. A file changed meanwhile is refused alone; the others
+      still save. The end says how many were saved, refused and rejected.
+      Each file is replaced whole, so a sync meanwhile sees whole files;
+      conflict copies stay the laptop's (rule 4).
+    - **Undo:** "Undo this change set" gives every saved file back the text
+      it had before, but only if it is still as the set saved it;
+      otherwise it names the files it could not undo. Undoing is itself
+      saved as an edit, so the old versions stay.
+    - Tests: three files, two accepted and one rejected; one file changed
+      between proposal and save, refused alone; undo of all saved files
+      except one changed since; an unknown link flagged; a hidden note,
+      two edits of one file and too many files refused; an entry edited
+      before accepting; in the chat, a set reviewed, saved and undone.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

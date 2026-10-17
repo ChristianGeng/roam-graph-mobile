@@ -4,6 +4,8 @@ import 'package:org_flutter/org_flutter.dart';
 
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../edit/change_set.dart';
+import '../edit/change_set_screen.dart';
 import '../edit/diff_screen.dart';
 import '../edit/edit_proposal.dart';
 import '../edit/note_editor.dart';
@@ -96,6 +98,15 @@ class _ChatScreenState extends State<ChatScreen> {
   final _proposals = <String, EditProposal>{};
   final _proposalStatus = <String, String>{};
 
+  /// The change sets the AI proposed (#76), by the ID of the tool call;
+  /// built when first reviewed, and kept, so their state stays.
+  final _setProposals =
+      <String, ({List<EditProposal> edits, String summary})>{};
+  final _sets = <String, ChangeSet>{};
+
+  /// The limit on notes per change set, from AI settings.
+  int _maxFiles = 20;
+
   @override
   void initState() {
     super.initState();
@@ -174,6 +185,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _config = config;
       _defaultModel = values.defaultModel;
       _strongModel = values.strongModel;
+      _maxFiles = settings.maxChangeSetFiles;
       _setupProblem = config == null
           ? 'The AI settings are not available.'
           : config.model.isEmpty
@@ -191,8 +203,15 @@ class _ChatScreenState extends State<ChatScreen> {
               // Edits are offered only where they can be saved.
               toolList: widget.writer?.editor == null
                   ? null
-                  : [...aiTools, proposeEditTool],
-              handlers: {'propose_edit': _propose},
+                  : [
+                      ...aiTools,
+                      proposeEditTool,
+                      proposeEditsTool(settings.maxChangeSetFiles),
+                    ],
+              handlers: {
+                'propose_edit': _propose,
+                'propose_edits': _proposeSet,
+              },
             );
     });
   }
@@ -273,6 +292,64 @@ class _ChatScreenState extends State<ChatScreen> {
     } on ToolError catch (e) {
       return 'Error: ${e.message}';
     }
+  }
+
+  /// Records a change set the AI proposes (#76); the tool writes nothing.
+  Future<String> _proposeSet(ToolCall call) async {
+    final session = _session;
+    if (session == null) return 'Error: the chat has ended.';
+    try {
+      final edits = proposalsFrom(call.input, session.tools.graph);
+      final files = {
+        for (final e in edits) session.tools.graph.nodes[e.nodeId]!.file,
+      };
+      if (files.length != edits.length) {
+        return 'Error: two edits are for the same file; give one edit per '
+            'file, with both changes in it.';
+      }
+      if (files.length > _maxFiles) {
+        return 'Error: the set has ${files.length} notes; the limit is '
+            '$_maxFiles. Propose fewer at a time.';
+      }
+      final summary = call.input['summary'];
+      _setProposals[call.id] =
+          (edits: edits, summary: summary is String ? summary.trim() : '');
+      return 'Recorded a change set of ${edits.length} notes. I review each '
+          'diff in the app before anything is saved; nothing is saved yet.';
+    } on ToolError catch (e) {
+      return 'Error: ${e.message}';
+    }
+  }
+
+  /// Opens the review of a change set (#76), built from the notes as they
+  /// are now on first opening.
+  Future<void> _reviewSet(String callId) async {
+    final writer = widget.writer;
+    final editor = writer?.editor;
+    final proposed = _setProposals[callId];
+    if (writer == null || editor == null || proposed == null) return;
+    var set = _sets[callId];
+    if (set == null) {
+      final settings = AiSettingsScope.of(context);
+      final graph = widget.graph.value;
+      try {
+        set = await ChangeSet.build(
+          proposed.edits,
+          editor: editor,
+          visible: settings.visibility.visibleGraph(graph),
+          graph: graph,
+          maxFiles: _maxFiles,
+          summary: proposed.summary,
+        );
+      } on ChangeSetError catch (e) {
+        _tell(e.message);
+        return;
+      }
+      _sets[callId] = set;
+    }
+    if (!mounted) return;
+    await ChangeSetScreen.open(context, set, writer, widget.graph.value);
+    if (mounted) setState(() {});
   }
 
   /// Shows the diff of a proposal against the note as it is now, and
@@ -536,6 +613,33 @@ class _ChatScreenState extends State<ChatScreen> {
               _ToolCallTile(key: ValueKey('chat-tool-$i-$j'), result: result),
             );
             final callId = result.call.id;
+            if (_setProposals[callId] case final proposed?) {
+              final set = _sets[callId];
+              final saved = set?.entries
+                      .where((e) => e.state == EntryState.saved)
+                      .length ??
+                  0;
+              children.add(
+                Card(
+                  key: ValueKey('chat-change-set-$i-$j'),
+                  margin: const EdgeInsets.fromLTRB(8, 4, 24, 4),
+                  child: ListTile(
+                    leading: const Icon(Icons.library_books_outlined),
+                    title: Text(
+                        'Changes to ${proposed.edits.length} notes'),
+                    subtitle: Text(set == null
+                        ? (proposed.summary.isEmpty
+                            ? 'Not saved; review them first.'
+                            : proposed.summary)
+                        : '$saved saved'),
+                    trailing: TextButton(
+                      onPressed: () => _reviewSet(callId),
+                      child: const Text('Review'),
+                    ),
+                  ),
+                ),
+              );
+            }
             if (_proposals[callId] case final proposal?) {
               final title = widget.graph.value.nodes[proposal.nodeId]
                       ?.displayTitle ??
