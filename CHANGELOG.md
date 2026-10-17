@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-17: Mistral answers after tool calls ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-17: Mistral answers after tool calls ([#84](https://github.com/ChristianGeng/roam-graph-mobile/pull/84))
 
 - Fixed: with the Mistral preset, the answer after tool calls was not
   shown, and a follow-up failed with HTTP 400.
