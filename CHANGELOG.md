@@ -15,6 +15,22 @@ each entry.
   change as a diff, and "Undo these changes" for each message.
 - Changes made before this update are listed but cannot be undone there.
 - Closes [#99](https://github.com/ChristianGeng/roam-graph-mobile/issues/99).
+## 2026-10-17: Search the words inside notes ([#101](https://github.com/ChristianGeng/roam-graph-mobile/pull/101))
+
+- Added: an "In the text" chip in Search finds notes by the words in
+  their text, with a short snippet around the words. Accents and case do
+  not matter.
+- Added: the AI chat can search the text too, but never finds notes or
+  headings hidden from AI.
+- The index is rebuilt once after the update.
+- Closes [#98](https://github.com/ChristianGeng/roam-graph-mobile/issues/98).
+## 2026-10-17: Change a note's title, tags and aliases ([#100](https://github.com/ChristianGeng/roam-graph-mobile/pull/100))
+
+- Added: "Title, tags and aliases" in the node view's Edit menu. The ID
+  and the file name stay, so every link still works.
+- Added: in agent mode, the AI can rename notes and set their tags and
+  aliases, undoable as its other changes.
+- Closes [#97](https://github.com/ChristianGeng/roam-graph-mobile/issues/97).
 
 ## 2026-10-17: The AI can delete notes when you ask ([#96](https://github.com/ChristianGeng/roam-graph-mobile/pull/96))
 

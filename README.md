@@ -55,7 +55,7 @@ or as set in Settings (#71). The theme is light, dark, or as Android is
 set, a choice in Settings (#90). The AI model can be picked from the
 provider's list, with prices and tool support where the list gives them
 (#75). Mistral's answers after tool calls, which come as a list of parts,
-are shown, and follow-ups work (#79). What is decided and why is in
+are shown, and follow-ups work (#79). Search also finds the words inside notes, and so can the AI, except in notes hidden from it (#98). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

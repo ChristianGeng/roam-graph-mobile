@@ -7,6 +7,7 @@ import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/ai_share.dart';
 import '../graph/node_search.dart';
+import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
 import '../node_view/node_screen.dart';
@@ -152,10 +153,34 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
+  /// Searching in the notes' text (#98) instead of titles and aliases.
+  bool _inText = false;
+
+  /// The text search's results for [_textQuery]; null while it runs.
+  List<TextHit>? _textHits;
+  String _textQuery = '';
+  int _textSearches = 0;
+
+  /// Runs the text search for the query as it is, if it changed.
+  Future<void> _searchText() async {
+    final files = widget.files;
+    final query = _query.text.trim();
+    if (!_inText || files == null || query == _textQuery) return;
+    _textQuery = query;
+    final search = ++_textSearches;
+    setState(() => _textHits = null);
+    final hits = query.isEmpty
+        ? const <TextHit>[]
+        : await files.searchText(query).catchError((Object _) => <TextHit>[]);
+    // Only the latest search shows.
+    if (mounted && search == _textSearches) setState(() => _textHits = hits);
+  }
+
   @override
   void initState() {
     super.initState();
     _query.addListener(_changed);
+    _query.addListener(_searchText);
     widget.graph.addListener(_changed);
   }
 
@@ -206,13 +231,14 @@ class _SearchScreenState extends State<SearchScreen> {
         title: TextField(
           controller: _query,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Title or alias',
+          decoration: InputDecoration(
+            hintText: _inText ? 'Words in the notes' : 'Title or alias',
             border: InputBorder.none,
           ),
           textInputAction: TextInputAction.search,
           // The results as they are now, also before the next frame.
           onSubmitted: (query) {
+            if (_inText) return;
             final first = searchNodes(widget.graph.value, query, tags: _tags)
                 .firstOrNull;
             if (first != null) _open(first.node.id);
@@ -238,6 +264,30 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       body: Column(
         children: [
+          if (widget.files != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FilterChip(
+                  key: const ValueKey('search-in-text'),
+                  avatar: const Icon(Icons.notes_outlined, size: 18),
+                  label: const Text('In the text'),
+                  selected: _inText,
+                  onSelected: (on) {
+                    setState(() {
+                      _inText = on;
+                      _textQuery = '';
+                      _textHits = null;
+                    });
+                    _searchText();
+                  },
+                ),
+              ),
+            ),
+          if (_inText)
+            Expanded(child: _textResults(graph))
+          else ...[
           if (allTags.isNotEmpty)
             SizedBox(
               height: 56,
@@ -311,8 +361,60 @@ class _SearchScreenState extends State<SearchScreen> {
               },
             ),
           ),
+          ],
         ],
       ),
+    );
+  }
+
+  /// The notes whose text has the words: the file's node, or its first
+  /// node, with a snippet of the text around the match.
+  Widget _textResults(RoamGraph graph) {
+    final hits = _textHits;
+    if (_query.text.trim().isEmpty) {
+      return const Center(child: Text('Type words to find in the notes.'));
+    }
+    if (hits == null) return const Center(child: CircularProgressIndicator());
+    final rows = <(RoamNode, String)>[];
+    for (final hit in hits) {
+      final inFile = [
+        for (final node in graph.nodes.values)
+          if (node.file == hit.path) node,
+      ];
+      if (inFile.isEmpty) continue;
+      final node =
+          inFile.where((n) => n.isFile).firstOrNull ?? inFile.first;
+      rows.add((node, hit.snippet.replaceAll(RegExp(r'\s+'), ' ').trim()));
+    }
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              rows.length == 1 ? '1 note' : '${rows.length} notes',
+              key: const ValueKey('text-hit-count'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            key: const ValueKey('text-hits'),
+            children: [
+              for (final (i, (node, snippet)) in rows.indexed)
+                ListTile(
+                  key: ValueKey('text-hit-$i'),
+                  title: Text(node.displayTitle),
+                  subtitle:
+                      Text(snippet, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  onTap: () => _open(node.id),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

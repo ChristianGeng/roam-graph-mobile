@@ -45,6 +45,26 @@ void main() {
     expect(decodeElispPlistStrings('', ':outline'), isEmpty);
   });
 
+  test('full-text search finds words, also changed and removed (#98)', () {
+    final db = RoamDatabase.inMemory(root: '/roam');
+    addTearDown(db.close);
+    db.putText('a.org', '#+title: A\nThe Café opens early.\n');
+    db.putText('b.org', '#+title: B\nNothing here.\n');
+    expect([for (final h in db.searchText('cafe')) h.path], ['a.org']);
+    expect([for (final h in db.searchText('OPEN')) h.path], ['a.org']);
+    expect(db.searchText('cafe early').single.snippet, contains('Café'));
+    expect(db.searchText('cafe nothing'), isEmpty);
+    // Quotes and operators are words, not syntax.
+    expect(db.searchText('"cafe" OR -x'), isEmpty);
+    expect(db.searchText('   '), isEmpty);
+    db.putText('a.org', '#+title: A\nClosed now.\n');
+    expect(db.searchText('cafe'), isEmpty);
+    expect([for (final h in db.searchText('closed')) h.path], ['a.org']);
+    db.removeFile('a.org');
+    expect(db.searchText('closed'), isEmpty);
+    expect([for (final h in db.searchText('noth')) h.path], ['b.org']);
+  });
+
   test('backlinks from the database are those of the files', () {
     final parsed = fixtureGraph();
     final db = RoamDatabase.inMemory(root: '/roam');
