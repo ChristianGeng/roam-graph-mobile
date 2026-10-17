@@ -850,10 +850,11 @@ class _ChatScreenState extends State<ChatScreen> {
               dense: true,
               title: Text(changes.first(path).title),
               subtitle: Text(
-                '${changes.createdFiles.contains(path) ? 'Created' : 'Changed'}'
+                '${changes.deletedFiles.contains(path) ? 'Deleted' : changes.createdFiles.contains(path) ? 'Created' : 'Changed'}'
                 '${switch (undone?[path]) {
                   UndoOutcome.restored => ', restored',
                   UndoOutcome.deleted => ', deleted again',
+                  UndoOutcome.recreated => ', back again',
                   UndoOutcome.changedSince => ', changed since: kept',
                   UndoOutcome.otherFolder =>
                     ', in the folder opened before: kept',
@@ -876,7 +877,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   context,
                   title: changes.first(path).title,
                   before: changes.before(path) ?? '',
-                  after: changes.after(path),
+                  after: changes.after(path) ?? '',
                 ),
               ),
             ),
@@ -899,8 +900,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   static String _undoText(Map<String, UndoOutcome> outcome) {
-    final kept = outcome.values.where((o) => o != UndoOutcome.restored &&
-        o != UndoOutcome.deleted);
+    final kept = outcome.values.where((o) =>
+        o != UndoOutcome.restored &&
+        o != UndoOutcome.deleted &&
+        o != UndoOutcome.recreated);
     return kept.isEmpty
         ? 'Undone.'
         : 'Undone, except ${kept.length} '
@@ -915,7 +918,8 @@ class _ChatScreenState extends State<ChatScreen> {
     if (changes == null || editor == null) return;
     setState(() => _undoing = turn);
     try {
-      final outcome = await changes.undoAll(editor);
+      final outcome =
+          await changes.undoAll(editor, create: widget.writer?.create);
       if (mounted) _tell(_undoText(outcome));
     } finally {
       if (mounted) setState(() => _undoing = null);

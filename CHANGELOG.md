@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: The AI can delete notes when you ask ([#96](https://github.com/ChristianGeng/roam-graph-mobile/pull/96))
+
+- Added: in agent mode, the AI deletes a note, or a heading with its
+  subtree, when you ask it to. Links to it in your other notes become
+  plain text, so none points nowhere. "Undo all" brings everything back.
+- Closes [#93](https://github.com/ChristianGeng/roam-graph-mobile/issues/93).
+
 ## 2026-10-17: Copy answers and tool results in the chat ([#95](https://github.com/ChristianGeng/roam-graph-mobile/pull/95))
 
 - Added: a Copy button on every answer of the AI chat, on opened tool

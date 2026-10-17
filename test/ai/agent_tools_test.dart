@@ -25,6 +25,15 @@ class RacingStore extends MemoryNoteStore {
     }
     return super.replace(path, base, text);
   }
+
+  @override
+  Future<SaveResult> delete(String path, NoteVersion base) {
+    if (path == raceOn) {
+      files[path] = '${files[path]}From the laptop.\n';
+      raceOn = null;
+    }
+    return super.delete(path, base);
+  }
 }
 
 /// The notes, and one with nothing hidden in it, to edit.
@@ -35,6 +44,10 @@ final start = {
   'tree.org': ':PROPERTIES:\n:ID: tree\n:END:\n#+title: Tree\nTop text.\n'
       '* Branch\n:PROPERTIES:\n:ID: branch\n:END:\nBranch text, see '
       '[[id:open][Open]].\n',
+  'sub/deep.org': ':PROPERTIES:\n:ID: deep\n:END:\n#+title: Deep\n',
+  'twin.org': ':PROPERTIES:\n:ID: twin\n:END:\n#+title: Twin\n'
+      'See [[id:child][the child]].\n'
+      '* Child\n:PROPERTIES:\n:ID: child\n:END:\nChild text.\n',
 };
 
 void main() {
@@ -269,6 +282,70 @@ void main() {
     expect(store.files['plan.org'], endsWith('\nx\n'));
     // Not a failure to retry: that note is not this change's.
     expect(changes.canUndo, isFalse);
+  });
+
+  test('delete_node: the note goes, links to it become text, undo (#93)',
+      () async {
+    final changes = agent.startMessage();
+    expect(await call('delete_node', {'id': 'plan'}),
+        'Deleted the note "Plan" (plan.org). Links to it in 1 note became '
+        'their text: Open.');
+    expect(store.files.containsKey('plan.org'), isFalse);
+    expect(store.files['open.org'], contains('Some words. Plan and again.'));
+    // A note hidden from AI keeps its link; it is not changed.
+    expect(store.files['diary.org'], start['diary.org']);
+    expect(changes.summary, '1 changed, 1 deleted');
+    expect((log as MemoryAgentLog).entries.first.newHash, isNull);
+
+    expect(await changes.undoAll(editor, create: agent.writer.create), {
+      'plan.org': UndoOutcome.recreated,
+      'open.org': UndoOutcome.restored,
+    });
+    expect(store.files, start);
+  });
+
+  test('delete_node: a heading node goes with its subtree', () async {
+    final changes = agent.startMessage();
+    expect(await call('delete_node', {'id': 'branch'}),
+        'Deleted the heading "Branch" with its subtree.');
+    expect(store.files['tree.org'],
+        ':PROPERTIES:\n:ID: tree\n:END:\n#+title: Tree\nTop text.\n');
+    expect(graphOf(store.files).nodes.containsKey('branch'), isFalse);
+    await changes.undoAll(editor, create: agent.writer.create);
+    expect(store.files, start);
+  });
+
+  test('delete_node: a link to a heading in its own file becomes text',
+      () async {
+    final changes = agent.startMessage();
+    expect(await call('delete_node', {'id': 'child'}),
+        'Deleted the heading "Child" with its subtree. Links to it in 1 note '
+        'became their text: Twin.');
+    expect(store.files['twin.org'],
+        ':PROPERTIES:\n:ID: twin\n:END:\n#+title: Twin\nSee the child.\n');
+    expect(await changes.undoAll(editor, create: agent.writer.create),
+        {'twin.org': UndoOutcome.restored});
+    expect(store.files, start);
+  });
+
+  test('a note with hidden parts in it cannot be deleted', () async {
+    // Ideas has a heading tagged private.
+    expect(await call('delete_node', {'id': 'ideas'}),
+        contains('parts hidden from you'));
+    expect(store.files, start);
+  });
+
+  test('delete_node refuses hidden notes, subfolders and changed files',
+      () async {
+    expect(await call('delete_node', {'id': 'diary'}),
+        contains('no note with the ID diary'));
+    expect(await call('delete_node', {'id': 'deep'}),
+        contains('is in a subfolder'));
+    store.raceOn = 'plan.org';
+    expect(await call('delete_node', {'id': 'plan'}),
+        contains('changed since it was read; nothing was deleted'));
+    expect(store.files['plan.org'], endsWith('From the laptop.\n'));
+    expect(agent.changes.isEmpty, isTrue);
   });
 }
 
