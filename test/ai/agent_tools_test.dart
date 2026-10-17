@@ -431,6 +431,28 @@ void main() {
           hasLength(FileAgentLog.keep));
     });
 
+    test('no line is lost when the log is trimmed while the agent writes',
+        () async {
+      final dir = Directory.systemTemp.createTempSync('agent-log');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final file = FileAgentLog(path: '${dir.path}/agent-changes.jsonl');
+      for (var i = 0; i < FileAgentLog.keep + 5; i++) {
+        await file.record(AgentLogEntry.undo('m$i', DateTime(2026)));
+      }
+      // Not awaited one by one: the read and the appends overlap.
+      final reading = file.read();
+      final writing = [
+        for (var i = 0; i < 5; i++)
+          file.record(AgentLogEntry.undo('new$i', DateTime(2026))),
+      ];
+      await Future.wait([reading, ...writing]);
+      final lines =
+          File('${dir.path}/agent-changes.jsonl').readAsLinesSync();
+      for (var i = 0; i < 5; i++) {
+        expect(lines.where((l) => l.contains('"new$i"')), hasLength(1));
+      }
+    });
+
     test('the file log is cut between messages', () async {
       final dir = Directory.systemTemp.createTempSync('agent-log');
       addTearDown(() => dir.deleteSync(recursive: true));
