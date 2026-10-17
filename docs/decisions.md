@@ -39,8 +39,10 @@ devices through Syncthing.
    `files`, `nodes`, `aliases`, `citations`, `refs`, `tags`, `links`.
    org-roam stores every value as an Emacs Lisp string, quotation marks
    included: an ID is `"37c2520b-..."` with the quotes. Matching both means
-   the queries of my org-roam MCP server (`cgeng-ai-skills`,
-   `mcps/org_roam`) work on the app's database unchanged.
+   the queries of my org-roam MCP server
+   ([org-roam-mcp](https://github.com/ChristianGeng/org-roam-mcp), until
+   2026-10 `mcps/org_roam` in `cgeng-ai-skills`) work on the app's
+   database unchanged.
 
 6. **Render nodes in the app, plus "Open in Orgro".** I already read org on
    the phone with Orgro. Checked in Orgro's source (commit 53f6398):
@@ -462,7 +464,8 @@ devices through Syncthing.
 
 30. **Graph views compute what my MCP server computes** (#7),
     `lib/graph/graph_algorithms.dart`, as decision 8 planned. The server
-    (`cgeng-ai-skills`, `mcps/org_roam`) is the reference. It builds a
+    ([org-roam-mcp](https://github.com/ChristianGeng/org-roam-mcp),
+    `src/org_roam_mcp`) is the reference. It builds a
     directed graph with every node and one edge for each pair of nodes
     with an `id:` link; a link to a missing ID adds a bare node. The app
     builds the same graph. The "View" menu of the graph offers:
@@ -1662,7 +1665,7 @@ devices through Syncthing.
   - **When to look again:** when an MCP client on Android can use a local
     server (for example over a local socket), or when the Claude Android
     app can share the graph's database with a local tool. Then the
-    read-only half of `mcps/org_roam` could serve the database the app
+    read-only half of org-roam-mcp could serve the database the app
     builds itself (decision 23; Emacs's `org-roam.db` stays on the laptop,
     decision 3) as it is.
   - **If the owner agrees:** close #14 and the v3 milestone.
