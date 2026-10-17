@@ -49,8 +49,9 @@ class EditScreen extends StatefulWidget {
     final lines = NodeLines.find(base.text, node);
     if (lines == null) {
       messenger.showSnackBar(SnackBar(
-          content: Text('The heading is no longer in ${node.file}; the '
-              'file changed since the app read it.')));
+          content: Text('${node.displayTitle} is no longer in '
+              '${node.file} with its :ID:; the file changed since the app '
+              'read it.')));
       return false;
     }
     return await navigator.push<bool>(MaterialPageRoute(
@@ -68,6 +69,11 @@ class _EditScreenState extends State<EditScreen> {
   late final _text = TextEditingController(text: widget.lines.body);
   bool _saving = false;
 
+  /// The note's folder and path when the editor opened. After another
+  /// folder is chosen (for write access), the same path there is another
+  /// note, and nothing is saved into it.
+  String? _noteKey;
+
   /// Set when the user chose to leave, so the page may close.
   bool _leaving = false;
 
@@ -75,6 +81,7 @@ class _EditScreenState extends State<EditScreen> {
   void initState() {
     super.initState();
     _text.addListener(() => setState(() {}));
+    _noteKey = widget.writer.editor?.store.historyKey(widget.node.file);
   }
 
   @override
@@ -101,6 +108,11 @@ class _EditScreenState extends State<EditScreen> {
   Future<void> _review() async {
     final editor = widget.writer.editor;
     if (editor == null) return;
+    if (editor.store.historyKey(widget.node.file) != _noteKey) {
+      _tell('Another folder is open now. Open the node there again to edit '
+          'it; nothing was saved.');
+      return;
+    }
     final after = widget.lines.withBody(_text.text);
     final save = await DiffScreen.confirm(
       context,

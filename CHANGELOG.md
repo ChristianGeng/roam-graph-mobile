@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Edit a node's text ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Added: "Edit text" in the node view's Edit menu. The ID, the property
+  drawer and the title or heading line stay as they are; "Review" shows
+  what changes, and only "Save" there writes, over the version you opened.
+- Closes [#37](https://github.com/ChristianGeng/roam-graph-mobile/issues/37).
+
 ## 2026-10-17: See what an edit changes, and restore earlier versions ([#86](https://github.com/ChristianGeng/roam-graph-mobile/pull/86))
 
 - Added: "Earlier versions" in the node view's Edit menu: the versions the
