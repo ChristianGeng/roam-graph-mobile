@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-17: Copy answers and tool results in the chat ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-17: Copy answers and tool results in the chat ([#95](https://github.com/ChristianGeng/roam-graph-mobile/pull/95))
 
 - Added: a Copy button on every answer of the AI chat, on opened tool
   calls (the call with its result) and on errors; answers can also be
