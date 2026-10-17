@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roam_graph_mobile/capture/capture_screen.dart';
 import 'package:roam_graph_mobile/capture/share_inbox.dart';
+import 'package:roam_graph_mobile/edit/note_editor.dart';
 import 'package:roam_graph_mobile/folder/folder_access.dart';
 import 'package:roam_graph_mobile/folder/folder_screen.dart';
 import 'package:roam_graph_mobile/folder/org_files.dart';
@@ -89,6 +92,48 @@ class FakeFolderAccess implements FolderAccess {
     if (!appInstalled) return false;
     opened.add((file.path, packageName));
     return true;
+  }
+
+  /// The files replaced, as directory URI and name (#35).
+  final replaced = <(String, String)>[];
+
+  /// Called just before a replace checks the hash, to change the file as
+  /// the laptop would meanwhile.
+  void Function()? beforeReplace;
+
+  /// Whether a replaced file keeps its modification time, as some document
+  /// providers report it.
+  bool keepModified = false;
+
+  @override
+  Future<String> replaceFile(
+    String dir,
+    String name,
+    String uri, {
+    required String expected,
+    required Uint8List bytes,
+  }) async {
+    beforeReplace?.call();
+    final file = files.where((f) => f.uri == uri).firstOrNull;
+    final text = file == null ? null : texts[file.path];
+    if (file == null || text == null) {
+      throw PlatformException(code: 'missing', message: '$name is gone');
+    }
+    if (contentHash(utf8.encode(text)) != expected) {
+      throw PlatformException(code: 'changed', message: '$name changed');
+    }
+    replaced.add((dir, name));
+    texts = {...texts, file.path: utf8.decode(bytes)};
+    files = [
+      for (final f in files)
+        f.uri == uri
+            ? FolderFile(
+                path: f.path,
+                uri: f.uri,
+                modified: keepModified ? f.modified : f.modified + 1)
+            : f,
+    ];
+    return uri;
   }
 
   @override
@@ -187,6 +232,7 @@ Future<TestGraphIndex> start(
   FakeFolderAccess access, {
   FakeShareInbox? shares,
   MemoryNodeMemory? memory,
+  EditHistory? history,
 }) async {
   final index = TestGraphIndex();
   final nodeMemory = memory ?? MemoryNodeMemory();
@@ -196,7 +242,11 @@ Future<TestGraphIndex> start(
       graphIndex: index,
       shareInbox: shares ?? FakeShareInbox(),
       nodeMemory: nodeMemory,
-      graphScreen: (graph, readNote, openInOrgro, writer, files) => GraphScreen(
+      editHistory: history ?? MemoryEditHistory(),
+      graphScreen: (graph, readNote, openInOrgro, writer, files) {
+        lastWriter = writer;
+        lastGraph = graph;
+        return GraphScreen(
         graph: graph,
         readNote: readNote,
         files: files,
@@ -204,12 +254,19 @@ Future<TestGraphIndex> start(
         writer: writer,
         nodeMemory: nodeMemory,
         computeLayout: layoutHere,
-      ),
+      );
+      },
     ),
   );
   await tester.pumpAndSettle();
   return index;
 }
+
+/// The writer the folder screen gave the graph view last.
+NoteWriter? lastWriter;
+
+/// The graph the folder screen gave the graph view last.
+ValueListenable<RoamGraph>? lastGraph;
 
 /// The value shown for one count, or null if it is not shown.
 String? stat(WidgetTester tester, String key) {
@@ -555,6 +612,88 @@ void main() {
       expect(find.textContaining('exists already'), findsOneWidget);
       // Still on the capture screen, to save again.
       expect(find.byKey(const ValueKey('capture-title')), findsOneWidget);
+    });
+  });
+
+  group('safe save of edits (#35)', () {
+    Future<(FakeFolderAccess, NoteEditor, MemoryEditHistory)> open(
+        WidgetTester tester) async {
+      final access = withNotes(saved: writableOrg);
+      final history = MemoryEditHistory();
+      await start(tester, access, history: history);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      return (access, lastWriter!.editor!, history);
+    }
+
+    testWidgets('an edit of an unchanged file is saved and indexed',
+        (tester) async {
+      final (access, editor, history) = await open(tester);
+      final base = (await editor.read('a.org'))!;
+      final edited = base.text.replaceFirst('[[id:b]]', '[[id:b]] More.');
+      final saving = editor.save('a.org', base, edited);
+      await tester.pumpAndSettle();
+      final result = await saving;
+
+      expect(result, isA<Saved>());
+      expect(access.replaced.single, ('content://r', 'a.org'));
+      expect(access.texts['roam/a.org'], edited);
+      // The old version is kept, and nothing else was created.
+      expect((await history.versions('content://tree/org\na.org')).single.text, base.text);
+      expect(access.created, isEmpty);
+      expect(access.files.where((f) => f.path.contains('.tmp')), isEmpty);
+      // Indexed again: the file was read after the write.
+      expect(access.readPaths.where((p) => p == 'roam/a.org').length,
+          greaterThanOrEqualTo(2));
+    });
+
+    testWidgets('a saved note is read again even with the same time',
+        (tester) async {
+      final (access, editor, _) = await open(tester);
+      access.keepModified = true;
+      final base = (await editor.read('a.org'))!;
+      final saving = editor.save('a.org', base,
+          base.text.replaceFirst('[[id:b]] [[id:gone]]', 'No links.'));
+      await tester.pumpAndSettle();
+      expect(await saving, isA<Saved>());
+      // The graph lost a's links: b has no backlink any more.
+      final graph = lastGraph!.value;
+      expect(graph.links.where((l) => l.source == 'a'), isEmpty);
+    });
+
+    testWidgets('an edit of a file changed meanwhile is refused',
+        (tester) async {
+      final (access, editor, history) = await open(tester);
+      final base = (await editor.read('a.org'))!;
+      access.beforeReplace = () => access.texts = {
+            ...access.texts,
+            'roam/a.org': '${access.texts['roam/a.org']}From the laptop.\n',
+          };
+      final saving = editor.save('a.org', base, '${base.text}Mine.\n');
+      await tester.pumpAndSettle();
+      final result = await saving;
+
+      expect(result, isA<ChangedMeanwhile>());
+      expect((result as ChangedMeanwhile).current!.text,
+          contains('From the laptop.'));
+      expect(access.replaced, isEmpty);
+      expect(access.texts['roam/a.org'], isNot(contains('Mine.')));
+      expect(await history.versions('content://tree/org\na.org'), isEmpty);
+    });
+
+    testWidgets('a folder with read access only is not written',
+        (tester) async {
+      final access = withNotes(saved: org);
+      await start(tester, access);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      final editor = lastWriter!.editor!;
+      final base = (await editor.read('a.org'))!;
+      final saving = editor.save('a.org', base, '${base.text}x\n');
+      await tester.pumpAndSettle();
+      final result = await saving;
+      expect(result, isA<NoWriteAccessToEdit>());
+      expect(access.replaced, isEmpty);
     });
   });
 

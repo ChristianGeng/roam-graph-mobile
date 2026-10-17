@@ -11,6 +11,7 @@ import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 /**
@@ -44,6 +45,14 @@ import java.util.concurrent.Executors
  *   taken. The bytes go to a temporary file named as Syncthing names its
  *   own (.syncthing.NAME.tmp), which Syncthing does not sync, and the
  *   finished file is renamed into place (#13).
+ * - replaceFile({dir, name, uri, expected, bytes}) -> the file's URI after
+ *   replacing the file [uri], named [name] in the folder [dir], with
+ *   [bytes] (#35). Only if the file is still the version the app read: its
+ *   SHA-256 must be [expected] (hex), checked just before writing, else
+ *   error "changed". The bytes go to a temporary file first; then the old
+ *   file is renamed aside, the new one renamed into place, and the old one
+ *   deleted. If a step fails, the old file is put back. Errors: "changed",
+ *   "missing" (the file is gone), "write_failed".
  */
 class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHandler {
     companion object {
@@ -93,6 +102,18 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                     return
                 }
                 createFile(Uri.parse(dir), name, bytes, result)
+            }
+            "replaceFile" -> {
+                val dir = call.argument<String>("dir")
+                val name = call.argument<String>("name")
+                val uri = call.argument<String>("uri")
+                val expected = call.argument<String>("expected")
+                val bytes = call.argument<ByteArray>("bytes")
+                if (dir == null || name == null || uri == null || expected == null || bytes == null) {
+                    result.error("bad_args", "dir, name, uri, expected or bytes is missing", null)
+                    return
+                }
+                replaceFile(Uri.parse(dir), name, Uri.parse(uri), expected, bytes, result)
             }
             "openWith" -> {
                 val uri = call.argument<String>("uri")
@@ -307,6 +328,161 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
             }
             throw e
         }
+    }
+
+    private class ChangedException : Exception()
+    private class MissingException : Exception()
+
+    private fun replaceFile(
+        dir: Uri,
+        name: String,
+        file: Uri,
+        expected: String,
+        bytes: ByteArray,
+        result: MethodChannel.Result,
+    ) {
+        executor.execute {
+            val outcome: Pair<String?, Pair<String, String>?> = try {
+                Pair(writeReplacement(dir, name, file, expected, bytes), null)
+            } catch (e: ChangedException) {
+                Pair(null, Pair("changed", "$name changed since it was read"))
+            } catch (e: MissingException) {
+                Pair(null, Pair("missing", "$name is gone"))
+            } catch (e: Exception) {
+                Pair(null, Pair("write_failed", e.message ?: e.toString()))
+            }
+            mainThread.post {
+                val error = outcome.second
+                if (error == null) result.success(outcome.first) else result.error(error.first, error.second, null)
+            }
+        }
+    }
+
+    private fun sha256(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+
+    /** The SHA-256 of [file], or MissingException if it cannot be read. */
+    private fun currentHash(file: Uri): String {
+        val current = try {
+            activity.contentResolver.openInputStream(file)?.use { it.readBytes() }
+        } catch (_: Exception) {
+            null
+        } ?: throw MissingException()
+        return sha256(current)
+    }
+
+    private fun displayName(doc: Uri): String? =
+        activity.contentResolver.query(doc, arrayOf(Document.COLUMN_DISPLAY_NAME), null, null, null)
+            ?.use { if (it.moveToFirst()) it.getString(0) else null }
+
+    /** The child [name] of [parent], or null if there is none. */
+    private fun child(parent: Uri, name: String): Uri? {
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(parent, DocumentsContract.getDocumentId(parent))
+        activity.contentResolver.query(
+            children,
+            arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(1) == name) {
+                    return DocumentsContract.buildDocumentUriUsingTree(parent, cursor.getString(0))
+                }
+            }
+        }
+        return null
+    }
+
+    /** Renames [doc] to [name]; the new URI, or null unless it has exactly
+     *  that name afterwards. A provider may give "name (1)" instead; then
+     *  the document is renamed back to its old name, so no stray copy is
+     *  left for Syncthing to sync. */
+    private fun renameExactly(doc: Uri, name: String): Uri? {
+        val oldName = displayName(doc)
+        val renamed = try {
+            DocumentsContract.renameDocument(activity.contentResolver, doc, name)
+        } catch (_: Exception) {
+            null
+        } ?: return null
+        if (displayName(renamed) == name) return renamed
+        if (oldName != null) {
+            try {
+                DocumentsContract.renameDocument(activity.contentResolver, renamed, oldName)
+            } catch (_: Exception) {
+                // Left under the provider's name; the error says where.
+            }
+        }
+        return null
+    }
+
+    /** Replaces [file] with [bytes]; see replaceFile. */
+    private fun writeReplacement(dir: Uri, name: String, file: Uri, expected: String, bytes: ByteArray): String {
+        val resolver = activity.contentResolver
+        val parent = documentUri(dir)
+        // Both names start with ".syncthing." and end with ".tmp", so
+        // Syncthing treats them as temporary files and never syncs them.
+        val tempName = ".syncthing.$name.edit.tmp"
+        val asideName = ".syncthing.$name.old.tmp"
+        // An old copy left by an earlier attempt may be the only copy of
+        // the note: never delete it; ask for it to be looked at.
+        if (child(parent, asideName) != null) {
+            throw IllegalStateException(
+                "An earlier save left the old text of $name as $asideName. Check the folder on the laptop, then delete that file."
+            )
+        }
+        if (currentHash(file) != expected) throw ChangedException()
+        // A leftover new text holds nothing that is not saved elsewhere.
+        child(parent, tempName)?.let { DocumentsContract.deleteDocument(resolver, it) }
+        val temp = DocumentsContract.createDocument(resolver, parent, "application/octet-stream", tempName)
+            ?: throw IllegalStateException("Could not create $tempName")
+        if (displayName(temp) != tempName) {
+            DocumentsContract.deleteDocument(resolver, temp)
+            throw IllegalStateException("Could not create $tempName")
+        }
+        try {
+            resolver.openOutputStream(temp, "w")?.use { it.write(bytes) }
+                ?: throw IllegalStateException("Could not write $tempName")
+            // Checked again just before the old file is moved: the laptop
+            // may have changed it while the new text was being written.
+            if (currentHash(file) != expected) throw ChangedException()
+        } catch (e: Exception) {
+            DocumentsContract.deleteDocument(resolver, temp)
+            throw e
+        }
+        val aside = renameExactly(file, asideName)
+        if (aside == null) {
+            // The old file may or may not have moved; leave it and drop
+            // the new text.
+            DocumentsContract.deleteDocument(resolver, temp)
+            if (child(parent, name) == null) {
+                throw IllegalStateException("Could not move $name aside; its old text may be in $asideName.")
+            }
+            throw IllegalStateException("Could not move $name aside; nothing was changed.")
+        }
+        val placed = renameExactly(temp, name)
+        if (placed != null) {
+            try {
+                DocumentsContract.deleteDocument(resolver, aside)
+            } catch (_: Exception) {
+                // The new file is in place. The old copy stays under its
+                // temporary name, and the next save asks about it.
+            }
+            return placed.toString()
+        }
+        // The new text did not take the name. Drop it, wherever it went,
+        // and put the old file back, but only onto a free name.
+        child(parent, tempName)?.let { DocumentsContract.deleteDocument(resolver, it) }
+        val taken = child(parent, name)
+        if (taken != null) {
+            throw IllegalStateException(
+                "Could not save $name. Another file took its name; the old text is in $asideName."
+            )
+        }
+        if (renameExactly(aside, name) == null) {
+            throw IllegalStateException("Could not save $name, nor put it back; the old text is in $asideName.")
+        }
+        throw IllegalStateException("Could not save $name; it is unchanged.")
     }
 
     private fun listFiles(uriString: String, skipDirs: Set<String>, result: MethodChannel.Result) {

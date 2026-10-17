@@ -37,7 +37,8 @@ saved as a new node after review (#60). Help pages, linked Org files shown
 like notes, explain the views and layouts (#62). The rules for editing
 existing notes are agreed (#34): an edit is saved only over the version it
 was made on, through a temporary file, with the old version kept, and the
-`:ID:` and property drawer stay as they are. What changed in each
+`:ID:` and property drawer stay as they are. The app saves edits that way,
+keeping the newest 20 old versions of each note (#35). What changed in each
 release is in [CHANGELOG.md](CHANGELOG.md), and the release text repeats it
 (#70). On a tablet in landscape, the divider between graph and note can be
 dragged, and the graph folded away (#69). The graph starts force-directed,

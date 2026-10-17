@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'ai/ai_settings.dart';
 import 'capture/share_inbox.dart';
+import 'edit/note_editor.dart';
 import 'folder/folder_access.dart';
 import 'folder/folder_screen.dart';
 import 'graph/graph_index.dart';
@@ -26,6 +27,7 @@ class RoamGraphApp extends StatelessWidget {
     this.nodeMemory = const FileNodeMemory(),
     this.aiSettings = const FileAiSettingsStore(),
     this.viewSettings = const FileViewSettingsStore(),
+    this.editHistory = const FileEditHistory(),
   });
 
   final FolderAccess folderAccess;
@@ -35,6 +37,7 @@ class RoamGraphApp extends StatelessWidget {
   final NodeMemory nodeMemory;
   final AiSettingsStore aiSettings;
   final ViewSettingsStore viewSettings;
+  final EditHistory editHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +60,7 @@ class RoamGraphApp extends StatelessWidget {
           graphScreen: graphScreen,
           shareInbox: shareInbox,
           nodeMemory: nodeMemory,
+          editHistory: editHistory,
         ),
       ),
     );
