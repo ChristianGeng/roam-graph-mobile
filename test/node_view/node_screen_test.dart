@@ -238,8 +238,11 @@ void main() {
     await tester.tapOnText(find.textRange.ofSubstring('ftp'));
     await tester.pump();
     expect(opened, hasLength(3));
-    // No app for it.
+    // No app for it. The message above names mail links too: away with it.
     canOpen = false;
+    ScaffoldMessenger.of(tester.element(find.byType(Scaffold).last))
+        .removeCurrentSnackBar();
+    await tester.pumpAndSettle();
     await tester.tapOnText(find.textRange.ofSubstring('mail'));
     await tester.pump();
     expect(find.text('No app can open mailto:a@example.org'), findsOneWidget);
