@@ -86,7 +86,14 @@ class AiVisibility {
   /// `#+filetags` are not checked here; see [hidesInText].
   String filterText(String text, Set<String> hiddenIds) {
     if (hiddenTags.isEmpty) return text;
+    return splitHidden(text, hiddenIds).text;
+  }
+
+  /// [filterText], with what it left out, so a text the AI rewrote can get
+  /// it back ([HiddenParts.restore], #103).
+  HiddenParts splitHidden(String text, Set<String> hiddenIds) {
     final out = <String>[];
+    final parts = <List<String>>[];
     int? skipLevel;
     for (final line in _lines(text)) {
       final heading = _heading.firstMatch(line);
@@ -94,22 +101,32 @@ class AiVisibility {
         final level = heading[1]!.length;
         if (skipLevel != null && level <= skipLevel) skipLevel = null;
         if (skipLevel == null &&
+            hiddenTags.isNotEmpty &&
             _headingTagsOf(line).any(hiddenTags.contains)) {
           skipLevel = level;
           out.add('${heading[1]} (hidden)');
+          parts.add([line]);
           continue;
         }
       }
-      if (skipLevel == null) out.add(line);
+      if (skipLevel == null) {
+        out.add(line);
+      } else {
+        parts.last.add(line);
+      }
     }
-    final filtered = out.join('\n');
-    if (hiddenIds.isEmpty) return filtered;
-    return filtered.replaceAllMapped(_bracketLink, (match) {
+    final links = <String, String>{};
+    final filtered = out.join('\n').replaceAllMapped(_bracketLink, (match) {
       final target = _unescape(match[1]!);
       if (!target.startsWith('id:')) return match[0]!;
       final id = target.substring(3).split('::').first.trim();
-      return hiddenIds.contains(id) ? '[[id:$id][(hidden)]]' : match[0]!;
+      if (!hiddenIds.contains(id)) return match[0]!;
+      final shown = '[[id:$id][(hidden)]]';
+      links.putIfAbsent(shown, () => match[0]!);
+      return shown;
     });
+    return HiddenParts._(
+        filtered, [for (final p in parts) p.join('\n')], links);
   }
 }
 
@@ -162,3 +179,43 @@ String _unescape(String target) => target.replaceAllMapped(
   RegExp(r'(\\+)([\]\[])'),
   (m) => '${'\\' * (m[1]!.length ~/ 2)}${m[2]}',
 );
+
+/// A note's text as the AI sees it, and the parts hidden from it (#103).
+class HiddenParts {
+  HiddenParts._(this.text, this.parts, this.links);
+
+  /// The text with each hidden heading as `* (hidden)`.
+  final String text;
+
+  /// The hidden headings with their subtrees, in order.
+  final List<String> parts;
+
+  /// Each link as the AI sees it, `[[id:x][(hidden)]]`, and the first link
+  /// it stands for.
+  final Map<String, String> links;
+
+  static final _placeholder = RegExp(r'^(\*+) \(hidden\)[ \t]*$');
+
+  /// [rewritten], a new version of [text], with the hidden parts back in
+  /// place of their `* (hidden)` lines and the hidden links as they were.
+  /// Null if the AI dropped, added or moved a placeholder to another
+  /// level: then where the hidden parts belong is not known.
+  String? restore(String rewritten) {
+    final lines = rewritten.replaceAll('\r\n', '\n').split('\n');
+    final at = [
+      for (final (i, line) in lines.indexed)
+        if (_placeholder.hasMatch(line)) i,
+    ];
+    if (at.length != parts.length) return null;
+    for (final (n, i) in at.indexed) {
+      final stars = _placeholder.firstMatch(lines[i])![1]!;
+      if (!parts[n].startsWith('$stars ')) return null;
+      lines[i] = parts[n];
+    }
+    var result = lines.join('\n');
+    for (final MapEntry(key: shown, value: original) in links.entries) {
+      result = result.replaceAll(shown, original);
+    }
+    return result;
+  }
+}

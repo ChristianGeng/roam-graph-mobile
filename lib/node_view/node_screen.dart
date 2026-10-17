@@ -7,6 +7,7 @@ import '../ai/ai_settings.dart';
 import '../ai/chat_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../edit/ai_edit_screen.dart';
 import '../edit/append_screen.dart';
 import '../edit/edit_screen.dart';
 import '../edit/history_screen.dart';
@@ -238,6 +239,20 @@ class _NodeScreenState extends State<NodeScreen> {
   }
 
   /// Edits the text of [node] (#37); the diff (#38) comes before saving.
+  /// Changes this one note by an instruction to the AI, after a diff
+  /// (#103). Not for a note hidden from AI.
+  Future<void> _aiEdit(NoteWriter writer, RoamNode node) async {
+    final settings = await AiSettingsScope.current(context);
+    if (!mounted) return;
+    if (settings.visibility.hides(node)) {
+      _tell('This note is hidden from AI, so the AI cannot edit it.');
+      return;
+    }
+    final message =
+        await AiEditScreen.open(context, writer, node, widget.graph.value);
+    if (message != null && mounted) _tell(message);
+  }
+
   Future<void> _edit(NoteWriter writer, RoamNode node) async {
     final message = await EditScreen.open(context, writer, node);
     if (message != null && mounted) _tell(message);
@@ -382,6 +397,7 @@ class _NodeScreenState extends State<NodeScreen> {
               onSelected: (action) => switch (action) {
                 _EditAction.append => _append(writer, node),
                 _EditAction.edit => _edit(writer, node),
+                _EditAction.ai => _aiEdit(writer, node),
                 _EditAction.history => HistoryScreen.open(context, writer, node),
               },
               itemBuilder: (_) => const [
@@ -390,6 +406,8 @@ class _NodeScreenState extends State<NodeScreen> {
                     child: Text('Add to this node')),
                 PopupMenuItem(
                     value: _EditAction.edit, child: Text('Edit text')),
+                PopupMenuItem(
+                    value: _EditAction.ai, child: Text('Edit with AI')),
                 PopupMenuItem(
                     value: _EditAction.history,
                     child: Text('Earlier versions')),
@@ -527,4 +545,4 @@ class _NodeScreenState extends State<NodeScreen> {
 enum _AiAction { ask, share }
 
 /// The edits of an existing note (v4).
-enum _EditAction { append, edit, history }
+enum _EditAction { append, edit, ai, history }
