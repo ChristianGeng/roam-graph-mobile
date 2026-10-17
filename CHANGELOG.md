@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-17: Choose the AI model from the provider's list ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-17: Choose the AI model from the provider's list ([#83](https://github.com/ChristianGeng/roam-graph-mobile/pull/83))
 
 - Added: "Choose model" next to the model fields in the AI settings. It
   fetches the provider's model list and shows it searchable, with tool
