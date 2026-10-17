@@ -1332,6 +1332,37 @@ devices through Syncthing.
       The Android swap itself is not run by the tests; checking it against
       the laptop is the owner's task on the device.
 
+52. **A model is picked from the provider's list** (#75),
+    `lib/ai/ai_models.dart`, `lib/ai/model_picker.dart`. Typing an exact
+    model ID on a phone is error-prone, and some presets have no default.
+    - **"Choose model"** next to the model and strong-model fields fetches
+      the provider's list with the key typed in or saved: `GET
+      {base}/models` for OpenAI-compatible APIs, `GET {base}/v1/models`
+      (with `x-api-key`, `anthropic-version`) for Anthropic's. A
+      searchable page shows it; picking a model fills the field, which
+      stays editable for IDs the list lacks.
+    - **What a list says is used where it says it:** tool calling from
+      OpenRouter's `supported_parameters`, Mistral's
+      `capabilities.function_calling`, Vercel's `tags` (`tool-use`) and
+      Hugging Face's `providers[].supports_tools`; prices from
+      `pricing.input`/`output` (Vercel) or `prompt`/`completion`
+      (OpenRouter), US dollars per token, shown per million; Vercel's
+      `regions`. Anthropic's models all call tools. Where a list knows
+      tools, only models with tools are shown, with a switch for all: the
+      chat needs tools.
+    - **With Vercel's "EU only"**, a model whose regions lack `eu`, or
+      that lists none while others do (Vercel: no regional route), is
+      marked and cannot be picked. Where a list says nothing about
+      regions, the page says a model may fail.
+    - Fetched only when the button is pressed, kept for the session per
+      provider, base URL and key (a hash of it), "Fetch again" to renew.
+      Anthropic's list is read page by page (`has_more`, `after_id`). A
+      model the list says nothing about tools for is shown with those
+      that call tools. A malformed base URL, a TLS failure or any other
+      error ends in a message, never a spinner that stays. No key, a refused
+      key, 404, no network, an unreadable list: a message, and the field
+      still works. Keys only over HTTPS, no redirects (decision 45).
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

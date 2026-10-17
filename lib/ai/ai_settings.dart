@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../capture/new_node.dart';
 import 'ai_chat.dart';
+import 'ai_models.dart';
+import 'model_picker.dart';
 import 'ai_providers.dart';
 import 'ai_visibility.dart';
 
@@ -407,7 +409,10 @@ class _Draft {
 /// The AI settings page: the tags that hide notes from AI (#57), and the
 /// provider of the chat with its key and limits (#59).
 class AiSettingsScreen extends StatefulWidget {
-  const AiSettingsScreen({super.key});
+  const AiSettingsScreen({super.key, this.get = getWithDartIo});
+
+  /// HTTP for the model lists (#75); tests replace it.
+  final HttpGet get;
 
   static Future<void> open(BuildContext context) => Navigator.push(
         context,
@@ -567,6 +572,44 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     );
   }
 
+  /// "Choose model" (#75): the provider's model list, fetched with the key
+  /// typed in or saved; the chosen ID fills [field].
+  Widget _chooseModel(ProviderPreset preset, _Draft draft,
+      TextEditingController field, String which) {
+    return IconButton(
+      key: ValueKey('choose-$which-${preset.id}'),
+      tooltip: 'Choose model',
+      icon: const Icon(Icons.list),
+      onPressed: () async {
+        final keys = AiSettingsScope.keysOf(context);
+        final typed = draft.key.text.trim();
+        String saved = '';
+        if (typed.isEmpty && !draft.removeKey) {
+          try {
+            saved = await keys?.read(preset.id) ?? '';
+          } on Exception {
+            saved = '';
+          }
+        }
+        if (!mounted) return;
+        final id = await ModelPickerScreen.open(
+          context,
+          provider: preset.name,
+          euOnly: preset.euSwitch && draft.euOnly,
+          load: ({bool refresh = false}) => fetchModels(
+            provider: preset.name,
+            api: draft.api,
+            baseUrl: draft.baseUrl.text,
+            apiKey: typed.isNotEmpty ? typed : saved,
+            get: widget.get,
+            refresh: refresh,
+          ),
+        );
+        if (id != null && mounted) setState(() => field.text = id);
+      },
+    );
+  }
+
   List<Widget> _providerSection(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final draft = _drafts[_provider]!;
@@ -630,17 +673,19 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       TextField(
         key: ValueKey('default-model-${preset.id}'),
         controller: draft.defaultModel,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           labelText: 'Model',
           helperText: 'The model a chat starts with.',
+          suffixIcon: _chooseModel(preset, draft, draft.defaultModel, 'default'),
         ),
       ),
       TextField(
         key: ValueKey('strong-model-${preset.id}'),
         controller: draft.strongModel,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           labelText: 'Strong model (optional)',
           helperText: 'A stronger model the chat can switch to.',
+          suffixIcon: _chooseModel(preset, draft, draft.strongModel, 'strong'),
         ),
       ),
       TextField(

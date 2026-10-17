@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Choose the AI model from the provider's list ([#83](https://github.com/ChristianGeng/roam-graph-mobile/pull/83))
+
+- Added: "Choose model" next to the model fields in the AI settings. It
+  fetches the provider's model list and shows it searchable, with tool
+  support, prices and EU routes where the list gives them.
+- Closes [#75](https://github.com/ChristianGeng/roam-graph-mobile/issues/75).
+
 ## 2026-10-17: Edits are saved safely ([#77](https://github.com/ChristianGeng/roam-graph-mobile/pull/77))
 
 - Added: the way edits of existing notes are saved. An edit is written
