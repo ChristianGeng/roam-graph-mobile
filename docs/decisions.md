@@ -1467,10 +1467,18 @@ devices through Syncthing.
       opened (rule 1). If the laptop changed the note meanwhile, nothing is
       written: the typed text is copied to the clipboard, and the editor
       can start again from the new version.
-    - **The folder:** the editor belongs to the folder it opened in; if
+    - **The folder:** the editor belongs to the folder it opened in, taken
+      before the note is read, and checked again after the diff; if
       another folder is chosen meanwhile (for write access), nothing is
       saved there, as for appending (decision 54).
-    - Leaving with unsaved changes asks first.
+    - **Keywords:** `#+title:` and `#+filetags:` set the file's title and
+      tags wherever they are, so their lines in the editable text must
+      stay as they are too; otherwise nothing is saved.
+    - **"Start again"** opens the editor on the new version within the
+      same action, so a save made there is reported like the first.
+    - Leaving with unsaved changes asks first. While a save runs, the page
+      cannot be left and the text cannot be changed: the save has the
+      text it was given, and cannot be called back.
     - Links are typed as in Emacs, `[[id:…][…]]`; inserting a link from
       search is left for later.
     - Tests: in the app, the head shown but not editable and the diff

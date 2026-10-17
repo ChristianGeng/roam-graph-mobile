@@ -854,8 +854,37 @@ void main() {
       expect(access.replaced, isEmpty);
       expect(access.texts['roam/a.org'], contains('From the laptop.'));
       expect(access.texts['roam/a.org'], isNot(contains('Mine.')));
+
+      // Starting again opens the new version, and its save is reported.
+      await tester.tap(find.text('Start again from the new version'));
+      await tester.pumpAndSettle();
+      final field = find.byKey(const ValueKey('edit-text'));
+      expect(tester.widget<TextField>(field).controller!.text,
+          contains('From the laptop.'));
+      await tester.enterText(
+          field, '${tester.widget<TextField>(field).controller!.text}Mine.\n');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Review'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(access.texts['roam/a.org'], endsWith('From the laptop.\nMine.\n'));
+      expect(find.text('Saved A.'), findsOneWidget);
     });
 
+    testWidgets('a #+title: line typed into the text is refused',
+        (tester) async {
+      final access = await openEdit(tester);
+      await tester.enterText(find.byKey(const ValueKey('edit-text')),
+          '[[id:b]] [[id:gone]]\n#+title: Other\n');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Review'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('#+title: or #+filetags: stay as they are'),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('diff-summary')), findsNothing);
+      expect(access.replaced, isEmpty);
+    });
   });
 
   group('the diff before saving, and earlier versions (#38)', () {

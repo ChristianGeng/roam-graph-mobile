@@ -239,9 +239,8 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// Edits the text of [node] (#37); the diff (#38) comes before saving.
   Future<void> _edit(NoteWriter writer, RoamNode node) async {
-    if (await EditScreen.open(context, writer, node) && mounted) {
-      _tell('Saved ${node.displayTitle}.');
-    }
+    final message = await EditScreen.open(context, writer, node);
+    if (message != null && mounted) _tell(message);
   }
 
   /// Opens the node's file in Orgro, at the top: Orgro has no way to jump

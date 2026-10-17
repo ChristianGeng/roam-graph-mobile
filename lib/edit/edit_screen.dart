@@ -23,6 +23,7 @@ class EditScreen extends StatefulWidget {
     required this.node,
     required this.base,
     required this.lines,
+    required this.noteKey,
   });
 
   final NoteWriter writer;
@@ -33,32 +34,49 @@ class EditScreen extends StatefulWidget {
   final NoteVersion base;
   final NodeLines lines;
 
-  /// Reads the note and opens the editor; true if an edit was saved.
-  static Future<bool> open(
+  /// The note's folder and path, taken before it was read. After another
+  /// folder is chosen (for write access), the same path there is another
+  /// note, and nothing is saved into it.
+  final String noteKey;
+
+  /// Reads the note and opens the editor. Returns what to tell the user
+  /// when an edit was saved, or null if nothing was saved. "Start again
+  /// from the new version" opens the editor again within this call, so
+  /// its save is reported too.
+  static Future<String?> open(
       BuildContext context, NoteWriter writer, RoamNode node) async {
     final editor = writer.editor;
-    if (editor == null) return false;
+    if (editor == null) return null;
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    final base = await editor.read(node.file);
-    if (base == null) {
-      messenger.showSnackBar(SnackBar(
-          content: Text('Could not read ${node.file} as text to edit.')));
-      return false;
+    while (true) {
+      final noteKey = editor.store.historyKey(node.file);
+      final base = await editor.read(node.file);
+      if (base == null) {
+        messenger.showSnackBar(SnackBar(
+            content: Text('Could not read ${node.file} as text to edit.')));
+        return null;
+      }
+      final lines = NodeLines.find(base.text, node);
+      if (lines == null) {
+        messenger.showSnackBar(SnackBar(
+            content: Text('${node.displayTitle} is no longer in '
+                '${node.file} with its :ID:; the file changed since the app '
+                'read it.')));
+        return null;
+      }
+      if (!navigator.mounted) return null;
+      final result = await navigator.push<Object>(MaterialPageRoute(
+        builder: (_) => EditScreen(
+            writer: writer,
+            node: node,
+            base: base,
+            lines: lines,
+            noteKey: noteKey),
+      ));
+      if (result == _startAgain) continue;
+      return result is String ? result : null;
     }
-    final lines = NodeLines.find(base.text, node);
-    if (lines == null) {
-      messenger.showSnackBar(SnackBar(
-          content: Text('${node.displayTitle} is no longer in '
-              '${node.file} with its :ID:; the file changed since the app '
-              'read it.')));
-      return false;
-    }
-    return await navigator.push<bool>(MaterialPageRoute(
-          builder: (_) => EditScreen(
-              writer: writer, node: node, base: base, lines: lines),
-        )) ??
-        false;
   }
 
   @override
@@ -69,11 +87,6 @@ class _EditScreenState extends State<EditScreen> {
   late final _text = TextEditingController(text: widget.lines.body);
   bool _saving = false;
 
-  /// The note's folder and path when the editor opened. After another
-  /// folder is chosen (for write access), the same path there is another
-  /// note, and nothing is saved into it.
-  String? _noteKey;
-
   /// Set when the user chose to leave, so the page may close.
   bool _leaving = false;
 
@@ -81,7 +94,6 @@ class _EditScreenState extends State<EditScreen> {
   void initState() {
     super.initState();
     _text.addListener(() => setState(() {}));
-    _noteKey = widget.writer.editor?.store.historyKey(widget.node.file);
   }
 
   @override
@@ -97,10 +109,11 @@ class _EditScreenState extends State<EditScreen> {
   }
 
   /// Closes the page, also with unsaved changes, once [PopScope] knows.
-  Future<void> _leave(bool saved) async {
+  /// [result] is the message for a save, [_startAgain], or null.
+  Future<void> _leave(Object? result) async {
     setState(() => _leaving = true);
     await WidgetsBinding.instance.endOfFrame;
-    if (mounted) Navigator.of(context).pop(saved);
+    if (mounted) Navigator.of(context).pop(result);
   }
 
   bool get _changed => _text.text != widget.lines.body;
@@ -108,9 +121,16 @@ class _EditScreenState extends State<EditScreen> {
   Future<void> _review() async {
     final editor = widget.writer.editor;
     if (editor == null) return;
-    if (editor.store.historyKey(widget.node.file) != _noteKey) {
+    if (editor.store.historyKey(widget.node.file) != widget.noteKey) {
       _tell('Another folder is open now. Open the node there again to edit '
           'it; nothing was saved.');
+      return;
+    }
+    // `#+title:` and `#+filetags:` count anywhere in the file, so their
+    // lines in the text stay as they are too (rule 5).
+    if (!_sameLockedKeywords(widget.lines.body, _text.text)) {
+      _tell('Lines with #+title: or #+filetags: stay as they are: they set '
+          "the note's title and tags. Nothing was saved.");
       return;
     }
     final after = widget.lines.withBody(_text.text);
@@ -122,7 +142,7 @@ class _EditScreenState extends State<EditScreen> {
     );
     if (!save || !mounted) return;
     // The folder may have changed while the diff was open.
-    if (editor.store.historyKey(widget.node.file) != _noteKey) {
+    if (editor.store.historyKey(widget.node.file) != widget.noteKey) {
       _tell('Another folder is open now. Open the node there again to edit '
           'it; nothing was saved.');
       return;
@@ -140,13 +160,17 @@ class _EditScreenState extends State<EditScreen> {
       return;
     }
     final message = saveMessage(result, widget.node.file);
-    if (message == null) {
-      await _leave(true);
+    if (result is Saved || result is NothingToSave) {
+      await _leave('Saved ${widget.node.displayTitle}.');
       return;
     }
-    _tell(message);
+    if (result is SavedNotIndexed) {
+      // Shown by the node view, so it is not replaced there.
+      await _leave(message);
+      return;
+    }
+    if (message != null) _tell(message);
     if (result is NoWriteAccessToEdit) await widget.writer.allowWriting();
-    if (result is SavedNotIndexed) await _leave(true);
   }
 
   /// The laptop changed the note meanwhile: nothing was saved. The edit is
@@ -176,11 +200,8 @@ class _EditScreenState extends State<EditScreen> {
       ),
     );
     if (again != true || !mounted) return;
-    final navigator = Navigator.of(context);
-    await _leave(false);
-    if (navigator.mounted) {
-      await EditScreen.open(navigator.context, widget.writer, widget.node);
-    }
+    // [EditScreen.open] opens the editor again on the new version.
+    await _leave(_startAgain);
   }
 
   @override
@@ -191,9 +212,10 @@ class _EditScreenState extends State<EditScreen> {
         .bodyMedium!
         .copyWith(fontFamily: 'monospace', fontSize: 14);
     return PopScope(
-      canPop: !_changed || _leaving,
+      // While saving, the page stays: a save cannot be called back.
+      canPop: !_saving && (!_changed || _leaving),
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
+        if (didPop || _saving) return;
         final discard = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -210,7 +232,7 @@ class _EditScreenState extends State<EditScreen> {
             ],
           ),
         );
-        if (discard == true) await _leave(false);
+        if (discard == true) await _leave(null);
       },
       child: Scaffold(
         appBar: AppBar(
@@ -242,6 +264,8 @@ class _EditScreenState extends State<EditScreen> {
             TextField(
               key: const ValueKey('edit-text'),
               controller: _text,
+              // Typing during a save would be lost: the save has its text.
+              readOnly: _saving,
               minLines: 10,
               maxLines: null,
               keyboardType: TextInputType.multiline,
@@ -257,4 +281,24 @@ class _EditScreenState extends State<EditScreen> {
       ),
     );
   }
+}
+
+/// What a page pops with for "Start again from the new version".
+const _startAgain = #startAgain;
+
+/// The `#+title:` and `#+filetags:` lines, which set a file's title and
+/// tags wherever they are.
+final _lockedKeyword =
+    RegExp(r'^[ \t]*#\+(title|filetags):', caseSensitive: false);
+
+/// Whether [before] and [after] have the same `#+title:` and
+/// `#+filetags:` lines, in the same order.
+bool _sameLockedKeywords(String before, String after) {
+  List<String> of(String text) => [
+        for (final line in text.split(RegExp(r'\r?\n')))
+          if (_lockedKeyword.hasMatch(line)) line.trim(),
+      ];
+  final a = of(before), b = of(after);
+  return a.length == b.length &&
+      [for (var i = 0; i < a.length; i++) a[i] == b[i]].every((same) => same);
 }
