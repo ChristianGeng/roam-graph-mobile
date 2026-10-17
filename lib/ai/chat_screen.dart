@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 
@@ -648,7 +649,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    OrgText(entry.text.trim(), onLinkTap: _openLink),
+                    // Selectable, as the Copy button copies it all (#94).
+                    SelectionArea(
+                      child: OrgText(entry.text.trim(), onLinkTap: _openLink),
+                    ),
                     Row(
                       children: [
                         Expanded(
@@ -658,6 +662,12 @@ class _ChatScreenState extends State<ChatScreen> {
                               color: colors.onSurfaceVariant,
                             ),
                           ),
+                        ),
+                        IconButton(
+                          key: ValueKey('chat-copy-$i'),
+                          tooltip: 'Copy',
+                          icon: const Icon(Icons.copy_outlined, size: 18),
+                          onPressed: () => copyText(context, entry.text.trim()),
                         ),
                         if (writer != null && entry.toolCalls.isEmpty)
                           TextButton.icon(
@@ -773,12 +783,23 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(error, style: TextStyle(color: colors.onErrorContainer)),
-                if (session?.waiting ?? false)
-                  TextButton(
-                    onPressed: _sending ? null : _resume,
-                    child: const Text('Send again'),
-                  ),
+                SelectableText(error,
+                    style: TextStyle(color: colors.onErrorContainer)),
+                Row(
+                  children: [
+                    if (session?.waiting ?? false)
+                      TextButton(
+                        onPressed: _sending ? null : _resume,
+                        child: const Text('Send again'),
+                      ),
+                    TextButton.icon(
+                      key: const ValueKey('chat-error-copy'),
+                      onPressed: () => copyText(context, error),
+                      icon: const Icon(Icons.copy_outlined, size: 18),
+                      label: const Text('Copy'),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -975,8 +996,28 @@ class _ToolCallTile extends StatelessWidget {
               ),
             ),
           ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              key: const ValueKey('chat-tool-copy'),
+              // The call and its result, for example to report an error.
+              onPressed: () => copyText(
+                  context, '${call.name}($args)\n\n${result.content}'),
+              icon: const Icon(Icons.copy_outlined, size: 18),
+              label: const Text('Copy'),
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+/// Puts [text] on the clipboard and says so (#94).
+Future<void> copyText(BuildContext context, String text) async {
+  final messenger = ScaffoldMessenger.of(context);
+  await Clipboard.setData(ClipboardData(text: text));
+  messenger
+    ..hideCurrentSnackBar()
+    ..showSnackBar(const SnackBar(content: Text('Copied.')));
 }
