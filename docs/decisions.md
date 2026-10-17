@@ -1333,6 +1333,8 @@ devices through Syncthing.
       the laptop is the owner's task on the device.
 
 51. **A model is picked from the provider's list** (#75),
+
+52. **A model is picked from the provider's list** (#75),
     `lib/ai/ai_models.dart`, `lib/ai/model_picker.dart`. Typing an exact
     model ID on a phone is error-prone, and some presets have no default.
     - **"Choose model"** next to the model and strong-model fields fetches
