@@ -311,6 +311,7 @@ class _NodeScreenState extends State<NodeScreen> {
         readNote: widget.readNote,
         startNode: node,
         writer: widget.writer,
+        searchText: widget.files?.searchText,
         // On a page above the chat, also from the side pane (#16).
         openNode: (chatContext, id) => NodeScreen.open(
           chatContext,

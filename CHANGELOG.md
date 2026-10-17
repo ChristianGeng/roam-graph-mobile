@@ -8,6 +8,15 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Search the words inside notes ([#101](https://github.com/ChristianGeng/roam-graph-mobile/pull/101))
+
+- Added: an "In the text" chip in Search finds notes by the words in
+  their text, with a short snippet around the words. Accents and case do
+  not matter.
+- Added: the AI chat can search the text too, but never finds notes or
+  headings hidden from AI.
+- The index is rebuilt once after the update.
+- Closes [#98](https://github.com/ChristianGeng/roam-graph-mobile/issues/98).
 ## 2026-10-17: Change a note's title, tags and aliases ([#100](https://github.com/ChristianGeng/roam-graph-mobile/pull/100))
 
 - Added: "Title, tags and aliases" in the node view's Edit menu. The ID

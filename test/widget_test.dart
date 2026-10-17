@@ -213,6 +213,10 @@ class TestGraphIndex implements GraphIndex {
     this.folder = folder;
     return graph;
   }
+
+  @override
+  Future<List<TextHit>> searchText(String query, {int limit = 30}) async =>
+      db.searchText(query, limit: limit);
 }
 
 const org = ChosenFolder(uri: 'content://tree/org', name: 'org', hasAccess: true);
