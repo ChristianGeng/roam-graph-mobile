@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Edit one note with AI ([#104](https://github.com/ChristianGeng/roam-graph-mobile/pull/104))
+
+- Added: "Edit with AI" in a note's edit menu. Type what to change, such
+  as "fix the typos"; the AI rewrites only this note, and the change is
+  saved only after you see it as a diff and tap Save.
+- Parts of the note hidden from AI are not sent and stay as they are.
+- Closes [#103](https://github.com/ChristianGeng/roam-graph-mobile/issues/103).
 ## 2026-10-17: No AI change lost from the log while it is trimmed ([#106](https://github.com/ChristianGeng/roam-graph-mobile/pull/106))
 
 - Fixed: opening "Recent AI changes" while the AI was still changing notes
