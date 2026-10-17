@@ -27,7 +27,10 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('theme-dark')));
+    final dark = find.byKey(const ValueKey('theme-dark'));
+    await tester.scrollUntilVisible(dark, 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(dark);
     await tester.pumpAndSettle();
     expect(store.settings.theme, AppTheme.dark);
     expect(Theme.of(tester.element(find.byType(SettingsScreen))).brightness,

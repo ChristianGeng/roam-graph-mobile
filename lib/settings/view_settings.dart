@@ -439,27 +439,6 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
-          const ListTile(title: Text('Theme')),
-          RadioGroup<AppTheme>(
-            groupValue: settings.theme,
-            onChanged: (value) {
-              if (value != null) {
-                _save(context, settings.copyWith(theme: value));
-              }
-            },
-            child: Column(
-              children: [
-                for (final value in AppTheme.values)
-                  RadioListTile<AppTheme>(
-                    key: ValueKey('theme-${value.name}'),
-                    value: value,
-                    title: Text(value.label),
-                    subtitle: Text(value.description),
-                  ),
-              ],
-            ),
-          ),
-          const Divider(),
           const ListTile(
             title: Text('Sections when a note opens'),
             subtitle: Text("A note's own #+STARTUP: line comes first, as "
@@ -544,6 +523,27 @@ class SettingsScreen extends StatelessWidget {
                 'model and key of the AI chat'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => AiSettingsScreen.open(context),
+          ),
+          const Divider(),
+          const ListTile(title: Text('Theme')),
+          RadioGroup<AppTheme>(
+            groupValue: settings.theme,
+            onChanged: (value) {
+              if (value != null) {
+                _save(context, settings.copyWith(theme: value));
+              }
+            },
+            child: Column(
+              children: [
+                for (final value in AppTheme.values)
+                  RadioListTile<AppTheme>(
+                    key: ValueKey('theme-${value.name}'),
+                    value: value,
+                    title: Text(value.label),
+                    subtitle: Text(value.description),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
