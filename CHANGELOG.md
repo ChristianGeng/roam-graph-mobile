@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: A default model for Vercel ([#105](https://github.com/ChristianGeng/roam-graph-mobile/pull/105))
+
+- Changed: Vercel AI Gateway now starts with the model
+  deepseek/deepseek-v4-pro. It works only with "EU only" off, as the
+  provider's note says; with "EU only" on, use anthropic/claude-sonnet-5.5.
+  A model you chose yourself stays.
+
 ## 2026-10-17: Search the words inside notes ([#101](https://github.com/ChristianGeng/roam-graph-mobile/pull/101))
 
 - Added: an "In the text" chip in Search finds notes by the words in
