@@ -15,6 +15,13 @@ each entry.
   saved only after you see it as a diff and tap Save.
 - Parts of the note hidden from AI are not sent and stay as they are.
 - Closes [#103](https://github.com/ChristianGeng/roam-graph-mobile/issues/103).
+## 2026-10-17: No AI change lost from the log while it is trimmed ([#106](https://github.com/ChristianGeng/roam-graph-mobile/pull/106))
+
+- Fixed: opening "Recent AI changes" while the AI was still changing notes
+  could drop a change from the log when the log was trimmed, so "Undo
+  these changes" undid only part of a message. Writing and trimming the
+  log now run one after the other.
+
 ## 2026-10-17: Undo the AI's changes after the chat is closed ([#102](https://github.com/ChristianGeng/roam-graph-mobile/pull/102))
 
 - Added: "Recent AI changes", the history button in the AI chat. It lists

@@ -484,8 +484,23 @@ class FileAgentLog implements AgentLog {
   Future<File> _file() async => File(path ??
       '${(await getApplicationSupportDirectory()).path}/agent-changes.jsonl');
 
+  /// [record] and [read] run one after the other, also from two screens:
+  /// a trim in [read] must not drop a line appended meanwhile.
+  static Future<void> _queue = Future.value();
+
+  static Future<T> _serial<T>(Future<T> Function() work) {
+    final run = _queue.then((_) => work());
+    _queue = run.then((_) {}, onError: (Object _) {});
+    return run;
+  }
+
   @override
-  Future<void> record(AgentLogEntry entry) async {
+  Future<void> record(AgentLogEntry entry) => _serial(() => _record(entry));
+
+  @override
+  Future<List<AgentLogEntry>> read() => _serial(_read);
+
+  Future<void> _record(AgentLogEntry entry) async {
     try {
       await (await _file()).writeAsString('${jsonEncode(entry.toJson())}\n',
           mode: FileMode.append, flush: true);
@@ -496,8 +511,7 @@ class FileAgentLog implements AgentLog {
 
   /// Reads the log; when it has more than [keep] lines, the oldest are
   /// dropped from the file, through a temporary file.
-  @override
-  Future<List<AgentLogEntry>> read() async {
+  Future<List<AgentLogEntry>> _read() async {
     try {
       final file = await _file();
       if (!await file.exists()) return const [];
