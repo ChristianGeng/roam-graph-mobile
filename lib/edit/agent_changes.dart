@@ -8,9 +8,10 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../capture/capture_screen.dart';
 import 'note_editor.dart';
 
-/// One write of the agent: a note created or changed.
+/// One write of the agent: a note created, changed or deleted.
 class AgentChange {
   AgentChange({
     required this.tool,
@@ -40,17 +41,27 @@ class AgentChange {
   /// The file before the change; null when the change created it.
   final String? before;
 
-  /// The file after the change.
-  final String after;
+  /// The file after the change; null when the change deleted it (#93).
+  final String? after;
 
   /// How many `id:` links the change added.
   final int linksAdded;
 
   bool get created => before == null;
+  bool get deleted => after == null;
 }
 
 /// What undoing did to one file.
-enum UndoOutcome { restored, deleted, changedSince, otherFolder, failed }
+enum UndoOutcome {
+  restored,
+  deleted,
+
+  /// A note the agent deleted is written again (#93).
+  recreated,
+  changedSince,
+  otherFolder,
+  failed,
+}
 
 /// The changes the agent made for one message, in order.
 class AgentChanges {
@@ -76,9 +87,16 @@ class AgentChanges {
           if (c.created) c.path,
       };
 
-  /// The files the agent changed that existed before.
-  Set<String> get changedFiles =>
-      {for (final c in changes) c.path}.difference(createdFiles);
+  /// The files the agent deleted, and did not create first (#93).
+  Set<String> get deletedFiles => {
+        for (final path in files)
+          if (after(path) == null && before(path) != null) path,
+      };
+
+  /// The files the agent changed that existed before, and still exist.
+  Set<String> get changedFiles => {for (final c in changes) c.path}
+      .difference(createdFiles)
+      .difference(deletedFiles);
 
   int get linksAdded => changes.fold(0, (n, c) => n + c.linksAdded);
 
@@ -87,8 +105,9 @@ class AgentChanges {
   String? before(String path) =>
       changes.firstWhere((c) => c.path == path).before;
 
-  /// The file after the last change of this message.
-  String after(String path) => changes.lastWhere((c) => c.path == path).after;
+  /// The file after the last change of this message; null if deleted.
+  String? after(String path) =>
+      changes.lastWhere((c) => c.path == path).after;
 
   /// The first change of [path], for its node and title.
   AgentChange first(String path) => changes.firstWhere((c) => c.path == path);
@@ -100,6 +119,7 @@ class AgentChanges {
       if (createdFiles.isNotEmpty)
         count(createdFiles.length, 'note created', 'notes created'),
       if (changedFiles.isNotEmpty) '${changedFiles.length} changed',
+      if (deletedFiles.isNotEmpty) '${deletedFiles.length} deleted',
       if (linksAdded > 0) count(linksAdded, 'link added', 'links added'),
     ];
     return parts.isEmpty ? 'No changes' : parts.join(', ');
@@ -108,8 +128,12 @@ class AgentChanges {
   /// Undoes every file of this message: a changed file gets back its text
   /// from before the message, a created file is deleted, but only if the
   /// file is still as the agent left it. Each file is checked and written
-  /// as every edit is (decision 10). Returns what happened to each file.
-  Future<Map<String, UndoOutcome>> undoAll(NoteEditor editor) async {
+  /// as every edit is (decision 10). A deleted note is written again with
+  /// [create], if no file of its name is there meanwhile. Returns what
+  /// happened to each file.
+  Future<Map<String, UndoOutcome>> undoAll(NoteEditor editor,
+      {Future<CreateResult> Function(String fileName, String text)?
+          create}) async {
     // A retry keeps what is done, and tries only the files that failed.
     final outcome = <String, UndoOutcome>{...?undone};
     // Newest first, so a note that links to a created one is restored
@@ -122,16 +146,36 @@ class AgentChanges {
         outcome[path] = UndoOutcome.otherFolder;
         continue;
       }
+      final last = after(path);
+      final original = before(path);
+      if (last == null) {
+        // Deleted by the agent: created first, there is nothing to undo.
+        if (original == null) {
+          outcome[path] = UndoOutcome.deleted;
+          continue;
+        }
+        if (await editor.read(path) != null || create == null) {
+          outcome[path] = await editor.read(path) != null
+              ? UndoOutcome.changedSince
+              : UndoOutcome.failed;
+          continue;
+        }
+        outcome[path] = switch (await create(path, original)) {
+          Created() || WrittenNotIndexed() => UndoOutcome.recreated,
+          FileExists() => UndoOutcome.changedSince,
+          _ => UndoOutcome.failed,
+        };
+        continue;
+      }
       final now = await editor.read(path);
       if (now == null) {
         outcome[path] = UndoOutcome.failed;
         continue;
       }
-      if (now.hash != contentHash(utf8.encode(after(path)))) {
+      if (now.hash != contentHash(utf8.encode(last))) {
         outcome[path] = UndoOutcome.changedSince;
         continue;
       }
-      final original = before(path);
       if (original == null) {
         // The created note is kept too, as every replaced text is.
         await editor.history

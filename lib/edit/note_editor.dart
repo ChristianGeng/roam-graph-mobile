@@ -308,9 +308,17 @@ class NoteEditor {
 
   /// Replaces the note [path], read as [base], with [text]. Keeps [base]
   /// first; drops it again if nothing was written.
-  Future<SaveResult> save(String path, NoteVersion base, String text) async {
+  ///
+  /// [removed] is a part of the note that the edit deletes on purpose,
+  /// such as a heading node with its subtree (#93): its drawers may go,
+  /// every other drawer must stay as it is.
+  Future<SaveResult> save(String path, NoteVersion base, String text,
+      {String removed = ''}) async {
     if (text == base.text) return const NothingToSave();
     final before = propertyDrawers(base.text), after = propertyDrawers(text);
+    for (final drawer in propertyDrawers(removed)) {
+      before.remove(drawer);
+    }
     if (before.length != after.length ||
         [for (var i = 0; i < before.length; i++) before[i] != after[i]]
             .any((changed) => changed)) {

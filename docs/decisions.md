@@ -1650,6 +1650,33 @@ devices through Syncthing.
     result together; the error card can be copied and selected. Copying
     says "Copied.".
 
+62. **The agent may delete notes when I ask** (#93), `delete_node` in
+    `lib/ai/agent_tools.dart`. Trying agent mode, I asked the chat to
+    replace a note by a better one; it made the new one but could not
+    delete the old one. My decision: when I tell the AI to delete one note
+    or several, it may, also notes that others link to.
+    - **Only on my request:** the tool's description and the agent's
+      system prompt say so.
+    - **A file node:** its file is deleted, with the heading nodes in it;
+      only files directly in `roam/`, as capture makes them, so "Undo all"
+      can put the file back. **A heading node:** the heading and its
+      subtree are removed from the file. The save allows exactly the
+      drawers of the removed part to go (`NoteEditor.save(removed:)`);
+      every other drawer stays (rule 5).
+    - **No dead links where the AI may write:** in the other notes the AI
+      may see, links to a deleted node become their link text, one change
+      per file. Notes hidden from AI keep their links, and the AI is not
+      told about them.
+    - **As every write:** only if the file is unchanged since it was read
+      (the Android side checks the hash before deleting), only in the
+      folder it was read in, its text kept in the edit history first;
+      hidden notes cannot be deleted. Counted in the limit per message,
+      shown in the summary ("1 deleted"), logged with no new hash.
+    - **"Undo all"** writes a deleted file again with the same name and
+      text, so the same `:ID:`, if no file of that name is there
+      meanwhile; removed headings and changed links come back as every
+      edit does.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
