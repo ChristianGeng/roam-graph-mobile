@@ -49,11 +49,36 @@ Future<List<LayoutKind>> openGraph(
 }
 
 void main() {
+  /// Opens the graph view without waiting for it to settle: while the
+  /// settings load, a progress circle turns.
+  Future<List<LayoutKind>> openSlow(
+      WidgetTester tester, MemoryViewSettingsStore store) async {
+    final kinds = <LayoutKind>[];
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(MaterialApp(
+      builder: (context, child) =>
+          ViewSettingsHost(store: store, child: child!),
+      home: GraphScreen(
+        graph: ValueNotifier<RoamGraph>(graphOf(notes)),
+        readNote: (path) async => notes[path],
+        nodeMemory: MemoryNodeMemory('plan'),
+        computeLayout: (graph, kind) async {
+          kinds.add(kind);
+          return layoutGraph(graph, kind);
+        },
+        computeAlgorithms: algorithmsHere,
+      ),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    return kinds;
+  }
+
   testWidgets('the saved start layout applies, also when it loads late (#81)',
       (tester) async {
     final store =
         SlowViewSettingsStore(const ViewSettings(startLayout: StartLayout.circo));
-    final kinds = await openGraph(tester, store);
+    final kinds = await openSlow(tester, store);
     // Nothing drawn with the defaults while the file is read.
     expect(kinds, isEmpty);
     store.finish();
@@ -65,15 +90,27 @@ void main() {
       (tester) async {
     final store =
         SlowViewSettingsStore(const ViewSettings(startLayout: StartLayout.circo));
-    final kinds = await openGraph(tester, store);
+    final kinds = await openSlow(tester, store);
     await tester.tap(find.byTooltip('More'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text(LayoutKind.force.label));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     store.finish();
     await tester.pumpAndSettle();
     expect(kinds, [LayoutKind.force]);
     expect(store.settings.lastLayout, LayoutKind.force);
+  });
+
+  testWidgets('a file that cannot be read in time does not stop the graph',
+      (tester) async {
+    final store =
+        SlowViewSettingsStore(const ViewSettings(startLayout: StartLayout.circo));
+    final kinds = await openSlow(tester, store);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(kinds, [LayoutKind.force]);
   });
 
   testWidgets('by default the graph starts force-directed', (tester) async {

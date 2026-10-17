@@ -324,9 +324,17 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
 
   /// The settings once they are loaded from the file, for code that runs
   /// at a screen's start: [read] alone may still give the defaults then.
-  static Future<ViewSettings> current(BuildContext context) async {
+  ///
+  /// Waits at most [limit]: a file that cannot be read in that time must
+  /// not keep a screen from starting; it then starts with the settings as
+  /// they are.
+  static Future<ViewSettings> current(BuildContext context,
+      {Duration limit = const Duration(seconds: 1)}) async {
     final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
-    await scope?.loaded;
+    final loaded = scope?.loaded;
+    if (loaded != null) {
+      await loaded.timeout(limit, onTimeout: () {});
+    }
     return scope?.notifier?.value ?? const ViewSettings();
   }
 
