@@ -1485,7 +1485,7 @@ devices through Syncthing.
       before anything is written; "Back to editing" writes nothing; a note
       changed on the laptop meanwhile is not overwritten.
 
-54. **AI edits: the AI proposes, I see the diff, the app saves** (#39),
+57. **AI edits: the AI proposes, I see the diff, the app saves** (#39),
     `lib/edit/edit_proposal.dart`, `lib/ai/edit_tools.dart`. The AI never
     writes. Two ways in:
     - **The in-app chat (#60)** offers the tool `propose_edit` (node ID,
@@ -1493,15 +1493,15 @@ devices through Syncthing.
       can be saved. The tool writes nothing: it records the proposal and
       tells the model so. Notes hidden from AI (decision 42) cannot be
       proposed, since the tool only knows the visible graph. In the chat
-      the proposal shows as a card with "Review": the diff (decision 52)
+      the proposal shows as a card with "Review": the diff (decision 55)
       against the note as it is now, with the AI's reason and any `id:`
-      links that point at no node; only "Save" writes (decision 50). The
+      links that point at no node; only "Save" writes (decision 51). The
       tool is in the request from the first message on, so the request
       still starts with the same bytes and the provider's cache holds
       (prompt caching).
     - **The share menu (#15):** the capture screen for shared text also
-      offers "Use for an existing node": "Add to a node" (decision 51) or
-      "Replace a node's text" (decision 53), with the node chosen from a
+      offers "Use for an existing node": "Add to a node" (decision 54) or
+      "Replace a node's text" (decision 56), with the node chosen from a
       list that proposes the node viewed last. A replacement goes through
       the editor and its diff. An AI app often returns the whole note;
       when the shared text starts with the node's own drawer, the drawer
@@ -1520,9 +1520,9 @@ devices through Syncthing.
       refused; in the app, shared text added to the node viewed last, and
       a revised note replacing a node's text after the diff.
 
-55. **AI change sets: edits to several notes, reviewed together** (#76),
+58. **AI change sets: edits to several notes, reviewed together** (#76),
     `lib/edit/change_set.dart`, `lib/edit/change_set_screen.dart`, and the
-    chat tool `propose_edits`. Built from the pieces of decision 54:
+    chat tool `propose_edits`. Built from the pieces of decision 57:
     - **The tool** takes a list of edits, each as in `propose_edit` (node,
       `append` or `replace`, text, reason), and a summary. It writes
       nothing. One edit per file; at most the limit set in AI settings
@@ -1537,7 +1537,7 @@ devices through Syncthing.
       accepting); "Accept all"; the number of files and links the accepted
       entries change.
     - **Saving:** the accepted files are saved one after the other, each
-      as every edit is (decision 50), each over the version the set was
+      as every edit is (decision 51), each over the version the set was
       built on. A file changed meanwhile is refused alone; the others
       still save. The end says how many were saved, refused and rejected.
       Each file is replaced whole, so a sync meanwhile sees whole files;
