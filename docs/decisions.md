@@ -753,6 +753,448 @@ devices through Syncthing.
       widgets render the formulas, and with what (a mock of
       `flutter_tex_js`'s channel answers as KaTeX would).
 
+41. **Mermaid: the result image first; blocks without one are drawn with
+    `mermaid_flutter`** (#48, #49), `lib/node_view/mermaid.dart`. The owner
+    accepted the recommendation in #48: option 0, then A.
+    - **The result image first.** Emacs shows a mermaid block and below it
+      the `#+RESULTS:` image that `mmdc` drew when the block was last run.
+      The node view shows the same since #46. A block whose result
+      paragraph links to an image the app shows is left as it is.
+    - **Every other `mermaid` block is drawn on the device**, right below
+      the block, where its result would be: a block never run, without
+      `:file`, or whose image is not in the folder. The drawing is labelled
+      "Drawn on the device", so it is not taken for the laptop's result.
+      The language is compared as written, as Emacs runs only `mermaid`
+      blocks with `ob-mermaid`. Org's comma escapes are removed first, as
+      Org does before running a block.
+    - **The check behind A.** `mermaid_flutter` 0.3.0 (MIT; `mermaid_core`
+      parses and lays out in Dart, a `CustomPainter` draws, no WebView) was
+      run on the 73 mermaid blocks in my notes (`roam/` without `daily/`),
+      by a local script that is not in the repo (decision 14): 67
+      flowcharts (`flowchart` or `graph`, one with front matter), 4
+      sequence diagrams and 2 state diagrams; 14 start with
+      `%%{init: ...}%%`.
+      **All 73 were drawn without an error, in the light and the dark
+      theme, all 14 `%%{init}%%` blocks among them.** Laid out at most
+      0.17 s each on the laptop (median 0.02 s). The layout is close to
+      `mmdc`'s, not the same: for 53 of the 73, the drawing's aspect ratio
+      is within 25 % of the PNG's; the others place nodes differently, for
+      example side by side inside a subgraph where mermaid.js stacks them.
+      So B (mermaid.js in a hidden WebView, +2.6 MB) was not needed.
+    - **Cost: APK size.** The APK grew from 67.9 MB (v0.1.90) to 79.2 MB,
+      all of it compiled Dart code (`libapp.so`): `mermaid_core` brings
+      parsers and layouts for 28 diagram types, ELK and a KaTeX port. That
+      is 3.6 MB for each of the three CPU types in the one APK; a phone
+      keeps only its own, so the installed app grows by about 3.6 MB, more
+      than B's 2.6 MB. A was kept for drawing without a WebView, offline,
+      on the UI's own text measurement; if the size matters, B is the
+      alternative, or APKs split by CPU type.
+    - **An image that is in the folder but cannot be read** (for example
+      while Syncthing writes it) shows the broken-image link, as other
+      images do (decision 38), and no drawing; the image is read again
+      when the note is shown again. Emacs, too, shows only the result.
+    - **Dark mode** uses mermaid's `dark` theme. A theme the block sets in
+      `%%{init: ...}%%` comes first, as in mermaid; a light one is then
+      drawn on a white background, as SVGs are (decision 39).
+    - **Never wider than the text column**, scaled down in proportion; tap
+      opens it on its own page with zoom, where it stays sharp.
+    - **A diagram that cannot be drawn** shows one line with the error,
+      below the block; the rest of the note is shown.
+    - **Cached** by source and theme (32 at most), so scrolling and showing
+      a note again do not lay it out again. Layout runs on the UI thread:
+      `mermaid_flutter` measures text with Flutter's `TextPainter`.
+    - **How it is placed.** `org_flutter` has no hook for source blocks, so
+      after parsing, the app adds a paragraph with one image link after
+      each block to draw; the node view's `loadImage` shows the drawing for
+      exactly those links (kept by the link object, not by its text), so a
+      link a note writes itself is never taken for one.
+    - **Not done:** a button to switch between the result image and a
+      drawing of the current source, to see whether the PNG is out of date.
+      It can be added if it is wanted.
+
+42. **Notes are hidden from AI by tag** (#57), `lib/ai/ai_visibility.dart`.
+    Some notes are private. Before an AI reads note texts (the chat of
+    milestone v6), the app has a rule for what it may not see.
+    - **The setting:** "Hidden from AI", a list of tags, by default
+      `private`, on the "AI settings" page (from the folder screen and the
+      graph's "More" menu). It is kept in the app's support folder
+      (`ai-settings.json`, written to a temporary file and renamed), not in
+      the notes. An empty list hides nothing.
+    - **The saved tags are loaded before anything is shared.** Until they
+      are, a share waits, and the settings page shows no field, so it
+      cannot save the defaults over saved tags. A change is saved first and
+      used only once saved; if saving fails, the tags in use stay.
+    - **Which nodes:** a node with one of the tags. These are the tags
+      org-roam stores for the node, so a heading node also has its file's
+      `#+filetags` and the tags of the headings above it. Tags are compared
+      as written, as Org compares them. Of several nodes with one ID, the
+      one the graph keeps (decision 20) decides.
+    - **A hidden node does not exist for an AI.** The graph export (#40,
+      decision 35) leaves it out with its links, and its header says how
+      many nodes are hidden, so the AI knows the graph is not complete.
+      "Share with AI" on a hidden node says that it is hidden, with its
+      tag, and shares nothing. A selection in search leaves hidden nodes
+      out and says how many.
+    - **The file as it is now counts too.** Syncthing may have brought a
+      new `#+filetags` or heading tag before the app indexed the file
+      again. So a node whose file now hides it (its `#+filetags`, or the
+      tags of its heading or a heading above it, found by its `:ID:`) is
+      not shared either.
+    - **Inside a visible note's text:** line ends become `\n`, as the
+      index reads them. Each heading with a hidden tag of its own is
+      replaced by `* (hidden)`, at its level, without its subtree, also
+      when it is no node. A link to a hidden node keeps its ID, but its
+      description becomes `(hidden)` and a search option after `::` (which
+      can hold the title) is dropped. Links are read as Org reads them,
+      escaped brackets included (`org-link-bracket-re`).
+    - **The lists with a shared node** leave hidden nodes out, and "Links
+      to" lists only links that are in the text shared, so not those under
+      a hidden heading.
+    - **Headings are found line by line:** a line that starts with stars
+      and a space is a heading, also inside a block, as Org
+      (`org-outline-regexp`), the index and the node view read it
+      (decision 36). Tags are read at the end of the heading line, as
+      Org's `org-tag-group-re` reads them.
+    - **Not covered:** a link written under a hidden heading that is no
+      node belongs to its file's node, as in org-roam. The graph export
+      and the backlinks listed with another shared node still count it,
+      as a link between two visible nodes; its text is hidden. Hiding it
+      there needs the heading's tags for each link in the index.
+
+43. **Notes open with their sections collapsed, as a setting** (#63),
+    `lib/settings/view_settings.dart`, `lib/node_view/folding.dart`. Until
+    now every section was open, as in my Emacs (`org-startup-folded` is
+    `nil`); on a phone a long note was a long scroll. Orgro opens notes
+    folded, and that reads better on the device.
+    - **The setting** "Sections when a note opens" has the three values
+      Org's `#+STARTUP:` has for folding: **Collapsed** (`overview`, only
+      the top-level headings; **the default**), **Headings** (`content`,
+      all headings without their text) and **Expanded** (`showall`,
+      everything, as before). It is on a Settings page, reached from the
+      graph view's "More" menu.
+    - **A file's own `#+STARTUP:` comes first**, as in Emacs. `org_flutter`
+      puts the caller's settings before the file's and reads the file's
+      only when asked, so the app reads the folding word itself
+      (`OrgSettings.fromDocument`) and uses the setting only where the
+      file has none. None of my notes has `#+STARTUP:` today. Other
+      `#+STARTUP:` words are still not applied, as before.
+    - **The text before the first heading** (the title and the links at the
+      top of a file node) is always shown, as in Org.
+    - **A heading node** shows its own section open, its text and its
+      subheadings, which start folded as the setting says. Folded, a
+      heading node would show a single heading line.
+    - **Tapping a heading** opens and closes it, as before. A changed
+      setting applies to the note shown at once; the folding then starts
+      again.
+    - **How settings are kept.** A JSON file, `view-settings.json`, in the
+      app's support folder, next to the database: read once at the start,
+      written through a temporary file and a rename when a setting
+      changes, defaults where the file is missing or cannot be read.
+      Screens read it through `ViewSettingsScope`, given by
+      `ViewSettingsHost` above the navigator; tests use
+      `MemoryViewSettingsStore`. A new setting is a field in
+      `ViewSettings` with a default, its JSON key, and a tile on the
+      Settings page. The AI settings (#57) are kept the same way in their
+      own file; the two can share the Settings page later. **Secrets, such
+      as API keys, never go into these files**: they belong in Android's
+      secure storage.
+
+44. **AI tools on the app's index, as my org-roam MCP server has them**
+    (#58), `lib/ai/ai_tools.dart` and `lib/graph/graph_measures.dart`. The
+    chat of milestone v6 gives a model the tools of my org-roam MCP server
+    ([org-roam-mcp](https://github.com/ChristianGeng/org-roam-mcp)), with
+    its names, parameters, defaults and results, so an AI works with the
+    graph on the phone as Claude Code does on the laptop. They run on the
+    app's index, offline.
+    - **The 16 tools:** `find`, `read_node`, `backlinks`, `bfs`,
+      `shortest_path`, `common_neighbors`, `central`, `orphans`,
+      `pagerank`, `communities`, `betweenness`, `closeness`,
+      `clustering_coefficient`, `graph_stats`, `suggest_links` and
+      `connected_components`, each `org_roam_` in front. Not `emacs_eval`
+      and `org_roam_sync`: there is no Emacs on the device, and the index
+      updates itself. Each has a JSON Schema for its parameters.
+    - **The same results.** The query tools follow the server's SQL: what
+      `LIKE` matches (`%` and `_` are wildcards, case is ignored only from
+      A to Z), one backlink row per link, breadth-first distances in the
+      links' direction, and `common_neighbors` as the server computes it:
+      nodes that link to the same nodes as `node_a`, where `node_b` is only
+      left out (its description says so). The other tools follow networkx
+      3.6.1: PageRank (decision 30), betweenness (Brandes, normalized),
+      closeness (by the distances to a node, with Wasserman and Faust's
+      scaling), directed clustering, weakly connected components,
+      statistics, and python-louvain's Louvain, now with its resolution.
+      Titles sort as SQL's `ORDER BY title` sorts the stored, quoted titles
+      (`"Beta heading"` before `"Beta"`); the graph the networkx tools use
+      is built in that order too, as the server's query builds it, which
+      also changes the order Louvain visits nodes in the graph views.
+    - **Where the app differs, on purpose:**
+      - Titles are given as written; the server gives them as stored, with
+        Emacs Lisp escapes such as `\11` for a tab. Files are paths
+        relative to `roam/`; the server gives absolute paths.
+      - `shortest_path` lists each path once. The server's query follows
+        each link row, so a note that links twice to the next one gives
+        the same path twice, and its 3 rows can be one path. The app gives
+        the 3 shortest different paths (Yen's algorithm, at most 8 links).
+      - Of equally ranked rows, the server's order is its table's, SQLite's
+        or Python's set order, which the app cannot know. The app keeps
+        the order of the index (by path) for equal titles, takes the
+        higher ID first for equal counts, and the hub of a component is
+        the first by ID of those with the most links.
+      - `read_node` gives at most 60,000 characters, and lists in the text
+        at most 300 lines, each saying how many more there are: a chat on
+        the phone pays for every token. Line ends are `\n`, as Python's
+        `read_text` gives them to the server.
+        Communities and components name at most 300 nodes in all, and
+        count the rest.
+      - An ID may be given with quotes or `id:` in front; whole numbers may
+        come as text or as `1.0`; a fraction such as `1.9` is refused,
+        not cut. A mistake gives an error the model can read.
+      - A negative `limit` gives every node for `central`, as SQLite's
+        `LIMIT -1` does on the server, and drops the last ones for the
+        networkx rankings, as Python's slice does there.
+      - Tags and titles are those of the index, which the app renews when
+        it comes back to the foreground; `read_node` also checks the file
+        as it is now (decision 42), since it is the one tool that gives
+        note texts.
+    - **Hidden notes (decision 42)** are removed from the graph before any
+      tool runs, with their links; `read_node` leaves out hidden headings
+      and titles, and a file that hides its node now is not read.
+    - **Results as compact text**, not JSON: one line per node with its ID
+      and title, for example `0.0123 | <ID> | <title>`. The data with the
+      server's keys is what the tests compare.
+    - **Checked against the server itself:** `tool/ai_tools_expected.py`
+      runs the server's own tool functions, in its own environment, on a
+      database `tool/build_roam_db.dart` builds from the sample notes and on
+      the random graph of #27, and writes
+      `test/fixtures/ai_tools_expected.json`. `test/ai/ai_tools_test.dart`
+      compares every tool with it, rows of equal rank as groups. Louvain is
+      random and the server sets no seed, so the communities are checked
+      against the modularity and community counts of 20 python-louvain
+      runs at resolutions 0.5, 1 and 2.
+
+45. **The AI chat talks to a provider the owner chooses, over one of two
+    APIs** (#59), `lib/ai/ai_chat.dart`, `lib/ai/ai_providers.dart`.
+    - **The app goes online for this, and only for this.** Decisions 2 and
+      14 kept the app offline. The chat needs a model, and none runs on the
+      phone, so the app now has Android's `INTERNET` permission. It is
+      used only by the chat, and only when I send a message: then one
+      request per tool round goes to the provider I chose, with my message,
+      the conversation so far, the tools' descriptions and the tool
+      results the model asked for (note texts among them, without the
+      notes hidden by decision 42). Nothing is sent in the background, and
+      the rest of the app stays offline (web images stay links).
+    - **Two APIs, each with a tool loop:** Anthropic's Messages API
+      (`POST <base>/v1/messages`, `x-api-key`, `anthropic-version:
+      2023-06-01`, `tool_use` and `tool_result` blocks), and the
+      OpenAI-compatible Chat Completions API (`POST
+      <base>/chat/completions`, `Authorization: Bearer`, `tools`,
+      `tool_calls`, `role: tool`). The app runs the tools the model asks
+      for (decision 44) and sends the results back, until the model
+      answers. Anthropic's answers are sent back exactly as they came,
+      thinking blocks and their signatures included, which the API requires
+      in a tool loop; DeepSeek's `reasoning_content` likewise.
+    - **Presets** are one plain data list (`providerPresets`), so the list
+      can change without touching the logic; every value stays editable.
+      The settings list them in two groups, "Data stays in the EU" and
+      "Outside the EU", each with a one-line note on where the data goes,
+      shown when it is chosen. Checked against each provider's
+      documentation on 2026-10-17:
+
+      | Preset | API | Base URL | Model / strong model |
+      |---|---|---|---|
+      | Claude on AWS Bedrock (EU) | Anthropic | `https://bedrock-runtime.eu-central-1.amazonaws.com/anthropic` | `eu.anthropic.claude-sonnet-5-5` / `eu.anthropic.claude-opus-5-5` |
+      | Mistral | OpenAI | `https://api.mistral.ai/v1` | `mistral-large-4` |
+      | Scaleway | OpenAI | `https://api.scaleway.ai/v1` | (chosen from its list) |
+      | Vercel AI Gateway, "EU only" on | OpenAI | `https://ai-gateway.vercel.sh/v1` | (any) |
+      | Anthropic | Anthropic | `https://api.anthropic.com` | `claude-sonnet-5-5` / `claude-opus-5-5` |
+      | DeepSeek | OpenAI | `https://api.deepseek.com` | `deepseek-v4-pro` |
+      | Qwen (Alibaba Cloud) | OpenAI | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `qwen3.8-max` |
+      | OpenRouter | OpenAI | `https://openrouter.ai/api/v1` | (any) |
+      | Hugging Face | OpenAI | `https://router.huggingface.co/v1` | (any) |
+      | Custom | either | (any, for example IONOS, Nebius, OVHcloud, STACKIT, Infomaniak or Ollama) | (any) |
+
+      - Bedrock: AWS's model cards list the Messages API on
+        `bedrock-runtime` with EU inference profiles (`eu.` in front)
+        that keep requests in EU regions; `bedrock-mantle` serves these
+        models only outside the EU. A Bedrock API key goes in `x-api-key`,
+        as AWS's examples send it.
+      - Mistral Large 4 is in "public preview"; its page lists the API
+        names `mistral-large-4` and `mistral-large-4-0`.
+      - Vercel's "EU only" sends `providerOptions.gateway.inferenceRegion
+        = {scope: zone, geoRegion: eu}` in the body, as Vercel documents
+        it; a model without an EU route then fails instead of running
+        elsewhere.
+      - Value picks are named in the notes: Sonnet 5.5 "safe default",
+        Mistral Large 4 "best value in the EU", DeepSeek V4 Pro "best
+        value outside the EU". DeepSeek's note says that the data is
+        processed and stored in China, that reports say inputs may be used
+        for training, and that Chinese law can require access.
+      - No small model (such as Haiku) is a default or a strong model: the
+        chat may propose notes to save. Any model can be typed in.
+    - **Settings**, on the AI settings page, reached from "AI" on the
+      Settings page (#63) and from the folder screen; the graph's "More"
+      menu no longer has its own entry. They stay in `ai-settings.json`
+      with the hidden tags (decision 42), not in #63's
+      `view-settings.json`, so all AI settings are in one place: the
+      provider, and per provider its base URL, default model, optional strong model (the
+      chat can switch to it, #60), the API for Custom, and Vercel's "EU
+      only" (on by default). Also the most tool rounds per message
+      (default 10) and the most tokens per answer (default 8192, more than
+      the issue's 4096, because Claude's thinking counts towards it).
+    - **API keys** are kept per provider in Android's secure storage
+      (`flutter_secure_storage`: encrypted with a key the Android Keystore
+      holds), never in the notes or a plain file; the page never shows a
+      saved key, only that one is saved, and can remove it. Custom works
+      without a key, for a local Ollama.
+    - **Prompt caching.** Every request starts with the same bytes: the
+      system prompt, which never changes (no time, no counter, no node),
+      then the tools in their fixed order, then the conversation, which
+      only grows; the node a chat starts from goes into the first message
+      (#60). Anthropic: `cache_control: {type: ephemeral}` on the system
+      prompt (which caches the tools before it) and on the last block of
+      the conversation, so each round reads the earlier rounds from the
+      cache (5 minutes; at least 512 tokens for Sonnet and Opus 5.5, so
+      the tools alone qualify). OpenAI-compatible providers cache a
+      repeated start by themselves where they support it; the app reads
+      the cached tokens from `usage.prompt_tokens_details.cached_tokens`,
+      or DeepSeek's `prompt_cache_hit_tokens`. Each chat counts its input,
+      cached and output tokens. A test checks that each request starts
+      with the one before.
+    - **Limits:** a message may run the most tool rounds set; the last
+      round's result says it was the last. If the model still asks for
+      tools, they are not run and its text, if any, is its answer. The
+      count belongs to the message: "Send again" after an error goes on
+      counting. Every tool call gets a result, also when the tool fails
+      (as an error the model reads), since both APIs refuse a conversation
+      with a tool call left without one.
+    - **Errors say what to do:** no key, model or base URL (nothing is
+      sent); no network or no answer in time; 401 or 403 (the key); 429
+      (rate limit or credit); 404 (base URL or model); 400 that mentions
+      tools (the model may not support them); any other HTTP error with
+      the provider's own message. An answer cut at the token limit is
+      dropped, so "Send again" asks again. After an error, the chat can
+      send the conversation again from where it stopped.
+    - **Keys only over HTTPS; no redirects.** A key is never sent to an
+      `http://` base URL (Custom can reach a local server over HTTP without
+      a key, such as Ollama). Redirects are not followed, so the
+      conversation cannot go to another host than the base URL's.
+    - Answers are not streamed: an answer appears when it is complete.
+      Qwen does not allow streaming together with tools anyway.
+
+46. **The AI chat screen** (#60), `lib/ai/chat_screen.dart`.
+    - **Where:** "Ask AI" in the graph view's "More" menu, with the
+      selected node, and in the node view's new AI menu, with that node.
+      The node view's "Share with AI" moved into the same menu, so the bar
+      still fits a phone held upright.
+    - **The node the chat starts from** goes into the first message ("I am
+      looking at the note … (ID …)"), not into the system prompt, so every
+      request still starts with the same bytes (decision 45). On screen,
+      my message shows without it.
+    - **Model switch:** the chat starts with the provider's default model;
+      where the provider has a strong one (Anthropic and Bedrock: Opus
+      5.5), a menu switches to it for the rest of this chat. The bar shows
+      the provider and the model in use; each answer shows the model that
+      wrote it.
+    - **Tool calls are shown**, collapsed, as `find(search: Plan)`; opened,
+      with the result the model got. Below the chat: its tokens, in, of
+      them from the cache, and out (decision 45).
+    - **Answers are rendered as Org** with `org_flutter`, so
+      `[[id:…][…]]` links can be tapped and open the node, as in the node
+      view. Other links are not opened.
+    - **"Save as new node"** on an answer opens the capture screen (#11)
+      with a title and text proposed as for shared text (#15, decision
+      34): the first line without `#` or `**` is the title. A chat started
+      from a node offers a link to it, on. Nothing is written before I
+      save there; the AI never writes a file.
+    - **Errors** show in the chat with "Send again", which sends the
+      conversation from where it stopped (decision 45). Without a key or a
+      model, the chat says what to enter and links to AI settings; Send
+      stays off.
+    - **The conversation** is kept only while the chat is open; "New chat"
+      starts again, with the settings as they are then. Nothing of it is
+      stored. Closing the chat stops it: a request under way finishes, but
+      no tool runs and nothing more is sent.
+    - **An open chat follows the app:** after a scan brings or removes
+      notes, or a tag is hidden in the settings, the next tool call uses
+      the graph and the hidden tags as they are then.
+    - **A hidden note is not named.** A chat opened from a note hidden from
+      AI (its index tags or its file as it is now, decision 42) says so and
+      does not put the note into the first message.
+    - **One turn at a time:** after an error, Send stays off until "Send
+      again" has finished the turn, or a new chat starts, so a new question
+      does not join the unanswered one.
+    - A proposed title loses the stars of an Org heading (`* Title`), as it
+      loses a Markdown `#`.
+
+47. **Help pages are Org files with `id:` links, shown by the node view**
+    (#62), `assets/help/`, `lib/help/help.dart`.
+    - Ten pages, written for the app: the start page, the graph view, the
+      layouts, the graph views, the other graph algorithms, the node view,
+      capture and shared text, AI (hidden notes, sharing, the chat),
+      Syncthing conflict copies, and the settings. Each is an Org file
+      with its own `:ID:` (`roam-graph-help-…`, never a UUID, so it cannot
+      be one of my notes) and `#+title:`, linked to the others with `id:`
+      links. None of my notes is in the repo.
+    - The app parses them as it parses notes and shows them with the node
+      view (decision 26), so a link in the help works as in a note, and
+      Back returns. The help is its own small graph, read from the app's
+      assets when help opens; it is never in my graph, search, AI shares
+      or the AI chat. A help page has no search and no AI menu, which
+      would act on the help, and is not remembered as the node viewed
+      last.
+    - Each page has `#+STARTUP: showall`: help pages are short and read
+      whole, and a file's own line wins over the setting of #63.
+    - **Where:** "Help" on the folder screen's bar and in the graph's
+      "More" menu opens the start page. The "?" next to a control: "About
+      the layouts" under the layouts in the "More" menu, and "About the
+      views" at the end of the "View" menu.
+    - Not built (optional in the issue): showing the help as a graph, and
+      links from the help to my notes by title.
+    - Tests: every file in `assets/help/` is listed and is one node; every
+      `id:` link points to a help page and every page is linked; the help
+      is not part of my graph; the entries open their pages, and a link
+      between pages works.
+48. **A changelog, and release texts taken from it** (#70),
+    `CHANGELOG.md`, `tool/release_notes.dart`,
+    `.github/workflows/build.yml`, `.github/workflows/changelog.yml`.
+    - Every merge to `main` is a release, but its text was only "Built
+      from <sha>", so Obtainium showed updates without saying what
+      changed.
+    - **The file:** newest first, one entry per pull request, headed
+      `## YYYY-MM-DD: <title> ([#PR](<url>))`, with 1 to 4 lines on what
+      changed for the user and the issue it closes. No version numbers:
+      the version is `0.1.<run number>`, known only when the release is
+      built. The history before the changelog was written once from the
+      merged pull requests; each of those entries names the release it
+      first shipped in, found by matching the release's "Built from" commit
+      (pull requests whose own build was replaced by a later one name that
+      later release). It is not rewritten before 1.x.
+    - **The release text:** the build job, on `main` only, reads the
+      `CHANGELOG.md` of the newest published release built by an earlier
+      run (so re-running an old run does not compare with a newer release)
+      through the API (the checkout is shallow). Only a 404 counts as "no
+      changelog there"; any other failure stops the build, because
+      guessing would leave entries out of every later release text. Then
+      it runs `tool/release_notes.dart`: the entries
+      whose heading the previous copy does not have, then "Built from
+      <sha>". When the previous release has no changelog, or nothing is
+      new (a release built again), the top entry only. The text travels
+      with the APK in the build artifact; the release job, unchanged in
+      its permissions, passes it to `gh release create` or `edit`. Entries
+      are matched by heading, not by a diff, so an edit to an older entry
+      does not show as new.
+    - **The check:** a separate workflow, `changelog.yml`, on pull
+      requests (also when labels change). It asks the API which files the
+      pull request changes; it runs no code from the pull request and
+      uses no actions. A change under `lib/` or `android/` fails unless
+      the patch of `CHANGELOG.md` adds a `## ` heading (an edit to an old
+      entry alone would give the release no new text), with a message that
+      says what to add. A deleted `CHANGELOG.md` fails too. The
+      label `skip-changelog` lets a change through that users do not see.
+    - Tests: `test/tool/release_notes_test.dart` (new entries in order,
+      no previous changelog, nothing new, no entries, and the headings of
+      the repository's own changelog).
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

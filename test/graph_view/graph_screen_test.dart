@@ -488,6 +488,26 @@ void main() {
     expect(text, contains(' | hub | - | HUB'));
   });
 
+  testWidgets('"Settings" in the More menu opens the settings (#63)',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: GraphScreen(
+        graph: ValueNotifier(graph),
+        readNote: (path) async => '',
+        nodeMemory: MemoryNodeMemory('hub'),
+        computeLayout: layoutHere,
+        computeAlgorithms: algorithmsHere,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sections when a note opens'), findsOneWidget);
+  });
+
   testWidgets('a share that fails says so', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: GraphScreen(

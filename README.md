@@ -21,7 +21,22 @@ Text shared from another app, such as the Claude app, becomes a new node
 (#41) can be shared to such an app. Source blocks are coloured as Emacs
 colours them (#45), and images from the notes folder, also SVG, are
 shown at their Org width (#46, #47). LaTeX display formulas are shown in
-display mode (#50). What is decided and why is in
+display mode (#50). Mermaid blocks show their result image; a block
+without one is drawn on the device (#49). Notes with a tag such as
+`:private:` are never shared with an AI, and private headings and titles
+are left out of the notes that are (#57). Notes open with their sections
+collapsed, a setting that can also show all headings or everything; a
+note's own `#+STARTUP:` line comes first (#63). The tools of my org-roam
+MCP server (search, backlinks, paths, PageRank, communities and the
+others) run on the app's own index, for an AI chat in the app (#58), which
+talks to the provider I choose: Anthropic, Claude on AWS Bedrock in the
+EU, Mistral, DeepSeek and others, with the key in Android's secure storage
+(#59). "Ask AI" in the graph and node views opens the chat: tool calls
+are shown, `id:` links in answers open the node, and an answer can be
+saved as a new node after review (#60). Help pages, linked Org files shown
+like notes, explain the views and layouts (#62). What changed in each
+release is in [CHANGELOG.md](CHANGELOG.md), and the release text repeats it
+(#70). What is decided and why is in
 [docs/decisions.md](docs/decisions.md); the work is in the
 [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 

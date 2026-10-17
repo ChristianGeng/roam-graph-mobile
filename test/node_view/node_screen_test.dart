@@ -7,6 +7,7 @@ import 'package:roam_graph_mobile/capture/share_inbox.dart';
 import 'package:roam_graph_mobile/graph/org_roam_parser.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
+import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 import '../graph/graph_scope_test.dart' show fixtureGraph;
 import '../graph_view/graph_screen_test.dart' show MemoryNodeMemory;
@@ -43,9 +44,16 @@ Future<MemoryNodeMemory> open(
   void Function(BuildContext, String)? onShowInGraph,
   NoteOpener? openInOrgro,
   TextSharer? shareText,
+  // Expanded, so the tests below see the text under headings; the
+  // folding has its own tests.
+  SectionsOnOpen sections = SectionsOnOpen.expanded,
 }) async {
   final memory = MemoryNodeMemory();
   await tester.pumpWidget(MaterialApp(
+    builder: (context, child) => ViewSettingsHost(
+      store: MemoryViewSettingsStore(ViewSettings(sectionsOnOpen: sections)),
+      child: child!,
+    ),
     home: Builder(
       builder: (context) => Scaffold(
         body: Center(
@@ -69,6 +77,13 @@ Future<MemoryNodeMemory> open(
   await tester.tap(find.text('open'));
   await tester.pumpAndSettle();
   return memory;
+}
+
+/// Taps "Share with AI" in the node view's AI menu.
+Future<void> shareNodeWithAi(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('AI').last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Share with AI').last);
 }
 
 /// The title in the app bar.
@@ -246,7 +261,7 @@ void main() {
     final shared = <(String, String?)>[];
     await open(tester, 'p',
         shareText: (text, {subject}) async => shared.add((text, subject)));
-    await tester.tap(find.byTooltip('Share with AI'));
+    await shareNodeWithAi(tester);
     await tester.pump();
 
     final (text, subject) = shared.single;
@@ -263,7 +278,7 @@ void main() {
     await open(tester, 'a',
         shareText: (text, {subject}) async =>
             throw PlatformException(code: 'x', message: 'no app'));
-    await tester.tap(find.byTooltip('Share with AI'));
+    await shareNodeWithAi(tester);
     await tester.pump();
     expect(find.text('Could not share the note: no app'), findsOneWidget);
   });

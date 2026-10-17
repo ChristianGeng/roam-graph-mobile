@@ -8,8 +8,10 @@
 library;
 
 import 'dart:collection';
+import 'dart:convert';
 import 'dart:math';
 
+import 'elisp.dart';
 import 'roam_graph.dart';
 
 /// The longest path org_roam_shortest_path follows, in links.
@@ -23,16 +25,24 @@ class AlgorithmGraph {
   AlgorithmGraph._(this.nodes, this.successors, this.predecessors);
 
   factory AlgorithmGraph.fromRoam(RoamGraph graph) => AlgorithmGraph.of(
-        [for (final node in graph.nodes.values) (node.id, node.title)],
-        [for (final link in graph.links) (link.source, link.dest)],
-      );
+    [for (final node in graph.nodes.values) (node.id, node.title)],
+    [for (final link in graph.links) (link.source, link.dest)],
+  );
 
-  /// [nodes] are ID and title; the server adds them ordered by title.
+  /// [nodes] are ID and title; the server adds them ordered by title, as
+  /// its query's `ORDER BY title` sorts them ([compareStoredTitles]).
+  /// Nodes with the same title keep their order.
   factory AlgorithmGraph.of(
     List<(String, String)> nodes,
     List<(String, String)> links,
   ) {
-    final sorted = [...nodes]..sort((a, b) => a.$2.compareTo(b.$2));
+    final keys = {for (final (_, title) in nodes) title: storedTitleKey(title)};
+    final indexed = [for (var i = 0; i < nodes.length; i++) (i, nodes[i])]
+      ..sort((a, b) {
+        final byTitle = compareBytes(keys[a.$2.$2]!, keys[b.$2.$2]!);
+        return byTitle != 0 ? byTitle : a.$1.compareTo(b.$1);
+      });
+    final sorted = [for (final (_, node) in indexed) node];
     final successors = <String, LinkedHashSet<String>>{};
     final predecessors = <String, LinkedHashSet<String>>{};
     void add(String id) {
@@ -56,6 +66,20 @@ class AlgorithmGraph {
   final List<String> nodes;
   final Map<String, LinkedHashSet<String>> successors;
   final Map<String, LinkedHashSet<String>> predecessors;
+}
+
+/// [title] as org-roam's database stores it (decision 23), as bytes: SQL's
+/// `ORDER BY title` compares these, so `"Beta heading"` comes before
+/// `"Beta"` (a space before the closing quote).
+List<int> storedTitleKey(String title) => utf8.encode(elispString(title));
+
+/// Compares two byte strings as SQLite compares text: byte by byte, a
+/// shorter one first when it is the start of the other.
+int compareBytes(List<int> a, List<int> b) {
+  for (var i = 0; i < a.length && i < b.length; i++) {
+    if (a[i] != b[i]) return a[i].compareTo(b[i]);
+  }
+  return a.length.compareTo(b.length);
 }
 
 /// The results the graph views (#7) show, computed together, for
@@ -121,9 +145,9 @@ Map<String, double>? pageRank(AlgorithmGraph graph) {
 /// The number of links of each node, as org_roam_central counts it: the
 /// distinct nodes it links to plus the distinct nodes that link to it.
 Map<String, int> linkCounts(AlgorithmGraph graph) => {
-      for (final id in graph.nodes)
-        id: graph.successors[id]!.length + graph.predecessors[id]!.length,
-    };
+  for (final id in graph.nodes)
+    id: graph.successors[id]!.length + graph.predecessors[id]!.length,
+};
 
 /// A shortest path from [source] to [target], following links in their
 /// direction, of at most [maxPathLinks] links, as org_roam_shortest_path
@@ -199,11 +223,17 @@ class _WeightedGraph {
 }
 
 /// Communities by the Louvain method, as python-louvain's `best_partition`
-/// finds them on the undirected graph (resolution 1): community numbers by
-/// node. Louvain visits nodes in a random order; the server uses no seed,
-/// so its communities differ a little from run to run. Here the order
-/// comes from [seed], so the app's colours stay the same.
-Map<String, int> louvainCommunities(AlgorithmGraph graph, {int seed = 0}) {
+/// finds them on the undirected graph: community numbers by node. Louvain
+/// visits nodes in a random order; the server uses no seed, so its
+/// communities differ a little from run to run. Here the order comes from
+/// [seed], so the app's colours stay the same. A [resolution] below 1
+/// gives larger communities, above 1 smaller ones (org_roam_communities'
+/// parameter, #58).
+Map<String, int> louvainCommunities(
+  AlgorithmGraph graph, {
+  int seed = 0,
+  double resolution = 1,
+}) {
   final ids = graph.nodes;
   final undirected = _undirected(graph);
   if (undirected.size == 0) {
@@ -214,8 +244,8 @@ Map<String, int> louvainCommunities(AlgorithmGraph graph, {int seed = 0}) {
   var partition = {for (var i = 0; i < ids.length; i++) i: i};
   var current = undirected;
   var level = _Status(current);
-  _oneLevel(current, level, random);
-  var modularity = level.modularity();
+  _oneLevel(current, level, random, resolution);
+  var modularity = level.modularity(resolution);
   var renumbered = _renumber(level.nodeToCommunity);
   partition = {
     for (final MapEntry(:key, :value) in partition.entries)
@@ -224,8 +254,8 @@ Map<String, int> louvainCommunities(AlgorithmGraph graph, {int seed = 0}) {
   while (true) {
     current = _induced(renumbered, current);
     level = _Status(current);
-    _oneLevel(current, level, random);
-    final next = level.modularity();
+    _oneLevel(current, level, random, resolution);
+    final next = level.modularity(resolution);
     if (next - modularity < _minimumGain) break;
     modularity = next;
     renumbered = _renumber(level.nodeToCommunity);
@@ -266,8 +296,12 @@ double modularity(AlgorithmGraph graph, Map<String, int> communities) {
 const _minimumGain = 0.0000001;
 
 _WeightedGraph _undirected(AlgorithmGraph graph) {
-  final index = {for (var i = 0; i < graph.nodes.length; i++) graph.nodes[i]: i};
-  final result = _WeightedGraph([for (var i = 0; i < graph.nodes.length; i++) i]);
+  final index = {
+    for (var i = 0; i < graph.nodes.length; i++) graph.nodes[i]: i,
+  };
+  final result = _WeightedGraph([
+    for (var i = 0; i < graph.nodes.length; i++) i,
+  ]);
   final seen = <(int, int)>{};
   for (final id in graph.nodes) {
     for (final dest in graph.successors[id]!) {
@@ -302,26 +336,25 @@ class _Status {
 
   void remove(int node, int community, double weight) {
     degrees[community] = (degrees[community] ?? 0) - nodeDegrees[node]!;
-    internals[community] =
-        (internals[community] ?? 0) - weight - loops[node]!;
+    internals[community] = (internals[community] ?? 0) - weight - loops[node]!;
     nodeToCommunity[node] = -1;
   }
 
   void insert(int node, int community, double weight) {
     nodeToCommunity[node] = community;
     degrees[community] = (degrees[community] ?? 0) + nodeDegrees[node]!;
-    internals[community] =
-        (internals[community] ?? 0) + weight + loops[node]!;
+    internals[community] = (internals[community] ?? 0) + weight + loops[node]!;
   }
 
-  /// python-louvain's `__modularity`, with resolution 1.
-  double modularity() {
+  /// python-louvain's `__modularity`.
+  double modularity(double resolution) {
     var result = 0.0;
     for (final community in nodeToCommunity.values.toSet()) {
       final inside = internals[community] ?? 0;
       final degree = degrees[community] ?? 0;
       if (totalWeight > 0) {
-        result += inside / totalWeight -
+        result +=
+            inside * resolution / totalWeight -
             pow(degree / (2 * totalWeight), 2);
       }
     }
@@ -331,9 +364,14 @@ class _Status {
 
 /// python-louvain's `__one_level`: moves nodes to the neighbouring
 /// community that gains the most modularity, until no pass gains enough.
-void _oneLevel(_WeightedGraph graph, _Status status, Random random) {
+void _oneLevel(
+  _WeightedGraph graph,
+  _Status status,
+  Random random,
+  double resolution,
+) {
   var modified = true;
-  var current = status.modularity();
+  var current = status.modularity(resolution);
   var next = current;
   while (modified) {
     current = next;
@@ -347,8 +385,10 @@ void _oneLevel(_WeightedGraph graph, _Status status, Random random) {
         final c = status.nodeToCommunity[other]!;
         weights[c] = (weights[c] ?? 0) + w;
       }
-      final removeCost = -(weights[community] ?? 0) +
-          (status.degrees[community]! - status.nodeDegrees[node]!) *
+      final removeCost =
+          -(weights[community] ?? 0) +
+          resolution *
+              (status.degrees[community]! - status.nodeDegrees[node]!) *
               degreeShare;
       status.remove(node, community, weights[community] ?? 0);
       var best = community;
@@ -356,7 +396,9 @@ void _oneLevel(_WeightedGraph graph, _Status status, Random random) {
       for (final MapEntry(key: c, value: w)
           in (weights.entries.toList()..shuffle(random))) {
         final increase =
-            removeCost + w - (status.degrees[c] ?? 0) * degreeShare;
+            removeCost +
+            w -
+            resolution * (status.degrees[c] ?? 0) * degreeShare;
         if (increase > bestIncrease) {
           bestIncrease = increase;
           best = c;
@@ -365,7 +407,7 @@ void _oneLevel(_WeightedGraph graph, _Status status, Random random) {
       status.insert(node, best, weights[best] ?? 0);
       if (best != community) modified = true;
     }
-    next = status.modularity();
+    next = status.modularity(resolution);
     if (next - current < _minimumGain) break;
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../ai/ai_settings.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/ai_share.dart';
@@ -98,15 +99,44 @@ class _SearchScreenState extends State<SearchScreen> {
   /// Shares the selected nodes with an AI app, with their texts.
   Future<void> _shareSelected() async {
     final graph = widget.graph.value;
-    final nodes = [
+    final messenger = ScaffoldMessenger.of(context);
+    // The saved settings, once loaded, so no saved hidden tag is missed.
+    final visibility = (await AiSettingsScope.current(context)).visibility;
+    if (!mounted) return;
+    final chosen = [
       for (final id in _selected) ?graph.nodes[id],
     ];
-    final files = <(RoamNode, String?)>[
-      for (final node in nodes) (node, await widget.readNote(node.file)),
-    ];
-    final text = nodesForAi(graph, files);
+    // Notes hidden from AI are left out (#57), also those whose file
+    // hides them now, before the index knows.
+    final files = <(RoamNode, String?)>[];
+    for (final node in chosen) {
+      if (visibility.hides(node)) continue;
+      final file = await widget.readNote(node.file);
+      if (file != null && visibility.hidesInText(node, file)) continue;
+      files.add((node, file));
+    }
     if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
+    final nodes = [for (final (node, _) in files) node];
+    final hidden = chosen.length - nodes.length;
+    if (nodes.isEmpty) {
+      messenger.showSnackBar(SnackBar(
+          content: Text(hidden == 1
+              ? 'This note is hidden from AI by its tags, so it is not '
+                  'shared.'
+              : 'These notes are hidden from AI by their tags, so they are '
+                  'not shared.')));
+      return;
+    }
+    final text = nodesForAi(graph, files, visibility: visibility);
+    if (!mounted) return;
+    if (hidden > 0) {
+      messenger.showSnackBar(SnackBar(
+          content: Text(hidden == 1
+              ? '1 selected note is hidden from AI by its tags and was '
+                  'left out.'
+              : '$hidden selected notes are hidden from AI by their tags '
+                  'and were left out.')));
+    }
     if (text.length > maxShareLength) {
       messenger.showSnackBar(SnackBar(
           content: Text('These ${nodes.length} notes are too large to share '

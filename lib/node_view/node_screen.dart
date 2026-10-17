@@ -3,13 +3,18 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 
+import '../ai/ai_settings.dart';
+import '../ai/chat_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
+import '../settings/view_settings.dart';
+import 'folding.dart';
 import 'latex.dart';
+import 'mermaid.dart';
 import 'src_languages.dart';
 import '../search/search_screen.dart';
 import 'note_images.dart';
@@ -47,6 +52,7 @@ class NodeScreen extends StatefulWidget {
     this.onBack,
     this.writer,
     this.shareText = shareTextOut,
+    this.help = false,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -77,6 +83,10 @@ class NodeScreen extends StatefulWidget {
   /// Sends text to an AI app (#41); tests replace it.
   final TextSharer shareText;
 
+  /// A help page (#62): no search and no AI menu, which would act on the
+  /// help instead of my notes.
+  final bool help;
+
   /// Shows the node [id] in the graph view (#6); the button is hidden when
   /// null.
   final void Function(BuildContext context, String id)? onShowInGraph;
@@ -93,6 +103,7 @@ class NodeScreen extends StatefulWidget {
     NoteOpener? openInOrgro,
     NoteWriter? writer,
     TextSharer shareText = shareTextOut,
+    bool help = false,
   }) {
     nodeMemory.remember(id);
     return Navigator.push(
@@ -108,6 +119,7 @@ class NodeScreen extends StatefulWidget {
           openInOrgro: openInOrgro,
           writer: writer,
           shareText: shareText,
+          help: help,
         ),
       ),
     );
@@ -201,6 +213,7 @@ class _NodeScreenState extends State<NodeScreen> {
       openInOrgro: widget.openInOrgro,
       writer: widget.writer,
       shareText: widget.shareText,
+      help: widget.help,
     );
   }
 
@@ -235,8 +248,27 @@ class _NodeScreenState extends State<NodeScreen> {
   /// Shares [node] with an AI app (#41): its text as shown here, with its
   /// links and backlinks.
   Future<void> _shareWithAi(RoamNode node) async {
+    // The saved settings, once loaded, so no saved hidden tag is missed.
+    final settings = await AiSettingsScope.current(context);
+    if (!mounted) return;
+    final visibility = settings.visibility;
+    if (visibility.hides(node)) {
+      final tags = node.tags.where(visibility.hiddenTags.contains);
+      _tell('This note is hidden from AI by its tag '
+          '${tags.map((t) => ':$t:').join(' ')}, so it is not shared. '
+          'The hidden tags are in AI settings.');
+      return;
+    }
     final file = await _text;
-    final text = nodesForAi(widget.graph.value, [(node, file)]);
+    if (!mounted) return;
+    // The file may have a hidden tag the index does not know yet.
+    if (file != null && visibility.hidesInText(node, file)) {
+      _tell('This note is now hidden from AI by its tags, so it is not '
+          'shared.');
+      return;
+    }
+    final text =
+        nodesForAi(widget.graph.value, [(node, file)], visibility: visibility);
     if (text.length > maxShareLength) {
       _tell('This note is too large to share at once '
           '(${text.length ~/ 1000} KB).');
@@ -248,6 +280,28 @@ class _NodeScreenState extends State<NodeScreen> {
       if (mounted) _tell('Could not share the note: ${e.message ?? e.code}');
     }
   }
+
+  /// Opens the AI chat about [node] (#60).
+  Future<void> _askAi(RoamNode node) => ChatScreen.open(
+        context,
+        graph: widget.graph,
+        readNote: widget.readNote,
+        startNode: node,
+        writer: widget.writer,
+        // On a page above the chat, also from the side pane (#16).
+        openNode: (chatContext, id) => NodeScreen.open(
+          chatContext,
+          graph: widget.graph,
+          id: id,
+          readNote: widget.readNote,
+          files: widget.files,
+          nodeMemory: widget.nodeMemory,
+          onShowInGraph: widget.onShowInGraph,
+          openInOrgro: widget.openInOrgro,
+          writer: widget.writer,
+          shareText: widget.shareText,
+        ),
+      );
 
   void _tell(String message) {
     ScaffoldMessenger.of(context)
@@ -271,6 +325,7 @@ class _NodeScreenState extends State<NodeScreen> {
               ),
         title: Text(node?.displayTitle ?? 'Node'),
         actions: [
+          if (!widget.help)
           IconButton(
             tooltip: 'Search',
             icon: const Icon(Icons.search),
@@ -287,11 +342,20 @@ class _NodeScreenState extends State<NodeScreen> {
               shareText: widget.shareText,
             ),
           ),
-          if (node != null)
-            IconButton(
-              tooltip: 'Share with AI',
-              icon: const Icon(Icons.share_outlined),
-              onPressed: () => _shareWithAi(node),
+          // The AI actions in one menu, so the bar fits a phone.
+          if (node != null && !widget.help)
+            PopupMenuButton<_AiAction>(
+              tooltip: 'AI',
+              icon: const Icon(Icons.auto_awesome_outlined),
+              onSelected: (action) => switch (action) {
+                _AiAction.ask => _askAi(node),
+                _AiAction.share => _shareWithAi(node),
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: _AiAction.ask, child: Text('Ask AI')),
+                PopupMenuItem(
+                    value: _AiAction.share, child: Text('Share with AI')),
+              ],
             ),
           if (widget.writer case final writer? when node != null)
             IconButton(
@@ -364,10 +428,20 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// The Org text of [node]: the file, or the heading's subtree.
   Widget _org(RoamNode node, String text) {
+    final files = widget.files;
     // Source blocks coloured as Emacs colours them (#45); display formulas
-    // in display mode (#50).
-    final document =
-        withDisplayFormulas(withHighlightLanguages(OrgDocument.parse(text)));
+    // in display mode (#50); mermaid blocks without a result image drawn
+    // (#49).
+    final document = withMermaidDrawings(
+      withDisplayFormulas(withHighlightLanguages(OrgDocument.parse(text))),
+      showsImage: (location) {
+        final path = linkedImagePath(node.file, location);
+        return files != null &&
+            path != null &&
+            files.reaches(path) &&
+            files.find(path) != null;
+      },
+    );
     final OrgTree? tree =
         node.isFile ? document : document.sectionWithId(node.id);
     if (tree == null) {
@@ -377,26 +451,39 @@ class _NodeScreenState extends State<NodeScreen> {
         child: Text('The heading is no longer in ${node.file}.'),
       );
     }
-    final settings = OrgSettings(startupFolded: OrgVisibilityState.subtree);
+    // Sections open as the setting says, or as the file's #+STARTUP: says
+    // (#63).
+    final state =
+        startupState(document, ViewSettingsScope.of(context).sectionsOnOpen);
     return OrgController(
-      // A new controller for new text, so the folding starts again.
-      key: ValueKey(text),
+      // A new controller for new text or a new setting, so the folding
+      // starts again.
+      key: ValueKey((text, state)),
       root: tree,
-      settings: settings,
+      settings: OrgSettings(startupFolded: state),
       child: OrgRootWidget(
         onLinkTap: _openLink,
         onLocalSectionLinkTap: _openSection,
-        loadImage: switch (widget.files) {
-          final files? => (link) => loadNoteImage(files, node.file, tree, link),
-          null => null,
-        },
+        loadImage: (link) =>
+            loadMermaidDrawing(link) ??
+            switch (files) {
+              final files? => loadNoteImage(files, node.file, tree, link),
+              null => null,
+            },
         child: tree is OrgSection
             ? Padding(
                 padding: const EdgeInsets.all(16),
-                child: OrgSectionWidget(tree),
+                child: OpenSection(
+                  section: tree,
+                  state: state,
+                  child: OrgSectionWidget(tree),
+                ),
               )
             : OrgDocumentWidget(document, shrinkWrap: true),
       ),
     );
   }
 }
+
+/// The actions of the node view's AI menu.
+enum _AiAction { ask, share }

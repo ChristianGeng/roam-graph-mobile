@@ -1,0 +1,42 @@
+:PROPERTIES:
+:ID:       roam-graph-help-views
+:END:
+#+title: Graph views: communities, importance, paths
+#+STARTUP: showall
+
+The "View" menu of the graph changes what the dots show. The results are
+the ones my org-roam MCP server computes on the laptop.
+
+* Plain
+Every node the same size and colour; only the links show.
+
+* Communities
+Groups of notes that link more among themselves than to the rest, found
+with the Louvain method. The largest groups get colours; the smaller ones
+stay plain. In a note graph a community is usually a topic. The method
+starts from a random order, so the grouping can change a little when notes
+are added.
+
+* Importance: PageRank
+A note is important if important notes link to it. The node's size shows
+it. PageRank finds the hubs that many paths lead to, not only the notes
+with many links.
+
+* Importance: number of links
+The node's size is the number of links to and from the note. Simpler than
+PageRank: every link counts the same.
+
+* Shortest path
+Tap a node: the line shows the fewest links from the selected node to it,
+following links in their direction, at most 8. "No path" means no chain of
+links leads there in that direction, though one may lead back. When only a
+part of the graph is shown, part of the path can be outside it.
+
+* Which one
+- Your topics: Communities, best with the
+  [[id:roam-graph-help-layouts][force-directed layout]].
+- Central notes: one of the Importance views.
+- How two notes connect: Shortest path.
+
+More algorithms, which the AI chat can use:
+[[id:roam-graph-help-algorithms][The other graph algorithms]].

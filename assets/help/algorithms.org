@@ -1,0 +1,24 @@
+:PROPERTIES:
+:ID:       roam-graph-help-algorithms
+:END:
+#+title: The other graph algorithms
+#+STARTUP: showall
+
+The app computes the same algorithms as my org-roam MCP server. The
+[[id:roam-graph-help-views][graph views]] show some of them; the AI chat
+can use all of them ([[id:roam-graph-help-ai][AI]]).
+
+- *Betweenness*: how often a note lies on the shortest paths between other
+  notes. High for bridge notes that join topics.
+- *Closeness*: how near a note is to all the notes that link to it, over
+  any number of steps. High for notes that are reached quickly.
+- *Clustering coefficient*: how much a note's neighbours link to each
+  other. High inside a tight topic; low for a note between topics.
+- *Connected components*: the parts of the graph with no links between
+  them; a small part is a topic that is not tied in yet.
+- *Orphans*: notes without any ~id:~ link, in or out.
+- *Common neighbours* and *link suggestions*: notes that link to the same
+  notes as a given note, which may be worth linking to it.
+- *Breadth-first search*: the notes a few links away from a note.
+- *Graph statistics*: numbers of notes and links, density, the largest
+  part, and how far apart notes are.

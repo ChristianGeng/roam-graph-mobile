@@ -1,0 +1,59 @@
+# Checks that a pull request which changes the app adds a CHANGELOG.md
+# entry (decision 48). The release text is taken from those entries.
+#
+# "Changes the app" means files under lib/ or android/. A pull request
+# with the label skip-changelog passes without an entry, for example one
+# that only changes documentation or tests.
+#
+# It runs no code from the pull request and uses no actions: it only asks
+# the API which files the pull request changes.
+
+name: Changelog
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for a changelog entry
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-changelog') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh api --paginate "repos/$GH_REPO/pulls/$PR/files" > "$RUNNER_TEMP/files.json"
+          if ! jq -r '.[].filename' "$RUNNER_TEMP/files.json" | grep -qE '^(lib|android)/'; then
+            echo "No change under lib/ or android/; no entry needed."
+            exit 0
+          fi
+          # The release text takes the entries whose heading is new, so the
+          # pull request must add a "## " line, not only edit an old entry.
+          # Without a patch (GitHub leaves it out for very large diffs), a
+          # changed, not removed, CHANGELOG.md is accepted.
+          result=$(jq -r '[.[] | select(.filename == "CHANGELOG.md")][0]
+            | if . == null then "missing"
+              elif .status == "removed" then "removed"
+              elif .patch == null then "added"
+              elif (.patch | test("(^|\n)\\+## ")) then "added"
+              else "no-heading" end' "$RUNNER_TEMP/files.json")
+          case "$result" in
+            added)
+              echo "CHANGELOG.md gets a new entry."
+              exit 0 ;;
+            removed)
+              message="This pull request deletes CHANGELOG.md." ;;
+            no-heading)
+              message="CHANGELOG.md is changed, but no new entry heading (a line starting with \"## \") is added." ;;
+            *)
+              message="This pull request changes lib/ or android/ but not CHANGELOG.md." ;;
+          esac
+          echo "::error title=Changelog::$message Add an entry at the top of CHANGELOG.md (see AGENTS.md), or add the label skip-changelog if the change is not visible to users."
+          exit 1

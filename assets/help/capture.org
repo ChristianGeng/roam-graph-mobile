@@ -1,0 +1,23 @@
+:PROPERTIES:
+:ID:       roam-graph-help-capture
+:END:
+#+title: Capture and shared text
+#+STARTUP: showall
+
+* A new node
+The plus button in the graph, or "New node from here" in a note, writes a
+new note as org-roam's capture does on the laptop: a file
+~roam/<date and time>-<title>.org~ with a new ~:ID:~, ~#+title:~ and
+~#+filetags:~. Syncthing brings it to the laptop, where org-roam finds it.
+
+From a note, the new note can link to it. The link is in the new file, so
+the old note gets a backlink and is never changed.
+
+* Shared text
+Text shared to Roam Graph from another app, such as an AI app, opens the
+same capture screen, with a title and text proposed from it. Nothing is
+written until I save.
+
+* The first time
+Android may let the app only read the folder. Saving then asks to choose
+the folder again and allow writing.
