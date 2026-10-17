@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Change a note's title, tags and aliases ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Added: "Title, tags and aliases" in the node view's Edit menu. The ID
+  and the file name stay, so every link still works.
+- Added: in agent mode, the AI can rename notes and set their tags and
+  aliases, undoable as its other changes.
+- Closes [#97](https://github.com/ChristianGeng/roam-graph-mobile/issues/97).
+
 ## 2026-10-17: The AI can delete notes when you ask ([#96](https://github.com/ChristianGeng/roam-graph-mobile/pull/96))
 
 - Added: in agent mode, the AI deletes a note, or a heading with its
