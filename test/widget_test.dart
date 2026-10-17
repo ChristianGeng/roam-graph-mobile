@@ -16,6 +16,7 @@ import 'package:roam_graph_mobile/graph/roam_db.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
 import 'package:roam_graph_mobile/node_view/note_images.dart';
+import 'package:roam_graph_mobile/settings/view_settings.dart';
 import 'package:roam_graph_mobile/main.dart';
 
 import 'graph_view/graph_screen_test.dart' show MemoryNodeMemory, layoutHere;
@@ -251,6 +252,7 @@ Future<TestGraphIndex> start(
   FakeShareInbox? shares,
   MemoryNodeMemory? memory,
   EditHistory? history,
+  ViewSettingsStore? viewSettings,
 }) async {
   final index = TestGraphIndex();
   final nodeMemory = memory ?? MemoryNodeMemory();
@@ -261,6 +263,7 @@ Future<TestGraphIndex> start(
       shareInbox: shares ?? FakeShareInbox(),
       nodeMemory: nodeMemory,
       editHistory: history ?? MemoryEditHistory(),
+      viewSettings: viewSettings ?? MemoryViewSettingsStore(),
       graphScreen: (graph, readNote, openInOrgro, writer, files) {
         lastWriter = writer;
         lastGraph = graph;
@@ -319,6 +322,28 @@ void expectSomeNotes(WidgetTester tester, {String? unreadable}) {
 }
 
 void main() {
+  testWidgets('the theme setting makes the app light or dark (#90)',
+      (tester) async {
+    for (final (theme, mode) in [
+      (AppTheme.system, ThemeMode.system),
+      (AppTheme.light, ThemeMode.light),
+      (AppTheme.dark, ThemeMode.dark),
+    ]) {
+      // A new app each time, so the settings are loaded again.
+      await tester.pumpWidget(const SizedBox());
+      await start(tester, withNotes(saved: org),
+          viewSettings: MemoryViewSettingsStore(ViewSettings(theme: theme)));
+      expect(tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+          mode);
+    }
+    // In dark, the graph view and its overlays draw without errors.
+    await tapText(tester, 'Show graph');
+    await tester.pumpAndSettle();
+    expect(Theme.of(tester.element(find.byType(GraphScreen))).brightness,
+        Brightness.dark);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('the app shows its build version', (tester) async {
     await start(tester, FakeFolderAccess());
 

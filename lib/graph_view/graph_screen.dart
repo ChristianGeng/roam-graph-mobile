@@ -162,6 +162,15 @@ const _communityColours = [
   Color(0xFFC0CA33),
 ];
 
+/// The same hues, lighter, for the dark theme (#90): the 600 shades above
+/// are too dark on a dark background.
+const _communityColoursDark = [
+  Color(0xFFE57373), Color(0xFF64B5F6), Color(0xFF81C784), //
+  Color(0xFFFFB74D), Color(0xFFBA68C8), Color(0xFF4DB6AC),
+  Color(0xFFF06292), Color(0xFFA1887F), Color(0xFF7986CB),
+  Color(0xFFDCE775),
+];
+
 /// The graph algorithms for one graph, on the whole graph, as the MCP
 /// server computes them. [results] arrive from another isolate when a
 /// view first needs them.
@@ -401,7 +410,14 @@ class _GraphScreenState extends State<GraphScreen> {
   _ViewOverlay _overlay() {
     // _algorithms is new for each graph from the index, so a new graph
     // gives a new overlay, also in the path view, which needs no results.
-    final key = (_view, _algorithms, _algorithms.results, _centre, _pathTarget);
+    final key = (
+      _view,
+      _algorithms,
+      _algorithms.results,
+      _centre,
+      _pathTarget,
+      Theme.of(context).brightness,
+    );
     final cached = _overlayCache;
     if (cached != null && _overlayKey == key) return cached;
     _overlayKey = key;
@@ -424,9 +440,12 @@ class _GraphScreenState extends State<GraphScreen> {
         }
         final largest = sizes.keys.where((c) => sizes[c]! > 1).toList()
           ..sort((a, b) => sizes[b]!.compareTo(sizes[a]!));
+        final palette = Theme.of(context).brightness == Brightness.dark
+            ? _communityColoursDark
+            : _communityColours;
         final colourOf = {
-          for (var i = 0; i < largest.length && i < _communityColours.length; i++)
-            largest[i]: _communityColours[i],
+          for (var i = 0; i < largest.length && i < palette.length; i++)
+            largest[i]: palette[i],
         };
         return _ViewOverlay(colours: {
           for (final MapEntry(:key, :value) in communities.entries)

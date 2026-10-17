@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Choose a light or dark theme ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Added: Settings, "Theme": System (as Android is set), Light or Dark.
+- Changed: in the dark theme, the graph's community colours are lighter,
+  so they show well on the dark background.
+- Closes [#90](https://github.com/ChristianGeng/roam-graph-mobile/issues/90).
+
 ## 2026-10-17: The start layout is never missed ([#91](https://github.com/ChristianGeng/roam-graph-mobile/pull/91))
 
 - Fixed: the graph could start with the default layout once, when it

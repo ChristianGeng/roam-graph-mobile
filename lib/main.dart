@@ -43,24 +43,29 @@ class RoamGraphApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return AiSettingsHost(
       store: aiSettings,
-      child: MaterialApp(
-        title: 'Roam Graph',
-        // Above the navigator, so every screen reads the same settings.
-        builder: (context, child) =>
-            ViewSettingsHost(store: viewSettings, child: child!),
-        theme: ThemeData(colorSchemeSeed: Colors.indigo),
-        darkTheme: ThemeData(
-          colorSchemeSeed: Colors.indigo,
-          brightness: Brightness.dark,
-        ),
-        home: FolderScreen(
-          folderAccess: folderAccess,
-          version: appVersion,
-          graphIndex: graphIndex,
-          graphScreen: graphScreen,
-          shareInbox: shareInbox,
-          nodeMemory: nodeMemory,
-          editHistory: editHistory,
+      // Above the app, so every screen reads the same settings, and the
+      // app reads its theme from them (#90).
+      child: ViewSettingsHost(
+        store: viewSettings,
+        child: Builder(
+          builder: (context) => MaterialApp(
+            title: 'Roam Graph',
+            themeMode: ViewSettingsScope.of(context).theme.mode,
+            theme: ThemeData(colorSchemeSeed: Colors.indigo),
+            darkTheme: ThemeData(
+              colorSchemeSeed: Colors.indigo,
+              brightness: Brightness.dark,
+            ),
+            home: FolderScreen(
+              folderAccess: folderAccess,
+              version: appVersion,
+              graphIndex: graphIndex,
+              graphScreen: graphScreen,
+              shareInbox: shareInbox,
+              nodeMemory: nodeMemory,
+              editHistory: editHistory,
+            ),
+          ),
         ),
       ),
     );

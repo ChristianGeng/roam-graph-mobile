@@ -57,6 +57,19 @@ enum StartLayout {
   final String description;
 }
 
+/// The app's colours (#90): as Android is set, or always light or dark.
+enum AppTheme {
+  system('System', 'Light or dark, as Android is set', ThemeMode.system),
+  light('Light', 'Always light', ThemeMode.light),
+  dark('Dark', 'Always dark', ThemeMode.dark);
+
+  const AppTheme(this.label, this.description, this.mode);
+
+  final String label;
+  final String description;
+  final ThemeMode mode;
+}
+
 /// The settings for showing notes.
 class ViewSettings {
   const ViewSettings({
@@ -65,6 +78,7 @@ class ViewSettings {
     this.graphCollapsed = false,
     this.startLayout = StartLayout.force,
     this.lastLayout = LayoutKind.force,
+    this.theme = AppTheme.system,
   });
 
   /// The graph's share of the width on a tablet in landscape (#69): 40 %,
@@ -88,6 +102,9 @@ class ViewSettings {
   /// [StartLayout.lastUsed].
   final LayoutKind lastLayout;
 
+  /// Light, dark, or as Android is set (#90).
+  final AppTheme theme;
+
   /// The layout a graph view opening now starts with.
   LayoutKind get layoutAtStart => switch (startLayout) {
         StartLayout.force => LayoutKind.force,
@@ -101,6 +118,7 @@ class ViewSettings {
     bool? graphCollapsed,
     StartLayout? startLayout,
     LayoutKind? lastLayout,
+    AppTheme? theme,
   }) =>
       ViewSettings(
         sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
@@ -108,6 +126,7 @@ class ViewSettings {
         graphCollapsed: graphCollapsed ?? this.graphCollapsed,
         startLayout: startLayout ?? this.startLayout,
         lastLayout: lastLayout ?? this.lastLayout,
+        theme: theme ?? this.theme,
       );
 
   Map<String, Object?> toJson() => {
@@ -116,6 +135,7 @@ class ViewSettings {
         'graphCollapsed': graphCollapsed,
         'startLayout': startLayout.name,
         'lastLayout': lastLayout.name,
+        'theme': theme.name,
       };
 
   /// Settings from [json]; a missing or unknown value keeps its default.
@@ -141,6 +161,10 @@ class ViewSettings {
               .where((value) => value.name == json['lastLayout'])
               .firstOrNull ??
           defaults.lastLayout,
+      theme: AppTheme.values
+              .where((value) => value.name == json['theme'])
+              .firstOrNull ??
+          defaults.theme,
     );
   }
 
@@ -151,11 +175,12 @@ class ViewSettings {
       other.graphShare == graphShare &&
       other.graphCollapsed == graphCollapsed &&
       other.startLayout == startLayout &&
-      other.lastLayout == lastLayout;
+      other.lastLayout == lastLayout &&
+      other.theme == theme;
 
   @override
-  int get hashCode => Object.hash(
-      sectionsOnOpen, graphShare, graphCollapsed, startLayout, lastLayout);
+  int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
+      startLayout, lastLayout, theme);
 }
 
 /// Loads and saves [ViewSettings]. An interface so screens can be tested
@@ -414,6 +439,27 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          const ListTile(title: Text('Theme')),
+          RadioGroup<AppTheme>(
+            groupValue: settings.theme,
+            onChanged: (value) {
+              if (value != null) {
+                _save(context, settings.copyWith(theme: value));
+              }
+            },
+            child: Column(
+              children: [
+                for (final value in AppTheme.values)
+                  RadioListTile<AppTheme>(
+                    key: ValueKey('theme-${value.name}'),
+                    value: value,
+                    title: Text(value.label),
+                    subtitle: Text(value.description),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(),
           const ListTile(
             title: Text('Sections when a note opens'),
             subtitle: Text("A note's own #+STARTUP: line comes first, as "
