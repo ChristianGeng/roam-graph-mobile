@@ -1394,17 +1394,25 @@ devices through Syncthing.
       the same or a higher level, as `org-end-of-subtree` ends it. Headings
       are found as Org's `org-outline-regexp-bol` finds them: stars at the
       start of a line, then a space, also inside a block. The heading is
-      the one whose property drawer holds the node's `:ID:`, not the line
-      the index stored, which may have moved.
+      the one whose property drawer, directly after it or after its
+      planning line, holds the node's `:ID:` (the key in any case, the
+      value exactly), not the line the index stored, which may have moved.
+      An `:ID:` line elsewhere does not count. For a file node, the file's
+      drawer (after comment lines only) must still hold the ID. If no
+      drawer holds it, nothing is saved and the typed text stays.
     - The text goes after the node's last line that is not blank, so the
       blank lines before the next heading stay where they are. Trailing
-      blank lines of the typed text are dropped; the file's line endings
+      blank lines of the typed text are dropped (spaces at the end of its
+      last line stay); the file's line endings
       are kept, and a file without a final newline gets one.
     - **Saved as every edit** (decision 51). The note is read again when
       saving, and the text is added to that version, so what the laptop
       wrote meanwhile stays: appending replaces nothing that was shown. A
       change in the split second between that read and the write is still
       refused, and the typed text stays to save again.
+    - **The folder:** the screen remembers the folder it opened in. If
+      another folder is chosen meanwhile (when asked for write access), a
+      note of the same path there is another note, so nothing is saved.
     - **Where:** an "Edit" menu in the node view, with "Add to this node";
       not on help pages. The node view shows the text at once, since the
       folder is indexed after the save.
