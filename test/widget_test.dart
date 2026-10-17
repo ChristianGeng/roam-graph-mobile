@@ -697,6 +697,84 @@ void main() {
     });
   });
 
+  group('add to a node (#36)', () {
+    testWidgets('text added in the node view goes to the end of the note',
+        (tester) async {
+      final access = withNotes(saved: writableOrg);
+      final history = MemoryEditHistory();
+      await start(tester, access, history: history);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      // The test screen is a tablet in landscape: a is in the side pane.
+      final before = access.texts['roam/a.org']!;
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add to this node'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+          find.byKey(const ValueKey('append-text')), 'A new thought.');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      expect(access.texts['roam/a.org'], '${before}A new thought.\n');
+      expect(access.created, isEmpty);
+      expect((await history.versions('content://tree/org\na.org')).single.text, before);
+      expect(find.text('Added to A.'), findsOneWidget);
+      // The node view shows the new text at once.
+      expect(find.textContaining('A new thought.', findRichText: true),
+          findsWidgets);
+    });
+
+    testWidgets('a folder with read access only offers to choose it again',
+        (tester) async {
+      final access = withNotes(saved: org);
+      await start(tester, access);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add to this node'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+          find.byKey(const ValueKey('append-text')), 'x');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      expect(access.replaced, isEmpty);
+      expect(access.pickCalls, 1);
+    });
+
+    testWidgets('another folder chosen meanwhile gets nothing',
+        (tester) async {
+      final access = withNotes(saved: org)
+        ..picked = const ChosenFolder(
+            uri: 'content://tree/other',
+            name: 'org',
+            hasAccess: true,
+            canWrite: true);
+      await start(tester, access);
+      await tapText(tester, 'Show graph');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Edit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add to this node'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('append-text')), 'x');
+      await tester.pump();
+      // No write access: the picker opens, and another folder is chosen.
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(access.pickCalls, 1);
+      // Its a.org is another note: saving again changes nothing.
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(access.replaced, isEmpty);
+      expect(find.textContaining('Another folder is open now'), findsOneWidget);
+    });
+  });
+
   group('link to the current node (#12)', () {
     Future<FakeFolderAccess> showA(WidgetTester tester) async {
       final access = withNotes(saved: writableOrg);

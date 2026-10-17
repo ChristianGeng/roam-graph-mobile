@@ -1384,6 +1384,41 @@ devices through Syncthing.
       supported, not whenever it contains "tool": Mistral's "must have
       either content or tool_calls" is about the history.
 
+54. **"Add to this node" appends without touching what is there** (#36),
+    `lib/edit/append.dart`, `lib/edit/node_text.dart` and
+    `lib/edit/append_screen.dart`:
+    - **Where it goes:** for a file node, at the end of the file; for a
+      heading node, at the end of its subtree, before the next heading of
+      the same or a higher level, as `org-end-of-subtree` ends it. Headings
+      are found as Org's `org-outline-regexp-bol` finds them: stars at the
+      start of a line, then a space, also inside a block. The heading is
+      the one whose property drawer, directly after it or after its
+      planning line, holds the node's `:ID:` (the key in any case, the
+      value exactly), not the line the index stored, which may have moved.
+      An `:ID:` line elsewhere does not count. For a file node, the file's
+      drawer (after comment lines only) must still hold the ID. If no
+      drawer holds it, nothing is saved and the typed text stays.
+    - The text goes after the node's last line that is not blank, so the
+      blank lines before the next heading stay where they are. Trailing
+      blank lines of the typed text are dropped (spaces at the end of its
+      last line stay); the file's line endings
+      are kept, and a file without a final newline gets one.
+    - **Saved as every edit** (decision 51). The note is read again when
+      saving, and the text is added to that version, so what the laptop
+      wrote meanwhile stays: appending replaces nothing that was shown. A
+      change in the split second between that read and the write is still
+      refused, and the typed text stays to save again.
+    - **The folder:** the screen remembers the folder it opened in. If
+      another folder is chosen meanwhile (when asked for write access), a
+      note of the same path there is another note, so nothing is saved.
+    - **Where:** an "Edit" menu in the node view, with "Add to this node";
+      not on help pages. The node view shows the text at once, since the
+      folder is indexed after the save.
+    - Tests: a file node, a heading node with a subheading, a heading with
+      only its drawer, several lines, CRLF, no final newline, a gone
+      heading; and in the app, text added in the node view, and a folder
+      with read access only, which offers to choose it again.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
