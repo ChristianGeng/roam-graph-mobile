@@ -32,6 +32,9 @@ final start = {
   ...notes,
   'open.org': ':PROPERTIES:\n:ID: open\n:END:\n#+title: Open\n'
       'Some words. [[id:plan][Plan]] and [[id:plan][again]].\n',
+  'tree.org': ':PROPERTIES:\n:ID: tree\n:END:\n#+title: Tree\nTop text.\n'
+      '* Branch\n:PROPERTIES:\n:ID: branch\n:END:\nBranch text, see '
+      '[[id:open][Open]].\n',
 };
 
 void main() {
@@ -227,4 +230,52 @@ void main() {
         'Changed the text of "Open".');
     expect(store.files['open.org'], endsWith('[[id:plan][Plan]] and again.\n'));
   });
+
+  test("a new note's text may not set title, tags or an :ID:", () async {
+    expect(
+        await call('create_node',
+            {'title': 'T', 'text': '#+filetags: :private:\nText.'}),
+        contains('#+title: and #+filetags: lines go in title and tags'));
+    expect(
+        await call('create_node', {
+          'title': 'T',
+          'text': '* H\n:PROPERTIES:\n:ID: plan\n:END:\n',
+        }),
+        contains('may not hold property drawers'));
+    expect(store.files, start);
+  });
+
+  test('add_link puts the link in the node itself, not in a child node',
+      () async {
+    // Branch, a heading node below Tree, links to Open; Tree does not.
+    expect(await call('add_link', {'from_id': 'tree', 'to_id': 'open'}),
+        'Linked "Tree" to "Open".');
+    expect(store.files['tree.org'],
+        start['tree.org']!.replaceFirst('Top text.\n',
+            'Top text.\nSee also: [[id:open][Open]]\n'));
+    final graph = graphOf(store.files);
+    expect(
+        graph.links.where((l) => l.dest == 'open').map((l) => l.source),
+        containsAll(['tree', 'branch']));
+  });
+
+  test('undo does not touch the note of the same path in another folder',
+      () async {
+    final changes = agent.startMessage();
+    await call('append_to_node', {'id': 'plan', 'text': 'x'});
+    final other = NoteEditor(
+        store: OtherFolderStore(store.files), history: MemoryEditHistory());
+    expect(await changes.undoAll(other), {'plan.org': UndoOutcome.otherFolder});
+    expect(store.files['plan.org'], endsWith('\nx\n'));
+    // Not a failure to retry: that note is not this change's.
+    expect(changes.canUndo, isFalse);
+  });
+}
+
+/// The same files, seen as another folder.
+class OtherFolderStore extends MemoryNoteStore {
+  OtherFolderStore(super.files);
+
+  @override
+  String historyKey(String path) => 'other\n$path';
 }

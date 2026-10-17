@@ -1564,13 +1564,17 @@ devices through Syncthing.
     - **The write tools,** next to the read tools of decision 30:
       `create_node(title, text, tags)` writes a new file node as capture
       does (decision 31: file name, new `:ID:`, `#+title`, `#+filetags`);
-      notes made in the same second get the next second's name.
+      notes made in the same second get the next second's name. Its text
+      may not hold `#+title:`, `#+filetags:` or property drawers: the
+      title and tags are arguments, and the note gets its own `:ID:`.
       `append_to_node(id, text)` adds at the end of the node as decision
       54 does. `edit_node_text(id, old, new)` replaces text that occurs
       exactly once in the node's text below its head (decision 56).
       `add_link(from_id, to_id, description)` adds the link to the
       node's last "See also:" line, or adds that line; nothing if the
-      node links there already.
+      node links there already. Both look only at the node's own text,
+      up to its first subheading that is a node itself, whose links
+      org-roam counts for that node.
     - **Every write keeps the rules of decision 10:** the note is read
       when the tool runs and saved only over that version (rule 1),
       through the temporary file (rule 2), with the old version kept
@@ -1578,6 +1582,11 @@ devices through Syncthing.
       `#+title:` and `#+filetags:` lines (rule 5, decision 56). A write
       that breaks a rule writes nothing and comes back to the model as a
       tool error, so it can read again and retry.
+    - **The folder:** a write goes only into the folder the note was read
+      from; if another folder was opened meanwhile, nothing is written.
+      Undo, too, only touches files in the folder of the change.
+    - **The system prompt** says, in agent mode, that the write tools save
+      at once and that I can undo, instead of "I review it".
     - **What the AI may not see, it may not change** (decision 42): hidden
       notes cannot be edited or linked to, a new note cannot get a hidden
       tag, and a note with hidden parts (a hidden heading, or a link to a
@@ -1592,7 +1601,10 @@ devices through Syncthing.
       to look at), and **"Undo all changes of this message"**: each
       changed note gets back its text from before the message and each
       created note is deleted (kept in the edit history first), but only
-      a file that is still as the agent left it; the others are named.
+      a file that is still as the agent left it; the others are named. If
+      a file could not be written, "Try the rest again" retries only
+      those. The diff shows the whole file, hidden parts included: it is
+      shown to me, not to the AI.
       Deleting checks the hash on the Android side, as replacing does
       (`deleteFile` in `FolderAccess.kt`).
     - **A log,** `agent-changes.jsonl` in the app's support folder: time,

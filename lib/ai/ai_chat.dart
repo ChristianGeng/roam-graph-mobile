@@ -236,7 +236,8 @@ abstract class ModelApi {
   /// round: the system prompt, the tools in their fixed order, then the
   /// conversation so far, which only grows.
   ApiRequest request(
-      ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript);
+      ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
+      {String system = systemPrompt});
 
   /// Reads a successful answer.
   ApiReply read(ProviderConfig config, Map<String, Object?> json);
@@ -258,7 +259,8 @@ class AnthropicApi extends ModelApi {
 
   @override
   ApiRequest request(
-      ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript) {
+      ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
+      {String system = systemPrompt}) {
     final messages = <Map<String, Object?>>[];
     void addUser(List<Map<String, Object?>> blocks) {
       // Tool results and my next message go into one user message.
@@ -332,7 +334,7 @@ class AnthropicApi extends ModelApi {
             },
         ],
         'system': [
-          {'type': 'text', 'text': systemPrompt, 'cache_control': _ephemeral},
+          {'type': 'text', 'text': system, 'cache_control': _ephemeral},
         ],
         'messages': messages,
       },
@@ -383,9 +385,10 @@ class OpenAiApi extends ModelApi {
 
   @override
   ApiRequest request(
-      ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript) {
+      ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
+      {String system = systemPrompt}) {
     final messages = <Map<String, Object?>>[
-      {'role': 'system', 'content': systemPrompt},
+      {'role': 'system', 'content': system},
     ];
     for (final entry in transcript) {
       switch (entry) {
@@ -543,7 +546,11 @@ class ChatSession {
     this.maxToolRounds = 10,
     this.toolList,
     this.handlers = const {},
+    this.system = systemPrompt,
   }) : _config = config;
+
+  /// The system prompt: [systemPrompt], or the agent's (#82).
+  final String system;
 
   /// The tools; the chat screen replaces them when the graph or the
   /// hidden tags change.
@@ -681,7 +688,7 @@ class ChatSession {
       throw AiError('No base URL for ${config.name}. Enter it in AI '
           'settings.');
     }
-    final request = _api.request(config, offered, transcript);
+    final request = _api.request(config, offered, transcript, system: system);
     if (request.url.scheme != 'https' && config.apiKey.isNotEmpty) {
       throw AiError('The app sends an API key only over HTTPS. Use an '
           'https:// base URL for ${config.name}, or remove the key for a '

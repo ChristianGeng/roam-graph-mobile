@@ -98,6 +98,18 @@ const agentTools = [
   addLinkTool,
 ];
 
+/// The system prompt in agent mode: as [systemPrompt], but notes are
+/// changed with the write tools, which save at once.
+final agentSystemPrompt = systemPrompt.replaceFirst(
+  'When I ask you to write a note, write it in Org mode with its title on '
+      'the first line; I review it before it is saved.',
+  'When I ask you to create, change or link notes, do it yourself with the '
+      'tools create_node, append_to_node, edit_node_text and add_link, as '
+      'many as the task needs; they save at once, and I can undo all '
+      'changes of a message afterwards. Read a note before you change it. '
+      'If a tool returns an error, read again and retry, or tell me.',
+);
+
 /// Runs the agent's write tools on the notes, and records each change.
 class AgentWriter {
   AgentWriter({
@@ -136,6 +148,9 @@ class AgentWriter {
   /// The time the last note was created at: file names have seconds, so
   /// two notes made in one second get different names.
   DateTime? _lastCreated;
+
+  /// The note key (folder and path) taken when the note was read.
+  String? _folderKey;
 
   /// Starts recording the changes of a new message; returns them.
   AgentChanges startMessage() => changes = AgentChanges();
@@ -201,6 +216,7 @@ class AgentWriter {
   /// The file of [node] as it is now, checked: still visible, and the node
   /// still in it.
   Future<(NoteVersion, NodeLines)> _read(NoteEditor editor, RoamNode node) async {
+    _folderKey = editor.store.historyKey(node.file);
     final base = await editor.read(node.file);
     if (base == null) throw ToolError('${node.file} cannot be read as text.');
     if (visibility.hidesInText(node, base.text)) {
@@ -225,6 +241,14 @@ class AgentWriter {
       _ => <String>[],
     };
     _checkLinks(text);
+    if (!sameLockedKeywords('', text)) {
+      throw const ToolError('#+title: and #+filetags: lines go in title and '
+          'tags, not in the text.');
+    }
+    if (propertyDrawers(text).isNotEmpty) {
+      throw const ToolError('the text may not hold property drawers or '
+          ':ID:s; a new note gets its own.');
+    }
     final hidden = tags.where(visibility.hiddenTags.contains).toList();
     if (hidden.isNotEmpty) {
       throw ToolError('The tag ${hidden.first} hides a note from you; '
@@ -311,7 +335,10 @@ class AgentWriter {
     if (from.id == to.id) throw const ToolError('a note cannot link itself.');
     final description = _string(args, 'description', required: false);
     final (base, lines) = await _read(editor, from);
-    final nodeText = lines.lines.sublist(lines.start, lines.end).join('\n');
+    // The node's own lines: up to its first subheading that is a node of
+    // its own, whose links org-roam counts for that node instead.
+    final own = _ownEnd(lines);
+    final nodeText = lines.lines.sublist(lines.start, own).join('\n');
     if (idLinkTargets(nodeText).contains(to.id)) {
       return '"${from.displayTitle}" links to "${to.displayTitle}" already; '
           'nothing changed.';
@@ -320,7 +347,7 @@ class AgentWriter {
         to.id, description.trim().isEmpty ? to.displayTitle : description);
     // The last "See also:" line of the node gets the link; else a new one.
     var at = -1;
-    for (var i = lines.end - 1; i >= lines.bodyStart; i--) {
+    for (var i = own - 1; i >= lines.bodyStart; i--) {
       if (lines.lines[i].startsWith('See also:')) {
         at = i;
         break;
@@ -334,10 +361,40 @@ class AgentWriter {
       changed[at] = line == 'See also:' ? '$line $link' : '$line, $link';
       after = changed.join(lines.newline);
     } else {
-      after = lines.withAddition('See also: $link');
+      // A new line after the last line of the node's own text that is not
+      // blank, before any subheading that is a node.
+      var end = own;
+      while (end > lines.bodyStart && lines.lines[end - 1].trim().isEmpty) {
+        end--;
+      }
+      final changed = [...lines.lines]..insert(end, 'See also: $link');
+      // A file that did not end with a newline gets one.
+      if (end == lines.lines.length) changed.add('');
+      after = changed.join(lines.newline);
     }
     return _save(editor, 'add_link', from, base, after,
         'Linked "${from.displayTitle}" to "${to.displayTitle}".');
+  }
+
+  /// The end of the node's own text in [lines]: the first heading below
+  /// its head whose property drawer has an `:ID:`, or the node's end.
+  static int _ownEnd(NodeLines lines) {
+    final all = lines.lines;
+    final drawer = RegExp(r'^[ \t]*:PROPERTIES:[ \t]*$', caseSensitive: false);
+    final planning =
+        RegExp(r'^[ \t]*(SCHEDULED|DEADLINE|CLOSED):', caseSensitive: false);
+    final id = RegExp(r'^[ \t]*:ID:[ \t]+\S', caseSensitive: false);
+    final end = RegExp(r'^[ \t]*:END:[ \t]*$', caseSensitive: false);
+    for (var i = lines.bodyStart; i < lines.end; i++) {
+      if (!headingLine.hasMatch(all[i])) continue;
+      var j = i + 1;
+      if (j < all.length && planning.hasMatch(all[j])) j++;
+      if (j >= all.length || !drawer.hasMatch(all[j])) continue;
+      for (var k = j + 1; k < all.length && !end.hasMatch(all[k]); k++) {
+        if (id.hasMatch(all[k])) return i;
+      }
+    }
+    return lines.end;
   }
 
   /// [text] with the line endings of the file of [lines].
@@ -348,6 +405,12 @@ class AgentWriter {
 
   Future<String> _save(NoteEditor editor, String tool, RoamNode node,
       NoteVersion base, String after, String done) async {
+    // Another folder may have been chosen since the note was read: the
+    // same path there is another note.
+    if (editor.store.historyKey(node.file) != _folderKey) {
+      throw const ToolError('another folder was opened in the app; nothing '
+          'was written. Stop here.');
+    }
     final result = await editor.save(node.file, base, after);
     switch (result) {
       case Saved() || SavedNotIndexed():
@@ -382,6 +445,7 @@ class AgentWriter {
     changes.changes.add(AgentChange(
       tool: tool,
       path: path,
+      noteKey: writer.editor?.store.historyKey(path) ?? path,
       nodeId: id,
       title: title,
       before: before,

@@ -199,6 +199,7 @@ class _ChatScreenState extends State<ChatScreen> {
       // A new chat: tool-call IDs can repeat across chats, so nothing of
       // the old one may be found under them.
       _proposals.clear();
+      _turnChanges.clear();
       _proposalStatus.clear();
       _setProposals.clear();
       _sets.clear();
@@ -249,6 +250,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   ],
                 AiEditMode.agent => [...aiTools, ...agentTools],
               },
+              system: mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt,
               handlers: {
                 if (mode == AiEditMode.review) ...{
                   'propose_edit': _propose,
@@ -832,6 +834,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   UndoOutcome.restored => ', restored',
                   UndoOutcome.deleted => ', deleted again',
                   UndoOutcome.changedSince => ', changed since: kept',
+                  UndoOutcome.otherFolder =>
+                    ', in the folder opened before: kept',
                   UndoOutcome.failed => ', could not be undone',
                   null => ''
                 }}',
@@ -855,7 +859,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             ),
-          if (undone == null)
+          if (changes.canUndo)
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
               child: TextButton.icon(
@@ -863,7 +867,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 onPressed:
                     _sending || _undoing != null ? null : () => _undo(turn),
                 icon: const Icon(Icons.undo),
-                label: const Text('Undo all changes of this message'),
+                label: Text(undone == null
+                    ? 'Undo all changes of this message'
+                    : 'Try the rest again'),
               ),
             ),
         ],

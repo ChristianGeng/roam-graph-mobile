@@ -15,6 +15,7 @@ class AgentChange {
   AgentChange({
     required this.tool,
     required this.path,
+    this.noteKey = '',
     required this.nodeId,
     required this.title,
     required this.before,
@@ -27,6 +28,10 @@ class AgentChange {
 
   /// The file, relative to `roam/`.
   final String path;
+
+  /// The folder and path ([NoteStore.historyKey]) when the change was
+  /// made: undo only touches the file in that folder.
+  final String noteKey;
 
   /// The node the change was for.
   final String nodeId;
@@ -45,7 +50,7 @@ class AgentChange {
 }
 
 /// What undoing did to one file.
-enum UndoOutcome { restored, deleted, changedSince, failed }
+enum UndoOutcome { restored, deleted, changedSince, otherFolder, failed }
 
 /// The changes the agent made for one message, in order.
 class AgentChanges {
@@ -53,6 +58,11 @@ class AgentChanges {
 
   /// Set once "Undo all" ran: what became of each file.
   Map<String, UndoOutcome>? undone;
+
+  /// Whether "Undo all" can run (again): not yet run, or a file failed,
+  /// which a retry may still undo.
+  bool get canUndo =>
+      undone == null || undone!.values.contains(UndoOutcome.failed);
 
   bool get isEmpty => changes.isEmpty;
   int get length => changes.length;
@@ -100,10 +110,18 @@ class AgentChanges {
   /// file is still as the agent left it. Each file is checked and written
   /// as every edit is (decision 10). Returns what happened to each file.
   Future<Map<String, UndoOutcome>> undoAll(NoteEditor editor) async {
-    final outcome = <String, UndoOutcome>{};
+    // A retry keeps what is done, and tries only the files that failed.
+    final outcome = <String, UndoOutcome>{...?undone};
     // Newest first, so a note that links to a created one is restored
     // before that one is deleted.
     for (final path in files.reversed) {
+      final previous = outcome[path];
+      if (previous != null && previous != UndoOutcome.failed) continue;
+      final key = first(path).noteKey;
+      if (key.isNotEmpty && editor.store.historyKey(path) != key) {
+        outcome[path] = UndoOutcome.otherFolder;
+        continue;
+      }
       final now = await editor.read(path);
       if (now == null) {
         outcome[path] = UndoOutcome.failed;
