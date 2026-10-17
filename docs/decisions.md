@@ -1428,6 +1428,11 @@ devices through Syncthing.
       replace them, and three lines of context, with nearby changes in one
       block. It counts the lines removed and added, and marks each line
       `-`, `+` or blank, in colour, in a monospace font that fits a phone.
+      It is computed once per screen, and only up to 2000 changed lines:
+      the search keeps, per step, only what that step reads. Beyond that
+      the screen gives the line counts instead of the lines. A change the
+      lines cannot show, only line endings or the final newline, is named
+      as such; any difference can be saved.
     - **Nothing is written in the diff:** "Save" returns to the screen that
       opened it, which saves as every edit is saved (decision 51); "Back to
       editing" writes nothing. Lines above the diff can say more, such as

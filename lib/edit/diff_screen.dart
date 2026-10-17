@@ -6,7 +6,7 @@ import 'line_diff.dart';
 /// and added, with three lines of context, as `diff -u` shows them.
 /// Nothing is written here: "Save" returns true to the screen that opened
 /// it, which saves; "Back to editing" returns false.
-class DiffScreen extends StatelessWidget {
+class DiffScreen extends StatefulWidget {
   const DiffScreen({
     super.key,
     required this.title,
@@ -50,11 +50,43 @@ class DiffScreen extends StatelessWidget {
       false;
 
   @override
-  Widget build(BuildContext context) {
-    final hunks = diffHunks(before, after);
-    final lines = diffLines(before, after);
+  State<DiffScreen> createState() => _DiffScreenState();
+}
+
+class _DiffScreenState extends State<DiffScreen> {
+  // Computed once, not on every rebuild.
+  late final List<DiffLine>? _lines = diffLines(widget.before, widget.after);
+  late final List<DiffHunk> _hunks = switch (_lines) {
+    final lines? => hunksOf(lines),
+    null => const [],
+  };
+
+  String _summary() {
+    final lines = _lines;
+    if (widget.before == widget.after) return 'No change.';
+    if (lines == null) {
+      String count(String text) {
+        final n = '\n'.allMatches(text).length;
+        return '$n ${n == 1 ? 'line' : 'lines'}';
+      }
+
+      return 'Too many changes to show line by line: '
+          '${count(widget.before)} before, ${count(widget.after)} after.';
+    }
+    if (_hunks.isEmpty) {
+      return 'Only the line endings or the newline at the end change.';
+    }
     final removed = lines.where((l) => l.kind == DiffKind.removed).length;
     final added = lines.where((l) => l.kind == DiffKind.added).length;
+    return '$removed ${removed == 1 ? 'line' : 'lines'} removed, '
+        '$added ${added == 1 ? 'line' : 'lines'} added.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.title;
+    final notes = widget.notes;
+    final hunks = _hunks;
     final scheme = Theme.of(context).colorScheme;
     final mono = Theme.of(context)
         .textTheme
@@ -66,13 +98,7 @@ class DiffScreen extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Text(
-              hunks.isEmpty
-                  ? 'No change.'
-                  : '$removed ${removed == 1 ? 'line' : 'lines'} removed, '
-                      '$added ${added == 1 ? 'line' : 'lines'} added.',
-              key: const ValueKey('diff-summary'),
-            ),
+            child: Text(_summary(), key: const ValueKey('diff-summary')),
           ),
           for (final note in notes)
             Padding(
@@ -125,14 +151,16 @@ class DiffScreen extends StatelessWidget {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(false),
-                    child: Text(backLabel),
+                    child: Text(widget.backLabel),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
-                    onPressed: hunks.isEmpty
+                    // Any difference can be saved, also one the lines do
+                    // not show, such as line endings.
+                    onPressed: widget.before == widget.after
                         ? null
                         : () => Navigator.of(context).pop(true),
-                    child: Text(saveLabel),
+                    child: Text(widget.saveLabel),
                   ),
                 ],
               ),

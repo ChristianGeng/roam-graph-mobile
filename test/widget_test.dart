@@ -810,8 +810,9 @@ void main() {
         (tester) async {
       final history = MemoryEditHistory();
       // A version kept from an earlier edit, in the read-only folder.
-      await history.keep('content://tree/org\na.org', 'Old text.\n',
-          DateTime(2026, 10, 1));
+      // It keeps a's drawer, so restoring it changes no locked part.
+      await history.keep('content://tree/org\na.org',
+          '${someTexts['roam/a.org']}An old line.\n', DateTime(2026, 10, 1));
       final access = withNotes(saved: org)
         ..picked = const ChosenFolder(
             uri: 'content://tree/other',

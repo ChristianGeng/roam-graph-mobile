@@ -46,20 +46,30 @@ List<String> _lines(String text) {
   return lines;
 }
 
+/// The most edits [diffLines] looks for. Beyond it, the texts share too
+/// little for a line-by-line view to help, and the search would need too
+/// much memory on a phone.
+const maxDiffEdits = 2000;
+
 /// Every line of [before] and [after], marked same, removed or added, in
 /// order: the shortest edit script, found with Myers' algorithm, which
 /// `diff` also uses. Removed lines come before the added lines that
-/// replace them.
-List<DiffLine> diffLines(String before, String after) {
+/// replace them. Null if more than [maxEdits] lines are removed and added
+/// in all.
+List<DiffLine>? diffLines(String before, String after,
+    {int maxEdits = maxDiffEdits}) {
   final a = _lines(before), b = _lines(after);
   final n = a.length, m = b.length;
   final max = n + m;
   final offset = max + 1;
   final v = List<int>.filled(2 * max + 3, 0);
+  // For each step d, the part of v that step reads: k from -d to d. So the
+  // trace grows with d², not with d times the length of the texts.
   final trace = <List<int>>[];
   var found = false;
   for (var d = 0; d <= max && !found; d++) {
-    trace.add(List.of(v));
+    if (d > maxEdits) return null;
+    trace.add(v.sublist(offset - d, offset + d + 1));
     for (var k = -d; k <= d; k += 2) {
       int x;
       if (k == -d || (k != d && v[offset + k - 1] < v[offset + k + 1])) {
@@ -84,14 +94,15 @@ List<DiffLine> diffLines(String before, String after) {
   var x = n, y = m;
   for (var d = trace.length - 1; d >= 0; d--) {
     final vd = trace[d];
+    int at(int k) => vd[k + d];
     final k = x - y;
     int prevK;
-    if (k == -d || (k != d && vd[offset + k - 1] < vd[offset + k + 1])) {
+    if (k == -d || (k != d && at(k - 1) < at(k + 1))) {
       prevK = k + 1;
     } else {
       prevK = k - 1;
     }
-    final prevX = d == 0 ? 0 : vd[offset + prevK];
+    final prevX = d == 0 ? 0 : at(prevK);
     final prevY = prevX - prevK;
     while (x > prevX && y > prevY) {
       script.add(DiffLine(DiffKind.same, a[x - 1], oldLine: x, newLine: y));
@@ -129,9 +140,15 @@ List<DiffLine> diffLines(String before, String after) {
 
 /// The changes between [before] and [after], each with up to [context]
 /// unchanged lines around it; changes closer than twice that share a
-/// hunk, as in `diff -u`. Empty if the texts have the same lines.
-List<DiffHunk> diffHunks(String before, String after, {int context = 3}) {
+/// hunk, as in `diff -u`. Empty if the texts have the same lines; null if
+/// they differ too much (see [diffLines]).
+List<DiffHunk>? diffHunks(String before, String after, {int context = 3}) {
   final lines = diffLines(before, after);
+  return lines == null ? null : hunksOf(lines, context: context);
+}
+
+/// The hunks of [lines], the result of [diffLines].
+List<DiffHunk> hunksOf(List<DiffLine> lines, {int context = 3}) {
   final changed = [
     for (var i = 0; i < lines.length; i++)
       if (lines[i].kind != DiffKind.same) i,

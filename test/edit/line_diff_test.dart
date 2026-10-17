@@ -3,11 +3,11 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/edit/line_diff.dart';
 
-String show(List<DiffLine> lines) => lines.map((l) => '$l').join('\n');
+String show(List<DiffLine>? lines) => lines!.map((l) => '$l').join('\n');
 
 /// [before] rebuilt from the diff's old side, [after] from its new side.
 void expectConsistent(String before, String after) {
-  final lines = diffLines(before, after);
+  final lines = diffLines(before, after)!;
   final old = [for (final l in lines) if (l.kind != DiffKind.added) l.text];
   final neu = [for (final l in lines) if (l.kind != DiffKind.removed) l.text];
   String join(List<String> l) => l.isEmpty ? '' : '${l.join('\n')}\n';
@@ -21,19 +21,19 @@ void main() {
     expect(show(diffLines('a\nb\nc\n', 'a\nB\nc\n')), ' a\n-b\n+B\n c');
     expect(show(diffLines('', 'x\n')), '+x');
     expect(show(diffLines('x\n', '')), '-x');
-    expect(diffLines('a\nb\n', 'a\nb\n').every((l) => l.kind == DiffKind.same),
+    expect(diffLines('a\nb\n', 'a\nb\n')!.every((l) => l.kind == DiffKind.same),
         isTrue);
   });
 
   test('line numbers on both sides', () {
-    final lines = diffLines('a\nb\nc\n', 'a\nX\nc\n');
+    final lines = diffLines('a\nb\nc\n', 'a\nX\nc\n')!;
     expect([for (final l in lines) (l.oldLine, l.newLine)],
         [(1, 1), (2, null), (null, 2), (3, 3)]);
   });
 
   test('the shortest script: a moved block is one removal and one addition',
       () {
-    final lines = diffLines('a\nb\nc\nd\n', 'b\nc\nd\na\n');
+    final lines = diffLines('a\nb\nc\nd\n', 'b\nc\nd\na\n')!;
     expect(lines.where((l) => l.kind != DiffKind.same).length, 2);
   });
 
@@ -42,7 +42,7 @@ void main() {
     final after = before
         .replaceFirst('line 2\n', 'line two\n')
         .replaceFirst('line 15\n', 'line fifteen\n');
-    final hunks = diffHunks('$before\n', '$after\n');
+    final hunks = diffHunks('$before\n', '$after\n')!;
     expect(hunks, hasLength(2));
     expect(hunks.first.oldStart, 1);
     expect(show(hunks.first.lines),
@@ -76,5 +76,20 @@ void main() {
       String join(List<String> l) => l.isEmpty ? '' : '${l.join('\n')}\n';
       expectConsistent(join(a), join(b));
     }
+  });
+
+  test('the random edits also hold with large texts and many edits', () {
+    final random = Random(11);
+    final a = [for (var i = 0; i < 3000; i++) 'l${random.nextInt(50)}'];
+    final b = [for (final l in a) if (random.nextInt(4) != 0) l else 'x$l'];
+    expectConsistent('${a.join('\n')}\n', '${b.join('\n')}\n');
+  });
+
+  test('beyond the limit of edits, there is no line-by-line diff', () {
+    final a = [for (var i = 0; i < 20; i++) 'a$i'].join('\n');
+    final b = [for (var i = 0; i < 20; i++) 'b$i'].join('\n');
+    expect(diffLines(a, b, maxEdits: 10), isNull);
+    expect(diffLines(a, b, maxEdits: 40), isNotNull);
+    expect(diffHunks('$a\n', '${a}x\n'), isNotNull);
   });
 }

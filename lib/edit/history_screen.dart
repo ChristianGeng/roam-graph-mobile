@@ -72,16 +72,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
       backLabel: 'Back',
     );
     if (!restore || !mounted) return;
+    // The folder may have changed while the diff was open.
+    if (editor.store.historyKey(file) != _noteKey) {
+      _tell('Another folder is open now. These versions belong to the '
+          'note in the folder opened before; nothing was restored.');
+      return;
+    }
     final result = await editor.save(file, current, version.text);
     if (!mounted) return;
     final message = saveMessage(result, file);
-    if (message == null) {
-      _tell('Restored the version of ${_when(version.time)}.');
+    if (result is Saved || result is SavedNotIndexed) {
+      _tell(message ?? 'Restored the version of ${_when(version.time)}.');
       // Restoring kept the version it replaced: show it in the list.
       setState(() {
         _versions = _load();
       });
-    } else {
+    } else if (message != null) {
       _tell(message);
       if (result is NoWriteAccessToEdit) await widget.writer.allowWriting();
     }
