@@ -59,6 +59,15 @@ class NoteWriter {
   final NoteEditor? editor;
 }
 
+/// What shared text can do instead of becoming a new node (#39).
+enum ShareUse {
+  /// Add it at the end of an existing node.
+  append,
+
+  /// Replace an existing node's text with it, after a diff.
+  replace,
+}
+
 /// Creates a new node (#11), as org-roam's default capture template does
 /// on the laptop: `roam/<%Y%m%d%H%M%S>-<slug>.org`, with a new `:ID:`,
 /// `#+title:` and `#+filetags:`. Returns the new node's ID.
@@ -71,9 +80,14 @@ class CaptureScreen extends StatefulWidget {
     this.linkByDefault = true,
     this.initialTitle = '',
     this.initialBody = '',
+    this.useForExisting,
   });
 
   final NoteWriter writer;
+
+  /// For shared text (#39): offers to use it for an existing node instead.
+  /// The capture closes, then this runs.
+  final Future<void> Function(ShareUse use)? useForExisting;
 
   /// The node the capture starts from (#12): the new file can link to it,
   /// so it shows the new node as a backlink. The existing file is never
@@ -98,6 +112,7 @@ class CaptureScreen extends StatefulWidget {
     bool linkByDefault = true,
     String initialTitle = '',
     String initialBody = '',
+    Future<void> Function(ShareUse use)? useForExisting,
   }) =>
       Navigator.push<String>(
         context,
@@ -108,6 +123,7 @@ class CaptureScreen extends StatefulWidget {
             linkByDefault: linkByDefault,
             initialTitle: initialTitle,
             initialBody: initialBody,
+            useForExisting: useForExisting,
           ),
         ),
       );
@@ -190,6 +206,23 @@ class _CaptureScreenState extends State<CaptureScreen> {
       appBar: AppBar(
         title: const Text('New node'),
         actions: [
+          if (widget.useForExisting case final use?
+              when widget.writer.editor != null && !_written)
+            PopupMenuButton<ShareUse>(
+              tooltip: 'Use for an existing node',
+              icon: const Icon(Icons.edit_note_outlined),
+              onSelected: (choice) {
+                Navigator.of(context).pop();
+                use(choice);
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                    value: ShareUse.append, child: Text('Add to a node')),
+                PopupMenuItem(
+                    value: ShareUse.replace,
+                    child: Text("Replace a node's text")),
+              ],
+            ),
           IconButton(
             tooltip: 'Save',
             icon: const Icon(Icons.check),

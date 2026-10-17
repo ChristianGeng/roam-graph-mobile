@@ -23,6 +23,7 @@ class EditScreen extends StatefulWidget {
     required this.node,
     required this.base,
     required this.lines,
+    this.initialBody,
   });
 
   final NoteWriter writer;
@@ -33,9 +34,13 @@ class EditScreen extends StatefulWidget {
   final NoteVersion base;
   final NodeLines lines;
 
+  /// The text to start with instead of the node's, such as a revised
+  /// version shared from an AI app (#39).
+  final String? initialBody;
+
   /// Reads the note and opens the editor; true if an edit was saved.
-  static Future<bool> open(
-      BuildContext context, NoteWriter writer, RoamNode node) async {
+  static Future<bool> open(BuildContext context, NoteWriter writer,
+      RoamNode node, {String? initialBody}) async {
     final editor = writer.editor;
     if (editor == null) return false;
     final messenger = ScaffoldMessenger.of(context);
@@ -55,7 +60,11 @@ class EditScreen extends StatefulWidget {
     }
     return await navigator.push<bool>(MaterialPageRoute(
           builder: (_) => EditScreen(
-              writer: writer, node: node, base: base, lines: lines),
+              writer: writer,
+              node: node,
+              base: base,
+              lines: lines,
+              initialBody: initialBody),
         )) ??
         false;
   }
@@ -65,7 +74,8 @@ class EditScreen extends StatefulWidget {
 }
 
 class _EditScreenState extends State<EditScreen> {
-  late final _text = TextEditingController(text: widget.lines.body);
+  late final _text =
+      TextEditingController(text: widget.initialBody ?? widget.lines.body);
   bool _saving = false;
 
   /// Set when the user chose to leave, so the page may close.

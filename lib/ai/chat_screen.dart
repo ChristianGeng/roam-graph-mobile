@@ -4,10 +4,15 @@ import 'package:org_flutter/org_flutter.dart';
 
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../edit/diff_screen.dart';
+import '../edit/edit_proposal.dart';
+import '../edit/note_editor.dart';
+import '../edit/save_messages.dart';
 import '../graph/roam_graph.dart';
 import 'ai_chat.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
+import 'edit_tools.dart';
 
 /// Opens a node by its ID, from a link in an answer.
 typedef OpenNode = void Function(BuildContext context, String id);
@@ -85,6 +90,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// The hidden tags the tools were made with.
   Set<String>? _hiddenTags;
+
+  /// The edits the AI proposed (#39), by the ID of the tool call, and
+  /// what became of those reviewed.
+  final _proposals = <String, EditProposal>{};
+  final _proposalStatus = <String, String>{};
 
   @override
   void initState() {
@@ -178,6 +188,11 @@ class _ChatScreenState extends State<ChatScreen> {
               config: config,
               post: widget.post,
               maxToolRounds: settings.maxToolRounds,
+              // Edits are offered only where they can be saved.
+              toolList: widget.writer?.editor == null
+                  ? null
+                  : [...aiTools, proposeEditTool],
+              handlers: {'propose_edit': _propose},
             );
     });
   }
@@ -243,6 +258,69 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
     widget.openNode?.call(context, id);
+  }
+
+  /// Records an edit the AI proposes (#39); the tool writes nothing.
+  Future<String> _propose(ToolCall call) async {
+    final session = _session;
+    if (session == null) return 'Error: the chat has ended.';
+    try {
+      final proposal = proposalFrom(call.input, session.tools.graph);
+      _proposals[call.id] = proposal;
+      final title = session.tools.graph.nodes[proposal.nodeId]!.displayTitle;
+      return 'Recorded. I review the change to "$title" as a diff in the '
+          'app before anything is saved; it is not saved yet.';
+    } on ToolError catch (e) {
+      return 'Error: ${e.message}';
+    }
+  }
+
+  /// Shows the diff of a proposal against the note as it is now, and
+  /// saves it only on "Save" (#38, #35).
+  Future<void> _review(String callId) async {
+    final proposal = _proposals[callId];
+    final editor = widget.writer?.editor;
+    if (proposal == null || editor == null) return;
+    final graph = widget.graph.value;
+    final node = graph.nodes[proposal.nodeId];
+    if (node == null) {
+      _tell('The note is no longer in the graph.');
+      return;
+    }
+    final base = await editor.read(node.file);
+    if (!mounted) return;
+    if (base == null) {
+      _tell('Could not read ${node.file}.');
+      return;
+    }
+    final after = applyProposal(base.text, node, proposal);
+    if (after == null) {
+      _tell('The heading is no longer in ${node.file}.');
+      return;
+    }
+    final unknown = unknownLinkIds(proposal.text, graph);
+    final save = await DiffScreen.confirm(
+      context,
+      title: 'AI edit of ${node.displayTitle}',
+      before: base.text,
+      after: after,
+      notes: [
+        if (proposal.reason.isNotEmpty) 'The AI: ${proposal.reason}',
+        if (unknown.isNotEmpty)
+          'Links to IDs that are no note: ${unknown.join(', ')}.',
+      ],
+    );
+    if (!save || !mounted) return;
+    final result = await editor.save(node.file, base, after);
+    if (!mounted) return;
+    final message = saveMessage(result, node.file);
+    setState(() {
+      if (message == null) _proposalStatus[callId] = 'Saved.';
+    });
+    _tell(message ?? 'Saved ${node.displayTitle}.');
+    if (message != null && result is NoWriteAccessToEdit) {
+      await widget.writer?.allowWriting();
+    }
   }
 
   /// An answer as a new node, through the capture screen (#11): the title
@@ -442,6 +520,37 @@ class _ChatScreenState extends State<ChatScreen> {
             children.add(
               _ToolCallTile(key: ValueKey('chat-tool-$i-$j'), result: result),
             );
+            final callId = result.call.id;
+            if (_proposals[callId] case final proposal?) {
+              final title = widget.graph.value.nodes[proposal.nodeId]
+                      ?.displayTitle ??
+                  proposal.nodeId;
+              final status = _proposalStatus[callId];
+              children.add(
+                Card(
+                  key: ValueKey('chat-proposal-$i-$j'),
+                  margin: const EdgeInsets.fromLTRB(8, 4, 24, 4),
+                  child: ListTile(
+                    leading: const Icon(Icons.edit_note_outlined),
+                    title: Text(
+                      proposal.mode == EditMode.append
+                          ? 'Add to "$title"'
+                          : 'Change the text of "$title"',
+                    ),
+                    subtitle: Text(status ??
+                        (proposal.reason.isEmpty
+                            ? 'Not saved; review it first.'
+                            : proposal.reason)),
+                    trailing: status != null
+                        ? const Icon(Icons.check)
+                        : TextButton(
+                            onPressed: () => _review(callId),
+                            child: const Text('Review'),
+                          ),
+                  ),
+                ),
+              );
+            }
           }
       }
     }

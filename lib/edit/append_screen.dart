@@ -10,16 +10,26 @@ import 'note_editor.dart';
 /// so what the laptop wrote meanwhile stays: the text is added to the
 /// newest version. It is saved as every edit is (#35).
 class AppendScreen extends StatefulWidget {
-  const AppendScreen({super.key, required this.writer, required this.node});
+  const AppendScreen({
+    super.key,
+    required this.writer,
+    required this.node,
+    this.initialText = '',
+  });
 
   final NoteWriter writer;
   final RoamNode node;
 
+  /// The text to start with, such as text shared from an AI app (#39).
+  final String initialText;
+
   /// Opens the screen; true if text was added.
   static Future<bool> open(
-          BuildContext context, NoteWriter writer, RoamNode node) async =>
+          BuildContext context, NoteWriter writer, RoamNode node,
+          {String initialText = ''}) async =>
       await Navigator.of(context).push<bool>(MaterialPageRoute(
-        builder: (_) => AppendScreen(writer: writer, node: node),
+        builder: (_) => AppendScreen(
+            writer: writer, node: node, initialText: initialText),
       )) ??
       false;
 
@@ -28,7 +38,7 @@ class AppendScreen extends StatefulWidget {
 }
 
 class _AppendScreenState extends State<AppendScreen> {
-  final _text = TextEditingController();
+  late final _text = TextEditingController(text: widget.initialText);
   bool _saving = false;
 
   @override
