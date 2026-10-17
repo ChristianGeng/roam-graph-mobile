@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-17: Agent mode: the AI changes notes itself ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-17: Agent mode: the AI changes notes itself ([#89](https://github.com/ChristianGeng/roam-graph-mobile/pull/89))
 
 - Added: in the chat, the AI can create notes, add to them, change their
   text and link them, without a tap per change. Afterwards the chat shows
