@@ -1038,9 +1038,9 @@ devices through Syncthing.
       | Claude on AWS Bedrock (EU) | Anthropic | `https://bedrock-runtime.eu-central-1.amazonaws.com/anthropic` | `eu.anthropic.claude-sonnet-5-5` / `eu.anthropic.claude-opus-5-5` |
       | Mistral | OpenAI | `https://api.mistral.ai/v1` | `mistral-large-4` |
       | Scaleway | OpenAI | `https://api.scaleway.ai/v1` | (chosen from its list) |
-      | Vercel AI Gateway, "EU only" on | OpenAI | `https://ai-gateway.vercel.sh/v1` | (any) |
       | Anthropic | Anthropic | `https://api.anthropic.com` | `claude-sonnet-5-5` / `claude-opus-5-5` |
       | DeepSeek | OpenAI | `https://api.deepseek.com` | `deepseek-v4-pro` |
+      | Vercel AI Gateway, "EU only" off | OpenAI | `https://ai-gateway.vercel.sh/v1` | `deepseek/deepseek-v4-pro` |
       | Qwen (Alibaba Cloud) | OpenAI | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `qwen3.8-max` |
       | OpenRouter | OpenAI | `https://openrouter.ai/api/v1` | (any) |
       | Hugging Face | OpenAI | `https://router.huggingface.co/v1` | (any) |
@@ -1056,7 +1056,9 @@ devices through Syncthing.
       - Vercel's "EU only" sends `providerOptions.gateway.inferenceRegion
         = {scope: zone, geoRegion: eu}` in the body, as Vercel documents
         it; a model without an EU route then fails instead of running
-        elsewhere.
+        elsewhere. Since #105 the switch is off by default and the default
+        model is `deepseek/deepseek-v4-pro`, which has no EU route; my
+        choice. With the switch on, `anthropic/claude-sonnet-5.5` works.
       - Value picks are named in the notes: Sonnet 5.5 "safe default",
         Mistral Large 4 "best value in the EU", DeepSeek V4 Pro "best
         value outside the EU". DeepSeek's note says that the data is

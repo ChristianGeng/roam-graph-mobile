@@ -105,8 +105,11 @@ const providerPresets = <ProviderPreset>[
     name: 'Vercel AI Gateway',
     api: ApiKind.openAi,
     baseUrl: 'https://ai-gateway.vercel.sh/v1',
-    note: 'US company; with "EU only" on, inference and stored data stay in '
-        'the EU, for models with an EU route; others fail. Checked: '
+    defaultModel: 'deepseek/deepseek-v4-pro',
+    note: 'US company. "EU only" is off, as the default model, '
+        'deepseek/deepseek-v4-pro, has no EU route: it is processed outside '
+        'the EU. With "EU only" on, inference and stored data stay in the '
+        'EU, for models with an EU route; others fail. Checked: '
         'anthropic/claude-sonnet-5.5 works with "EU only"; '
         'mistral/mistral-large-4 and deepseek/deepseek-v4-pro do not.',
     euSwitch: true,

@@ -8,6 +8,15 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: A default model for Vercel ([#105](https://github.com/ChristianGeng/roam-graph-mobile/pull/105))
+
+- Changed: Vercel AI Gateway now starts with the model
+  deepseek/deepseek-v4-pro, and with "EU only" off, which that model
+  needs; it is processed outside the EU. Vercel is now listed with the
+  providers outside the EU. For EU only, turn the switch on and use
+  anthropic/claude-sonnet-5.5.
+- A model or "EU only" choice you saved yourself stays.
+
 ## 2026-10-17: Edit one note with AI ([#104](https://github.com/ChristianGeng/roam-graph-mobile/pull/104))
 
 - Added: "Edit with AI" in a note's edit menu. Type what to change, such
