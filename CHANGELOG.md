@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: The start layout is never missed ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Fixed: the graph could start with the default layout once, when it
+  opened before the settings were read; and a layout chosen in the More
+  menu in that moment could be replaced by the saved one.
+- Closes [#81](https://github.com/ChristianGeng/roam-graph-mobile/issues/81).
+
 ## 2026-10-17: Agent mode: the AI changes notes itself ([#89](https://github.com/ChristianGeng/roam-graph-mobile/pull/89))
 
 - Added: in the chat, the AI can create notes, add to them, change their

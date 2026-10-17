@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/graph/graph_layout.dart';
@@ -7,6 +9,21 @@ import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 import '../ai/ai_visibility_test.dart' show graphOf, notes;
 import 'graph_screen_test.dart' show MemoryNodeMemory, algorithmsHere;
+
+/// A store whose file is read only when [finish] is called (#81).
+class SlowViewSettingsStore extends MemoryViewSettingsStore {
+  SlowViewSettingsStore(super.settings);
+
+  final _loaded = Completer<void>();
+
+  void finish() => _loaded.complete();
+
+  @override
+  Future<ViewSettings> load() async {
+    await _loaded.future;
+    return settings;
+  }
+}
 
 /// Opens the graph view as at app start, and gives the layouts it asked
 /// for, in order.
@@ -32,6 +49,33 @@ Future<List<LayoutKind>> openGraph(
 }
 
 void main() {
+  testWidgets('the saved start layout applies, also when it loads late (#81)',
+      (tester) async {
+    final store =
+        SlowViewSettingsStore(const ViewSettings(startLayout: StartLayout.circo));
+    final kinds = await openGraph(tester, store);
+    // Nothing drawn with the defaults while the file is read.
+    expect(kinds, isEmpty);
+    store.finish();
+    await tester.pumpAndSettle();
+    expect(kinds, [LayoutKind.circo]);
+  });
+
+  testWidgets('a layout chosen before the settings loaded wins (#81)',
+      (tester) async {
+    final store =
+        SlowViewSettingsStore(const ViewSettings(startLayout: StartLayout.circo));
+    final kinds = await openGraph(tester, store);
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(LayoutKind.force.label));
+    await tester.pumpAndSettle();
+    store.finish();
+    await tester.pumpAndSettle();
+    expect(kinds, [LayoutKind.force]);
+    expect(store.settings.lastLayout, LayoutKind.force);
+  });
+
   testWidgets('by default the graph starts force-directed', (tester) async {
     expect(await openGraph(tester, MemoryViewSettingsStore()),
         [LayoutKind.force]);

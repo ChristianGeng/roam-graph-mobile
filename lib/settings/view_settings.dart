@@ -7,6 +7,7 @@
 /// belong in Android's secure storage.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -245,6 +246,10 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   /// loaded.
   var _saved = false;
 
+  /// Completes once the settings are loaded (or a change came first),
+  /// for screens that must not start with the defaults (#81).
+  final _loaded = Completer<void>();
+
   @override
   void initState() {
     super.initState();
@@ -255,10 +260,12 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
       } on Exception {
         settings = const ViewSettings();
       }
-      if (!mounted || _saved) return;
-      _inFile = settings;
-      // A choice made while loading is newer than the file.
-      if (_changes == 0) _settings.value = settings;
+      if (mounted && !_saved) {
+        _inFile = settings;
+        // A choice made while loading is newer than the file.
+        if (_changes == 0) _settings.value = settings;
+      }
+      if (!_loaded.isCompleted) _loaded.complete();
     }();
   }
 
@@ -267,6 +274,8 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   /// shows what the file holds, and the error is thrown.
   Future<void> _change(ViewSettings settings) {
     final change = ++_changes;
+    // A change is newer than the file: screens waiting can go on.
+    if (!_loaded.isCompleted) _loaded.complete();
     // Used at once, so a second change made while the first is saving
     // builds on it instead of on the file (#72 review); undone if saving
     // fails.
@@ -295,6 +304,7 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   Widget build(BuildContext context) => ViewSettingsScope(
         settings: _settings,
         onChange: _change,
+        loaded: _loaded.future,
         child: widget.child,
       );
 }
@@ -305,8 +315,20 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
     super.key,
     required ValueNotifier<ViewSettings> settings,
     required this.onChange,
+    this.loaded,
     required super.child,
   }) : super(notifier: settings);
+
+  /// Completes once the settings are loaded.
+  final Future<void>? loaded;
+
+  /// The settings once they are loaded from the file, for code that runs
+  /// at a screen's start: [read] alone may still give the defaults then.
+  static Future<ViewSettings> current(BuildContext context) async {
+    final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
+    await scope?.loaded;
+    return scope?.notifier?.value ?? const ViewSettings();
+  }
 
   /// Saves and applies new settings; see [change].
   final Future<void> Function(ViewSettings) onChange;

@@ -239,6 +239,10 @@ class _GraphScreenState extends State<GraphScreen> {
   /// Counts layout requests; only the latest may be shown.
   int _generation = 0;
 
+  /// A layout was chosen in the More menu: the start setting no longer
+  /// applies to this view (#81).
+  bool _layoutChosen = false;
+
   RoamGraph get _graph => widget.graph.value;
 
   @override
@@ -267,10 +271,15 @@ class _GraphScreenState extends State<GraphScreen> {
   }
 
   Future<void> _start() async {
+    // The settings as saved, not the defaults they start with while the
+    // file is read (#81).
     final remembered = await widget.nodeMemory.lastNode();
     if (!mounted) return;
+    final view = await ViewSettingsScope.current(context);
+    if (!mounted) return;
     // Only when the view opens: a graph already showing keeps its layout.
-    _kind = ViewSettingsScope.read(context).layoutAtStart;
+    // A layout chosen in the menu meanwhile wins.
+    if (!_layoutChosen) _kind = view.layoutAtStart;
     _centre = _graph.nodes.containsKey(remembered)
         ? remembered
         : _mostLinked(_graph);
@@ -606,6 +615,7 @@ class _GraphScreenState extends State<GraphScreen> {
       case _MoreAction.help:
         openHelp(context);
       case _MoreAction.circo || _MoreAction.force:
+        _layoutChosen = true;
         _kind = action == _MoreAction.circo ? LayoutKind.circo : LayoutKind.force;
         _update();
         // Remembered for "Last used" (#71).
