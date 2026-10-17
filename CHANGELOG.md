@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-17: Edit a node's text ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-17: Edit a node's text ([#87](https://github.com/ChristianGeng/roam-graph-mobile/pull/87))
 
 - Added: "Edit text" in the node view's Edit menu. The ID, the property
   drawer and the title or heading line stay as they are; "Review" shows
