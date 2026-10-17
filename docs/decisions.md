@@ -1552,6 +1552,60 @@ devices through Syncthing.
       two edits of one file and too many files refused; an entry edited
       before accepting; in the chat, a set reviewed, saved and undone.
 
+59. **Agent mode: the AI creates, edits and links notes itself** (#82),
+    `lib/ai/agent_tools.dart` and `lib/edit/agent_changes.dart`. On the
+    laptop, the org-roam MCP lets Claude change a whole set of notes
+    without asking each time; reviewing every change (decisions 57 and
+    58) is too many taps for that. So the chat gets write tools and no
+    confirmation per change, and control comes at the end instead.
+    - **"Let the AI change notes"** in AI settings: Off (read only),
+      Review each change first (decisions 57, 58), or Agent, the default.
+      Only where notes can be saved; otherwise read only.
+    - **The write tools,** next to the read tools of decision 30:
+      `create_node(title, text, tags)` writes a new file node as capture
+      does (decision 31: file name, new `:ID:`, `#+title`, `#+filetags`);
+      notes made in the same second get the next second's name.
+      `append_to_node(id, text)` adds at the end of the node as decision
+      54 does. `edit_node_text(id, old, new)` replaces text that occurs
+      exactly once in the node's text below its head (decision 56).
+      `add_link(from_id, to_id, description)` adds the link to the
+      node's last "See also:" line, or adds that line; nothing if the
+      node links there already.
+    - **Every write keeps the rules of decision 10:** the note is read
+      when the tool runs and saved only over that version (rule 1),
+      through the temporary file (rule 2), with the old version kept
+      (rule 3), and no change to an `:ID:`, a property drawer, or the
+      `#+title:` and `#+filetags:` lines (rule 5, decision 56). A write
+      that breaks a rule writes nothing and comes back to the model as a
+      tool error, so it can read again and retry.
+    - **What the AI may not see, it may not change** (decision 42): hidden
+      notes cannot be edited or linked to, a new note cannot get a hidden
+      tag, and a note with hidden parts (a hidden heading, or a link to a
+      hidden note, which the AI sees as "(hidden)") cannot have its text
+      replaced; it can still be appended to and linked. Links to IDs that
+      are no visible note are refused.
+    - **A limit per message:** "Most changes the agent may make for one
+      message", 30 by default; beyond it the tool says so and the model
+      can say what is left.
+    - **Afterwards, in the chat:** "2 notes created, 1 changed, 3 links
+      added", each note to open, its change as a diff (decision 55, only
+      to look at), and **"Undo all changes of this message"**: each
+      changed note gets back its text from before the message and each
+      created note is deleted (kept in the edit history first), but only
+      a file that is still as the agent left it; the others are named.
+      Deleting checks the hash on the Android side, as replacing does
+      (`deleteFile` in `FolderAccess.kt`).
+    - **A log,** `agent-changes.jsonl` in the app's support folder: time,
+      folder, file, tool, and the SHA-256 before and after, one line per
+      change. With the old texts in the edit history, a change can be
+      traced and undone later, also after the chat is closed.
+    - Tests: a chat that creates two nodes and links them to an existing
+      one (three files, the links in the graph); a file changed between
+      read and write, refused and then retried; "Undo all", also with a
+      file changed since; the limit; hidden notes; the drawer and head;
+      in the app, the summary and "Undo all", and no write tools when
+      Off.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

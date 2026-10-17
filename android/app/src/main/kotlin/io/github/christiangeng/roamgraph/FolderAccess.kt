@@ -53,6 +53,10 @@ import java.util.concurrent.Executors
  *   file is renamed aside, the new one renamed into place, and the old one
  *   deleted. If a step fails, the old file is put back. Errors: "changed",
  *   "missing" (the file is gone), "write_failed".
+ * - deleteFile({uri, expected}) -> true when the file [uri] was deleted
+ *   (#82: undoing a note the AI created). Only if it is still the version
+ *   the app wrote: its SHA-256 must be [expected], else error "changed".
+ *   Errors: "changed", "missing", "write_failed".
  */
 class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHandler {
     companion object {
@@ -114,6 +118,15 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                     return
                 }
                 replaceFile(Uri.parse(dir), name, Uri.parse(uri), expected, bytes, result)
+            }
+            "deleteFile" -> {
+                val uri = call.argument<String>("uri")
+                val expected = call.argument<String>("expected")
+                if (uri == null || expected == null) {
+                    result.error("bad_args", "uri or expected is missing", null)
+                    return
+                }
+                deleteFile(Uri.parse(uri), expected, result)
             }
             "openWith" -> {
                 val uri = call.argument<String>("uri")
@@ -354,6 +367,27 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
             mainThread.post {
                 val error = outcome.second
                 if (error == null) result.success(outcome.first) else result.error(error.first, error.second, null)
+            }
+        }
+    }
+
+    private fun deleteFile(file: Uri, expected: String, result: MethodChannel.Result) {
+        executor.execute {
+            val error: Pair<String, String>? = try {
+                if (currentHash(file) != expected) {
+                    Pair("changed", "The file changed since the app wrote it")
+                } else if (!DocumentsContract.deleteDocument(activity.contentResolver, file)) {
+                    Pair("write_failed", "The file could not be deleted")
+                } else {
+                    null
+                }
+            } catch (e: MissingException) {
+                Pair("missing", "The file is gone")
+            } catch (e: Exception) {
+                Pair("write_failed", e.message ?: e.toString())
+            }
+            mainThread.post {
+                if (error == null) result.success(true) else result.error(error.first, error.second, null)
             }
         }
     }

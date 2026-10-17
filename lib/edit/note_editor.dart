@@ -101,6 +101,11 @@ abstract interface class NoteStore {
   /// just before writing. Then indexes the folder again.
   Future<SaveResult> replace(String path, NoteVersion base, String text);
 
+  /// Deletes the note if the file is still [base] (#82: undoing a note
+  /// the AI created), then indexes the folder again. [Saved] when it was
+  /// deleted; [ChangedMeanwhile] if it changed since.
+  Future<SaveResult> delete(String path, NoteVersion base);
+
   /// The key the old versions of [path] are kept under: the path within
   /// this folder, so notes of the same name in another folder do not mix.
   String historyKey(String path);

@@ -69,6 +69,11 @@ abstract interface class FolderAccess {
     required String expected,
     required Uint8List bytes,
   });
+
+  /// Deletes the file [uri] if its SHA-256 (hex) is still [expected]
+  /// (#82, undoing a note the AI created). Otherwise a [PlatformException]
+  /// with the code `changed`, or `missing` if the file is gone.
+  Future<void> deleteFile(String uri, {required String expected});
 }
 
 /// [FolderAccess] through the Android code in `FolderAccess.kt`.
@@ -143,6 +148,11 @@ class PlatformFolderAccess implements FolderAccess {
         'expected': expected,
         'bytes': bytes,
       }))!;
+
+  @override
+  Future<void> deleteFile(String uri, {required String expected}) =>
+      _channel.invokeMethod<bool>(
+          'deleteFile', {'uri': uri, 'expected': expected});
 
   static ChosenFolder? _toFolder(Map<Object?, Object?>? map) {
     if (map == null) return null;
