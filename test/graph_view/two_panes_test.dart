@@ -150,6 +150,39 @@ void main() {
       expect(graphWidth(tester), closeTo(240, 1));
     });
 
+    testWidgets('turning the tablet during a drag ends it', (tester) async {
+      var ended = false;
+      final store = MemoryViewSettingsStore();
+      tester.view
+        ..physicalSize = const Size(1000, 700)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      Widget panes(bool show) => MaterialApp(
+            builder: (context, child) =>
+                ViewSettingsHost(store: store, child: child!),
+            home: Scaffold(
+              body: show
+                  ? TwoPanes(
+                      graph: const SizedBox(),
+                      note: const SizedBox(),
+                      onDragging: (dragging) => ended = !dragging,
+                    )
+                  : const SizedBox(),
+            ),
+          );
+      await tester.pumpWidget(panes(true));
+      final gesture = await tester.startGesture(
+          tester.getCenter(find.byKey(const ValueKey('pane-divider'))));
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump();
+      expect(ended, isFalse);
+      await tester.pumpWidget(panes(false));
+      expect(ended, isTrue);
+      await gesture.up();
+      // The double tap's timer runs out.
+      await tester.pump(const Duration(seconds: 1));
+    });
+
     testWidgets('unfolded, the graph is centred on the note opened meanwhile',
         (tester) async {
       await pumpTablet(tester,

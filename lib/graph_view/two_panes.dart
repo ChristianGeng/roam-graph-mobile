@@ -52,6 +52,13 @@ class _TwoPanesState extends State<TwoPanes> {
   /// What a drag or a button chose, until the settings have it.
   ViewSettings? _pending;
 
+  @override
+  void dispose() {
+    // Removed during a drag, as when the tablet turns: the drag is over.
+    if (_dragging != null) widget.onDragging?.call(false);
+    super.dispose();
+  }
+
   Future<void> _save(ViewSettings settings) async {
     setState(() => _pending = settings);
     try {
