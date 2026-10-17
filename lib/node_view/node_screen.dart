@@ -418,6 +418,7 @@ class _NodeScreenState extends State<NodeScreen> {
                 PopupMenuItem(
                     value: _EditAction.meta,
                     child: Text('Title, tags and aliases')),
+                PopupMenuItem(
                     value: _EditAction.ai, child: Text('Edit with AI')),
                 PopupMenuItem(
                     value: _EditAction.history,
