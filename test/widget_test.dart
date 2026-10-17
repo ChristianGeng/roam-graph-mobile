@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -100,6 +101,10 @@ class FakeFolderAccess implements FolderAccess {
   /// the laptop would meanwhile.
   void Function()? beforeReplace;
 
+  /// Whether a replaced file keeps its modification time, as some document
+  /// providers report it.
+  bool keepModified = false;
+
   @override
   Future<String> replaceFile(
     String dir,
@@ -122,7 +127,10 @@ class FakeFolderAccess implements FolderAccess {
     files = [
       for (final f in files)
         f.uri == uri
-            ? FolderFile(path: f.path, uri: f.uri, modified: f.modified + 1)
+            ? FolderFile(
+                path: f.path,
+                uri: f.uri,
+                modified: keepModified ? f.modified : f.modified + 1)
             : f,
     ];
     return uri;
@@ -237,6 +245,7 @@ Future<TestGraphIndex> start(
       editHistory: history ?? MemoryEditHistory(),
       graphScreen: (graph, readNote, openInOrgro, writer, files) {
         lastWriter = writer;
+        lastGraph = graph;
         return GraphScreen(
         graph: graph,
         readNote: readNote,
@@ -255,6 +264,9 @@ Future<TestGraphIndex> start(
 
 /// The writer the folder screen gave the graph view last.
 NoteWriter? lastWriter;
+
+/// The graph the folder screen gave the graph view last.
+ValueListenable<RoamGraph>? lastGraph;
 
 /// The value shown for one count, or null if it is not shown.
 String? stat(WidgetTester tester, String key) {
@@ -627,12 +639,26 @@ void main() {
       expect(access.replaced.single, ('content://r', 'a.org'));
       expect(access.texts['roam/a.org'], edited);
       // The old version is kept, and nothing else was created.
-      expect((await history.versions('a.org')).single.text, base.text);
+      expect((await history.versions('content://tree/org\na.org')).single.text, base.text);
       expect(access.created, isEmpty);
       expect(access.files.where((f) => f.path.contains('.tmp')), isEmpty);
       // Indexed again: the file was read after the write.
       expect(access.readPaths.where((p) => p == 'roam/a.org').length,
           greaterThanOrEqualTo(2));
+    });
+
+    testWidgets('a saved note is read again even with the same time',
+        (tester) async {
+      final (access, editor, _) = await open(tester);
+      access.keepModified = true;
+      final base = (await editor.read('a.org'))!;
+      final saving = editor.save('a.org', base,
+          base.text.replaceFirst('[[id:b]] [[id:gone]]', 'No links.'));
+      await tester.pumpAndSettle();
+      expect(await saving, isA<Saved>());
+      // The graph lost a's links: b has no backlink any more.
+      final graph = lastGraph!.value;
+      expect(graph.links.where((l) => l.source == 'a'), isEmpty);
     });
 
     testWidgets('an edit of a file changed meanwhile is refused',
@@ -652,7 +678,7 @@ void main() {
           contains('From the laptop.'));
       expect(access.replaced, isEmpty);
       expect(access.texts['roam/a.org'], isNot(contains('Mine.')));
-      expect(await history.versions('a.org'), isEmpty);
+      expect(await history.versions('content://tree/org\na.org'), isEmpty);
     });
 
     testWidgets('a folder with read access only is not written',

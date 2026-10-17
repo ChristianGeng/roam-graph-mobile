@@ -100,78 +100,99 @@ abstract interface class NoteStore {
   /// Replaces the note with [text] if the file is still [base]; checked
   /// just before writing. Then indexes the folder again.
   Future<SaveResult> replace(String path, NoteVersion base, String text);
+
+  /// The key the old versions of [path] are kept under: the path within
+  /// this folder, so notes of the same name in another folder do not mix.
+  String historyKey(String path);
 }
 
 /// An old version of a note, kept before an edit replaced it.
 class KeptVersion {
-  const KeptVersion(this.path, this.time, this.text);
+  const KeptVersion(this.key, this.time, this.text);
 
-  final String path;
+  /// The note's key in the history: its folder and path.
+  final String key;
   final DateTime time;
   final String text;
 }
 
-/// The old versions of notes, kept before each edit (decision 10, rule 3).
+/// The old versions of notes, kept before each edit (decision 10, rule 3),
+/// by a key that names the folder and the note.
 abstract interface class EditHistory {
-  /// Keeps [text], the note [path] before an edit at [time].
-  Future<void> keep(String path, String text, DateTime time);
+  /// Keeps [text], the note [key] before an edit at about [time], and
+  /// returns the time it is kept under: [time], or a little later if a
+  /// version is kept at that time already. Removes nothing.
+  Future<DateTime> keep(String key, String text, DateTime time);
 
   /// Drops the version kept at [time], when the edit was not saved.
-  Future<void> forget(String path, DateTime time);
+  Future<void> forget(String key, DateTime time);
 
-  /// The kept versions of [path], newest first.
-  Future<List<KeptVersion>> versions(String path);
+  /// Keeps only the newest [keptVersionsPerNote], after an edit was saved.
+  Future<void> prune(String key);
+
+  /// The kept versions of [key], newest first.
+  Future<List<KeptVersion>> versions(String key);
 }
 
 /// How many old versions are kept per note.
 const keptVersionsPerNote = 20;
 
 /// [EditHistory] in the app's support folder, `edit-history/`: one folder
-/// per note, named by the hash of its path, with a file `path` naming the
-/// note and one file per version, named by its time in microseconds. Only
-/// the newest [keptVersionsPerNote] are kept. The folder belongs to the app
-/// and is never synced.
+/// per note, named by the hash of its key, with a file `key` naming it and
+/// one file per version, named by its time in microseconds. The folder
+/// belongs to the app and is never synced.
 class FileEditHistory implements EditHistory {
   const FileEditHistory({this.root});
 
   /// The folder to use; the app's support folder if null.
   final Directory? root;
 
-  Future<Directory> _dir(String path) async {
+  Future<Directory> _dir(String key) async {
     final base = root ??
         Directory('${(await getApplicationSupportDirectory()).path}'
             '/edit-history');
-    final key = contentHash(utf8.encode(path)).substring(0, 32);
-    return Directory('${base.path}/$key');
+    final hash = contentHash(utf8.encode(key)).substring(0, 32);
+    return Directory('${base.path}/$hash');
+  }
+
+  File _file(Directory dir, DateTime time) =>
+      File('${dir.path}/${time.microsecondsSinceEpoch}.org');
+
+  @override
+  Future<DateTime> keep(String key, String text, DateTime time) async {
+    final dir = await _dir(key);
+    await dir.create(recursive: true);
+    await File('${dir.path}/key').writeAsString(key);
+    var at = time;
+    while (await _file(dir, at).exists()) {
+      at = at.add(const Duration(microseconds: 1));
+    }
+    await _file(dir, at).writeAsString(text);
+    return at;
   }
 
   @override
-  Future<void> keep(String path, String text, DateTime time) async {
-    final dir = await _dir(path);
-    await dir.create(recursive: true);
-    await File('${dir.path}/path').writeAsString(path);
-    await File('${dir.path}/${time.microsecondsSinceEpoch}.org')
-        .writeAsString(text);
-    final kept = await _versionFiles(dir);
-    for (final old in kept.skip(keptVersionsPerNote)) {
+  Future<void> forget(String key, DateTime time) async {
+    final file = _file(await _dir(key), time);
+    if (await file.exists()) await file.delete();
+  }
+
+  @override
+  Future<void> prune(String key) async {
+    final dir = await _dir(key);
+    if (!await dir.exists()) return;
+    for (final old in (await _versionFiles(dir)).skip(keptVersionsPerNote)) {
       await old.delete();
     }
   }
 
   @override
-  Future<void> forget(String path, DateTime time) async {
-    final file =
-        File('${(await _dir(path)).path}/${time.microsecondsSinceEpoch}.org');
-    if (await file.exists()) await file.delete();
-  }
-
-  @override
-  Future<List<KeptVersion>> versions(String path) async {
-    final dir = await _dir(path);
+  Future<List<KeptVersion>> versions(String key) async {
+    final dir = await _dir(key);
     if (!await dir.exists()) return const [];
     return [
       for (final file in await _versionFiles(dir))
-        KeptVersion(path, _timeOf(file)!, await file.readAsString()),
+        KeptVersion(key, _timeOf(file)!, await file.readAsString()),
     ];
   }
 
@@ -199,34 +220,54 @@ class MemoryEditHistory implements EditHistory {
   final Map<String, List<KeptVersion>> _kept = {};
 
   @override
-  Future<void> keep(String path, String text, DateTime time) async {
-    final list = _kept.putIfAbsent(path, () => [])
-      ..insert(0, KeptVersion(path, time, text));
-    if (list.length > keptVersionsPerNote) {
+  Future<DateTime> keep(String key, String text, DateTime time) async {
+    final list = _kept.putIfAbsent(key, () => []);
+    var at = time;
+    while (list.any((v) => v.time == at)) {
+      at = at.add(const Duration(microseconds: 1));
+    }
+    list
+      ..add(KeptVersion(key, at, text))
+      ..sort((a, b) => b.time.compareTo(a.time));
+    return at;
+  }
+
+  @override
+  Future<void> forget(String key, DateTime time) async =>
+      _kept[key]?.removeWhere((v) => v.time == time);
+
+  @override
+  Future<void> prune(String key) async {
+    final list = _kept[key];
+    if (list != null && list.length > keptVersionsPerNote) {
       list.removeRange(keptVersionsPerNote, list.length);
     }
   }
 
   @override
-  Future<void> forget(String path, DateTime time) async =>
-      _kept[path]?.removeWhere((v) => v.time == time);
-
-  @override
-  Future<List<KeptVersion>> versions(String path) async =>
-      List.of(_kept[path] ?? const []);
+  Future<List<KeptVersion>> versions(String key) async =>
+      List.of(_kept[key] ?? const []);
 }
 
 final _drawerStart = RegExp(r'^[ \t]*:PROPERTIES:[ \t]*$', caseSensitive: false);
 final _drawerEnd = RegExp(r'^[ \t]*:END:[ \t]*$', caseSensitive: false);
 
-/// The property drawers of [text], each as its lines, in order. The `:ID:`
-/// lives in them.
+/// The property drawers of [text], in order, each with the line right
+/// before it: the heading (or planning line) it belongs to, or "" at the
+/// top of the file. Org attaches a drawer to that line only, so a drawer
+/// moved under another heading, or text put between a heading and its
+/// drawer, gives another node its `:ID:` or none.
 List<String> propertyDrawers(String text) {
   final drawers = <String>[];
   StringBuffer? current;
+  var previous = '';
   for (final line in const LineSplitter().convert(text)) {
     if (current == null) {
-      if (_drawerStart.hasMatch(line)) current = StringBuffer(line);
+      if (_drawerStart.hasMatch(line)) {
+        current = StringBuffer(previous)
+          ..write('\n')
+          ..write(line);
+      }
     } else {
       current
         ..write('\n')
@@ -236,6 +277,7 @@ List<String> propertyDrawers(String text) {
         current = null;
       }
     }
+    previous = line;
   }
   return drawers;
 }
@@ -255,6 +297,10 @@ class NoteEditor {
   /// The note [path] as it is now, to edit; null if it cannot be edited.
   Future<NoteVersion?> read(String path) => store.read(path);
 
+  /// The kept versions of the note [path], newest first.
+  Future<List<KeptVersion>> versions(String path) =>
+      history.versions(store.historyKey(path));
+
   /// Replaces the note [path], read as [base], with [text]. Keeps [base]
   /// first; drops it again if nothing was written.
   Future<SaveResult> save(String path, NoteVersion base, String text) async {
@@ -265,17 +311,19 @@ class NoteEditor {
             .any((changed) => changed)) {
       return const LockedPartChanged();
     }
-    final time = _now();
-    await history.keep(path, base.text, time);
+    final key = store.historyKey(path);
+    final time = await history.keep(key, base.text, _now());
     final SaveResult result;
     try {
       result = await store.replace(path, base, text);
     } catch (e) {
-      await history.forget(path, time);
+      await history.forget(key, time);
       return SaveFailed('$e');
     }
-    if (result is! Saved && result is! SavedNotIndexed) {
-      await history.forget(path, time);
+    if (result is Saved || result is SavedNotIndexed) {
+      await history.prune(key);
+    } else {
+      await history.forget(key, time);
     }
     return result;
   }

@@ -150,6 +150,10 @@ class _FolderScreenState extends State<FolderScreen>
     ),
   );
 
+  /// Notes to read at the next scan whatever their modification time: the
+  /// ones an edit just replaced.
+  final _mustRead = <String>{};
+
   /// The URIs of the chosen folder's directories at the latest scan, by
   /// path relative to it; the folder itself is "".
   Map<String, String> _dirs = {};
@@ -377,8 +381,15 @@ class _FolderScreenState extends State<FolderScreen>
     final index = widget.graphIndex;
     final replace =
         rebuild || await index.indexedFolder() != folder.uri;
-    final toRead =
-        replace ? listing.keys.toList() : await index.filesToRead(listing);
+    final toRead = replace
+        ? listing.keys.toList()
+        : {
+            ...await index.filesToRead(listing),
+            // A note saved by an edit (#35), even if its folder reports
+            // the same modification time as before.
+            ..._mustRead.where(listing.containsKey),
+          }.toList();
+    _mustRead.clear();
     final bytes = await widget.folderAccess
         .readFiles([for (final path in toRead) byPath[path]!]);
     final contents = {
@@ -822,10 +833,14 @@ class _FolderNoteStore implements NoteStore {
           return SaveFailed(e.message ?? e.code);
       }
     }
+    _state._mustRead.add(path);
     await _state._rescan();
     if (_state._status != _Status.indexed) {
       return SavedNotIndexed(path, _state._error);
     }
     return Saved(path);
   }
+
+  @override
+  String historyKey(String path) => '${_state._folder?.uri ?? ''}\n$path';
 }
