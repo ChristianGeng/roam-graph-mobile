@@ -719,7 +719,7 @@ void main() {
 
       expect(access.texts['roam/a.org'], '${before}A new thought.\n');
       expect(access.created, isEmpty);
-      expect((await history.versions('a.org')).single.text, before);
+      expect((await history.versions('content://tree/org\na.org')).single.text, before);
       expect(find.text('Added to A.'), findsOneWidget);
       // The node view shows the new text at once.
       expect(find.textContaining('A new thought.', findRichText: true),
