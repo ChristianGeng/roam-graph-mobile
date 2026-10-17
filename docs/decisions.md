@@ -1643,6 +1643,13 @@ devices through Syncthing.
       System; `MaterialApp` gets each mode; the Settings page switches at
       once; the graph view in the dark theme.
 
+61. **The chat can be copied** (#94). An error in the chat could not be
+    passed on: answers were not selectable, and tool results were hard to
+    select on a phone. Now every answer has a Copy button and can be
+    selected; an opened tool call has a Copy button for the call and its
+    result together; the error card can be copied and selected. Copying
+    says "Copied.".
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

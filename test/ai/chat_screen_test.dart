@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
@@ -119,6 +120,46 @@ void main() {
         IconButton, Icons.send));
     expect(send.onPressed, isNull);
     expect(server.requests, isEmpty);
+  });
+
+  testWidgets('answers and tool results can be copied (#94)', (tester) async {
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied.add((call.arguments as Map)['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    final server = FakeServer([
+      anthropicReply([
+        {
+          'type': 'tool_use',
+          'id': 't1',
+          'name': 'org_roam_find',
+          'input': {'search': 'Plan'},
+        },
+      ], stop: 'tool_use'),
+      anthropicReply([
+        {'type': 'text', 'text': 'It is [[id:plan][Plan]].'},
+      ]),
+    ]);
+    await openChat(tester, server);
+    await ask(tester, 'Where is my plan?');
+
+    await tester.tap(find.byTooltip('Copy'));
+    await tester.pumpAndSettle();
+    expect(copied.last, 'It is [[id:plan][Plan]].');
+    expect(find.text('Copied.'), findsOneWidget);
+
+    await tester.tap(find.text('find(search: Plan)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('chat-tool-copy')));
+    await tester.pumpAndSettle();
+    expect(copied.last, startsWith('org_roam_find(search: Plan)\n\n'));
+    expect(copied.last, contains('plan | Plan | plan.org'));
   });
 
   testWidgets('an error, then "Send again"', (tester) async {
