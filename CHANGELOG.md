@@ -17,6 +17,13 @@ each entry.
   headings hidden from AI.
 - The index is rebuilt once after the update.
 - Closes [#98](https://github.com/ChristianGeng/roam-graph-mobile/issues/98).
+## 2026-10-17: Change a note's title, tags and aliases ([#100](https://github.com/ChristianGeng/roam-graph-mobile/pull/100))
+
+- Added: "Title, tags and aliases" in the node view's Edit menu. The ID
+  and the file name stay, so every link still works.
+- Added: in agent mode, the AI can rename notes and set their tags and
+  aliases, undoable as its other changes.
+- Closes [#97](https://github.com/ChristianGeng/roam-graph-mobile/issues/97).
 
 ## 2026-10-17: The AI can delete notes when you ask ([#96](https://github.com/ChristianGeng/roam-graph-mobile/pull/96))
 

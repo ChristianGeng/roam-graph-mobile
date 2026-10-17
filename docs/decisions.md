@@ -1676,6 +1676,31 @@ devices through Syncthing.
       text, so the same `:ID:`, if no file of that name is there
       meanwhile; removed headings and changed links come back as every
       edit does.
+63. **Title, tags and aliases can be edited, by me and by the AI**
+    (#97), `lib/edit/node_meta.dart`, `meta_screen.dart`. Replacing a note
+    meant a new note and deleting the old one, since the head was locked.
+    The owner decided on 2026-10-17 to allow editing it, under these rules
+    (they widen rule 5 of decision 10 for these three, nothing else):
+    - The `:ID:`, every other property and the file name stay; links to
+      the node keep their text, as on the laptop.
+    - **Title:** a file node's `#+title:` line; a heading node's heading
+      text, read as Org's `org-complex-heading-regexp` reads it, with its
+      TODO keyword (Doom's, or the file's own `#+TODO:`) and priority
+      kept.
+    - **Tags:** a file node's `#+filetags:` line, added or removed as
+      needed, after the title; a heading node's own tags at the end of its
+      line. Only Org tag characters; inherited tags are not edited here.
+    - **Aliases:** the `:ROAM_ALIASES:` line of the node's drawer, written
+      as `org-roam-alias-add` writes it (`combine-and-quote-strings`:
+      quoted with a space, quote or backslash in it). It is the only drawer
+      line that may change: `NoteEditor.save(aliasesMayChange:)` compares
+      the drawers without it.
+    - **By hand:** "Title, tags and aliases" in the node view's Edit menu,
+      a form, then the diff (decision 55), then Save, over the version
+      read and in the folder it was read in.
+    - **By the AI:** `rename_node`, `set_tags`, `set_aliases`, as the other
+      agent tools (decision 59): counted, summarized, logged, undoable. The
+      AI cannot set a tag hidden from AI.
 64. **Full-text search, for me and for the AI** (#98). Search found only
     titles and aliases; the words inside notes could not be found.
     - **The index:** an SQLite FTS5 table `note_text` beside org-roam's
