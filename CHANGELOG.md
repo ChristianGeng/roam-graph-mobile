@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-17: Edits are saved safely ([#77](https://github.com/ChristianGeng/roam-graph-mobile/pull/77))
+
+- Added: the way edits of existing notes are saved. An edit is written
+  only if the note is still the version it was made on, through a
+  temporary file, and the old version is kept in the app (the newest 20
+  per note). No edit action yet; they come next.
+- Closes [#35](https://github.com/ChristianGeng/roam-graph-mobile/issues/35).
+
 ## 2026-10-17: Tablet layout: a divider to drag, and a graph to fold away ([#72](https://github.com/ChristianGeng/roam-graph-mobile/pull/72))
 
 - Added: on a tablet held sideways, drag the divider between graph and note
