@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-17: Choose a light or dark theme ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-17: Choose a light or dark theme ([#92](https://github.com/ChristianGeng/roam-graph-mobile/pull/92))
 
 - Added: Settings, "Theme": System (as Android is set), Light or Dark.
 - Changed: in the dark theme, the graph's community colours are lighter,
