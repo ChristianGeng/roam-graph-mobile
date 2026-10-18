@@ -461,6 +461,15 @@ void main() {
     expect(get.requests, hasLength(1));
   });
 
+  test('aliases the list does not name count as listed', () {
+    const listed = {'claude-x-5-5-20261001', 'mistral-large-2511', 'a/b'};
+    expect(isListed('claude-x-5-5', listed), isTrue);
+    expect(isListed('mistral-large-latest', listed), isTrue);
+    expect(isListed('a/b', listed), isTrue);
+    expect(isListed('claude-x-5', listed), isFalse);
+    expect(isListed('mistral-small-latest', listed), isFalse);
+  });
+
   test('the message names a gone model only when the list is known', () {
     expect(modelGoneMessage('X', 'a', {'a'}), isNull);
     expect(modelGoneMessage('X', 'a', null), isNull);

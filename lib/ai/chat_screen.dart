@@ -289,13 +289,18 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             );
     });
-    if (_setupProblem == null && config != null) unawaited(_checkModel(config));
+    if (_setupProblem == null && config != null) {
+      unawaited(_checkModel(config, config.model));
+    }
   }
 
   /// Checks the chat's model against the provider's list as it is now,
   /// without holding up the chat; a model that is gone is named, with the
   /// way to AI settings (#113).
-  Future<void> _checkModel(ProviderConfig config) async {
+  ///
+  /// The chat stays usable: a list may lack a model that still works, such
+  /// as an alias, so the provider has the last word.
+  Future<void> _checkModel(ProviderConfig config, String model) async {
     final listed = await listedModels(
       provider: config.name,
       api: config.api,
@@ -303,9 +308,12 @@ class _ChatScreenState extends State<ChatScreen> {
       apiKey: config.apiKey,
       get: widget.getModels,
     );
-    if (!mounted || _config != config) return;
-    final gone = modelGoneMessage(config.name, config.model, listed);
-    if (gone != null) setState(() => _modelGone = gone);
+    // Only for the chat and the model in use now.
+    if (!mounted || _config != config || _session?.config.model != model) {
+      return;
+    }
+    final gone = modelGoneMessage(config.name, model, listed);
+    setState(() => _modelGone = gone);
   }
 
   /// What the first message says about the node the chat came from.
@@ -580,7 +588,16 @@ class _ChatScreenState extends State<ChatScreen> {
               tooltip: 'Model',
               icon: const Icon(Icons.tune),
               initialValue: model,
-              onSelected: (m) => setState(() => session.model = m),
+              onSelected: (m) {
+                setState(() {
+                  session.model = m;
+                  _modelGone = null;
+                });
+                // The switched-to model is checked too (#113).
+                if (_config case final config?) {
+                  unawaited(_checkModel(config, m));
+                }
+              },
               itemBuilder: (_) => [
                 PopupMenuItem(
                   value: _defaultModel,
