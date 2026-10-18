@@ -1,6 +1,6 @@
 # One-off (#116): generates the Linux, Windows and macOS project folders
-# with the pinned Flutter, as the SDK runs only in CI. The folders are an
-# artifact; they are committed by hand and this workflow is removed.
+# with the pinned Flutter, as the SDK runs only in CI, and commits them to
+# this branch. Then this workflow is removed.
 name: Scaffold desktop
 
 on:
@@ -8,15 +8,13 @@ on:
     branches: [desktop-scaffold]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   scaffold:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          persist-credentials: false
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: 3.47.7
@@ -26,10 +24,10 @@ jobs:
           flutter create --platforms=linux,windows,macos \
             --org io.github.christiangeng --project-name roam_graph_mobile .
           git status --short
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: desktop-folders
-          path: |
-            linux
-            windows
-            macos
+      - name: Commit them to this branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add linux windows macos
+          git commit -m "Desktop project folders from flutter create 3.47.7 (#116)"
+          git push
