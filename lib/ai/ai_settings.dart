@@ -486,15 +486,53 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   String? _problem;
 
   /// Each provider's model IDs as its list has them now, to show a chosen
-  /// model that is gone (#113); null where the list cannot be fetched.
-  final _listed = <String, Set<String>?>{};
+  /// model that is gone (#113), with the connection they were fetched
+  /// with: API, base URL and typed key. A changed connection fetches again.
+  final _listed = <String, ({String connection, Set<String> ids})>{};
 
-  /// Fetches [id]'s list once, with the key saved or typed in.
-  Future<void> _checkModels(String id) async {
-    if (_listed.containsKey(id)) return;
-    _listed[id] = null;
+  /// The providers whose list is being fetched.
+  final _checking = <String>{};
+
+  /// Waits for typing to stop before fetching with a changed connection.
+  Timer? _recheck;
+
+  String _connection(_Draft draft) =>
+      '${draft.api.name} ${draft.baseUrl.text.trim()} ${draft.key.text.trim()} '
+      '${draft.removeKey}';
+
+  /// The list of [id] when it was fetched with the connection the page
+  /// shows now; null otherwise.
+  Set<String>? _listedNow(String id) {
+    final entry = _listed[id];
     final draft = _drafts[id];
-    if (draft == null) return;
+    if (entry == null || draft == null) return null;
+    return entry.connection == _connection(draft) ? entry.ids : null;
+  }
+
+  /// Fetches [id]'s list again after its base URL or key changed.
+  void _connectionChanged(String id) {
+    _recheck?.cancel();
+    _recheck = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) unawaited(_checkModels(id));
+    });
+  }
+
+  /// Fetches [id]'s list, with the key saved or typed in, unless it was
+  /// fetched with this connection already.
+  Future<void> _checkModels(String id) async {
+    final draft = _drafts[id];
+    if (draft == null || _checking.contains(id)) return;
+    final connection = _connection(draft);
+    if (_listed[id]?.connection == connection) return;
+    _checking.add(id);
+    try {
+      await _fetchListed(id, draft, connection);
+    } finally {
+      _checking.remove(id);
+    }
+  }
+
+  Future<void> _fetchListed(String id, _Draft draft, String connection) async {
     final preset = presetById(id);
     var key = draft.key.text.trim();
     if (key.isEmpty && !draft.removeKey) {
@@ -512,7 +550,15 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       apiKey: key,
       get: widget.get,
     );
-    if (mounted && listed != null) setState(() => _listed[id] = listed);
+    if (!mounted) return;
+    setState(() {
+      if (listed == null) {
+        // Not known: nothing is said, and a later check tries again.
+        _listed.remove(id);
+      } else {
+        _listed[id] = (connection: connection, ids: listed);
+      }
+    });
   }
 
   @override
@@ -549,12 +595,19 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     } on Exception {
       key = null;
     }
-    return _drafts[id] ??= _Draft(
+    final known = _drafts[id];
+    if (known != null) return known;
+    final draft = _drafts[id] = _Draft(
         _loaded!.providerSettings(id), key != null && key.isNotEmpty);
+    // A new base URL or key: the list is fetched again (#113).
+    draft.baseUrl.addListener(() => _connectionChanged(id));
+    draft.key.addListener(() => _connectionChanged(id));
+    return draft;
   }
 
   @override
   void dispose() {
+    _recheck?.cancel();
     _tags?.dispose();
     _rounds.dispose();
     _tokens.dispose();
@@ -711,7 +764,6 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         if (id != null && mounted) setState(() => field.text = id);
         // The list is fetched now: check the models against it.
         if (mounted) {
-          _listed.remove(preset.id);
           unawaited(_checkModels(preset.id));
         }
       },
@@ -822,7 +874,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             labelText: 'Model',
             helperText: 'The model a chat starts with.',
             errorText: modelGoneMessage(
-                preset.name, draft.defaultModel.text, _listed[preset.id]),
+                preset.name, draft.defaultModel.text, _listedNow(preset.id)),
             errorMaxLines: 3,
             suffixIcon:
                 _chooseModel(preset, draft, draft.defaultModel, 'default'),
@@ -838,7 +890,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             labelText: 'Strong model (optional)',
             helperText: 'A stronger model the chat can switch to.',
             errorText: modelGoneMessage(
-                preset.name, draft.strongModel.text, _listed[preset.id]),
+                preset.name, draft.strongModel.text, _listedNow(preset.id)),
             errorMaxLines: 3,
             suffixIcon:
                 _chooseModel(preset, draft, draft.strongModel, 'strong'),

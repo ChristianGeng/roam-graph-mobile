@@ -323,11 +323,24 @@ Future<Set<String>?> listedModels({
   }
 }
 
+/// Whether [id] is in [listed], also as an alias the list does not name:
+/// Anthropic lists dated versions (`claude-x-20260101`) of an alias
+/// (`claude-x`), and `-latest` or `:latest` names follow the newest.
+bool isListed(String id, Set<String> listed) {
+  if (listed.contains(id)) return true;
+  if (id.endsWith('-latest') || id.endsWith(':latest')) {
+    final family = id.substring(0, id.length - 7);
+    return listed.any((m) => m.startsWith(family));
+  }
+  return listed.any((m) => RegExp('^${RegExp.escape(id)}-[0-9]{8}\$')
+      .hasMatch(m));
+}
+
 /// What to say when [model] is not in [listed], the provider's list as it
 /// is now; null when it is there, or when the list or the model is not
 /// known.
 String? modelGoneMessage(String provider, String model, Set<String>? listed) {
   final id = model.trim();
-  if (listed == null || id.isEmpty || listed.contains(id)) return null;
+  if (listed == null || id.isEmpty || isListed(id, listed)) return null;
   return '$id is not in $provider\'s model list now. Choose another model.';
 }
