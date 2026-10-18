@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
@@ -73,6 +72,27 @@ void main() {
     // No temporary file is left.
     expect(Directory(roam).listSync().map((e) => e.path),
         isNot(contains(contains('.syncthing.'))));
+  });
+
+  test('symbolic links are followed, a loop ends', () async {
+    if (Platform.isWindows) return;
+    final elsewhere = Directory.systemTemp.createTempSync('roam-linked');
+    addTearDown(() => elsewhere.deleteSync(recursive: true));
+    File('${elsewhere.path}${sep}c.org').writeAsStringSync('C');
+    Link('${dir.path}${sep}roam${sep}linked').createSync(elsewhere.path);
+    Link('${dir.path}${sep}roam${sep}sub${sep}loop')
+        .createSync('${dir.path}${sep}roam');
+    final folder = (await access.pickFolder())!;
+    final paths = {for (final f in await access.listFiles(folder)) f.path};
+    expect(paths, contains('roam/linked/c.org'));
+    expect(paths.where((p) => p.contains('loop/')), isEmpty);
+  });
+
+  test('the write check leaves a file of its name alone', () async {
+    final folder = (await access.pickFolder())!;
+    expect(folder.canWrite, isTrue);
+    expect(Directory(dir.path).listSync().map((e) => e.path),
+        isNot(contains(contains('write-test'))));
   });
 
   test('replace and delete only over the version read', () async {

@@ -50,6 +50,11 @@ List<String> emacsArguments(String file, int line) =>
 /// `open`, or Windows' URL handler. False when that cannot be started.
 Future<bool> openUrlOnDesktop(Uri uri,
     {ProcessStarter start = startDetached}) async {
+  // Only what Android's openUrl hands out too (#108).
+  if (!const {'http', 'https', 'mailto', 'tel'}
+      .contains(uri.scheme.toLowerCase())) {
+    return false;
+  }
   try {
     if (_isWindows) {
       // Windows' own handler for addresses; not `start`, which is a command

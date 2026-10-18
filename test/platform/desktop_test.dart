@@ -38,6 +38,8 @@ void main() {
     await openUrlOnDesktop(uri, start: start);
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     await openUrlOnDesktop(uri, start: start);
+    expect(await openUrlOnDesktop(Uri.parse('file:///etc/passwd'), start: start),
+        isFalse);
     debugDefaultTargetPlatformOverride = null;
     expect(runs, [
       ('xdg-open', ['https://example.org/a?b=1&c=2']),

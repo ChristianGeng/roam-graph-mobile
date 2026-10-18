@@ -47,18 +47,29 @@ class DesktopFolderAccess implements FolderAccess {
     );
   }
 
-  /// Whether a file can be made in [path]: tried with an empty one.
+  /// Whether a file can be made in [path]: tried with a new, empty one,
+  /// made only if no file has its name, and deleted only then.
   static bool _writable(String path) {
-    final probe = File(
-        '$path${Platform.pathSeparator}.roam-graph-write-test-$pid.tmp');
+    final probe = File('$path${Platform.pathSeparator}'
+        '.syncthing.roam-graph-write-test.$pid.${_unique()}.tmp');
     try {
-      probe.writeAsBytesSync(const [], flush: true);
-      probe.deleteSync();
-      return true;
+      probe.createSync(exclusive: true);
     } on FileSystemException {
       return false;
     }
+    try {
+      probe.deleteSync();
+    } on FileSystemException {
+      // Made, so the folder is writable; an empty file is left.
+    }
+    return true;
   }
+
+  static int _counter = 0;
+
+  /// Unique within this process, for temporary names.
+  static String _unique() =>
+      '${DateTime.now().microsecondsSinceEpoch}-${_counter++}';
 
   @override
   Future<ChosenFolder?> savedFolder() async {
@@ -93,12 +104,22 @@ class DesktopFolderAccess implements FolderAccess {
           code: 'missing', message: '${folder.uri} is not there.');
     }
     final files = <FolderFile>[];
+    // Symbolic links are followed, as org-roam's file list does (`find
+    // -L`); a folder already seen is not entered again, so a loop ends.
+    final seen = <String>{await root.resolveSymbolicLinks()};
     Future<void> walk(Directory dir, String prefix) async {
-      await for (final entity in dir.list(followLinks: false)) {
+      await for (final entity in dir.list(followLinks: true)) {
         final name = _name(entity.path);
         final path = prefix.isEmpty ? name : '$prefix/$name';
         if (entity is Directory) {
           if (skippedDirectories.contains(name)) continue;
+          String real;
+          try {
+            real = await entity.resolveSymbolicLinks();
+          } on FileSystemException {
+            continue;
+          }
+          if (!seen.add(real)) continue;
           files.add(FolderFile(path: path, uri: entity.path, isDirectory: true));
           await walk(entity, path);
         } else if (entity is File) {
@@ -147,10 +168,15 @@ class DesktopFolderAccess implements FolderAccess {
     return path;
   }
 
-  /// Writes [bytes] to a temporary file in [dir], named as Syncthing names
-  /// its own (`.syncthing.NAME.tmp`, not synced).
+  /// A new temporary file in [dir], named as Syncthing names its own
+  /// (`.syncthing.NAME.….tmp`, not synced), unique, so two writes never
+  /// share one.
+  File _tempFile(String dir, String name) =>
+      File(_join(dir, '.syncthing.$name.$pid.${_unique()}.tmp'));
+
   Future<File> _temp(String dir, String name, List<int> bytes) async {
-    final temp = File(_join(dir, '.syncthing.$name.tmp'));
+    final temp = _tempFile(dir, name);
+    await temp.create(exclusive: true);
     await temp.writeAsBytes(bytes, flush: true);
     return temp;
   }
@@ -158,23 +184,36 @@ class DesktopFolderAccess implements FolderAccess {
   @override
   Future<String> createFile(String dir, String name, Uint8List bytes) async {
     final path = _join(dir, name);
-    if (await FileSystemEntity.type(path) != FileSystemEntityType.notFound) {
-      throw PlatformException(code: 'exists', message: '$name exists already');
-    }
     File? temp;
+    var claimed = false;
     try {
       temp = await _temp(dir, name, bytes);
-      // Checked again just before the rename, which would replace a file.
-      if (await FileSystemEntity.type(path) != FileSystemEntityType.notFound) {
+      // The name is claimed with an empty file that only this call can
+      // make (`exclusive`): a file that is there, or one another program
+      // makes meanwhile, is never replaced. Then the full file is renamed
+      // over the empty one.
+      try {
+        await File(path).create(exclusive: true);
+      } on FileSystemException {
         throw PlatformException(
             code: 'exists', message: '$name exists already');
       }
+      claimed = true;
       await temp.rename(path);
+      claimed = false;
       return path;
     } on FileSystemException catch (e) {
       throw PlatformException(code: 'write_failed', message: e.message);
     } finally {
       if (temp != null && await temp.exists()) await temp.delete();
+      // A failed rename leaves the empty claim: it goes.
+      if (claimed) {
+        try {
+          if (await File(path).length() == 0) await File(path).delete();
+        } on FileSystemException {
+          // Gone already.
+        }
+      }
     }
   }
 
@@ -198,16 +237,46 @@ class DesktopFolderAccess implements FolderAccess {
     required Uint8List bytes,
   }) async {
     File? temp;
+    File? old;
     try {
       temp = await _temp(dir, name, bytes);
       await _checkHash(uri, expected);
-      // A rename over the old file: never half-written.
+      // As FolderAccess.kt: the old file is renamed aside first, and its
+      // hash checked again there, where no editor writes. A save that
+      // came between the first check and the rename is in it: then it is
+      // put back, and nothing is replaced.
+      old = _tempFile(dir, '$name.old');
+      await File(uri).rename(old.path);
+      if (sha256.convert(await old.readAsBytes()).toString() != expected) {
+        await _putBack(old, uri);
+        old = null;
+        throw PlatformException(
+            code: 'changed', message: '$name changed since it was read');
+      }
+      if (await FileSystemEntity.type(uri) != FileSystemEntityType.notFound) {
+        // Written anew in the moment it was aside: that one stays.
+        await old.delete();
+        old = null;
+        throw PlatformException(
+            code: 'changed', message: '$name changed since it was read');
+      }
       await temp.rename(uri);
+      await old.delete();
+      old = null;
       return uri;
     } on FileSystemException catch (e) {
+      if (old != null) await _putBack(old, uri);
+      old = null;
       throw PlatformException(code: 'write_failed', message: e.message);
     } finally {
       if (temp != null && await temp.exists()) await temp.delete();
+    }
+  }
+
+  /// Renames [old] back to [uri], unless a file is there now.
+  Future<void> _putBack(File old, String uri) async {
+    if (await FileSystemEntity.type(uri) == FileSystemEntityType.notFound) {
+      await old.rename(uri);
     }
   }
 
