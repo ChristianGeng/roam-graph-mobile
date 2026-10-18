@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -484,6 +485,91 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   AiSettings? _loaded;
   String? _problem;
 
+  /// Each provider's model IDs as its list has them now, to show a chosen
+  /// model that is gone (#113), with the connection they were fetched
+  /// with: API, base URL and typed key. A changed connection fetches again.
+  final _listed = <String, ({String connection, Set<String> ids})>{};
+
+  /// The providers whose list is being fetched.
+  final _checking = <String>{};
+
+  /// The providers to fetch again when the running fetch ends: the
+  /// connection changed meanwhile.
+  final _checkAgain = <String>{};
+
+  /// Waits for typing to stop before fetching with a changed connection.
+  Timer? _recheck;
+
+  String _connection(_Draft draft) =>
+      '${draft.api.name} ${draft.baseUrl.text.trim()} ${draft.key.text.trim()} '
+      '${draft.removeKey}';
+
+  /// The list of [id] when it was fetched with the connection the page
+  /// shows now; null otherwise.
+  Set<String>? _listedNow(String id) {
+    final entry = _listed[id];
+    final draft = _drafts[id];
+    if (entry == null || draft == null) return null;
+    return entry.connection == _connection(draft) ? entry.ids : null;
+  }
+
+  /// Fetches [id]'s list again after its base URL or key changed.
+  void _connectionChanged(String id) {
+    _recheck?.cancel();
+    _recheck = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) unawaited(_checkModels(id));
+    });
+  }
+
+  /// Fetches [id]'s list, with the key saved or typed in, unless it was
+  /// fetched with this connection already.
+  Future<void> _checkModels(String id) async {
+    final draft = _drafts[id];
+    if (draft == null) return;
+    if (_checking.contains(id)) {
+      _checkAgain.add(id);
+      return;
+    }
+    final connection = _connection(draft);
+    if (_listed[id]?.connection == connection) return;
+    _checking.add(id);
+    try {
+      await _fetchListed(id, draft, connection);
+    } finally {
+      _checking.remove(id);
+    }
+    if (_checkAgain.remove(id) && mounted) await _checkModels(id);
+  }
+
+  Future<void> _fetchListed(String id, _Draft draft, String connection) async {
+    final preset = presetById(id);
+    var key = draft.key.text.trim();
+    if (key.isEmpty && !draft.removeKey) {
+      try {
+        key = await AiSettingsScope.keysOf(context)?.read(id) ?? '';
+      } on Exception {
+        key = '';
+      }
+    }
+    if (key.isEmpty && preset.id != 'custom') return;
+    final listed = await listedModels(
+      provider: preset.name,
+      api: draft.api,
+      baseUrl: draft.baseUrl.text,
+      apiKey: key,
+      get: widget.get,
+    );
+    if (!mounted) return;
+    setState(() {
+      if (listed == null) {
+        // Not known: nothing is said, and a later check tries again.
+        _listed.remove(id);
+      } else {
+        _listed[id] = (connection: connection, ids: listed);
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -502,6 +588,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       if (mounted) {
         setState(() => _tags = TextEditingController(
             text: settings.hiddenTags.join(' ')));
+        unawaited(_checkModels(_provider));
       }
     });
   }
@@ -517,12 +604,19 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     } on Exception {
       key = null;
     }
-    return _drafts[id] ??= _Draft(
+    final known = _drafts[id];
+    if (known != null) return known;
+    final draft = _drafts[id] = _Draft(
         _loaded!.providerSettings(id), key != null && key.isNotEmpty);
+    // A new base URL or key: the list is fetched again (#113).
+    draft.baseUrl.addListener(() => _connectionChanged(id));
+    draft.key.addListener(() => _connectionChanged(id));
+    return draft;
   }
 
   @override
   void dispose() {
+    _recheck?.cancel();
     _tags?.dispose();
     _rounds.dispose();
     _tokens.dispose();
@@ -537,6 +631,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   Future<void> _choose(String id) async {
     await _draft(id);
     if (mounted) setState(() => _provider = id);
+    if (mounted) unawaited(_checkModels(id));
   }
 
   Future<void> _save() async {
@@ -676,6 +771,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           ),
         );
         if (id != null && mounted) setState(() => field.text = id);
+        // The list is fetched now: check the models against it.
+        if (mounted) {
+          unawaited(_checkModels(preset.id));
+        }
       },
     );
   }
@@ -775,22 +874,36 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         keyboardType: TextInputType.url,
         decoration: const InputDecoration(labelText: 'Base URL'),
       ),
-      TextField(
-        key: ValueKey('default-model-${preset.id}'),
-        controller: draft.defaultModel,
-        decoration: InputDecoration(
-          labelText: 'Model',
-          helperText: 'The model a chat starts with.',
-          suffixIcon: _chooseModel(preset, draft, draft.defaultModel, 'default'),
+      ListenableBuilder(
+        listenable: draft.defaultModel,
+        builder: (context, _) => TextField(
+          key: ValueKey('default-model-${preset.id}'),
+          controller: draft.defaultModel,
+          decoration: InputDecoration(
+            labelText: 'Model',
+            helperText: 'The model a chat starts with.',
+            errorText: modelGoneMessage(
+                preset.name, draft.defaultModel.text, _listedNow(preset.id)),
+            errorMaxLines: 3,
+            suffixIcon:
+                _chooseModel(preset, draft, draft.defaultModel, 'default'),
+          ),
         ),
       ),
-      TextField(
-        key: ValueKey('strong-model-${preset.id}'),
-        controller: draft.strongModel,
-        decoration: InputDecoration(
-          labelText: 'Strong model (optional)',
-          helperText: 'A stronger model the chat can switch to.',
-          suffixIcon: _chooseModel(preset, draft, draft.strongModel, 'strong'),
+      ListenableBuilder(
+        listenable: draft.strongModel,
+        builder: (context, _) => TextField(
+          key: ValueKey('strong-model-${preset.id}'),
+          controller: draft.strongModel,
+          decoration: InputDecoration(
+            labelText: 'Strong model (optional)',
+            helperText: 'A stronger model the chat can switch to.',
+            errorText: modelGoneMessage(
+                preset.name, draft.strongModel.text, _listedNow(preset.id)),
+            errorMaxLines: 3,
+            suffixIcon:
+                _chooseModel(preset, draft, draft.strongModel, 'strong'),
+          ),
         ),
       ),
       _resetModels(preset, draft),

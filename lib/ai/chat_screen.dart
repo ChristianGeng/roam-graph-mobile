@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
@@ -18,6 +20,7 @@ import '../graph/roam_graph.dart';
 import '../node_view/web_links.dart';
 import 'agent_tools.dart';
 import 'ai_chat.dart';
+import 'ai_models.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
 import 'edit_tools.dart';
@@ -43,7 +46,12 @@ class ChatScreen extends StatefulWidget {
     this.agentLog = const FileAgentLog(),
     this.searchText,
     this.openUrl = openUrlOnDevice,
+    this.getModels = getWithDartIo,
   });
+
+  /// HTTP for the provider's model list, to tell when the chosen model is
+  /// gone (#113); tests replace it.
+  final HttpGet getModels;
 
   /// Opens web, mail and phone links in answers in another app (#108).
   final UrlOpener openUrl;
@@ -107,6 +115,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sending = false;
   String? _error;
   String? _setupProblem;
+
+  /// Set when the chosen model is not in the provider's list now (#113).
+  String? _modelGone;
 
   /// Whether the node the chat starts from may be named to the AI: not
   /// when it is hidden from AI (#57).
@@ -234,6 +245,7 @@ class _ChatScreenState extends State<ChatScreen> {
           : config.keyRequired && config.apiKey.isEmpty
           ? 'Enter the API key for ${config.name} in AI settings.'
           : null;
+      _modelGone = null;
       final editor = widget.writer?.editor;
       // What the AI may change, as AI settings say, and only where notes
       // can be saved.
@@ -277,6 +289,31 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             );
     });
+    if (_setupProblem == null && config != null) {
+      unawaited(_checkModel(config, config.model));
+    }
+  }
+
+  /// Checks the chat's model against the provider's list as it is now,
+  /// without holding up the chat; a model that is gone is named, with the
+  /// way to AI settings (#113).
+  ///
+  /// The chat stays usable: a list may lack a model that still works, such
+  /// as an alias, so the provider has the last word.
+  Future<void> _checkModel(ProviderConfig config, String model) async {
+    final listed = await listedModels(
+      provider: config.name,
+      api: config.api,
+      baseUrl: config.baseUrl,
+      apiKey: config.apiKey,
+      get: widget.getModels,
+    );
+    // Only for the chat and the model in use now.
+    if (!mounted || _config != config || _session?.config.model != model) {
+      return;
+    }
+    final gone = modelGoneMessage(config.name, model, listed);
+    setState(() => _modelGone = gone);
   }
 
   /// What the first message says about the node the chat came from.
@@ -551,7 +588,16 @@ class _ChatScreenState extends State<ChatScreen> {
               tooltip: 'Model',
               icon: const Icon(Icons.tune),
               initialValue: model,
-              onSelected: (m) => setState(() => session.model = m),
+              onSelected: (m) {
+                setState(() {
+                  session.model = m;
+                  _modelGone = null;
+                });
+                // The switched-to model is checked too (#113).
+                if (_config case final config?) {
+                  unawaited(_checkModel(config, m));
+                }
+              },
               itemBuilder: (_) => [
                 PopupMenuItem(
                   value: _defaultModel,
@@ -601,6 +647,23 @@ class _ChatScreenState extends State<ChatScreen> {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final children = <Widget>[];
+    if (_modelGone case final gone? when _setupProblem == null) {
+      children.add(
+        Card(
+          key: const ValueKey('chat-model-gone'),
+          child: ListTile(
+            title: Text(gone),
+            trailing: TextButton(
+              onPressed: () async {
+                await AiSettingsScreen.open(context);
+                if (mounted) _start();
+              },
+              child: const Text('AI settings'),
+            ),
+          ),
+        ),
+      );
+    }
     if (_setupProblem case final problem?) {
       children.add(
         Card(
