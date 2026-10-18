@@ -94,16 +94,21 @@ update() {
       exit 1
       ;;
   esac
-  digest=$(tr '{' '\n' < "$WORK/release.json" | grep -F "\"$url\"" |
+  # The JSON is printed over many lines: flattened first, then cut at
+  # each "{", so the asset's digest is on the line with its URL.
+  digest=$(tr -d '\n\r' < "$WORK/release.json" | tr '{' '\n' |
+    grep -F "\"$url\"" |
     sed -n 's/.*"digest": *"sha256:\([0-9a-f]*\)".*/\1/p' | head -n 1)
+  if [ -z "$digest" ]; then
+    echo "The release gives no SHA-256 for the package; nothing is installed." >&2
+    exit 1
+  fi
   echo "Downloading $url"
   $fetch "$url" -o "$WORK/roam-graph.tar.gz"
-  if [ -n "$digest" ]; then
-    actual=$(sha256sum "$WORK/roam-graph.tar.gz" | cut -d ' ' -f 1)
-    if [ "$actual" != "$digest" ]; then
-      echo "The download does not match its SHA-256; nothing is installed." >&2
-      exit 1
-    fi
+  actual=$(sha256sum "$WORK/roam-graph.tar.gz" | cut -d ' ' -f 1)
+  if [ "$actual" != "$digest" ]; then
+    echo "The download does not match its SHA-256; nothing is installed." >&2
+    exit 1
   fi
   # Only plain files and folders under bundle/: no absolute paths, no
   # "..", no links, so nothing is written outside the work folder.
