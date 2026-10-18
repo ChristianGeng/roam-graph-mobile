@@ -6,6 +6,8 @@ library;
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../platform/desktop.dart';
+
 /// Opens [uri] in another app; false if no app can.
 typedef UrlOpener = Future<bool> Function(Uri uri);
 
@@ -43,6 +45,8 @@ const _channel = MethodChannel('roam_graph/folder');
 /// [UrlOpener] through `openUrl` in `FolderAccess.kt`, Android's
 /// `ACTION_VIEW`.
 Future<bool> openUrlOnDevice(Uri uri) async {
+  // The desktop's browser (#116).
+  if (isDesktop) return openUrlOnDesktop(uri);
   try {
     return await _channel.invokeMethod<bool>(
             'openUrl', {'url': uri.toString()}) ??

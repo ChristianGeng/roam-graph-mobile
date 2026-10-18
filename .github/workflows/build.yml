@@ -213,6 +213,50 @@ jobs:
             release-notes.md
           if-no-files-found: error
 
+  linux:
+    # The desktop app for Linux (#116): the same code, built on Ubuntu, as
+    # a tarball of the bundle. Branches and pull requests build it too, so
+    # a change that breaks the desktop shows before it is merged.
+    needs: build
+    # Pinned: the package names below are those of Ubuntu 24.04.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install the Linux build tools
+        # GTK for the window, libsecret for the API keys
+        # (flutter_secure_storage).
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
+            libsecret-1-dev
+
+      - name: Build the Linux app
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          flutter build linux --release \
+            --build-name="$VERSION" \
+            --dart-define=APP_VERSION="$VERSION"
+          tar -C build/linux/x64/release -czf \
+            "roam-graph-$VERSION-linux-x64.tar.gz" bundle
+
+      - name: Keep the Linux app as a build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linux
+          path: roam-graph-*-linux-x64.tar.gz
+          if-no-files-found: error
+
   org-roam:
     # Rebuilds the expected data from the sample files with real org-roam
     # and checks it matches the committed file, so the parser is compared
@@ -238,7 +282,7 @@ jobs:
             test/fixtures/org_roam_expected_tables.json
 
   release:
-    needs: [build, org-roam]
+    needs: [build, linux, org-roam]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -247,6 +291,10 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: apk
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: linux
 
       - name: Publish the GitHub release
         # A new release starts as a draft with the APK attached and is
@@ -259,12 +307,13 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: v${{ needs.build.outputs.version }}
           APK: roam-graph-${{ needs.build.outputs.version }}.apk
+          LINUX: roam-graph-${{ needs.build.outputs.version }}-linux-x64.tar.gz
         run: |
           if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" --clobber
+            gh release upload "$TAG" "$APK" "$LINUX" --clobber
             gh release edit "$TAG" --notes-file release-notes.md
           else
-            gh release create "$TAG" "$APK" \
+            gh release create "$TAG" "$APK" "$LINUX" \
               --draft \
               --target "${{ github.sha }}" \
               --title "$TAG" \

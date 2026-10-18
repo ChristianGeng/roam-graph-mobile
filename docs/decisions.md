@@ -1838,6 +1838,35 @@ devices through Syncthing.
       shows it inline (#46).
     - **Not yet:** the agent's `create_image` tool, a follow-up under
       #112.
+71. **The desktop app: the same Flutter app** (#116). On the notebook
+    (Ubuntu first, then Windows and macOS) the graph, layouts, search,
+    note view, AI and edits are the same code. org-roam-ui was looked at:
+    it needs Emacs running, only views, and has had no real change since
+    November 2022.
+    - **Platform folders** `linux/`, `windows/`, `macos/` were made once by
+      `flutter create` with the pinned Flutter, in CI, as the SDK runs only
+      there. App ID `io.github.christiangeng.roamgraph`, named Roam Graph.
+    - **The notes folder** is a plain folder (`DesktopFolderAccess`,
+      `dart:io`), picked once with the system's picker (`file_selector`)
+      and remembered in `folder.json` in the app's folder. Its rules are
+      Android's: new files through a temporary file, never over another; a
+      replace or delete only over the version read, its SHA-256 checked
+      just before (decision 10). On the notebook the folder is the
+      original Emacs edits; Emacs reloads a changed file with
+      `global-auto-revert-mode`, else it asks.
+    - **"Open in Emacs"** instead of "Open in Orgro":
+      `emacsclient -n -a emacs +LINE FILE`, at the node's heading; without
+      a running server, Emacs itself starts. The command is a setting
+      (`emacsclientw.exe` on Windows by default). No shell is used, so a
+      file name stays one argument.
+    - **Links** open with `xdg-open`, `open` or Windows' URL handler;
+      **sharing to an AI app** copies the text to the clipboard; text
+      shared into the app does not exist there.
+    - **Which code runs** is told by `defaultTargetPlatform`, so widget
+      tests, which run as Android, can test the desktop too.
+    - **Builds:** CI builds the Linux bundle on Ubuntu 24.04 for every pull
+      request and attaches `roam-graph-<version>-linux-x64.tar.gz` to each
+      release. Windows and macOS follow under #116.
 
 ## Recommended, not decided
 
