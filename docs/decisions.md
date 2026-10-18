@@ -1853,7 +1853,16 @@ devices through Syncthing.
       replace or delete only over the version read, its SHA-256 checked
       just before (decision 10). On the notebook the folder is the
       original Emacs edits; Emacs reloads a changed file with
-      `global-auto-revert-mode`, else it asks.
+      `global-auto-revert-mode`, else it asks. A new file claims its name
+      with an exclusive empty file before the full one is renamed over it;
+      a replace renames the old file aside and checks its hash again
+      there, so a save by Emacs in between is put back, not lost.
+      Temporary names are unique. Symbolic links are followed, as
+      org-roam's file list (`find -L`), and a folder seen once is not
+      entered again.
+    - **macOS** runs without the App Sandbox: the folder stays readable
+      after a restart, Emacs starts, the AI providers are reached. The
+      app is not sold through the App Store.
     - **"Open in Emacs"** instead of "Open in Orgro":
       `emacsclient -n -a emacs +LINE FILE`, at the node's heading; without
       a running server, Emacs itself starts. The command is a setting
