@@ -8,6 +8,16 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-18: The model list shows only models the chat can use ([#111](https://github.com/ChristianGeng/roam-graph-mobile/pull/111))
+
+- Changed: "Choose model" in AI settings now lists only chat models that
+  call tools, which the chat needs to read and change notes. Embedding,
+  image, speech and similar models are hidden.
+- Where a provider does not say which models call tools, its chat models
+  are shown, marked "tools not known".
+- "Also other models" still shows every model.
+- Closes [#110](https://github.com/ChristianGeng/roam-graph-mobile/issues/110).
+
 ## 2026-10-17: Web links open in the browser ([#109](https://github.com/ChristianGeng/roam-graph-mobile/pull/109))
 
 - Added: web links in notes and in the AI chat open in your browser,

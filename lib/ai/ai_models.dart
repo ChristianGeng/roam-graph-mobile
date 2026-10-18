@@ -44,6 +44,7 @@ class ModelInfo {
     this.id, {
     this.name,
     this.tools,
+    this.chat,
     this.inputPrice,
     this.outputPrice,
     this.regions,
@@ -57,6 +58,11 @@ class ModelInfo {
   /// Whether the model can call tools, which the chat needs; null when the
   /// list does not say.
   final bool? tools;
+
+  /// Whether it is a chat model, which answers in text (#110): false for
+  /// embedding, image, speech, rerank and moderation models; null when
+  /// neither the list nor the name says.
+  final bool? chat;
 
   /// US dollars per million tokens, in and out; null when not given.
   final double? inputPrice;
@@ -116,6 +122,23 @@ List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
     }
     final pricing = entry['pricing'];
     final regions = entry['regions'];
+    final architecture = entry['architecture'];
+    final outputs =
+        architecture is Map ? architecture['output_modalities'] : null;
+    final type = entry['type'];
+    bool? chat;
+    if (type is String) {
+      // Vercel: language, embedding, image, …
+      chat = type == 'language' || type == 'chat';
+    } else if (outputs is List) {
+      // OpenRouter: what the model gives back.
+      chat = outputs.contains('text');
+    } else if (capabilities is Map &&
+        capabilities['completion_chat'] is bool) {
+      chat = capabilities['completion_chat'] as bool;
+    }
+    // Where the list says nothing, the name may.
+    chat ??= notChatName.hasMatch(id) ? false : null;
     models.add(
       ModelInfo(
         id,
@@ -124,6 +147,7 @@ List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
           _ => null,
         },
         tools: tools,
+        chat: chat,
         inputPrice: pricing is Map
             ? perMillion(pricing['input'] ?? pricing['prompt'])
             : null,
@@ -137,6 +161,18 @@ List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
   models.sort((a, b) => a.id.compareTo(b.id));
   return models;
 }
+
+/// Names of models that do not chat: embedding, speech, image, rerank,
+/// moderation and OCR models. Read only where the list does not say.
+final notChatName = RegExp(
+  r'(^|[/:_.-])('
+  r'embed|embedding|embeddings|text-embedding|bge|e5|gte|nomic-embed|'
+  r'whisper|tts|speech|transcribe|transcription|audio|'
+  r'dall-e|gpt-image|imagen|image|flux|stable-diffusion|sdxl|'
+  r'rerank|reranker|moderation|guard|ocr'
+  r')([/:_.-]|\d|$)',
+  caseSensitive: false,
+);
 
 /// Model lists fetched this session, by provider, base URL and key.
 final _cache = <String, List<ModelInfo>>{};
