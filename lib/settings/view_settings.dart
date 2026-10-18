@@ -211,7 +211,8 @@ String? cleanImageFolder(String folder) {
   if (folder.trim() == '.') return '.';
   if (parts.isEmpty) return null;
   for (final part in parts) {
-    if (part == '..' || RegExp(r'[\\:*?"<>|]').hasMatch(part) ||
+    // Also no brackets: they end an Org link.
+    if (part == '..' || RegExp(r'[\\:*?"<>|\[\]]').hasMatch(part) ||
         part.startsWith('.')) {
       return null;
     }

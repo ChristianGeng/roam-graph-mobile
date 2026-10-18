@@ -530,6 +530,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   /// The providers whose list is being fetched.
   final _checking = <String>{};
 
+  /// The providers to fetch again when the running fetch ends: the
+  /// connection changed meanwhile.
+  final _checkAgain = <String>{};
+
   /// Waits for typing to stop before fetching with a changed connection.
   Timer? _recheck;
 
@@ -558,7 +562,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   /// fetched with this connection already.
   Future<void> _checkModels(String id) async {
     final draft = _drafts[id];
-    if (draft == null || _checking.contains(id)) return;
+    if (draft == null) return;
+    if (_checking.contains(id)) {
+      _checkAgain.add(id);
+      return;
+    }
     final connection = _connection(draft);
     if (_listed[id]?.connection == connection) return;
     _checking.add(id);
@@ -567,6 +575,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     } finally {
       _checking.remove(id);
     }
+    if (_checkAgain.remove(id) && mounted) await _checkModels(id);
   }
 
   Future<void> _fetchListed(String id, _Draft draft, String connection) async {

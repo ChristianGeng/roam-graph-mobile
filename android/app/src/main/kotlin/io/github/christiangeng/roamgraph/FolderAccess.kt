@@ -204,6 +204,23 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
         }
         val made = DocumentsContract.createDocument(resolver, parent, Document.MIME_TYPE_DIR, name)
             ?: throw IllegalStateException("Could not make the folder $name")
+        // A provider may change the name, for example to "name (1)": then
+        // the note's link would point elsewhere.
+        val madeName = resolver.query(
+            made,
+            arrayOf(Document.COLUMN_DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { if (it.moveToFirst()) it.getString(0) else null }
+        if (madeName != name) {
+            try {
+                DocumentsContract.deleteDocument(resolver, made)
+            } catch (_: Exception) {
+                // Left for the user; the error names it.
+            }
+            throw IllegalStateException("The folder $name was made as $madeName")
+        }
         return made.toString()
     }
 

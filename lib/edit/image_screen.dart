@@ -118,6 +118,11 @@ class _ImageScreenState extends State<ImageScreen> {
             settings.visibility.hidesInText(widget.node, text.text))) {
       return 'This note is hidden from AI; nothing was sent.';
     }
+    // A new attempt: the image shown before is not saved by mistake.
+    setState(() {
+      _image = null;
+      _madeFrom = '';
+    });
     final config = await imageConfig(settings, keys);
     if (config == null) {
       return '${settings.preset.name} cannot make images in the app. '
@@ -145,7 +150,9 @@ class _ImageScreenState extends State<ImageScreen> {
     final createFile = widget.writer.createFile;
     if (image == null || editor == null || createFile == null) return null;
     final node = widget.node;
-    final view = await ViewSettingsScope.current(context);
+    // The saved folder, also when the settings file loads slowly.
+    final view = await ViewSettingsScope.current(context,
+        limit: const Duration(seconds: 10));
     if (!mounted) return null;
     final base = await editor.read(node.file);
     if (base == null) return 'Could not read ${node.file}.';
@@ -178,13 +185,19 @@ class _ImageScreenState extends State<ImageScreen> {
         imageAddition(_madeFrom, relativeLink(node.file, path)));
     final result = await editor.save(node.file, base, after);
     if (!mounted) return null;
-    final message = saveMessage(result, node.file);
-    if (message != null) {
-      return 'The image is saved as roam/$path, but the note was not '
-          'changed: $message';
+    switch (result) {
+      case Saved() || NothingToSave():
+        Navigator.of(context).pop('Added the image to ${node.displayTitle}.');
+        return null;
+      case SavedNotIndexed():
+        // Saved: the screen closes, so the image is not added twice.
+        Navigator.of(context).pop('Added the image to ${node.displayTitle}. '
+            '${saveMessage(result, node.file)}');
+        return null;
+      default:
+        return 'The image is saved as roam/$path, but the note was not '
+            'changed: ${saveMessage(result, node.file)}';
     }
-    Navigator.of(context).pop('Added the image to ${node.displayTitle}.');
-    return null;
   }
 
   @override
