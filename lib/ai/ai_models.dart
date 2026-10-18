@@ -299,3 +299,35 @@ Future<Object?> _getList(
 
 /// Forgets the lists of this session, for tests.
 void clearModelCache() => _cache.clear();
+
+/// The IDs in the provider's list as it is now, to check a chosen model
+/// against (#113); null when the list cannot be fetched, for example
+/// offline or without a key. Uses the session's cache, as [fetchModels].
+Future<Set<String>?> listedModels({
+  required String provider,
+  required ApiKind api,
+  required String baseUrl,
+  required String apiKey,
+  HttpGet get = getWithDartIo,
+}) async {
+  try {
+    final models = await fetchModels(
+        provider: provider,
+        api: api,
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+        get: get);
+    return models.isEmpty ? null : {for (final m in models) m.id};
+  } on Object {
+    return null;
+  }
+}
+
+/// What to say when [model] is not in [listed], the provider's list as it
+/// is now; null when it is there, or when the list or the model is not
+/// known.
+String? modelGoneMessage(String provider, String model, Set<String>? listed) {
+  final id = model.trim();
+  if (listed == null || id.isEmpty || listed.contains(id)) return null;
+  return '$id is not in $provider\'s model list now. Choose another model.';
+}

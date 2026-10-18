@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -484,6 +485,36 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   AiSettings? _loaded;
   String? _problem;
 
+  /// Each provider's model IDs as its list has them now, to show a chosen
+  /// model that is gone (#113); null where the list cannot be fetched.
+  final _listed = <String, Set<String>?>{};
+
+  /// Fetches [id]'s list once, with the key saved or typed in.
+  Future<void> _checkModels(String id) async {
+    if (_listed.containsKey(id)) return;
+    _listed[id] = null;
+    final draft = _drafts[id];
+    if (draft == null) return;
+    final preset = presetById(id);
+    var key = draft.key.text.trim();
+    if (key.isEmpty && !draft.removeKey) {
+      try {
+        key = await AiSettingsScope.keysOf(context)?.read(id) ?? '';
+      } on Exception {
+        key = '';
+      }
+    }
+    if (key.isEmpty && preset.id != 'custom') return;
+    final listed = await listedModels(
+      provider: preset.name,
+      api: draft.api,
+      baseUrl: draft.baseUrl.text,
+      apiKey: key,
+      get: widget.get,
+    );
+    if (mounted && listed != null) setState(() => _listed[id] = listed);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -502,6 +533,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       if (mounted) {
         setState(() => _tags = TextEditingController(
             text: settings.hiddenTags.join(' ')));
+        unawaited(_checkModels(_provider));
       }
     });
   }
@@ -537,6 +569,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   Future<void> _choose(String id) async {
     await _draft(id);
     if (mounted) setState(() => _provider = id);
+    if (mounted) unawaited(_checkModels(id));
   }
 
   Future<void> _save() async {
@@ -676,6 +709,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           ),
         );
         if (id != null && mounted) setState(() => field.text = id);
+        // The list is fetched now: check the models against it.
+        if (mounted) {
+          _listed.remove(preset.id);
+          unawaited(_checkModels(preset.id));
+        }
       },
     );
   }
@@ -775,22 +813,36 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         keyboardType: TextInputType.url,
         decoration: const InputDecoration(labelText: 'Base URL'),
       ),
-      TextField(
-        key: ValueKey('default-model-${preset.id}'),
-        controller: draft.defaultModel,
-        decoration: InputDecoration(
-          labelText: 'Model',
-          helperText: 'The model a chat starts with.',
-          suffixIcon: _chooseModel(preset, draft, draft.defaultModel, 'default'),
+      ListenableBuilder(
+        listenable: draft.defaultModel,
+        builder: (context, _) => TextField(
+          key: ValueKey('default-model-${preset.id}'),
+          controller: draft.defaultModel,
+          decoration: InputDecoration(
+            labelText: 'Model',
+            helperText: 'The model a chat starts with.',
+            errorText: modelGoneMessage(
+                preset.name, draft.defaultModel.text, _listed[preset.id]),
+            errorMaxLines: 3,
+            suffixIcon:
+                _chooseModel(preset, draft, draft.defaultModel, 'default'),
+          ),
         ),
       ),
-      TextField(
-        key: ValueKey('strong-model-${preset.id}'),
-        controller: draft.strongModel,
-        decoration: InputDecoration(
-          labelText: 'Strong model (optional)',
-          helperText: 'A stronger model the chat can switch to.',
-          suffixIcon: _chooseModel(preset, draft, draft.strongModel, 'strong'),
+      ListenableBuilder(
+        listenable: draft.strongModel,
+        builder: (context, _) => TextField(
+          key: ValueKey('strong-model-${preset.id}'),
+          controller: draft.strongModel,
+          decoration: InputDecoration(
+            labelText: 'Strong model (optional)',
+            helperText: 'A stronger model the chat can switch to.',
+            errorText: modelGoneMessage(
+                preset.name, draft.strongModel.text, _listed[preset.id]),
+            errorMaxLines: 3,
+            suffixIcon:
+                _chooseModel(preset, draft, draft.strongModel, 'strong'),
+          ),
         ),
       ),
       _resetModels(preset, draft),
