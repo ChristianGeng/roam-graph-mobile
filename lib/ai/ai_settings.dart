@@ -961,14 +961,20 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         ),
       ),
       if (preset.makesImages) ...[
-        TextField(
-          key: ValueKey('image-model-${preset.id}'),
-          controller: draft.imageModel,
-          decoration: InputDecoration(
-            labelText: 'Image model (optional)',
-            helperText: 'For "Create image" in a note\'s edit menu.',
-            suffixIcon:
-                _chooseModel(preset, draft, draft.imageModel, 'image'),
+        ListenableBuilder(
+          listenable: draft.imageModel,
+          builder: (context, _) => TextField(
+            key: ValueKey('image-model-${preset.id}'),
+            controller: draft.imageModel,
+            decoration: InputDecoration(
+              labelText: 'Image model (optional)',
+              helperText: 'For "Create image" in a note\'s edit menu.',
+              errorText: modelGoneMessage(
+                  preset.name, draft.imageModel.text, _listedNow(preset.id)),
+              errorMaxLines: 3,
+              suffixIcon:
+                  _chooseModel(preset, draft, draft.imageModel, 'image'),
+            ),
           ),
         ),
         DropdownButtonFormField<ImageApi>(
