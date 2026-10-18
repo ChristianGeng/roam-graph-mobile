@@ -1779,6 +1779,22 @@ devices through Syncthing.
     - **The address shows:** a snack bar names the address that opens,
       with "Copy", so a link whose text hides its address can be checked;
       it says so when no app can open it.
+68. **The model list shows what the chat can use** (#110),
+    `lib/ai/model_picker.dart`. Lists were long, with embedding, image and
+    speech models, and models the list says nothing about.
+    - **By default:** chat models only, and where the list says which
+      models call tools, only those that do. The chat needs a chat model
+      with tools to read and change notes.
+    - **Chat or not:** from the list where it says (Vercel's `type`,
+      OpenRouter's `architecture.output_modalities`, Mistral's
+      `capabilities.completion_chat`); where it does not, from the name
+      (`embed`, `whisper`, `tts`, `rerank`, `guard`, `ocr`, image models,
+      …), so a chat model is never hidden by its name when the list says
+      it chats.
+    - **Lists without tool info** (DeepSeek, Qwen, Scaleway, many custom
+      servers): their chat models are shown, marked "tools not known".
+    - **Nothing is lost:** "Also other models (N)" shows every model, and
+      a model can still be typed in.
 
 ## Recommended, not decided
 

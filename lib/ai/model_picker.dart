@@ -90,10 +90,16 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
       for (final w in _query.text.toLowerCase().split(RegExp(r'\s+')))
         if (w.isNotEmpty) w,
     ];
+    // By default only what the chat can use (#110): chat models, and where
+    // the list says which call tools, only those that do. A list that
+    // never says shows its chat models, marked.
+    bool usable(ModelInfo m) =>
+        m.chat != false && (!knowsTools || m.tools == true);
+    final hidden =
+        (models ?? const <ModelInfo>[]).where((m) => !usable(m)).length;
     final shown = [
       for (final m in models ?? const <ModelInfo>[])
-        // A model the list says nothing about is shown: it may call tools.
-        if (_all || !knowsTools || m.tools != false)
+        if (_all || usable(m))
           if (words.every('${m.id} ${m.name ?? ''}'.toLowerCase().contains)) m,
     ];
     return Scaffold(
@@ -129,15 +135,24 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                if (knowsTools)
+                if (hidden > 0)
                   SwitchListTile(
                     key: const ValueKey('model-all'),
                     value: _all,
                     onChanged: (on) => setState(() => _all = on),
-                    title: const Text('Also models without tools'),
+                    title: Text('Also other models ($hidden)'),
                     subtitle: const Text(
-                      'The chat needs tools; '
-                      'without them, a model cannot read the notes.',
+                      'Models without tools, and models that do not chat, '
+                      'such as embedding or image models. The chat needs a '
+                      'chat model that calls tools to read and change notes.',
+                    ),
+                  ),
+                if (!knowsTools)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: Text(
+                      'This list does not say which models call tools; '
+                      'a model without them cannot read the notes.',
                     ),
                   ),
                 if (widget.euOnly && !knowsRegions)
@@ -175,7 +190,10 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
                           '\$${_price(m.inputPrice!)} in, '
                               '\$${_price(m.outputPrice!)} out per '
                               'million tokens',
+                        if (m.chat == false) 'no chat model',
                         if (m.tools == false) 'no tools',
+                        if (m.tools == null && m.chat != false)
+                          'tools not known',
                         if (noEu) 'no EU route: fails with "EU only"',
                       ].join(' · ');
                       return ListTile(

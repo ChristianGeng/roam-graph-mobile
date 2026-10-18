@@ -146,6 +146,60 @@ void main() {
     });
   });
 
+  test('chat models, from the list or the name (#110)', () {
+    final models = readModelList({
+      'data': [
+        // Vercel's type.
+        {'id': 'v/chat', 'type': 'language', 'tags': ['tool-use']},
+        {'id': 'v/vectors', 'type': 'embedding'},
+        // OpenRouter's output modalities.
+        {
+          'id': 'r/chat',
+          'architecture': {'output_modalities': ['text']},
+          'supported_parameters': ['tools'],
+        },
+        {
+          'id': 'r/painter',
+          'architecture': {'output_modalities': ['image']},
+        },
+        // Mistral's capabilities.
+        {
+          'id': 'mistral-ocr-latest',
+          'capabilities': {'completion_chat': false, 'function_calling': false},
+        },
+        // Only the name says.
+        {'id': 'text-embedding-v4'},
+        {'id': 'whisper-large-v3'},
+        {'id': 'qwen-tts'},
+        {'id': 'bge-m3'},
+        {'id': 'llama-guard-4'},
+        {'id': 'imagen-4'},
+        {'id': 'qwen3.8-max'},
+        {'id': 'mistral-medium-2505'},
+        {'id': 'deepseek-v4-pro'},
+      ],
+    }, api: ApiKind.openAi);
+    final chat = {for (final m in models) m.id: m.chat};
+    expect(chat['v/chat'], isTrue);
+    expect(chat['v/vectors'], isFalse);
+    expect(chat['r/chat'], isTrue);
+    expect(chat['r/painter'], isFalse);
+    expect(chat['mistral-ocr-latest'], isFalse);
+    for (final id in [
+      'text-embedding-v4',
+      'whisper-large-v3',
+      'qwen-tts',
+      'bge-m3',
+      'llama-guard-4',
+      'imagen-4',
+    ]) {
+      expect(chat[id], isFalse, reason: id);
+    }
+    for (final id in ['qwen3.8-max', 'mistral-medium-2505', 'deepseek-v4-pro']) {
+      expect(chat[id], isNull, reason: id);
+    }
+  });
+
   group('fetching', () {
     test('OpenAI-compatible: GET <base>/models with the key; kept for the '
         'session', () async {
@@ -311,5 +365,67 @@ void main() {
         find.byKey(const ValueKey('default-model-vercel')));
     expect(field.controller!.text, 'anthropic/claude-sonnet-5.5');
     expect(get.requests.single.$2['authorization'], 'Bearer v-key');
+  });
+
+  testWidgets('a list without tool info shows its chat models, marked',
+      (tester) async {
+    final store = MemoryAiSettingsStore(const AiSettings(provider: 'qwen'));
+    final keys = MemoryKeyStore()..keys['qwen'] = 'q-key';
+    final get = FakeGet([
+      {
+        'data': [
+          {'id': 'qwen3.8-max'},
+          {'id': 'text-embedding-v4'},
+          {'id': 'qwen-tts'},
+        ],
+      },
+    ]);
+    await tester.pumpWidget(AiSettingsHost(
+      store: store,
+      keys: keys,
+      child: MaterialApp(home: AiSettingsScreen(get: get.call)),
+    ));
+    await tester.pumpAndSettle();
+    final choose = find.byKey(const ValueKey('choose-default-qwen'));
+    await scrollTo(tester, choose);
+    await tester.tap(choose);
+    await tester.pumpAndSettle();
+    expect(find.text('1 of 3 models'), findsOneWidget);
+    expect(find.text('tools not known'), findsOneWidget);
+    expect(find.textContaining('does not say which models call tools'),
+        findsOneWidget);
+    expect(find.text('Also other models (2)'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('model-all')));
+    await tester.pumpAndSettle();
+    expect(find.text('3 of 3 models'), findsOneWidget);
+    expect(find.text('no chat model'), findsNWidgets(2));
+  });
+
+  testWidgets('where the list says which call tools, unknown ones are hidden',
+      (tester) async {
+    final store = MemoryAiSettingsStore(const AiSettings(provider: 'openrouter'));
+    final keys = MemoryKeyStore()..keys['openrouter'] = 'o-key';
+    final get = FakeGet([
+      {
+        'data': [
+          {'id': 'a/tools', 'supported_parameters': ['tools']},
+          {'id': 'b/unknown'},
+          {'id': 'c/none', 'supported_parameters': ['temperature']},
+        ],
+      },
+    ]);
+    await tester.pumpWidget(AiSettingsHost(
+      store: store,
+      keys: keys,
+      child: MaterialApp(home: AiSettingsScreen(get: get.call)),
+    ));
+    await tester.pumpAndSettle();
+    final choose = find.byKey(const ValueKey('choose-default-openrouter'));
+    await scrollTo(tester, choose);
+    await tester.tap(choose);
+    await tester.pumpAndSettle();
+    expect(find.text('1 of 3 models'), findsOneWidget);
+    expect(find.byKey(const ValueKey('model-a/tools')), findsOneWidget);
+    expect(find.text('Also other models (2)'), findsOneWidget);
   });
 }
