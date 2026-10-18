@@ -41,10 +41,11 @@ void main() {
     expect(await openUrlOnDesktop(Uri.parse('file:///etc/passwd'), start: start),
         isFalse);
     debugDefaultTargetPlatformOverride = null;
-    expect(runs, [
-      ('xdg-open', ['https://example.org/a?b=1&c=2']),
-      ('open', ['https://example.org/a?b=1&c=2']),
-      ('rundll32', ['url.dll,FileProtocolHandler', 'https://example.org/a?b=1&c=2']),
+    // Lists compare by identity in a record: compared as text.
+    expect([for (final (exe, args) in runs) '$exe ${args.join(' | ')}'], [
+      'xdg-open https://example.org/a?b=1&c=2',
+      'open https://example.org/a?b=1&c=2',
+      'rundll32 url.dll,FileProtocolHandler | https://example.org/a?b=1&c=2',
     ]);
   });
 }
