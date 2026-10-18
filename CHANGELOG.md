@@ -8,6 +8,16 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-18: The app on Linux ([#118](https://github.com/ChristianGeng/roam-graph-mobile/pull/118))
+
+- Added: a Linux build of the app with every release
+  (`roam-graph-<version>-linux-x64.tar.gz`); see docs/releases.md. It
+  reads the notes folder directly, and "Open in Emacs" opens a note at
+  its heading with `emacsclient`, a command set in Settings.
+- On Linux, links open in the browser, and "Share with AI" copies the
+  text to the clipboard.
+- Part of [#116](https://github.com/ChristianGeng/roam-graph-mobile/issues/116).
+
 ## 2026-10-18: Create images with AI ([#115](https://github.com/ChristianGeng/roam-graph-mobile/pull/115))
 
 - Added: "Create image" in a note's edit menu. Describe the picture; the

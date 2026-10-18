@@ -17,6 +17,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../ai/ai_settings.dart';
 import '../graph/graph_layout.dart';
+import '../platform/desktop.dart';
 
 /// How far a note's sections are open when the note opens: the values
 /// Org's `#+STARTUP:` keyword has for this.
@@ -80,6 +81,7 @@ class ViewSettings {
     this.lastLayout = LayoutKind.force,
     this.theme = AppTheme.system,
     this.imageFolder = defaultImageFolder,
+    this.emacsClient = '',
   });
 
   /// Where new images go (#112), relative to `roam/`.
@@ -113,6 +115,14 @@ class ViewSettings {
   /// [cleanImageFolder] gives it.
   final String imageFolder;
 
+  /// The command that opens a note in Emacs on the desktop (#116), as set;
+  /// empty for the system's default, see [emacsCommand].
+  final String emacsClient;
+
+  /// The command to run: [emacsClient], or [defaultEmacsClient].
+  String get emacsCommand =>
+      emacsClient.trim().isEmpty ? defaultEmacsClient : emacsClient.trim();
+
   /// The layout a graph view opening now starts with.
   LayoutKind get layoutAtStart => switch (startLayout) {
         StartLayout.force => LayoutKind.force,
@@ -128,6 +138,7 @@ class ViewSettings {
     LayoutKind? lastLayout,
     AppTheme? theme,
     String? imageFolder,
+    String? emacsClient,
   }) =>
       ViewSettings(
         sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
@@ -137,6 +148,7 @@ class ViewSettings {
         lastLayout: lastLayout ?? this.lastLayout,
         theme: theme ?? this.theme,
         imageFolder: imageFolder ?? this.imageFolder,
+        emacsClient: emacsClient ?? this.emacsClient,
       );
 
   Map<String, Object?> toJson() => {
@@ -147,6 +159,7 @@ class ViewSettings {
         'lastLayout': lastLayout.name,
         'theme': theme.name,
         'imageFolder': imageFolder,
+        'emacsClient': emacsClient,
       };
 
   /// Settings from [json]; a missing or unknown value keeps its default.
@@ -180,6 +193,10 @@ class ViewSettings {
         final String folder => cleanImageFolder(folder) ?? defaults.imageFolder,
         _ => defaults.imageFolder,
       },
+      emacsClient: switch (json['emacsClient']) {
+        final String command => command,
+        _ => defaults.emacsClient,
+      },
     );
   }
 
@@ -192,11 +209,12 @@ class ViewSettings {
       other.startLayout == startLayout &&
       other.lastLayout == lastLayout &&
       other.theme == theme &&
-      other.imageFolder == imageFolder;
+      other.imageFolder == imageFolder &&
+      other.emacsClient == emacsClient;
 
   @override
   int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
-      startLayout, lastLayout, theme, imageFolder);
+      startLayout, lastLayout, theme, imageFolder, emacsClient);
 }
 
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
@@ -457,6 +475,44 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  /// Asks for the Emacs command (#116); empty is the system's default.
+  Future<void> _chooseEmacs(BuildContext context, ViewSettings settings) async {
+    final field = TextEditingController(text: settings.emacsClient);
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Emacs command'),
+        content: TextField(
+          key: const ValueKey('emacs-field'),
+          controller: field,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: defaultEmacsClient,
+            helperText: 'emacsclient, or its full path, for example '
+                '/opt/homebrew/bin/emacsclient. Emacs needs (server-start), '
+                'which Doom runs.',
+            helperMaxLines: 3,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const ValueKey('emacs-save'),
+            onPressed: () => Navigator.pop(context, field.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    field.dispose();
+    if (chosen != null && context.mounted) {
+      await _save(context, settings.copyWith(emacsClient: chosen));
+    }
+  }
+
   /// Asks for the image folder; saves it when it is a folder in `roam/`.
   Future<void> _chooseImageFolder(
       BuildContext context, ViewSettings settings) async {
@@ -612,6 +668,17 @@ class SettingsScreen extends StatelessWidget {
             onTap: () => AiSettingsScreen.open(context),
           ),
           const Divider(),
+          if (isDesktop) ...[
+            ListTile(
+              key: const ValueKey('settings-emacs'),
+              leading: const Icon(Icons.edit_note_outlined),
+              title: const Text('Emacs command'),
+              subtitle: Text('${settings.emacsCommand} · "Open in Emacs" runs '
+                  'it with -n +LINE FILE'),
+              onTap: () => _chooseEmacs(context, settings),
+            ),
+            const Divider(),
+          ],
           ListTile(
             key: const ValueKey('settings-image-folder'),
             leading: const Icon(Icons.image_outlined),

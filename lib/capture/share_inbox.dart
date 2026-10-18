@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+import '../platform/desktop.dart';
+
 /// Text another app shared with this one (#15): the Claude Android app,
 /// for example, cannot write files, but it can share text.
 class SharedText {
@@ -52,8 +54,10 @@ abstract interface class ShareInbox {
 typedef TextSharer = Future<void> Function(String text, {String? subject});
 
 /// [TextSharer] through `MainActivity.kt`.
-Future<void> shareTextOut(String text, {String? subject}) =>
-    const MethodChannel('roam_graph/share')
+/// On the desktop, the text goes to the clipboard (#116).
+Future<void> shareTextOut(String text, {String? subject}) => isDesktop
+    ? copyTextOut(text, subject: subject)
+    : const MethodChannel('roam_graph/share')
         .invokeMethod<void>('shareText', {'text': text, 'subject': subject});
 
 /// [ShareInbox] through `MainActivity.kt`.
@@ -64,6 +68,8 @@ class PlatformShareInbox implements ShareInbox {
 
   @override
   Future<SharedText?> take() async {
+    // The desktop has no share menu into the app (#116).
+    if (isDesktop) return null;
     final map = await _channel.invokeMapMethod<String, Object?>('takeShare');
     final text = map?['text'] as String?;
     if (text == null) return null;
@@ -72,6 +78,7 @@ class PlatformShareInbox implements ShareInbox {
 
   @override
   void listen(void Function() onArrived) {
+    if (isDesktop) return;
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'shareArrived') onArrived();
     });

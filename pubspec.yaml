@@ -35,6 +35,8 @@ dependencies:
   mermaid_core: ^0.3.0
   # API keys of the AI chat (#59), in Android's Keystore-backed storage.
   flutter_secure_storage: ^11.2.0
+  # The notes folder on the desktop (#116): the system's folder picker.
+  file_selector: ^1.0.3
 dev_dependencies:
   flutter_test:
     sdk: flutter

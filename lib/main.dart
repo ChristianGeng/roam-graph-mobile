@@ -3,10 +3,12 @@ import 'package:material_ui/material_ui.dart';
 import 'ai/ai_settings.dart';
 import 'capture/share_inbox.dart';
 import 'edit/note_editor.dart';
+import 'folder/desktop_folder_access.dart';
 import 'folder/folder_access.dart';
 import 'folder/folder_screen.dart';
 import 'graph/graph_index.dart';
 import 'graph_view/node_memory.dart';
+import 'platform/desktop.dart';
 import 'settings/view_settings.dart';
 
 /// The version the release workflow builds, passed in with
@@ -20,7 +22,7 @@ void main() {
 class RoamGraphApp extends StatelessWidget {
   const RoamGraphApp({
     super.key,
-    this.folderAccess = const PlatformFolderAccess(),
+    this.folderAccess,
     this.graphIndex = const SqliteGraphIndex(),
     this.graphScreen = FolderScreen.defaultGraphScreen,
     this.shareInbox = const PlatformShareInbox(),
@@ -30,7 +32,8 @@ class RoamGraphApp extends StatelessWidget {
     this.editHistory = const FileEditHistory(),
   });
 
-  final FolderAccess folderAccess;
+  /// The notes folder: Android's, or a plain folder on the desktop (#116).
+  final FolderAccess? folderAccess;
   final GraphIndex graphIndex;
   final GraphScreenBuilder graphScreen;
   final ShareInbox shareInbox;
@@ -57,7 +60,10 @@ class RoamGraphApp extends StatelessWidget {
               brightness: Brightness.dark,
             ),
             home: FolderScreen(
-              folderAccess: folderAccess,
+              folderAccess: folderAccess ??
+                  (isDesktop
+                      ? const DesktopFolderAccess()
+                      : const PlatformFolderAccess()),
               version: appVersion,
               graphIndex: graphIndex,
               graphScreen: graphScreen,

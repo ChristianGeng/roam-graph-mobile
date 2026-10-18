@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' show ProcessException;
 
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
@@ -20,6 +21,8 @@ import '../graph_view/graph_screen.dart';
 import '../graph_view/node_memory.dart';
 import '../node_view/node_screen.dart';
 import '../node_view/note_images.dart';
+import '../platform/desktop.dart';
+import '../settings/view_settings.dart';
 import 'folder_access.dart';
 import 'org_files.dart';
 
@@ -45,9 +48,13 @@ class FolderScreen extends StatefulWidget {
     this.shareInbox = const PlatformShareInbox(),
     this.nodeMemory = const FileNodeMemory(),
     this.editHistory = const FileEditHistory(),
+    this.startProcess = startDetached,
   });
 
   final FolderAccess folderAccess;
+
+  /// Starts Emacs on the desktop (#116); tests replace it.
+  final ProcessStarter startProcess;
 
   /// Where old versions of edited notes are kept (#35).
   final EditHistory editHistory;
@@ -316,14 +323,24 @@ class _FolderScreenState extends State<FolderScreen>
     return Created(clean);
   }
 
-  /// Opens the note at [path], relative to roam/, in Orgro.
-  Future<OpenResult> _openInOrgro(String path) async {
+  /// Opens the note at [path], relative to roam/, in Orgro; on the
+  /// desktop in Emacs, at [line] (#116).
+  Future<OpenResult> _openInOrgro(String path, {int line = 1}) async {
     final file = _roamFiles[path];
     if (file == null) return OpenResult.noFile;
+    if (isDesktop) {
+      final command = ViewSettingsScope.of(context).emacsCommand;
+      try {
+        await widget.startProcess(command, emacsArguments(file.uri, line));
+        return OpenResult.opened;
+      } on ProcessException {
+        return OpenResult.noApp;
+      }
+    }
     try {
       return await widget.folderAccess.openWith(file, orgroPackage)
           ? OpenResult.opened
-          : OpenResult.noOrgro;
+          : OpenResult.noApp;
     } on PlatformException {
       return OpenResult.noFile;
     }

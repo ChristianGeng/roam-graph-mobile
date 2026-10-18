@@ -25,6 +25,7 @@ import 'src_languages.dart';
 import '../search/search_screen.dart';
 import 'note_images.dart';
 import 'web_links.dart';
+import '../platform/desktop.dart';
 
 /// Reads a note's text, by its path relative to `roam/`; null if it cannot
 /// be read.
@@ -34,10 +35,12 @@ typedef NoteReader = Future<String?> Function(String path);
 const orgroPackage = 'com.madlonkay.orgro';
 
 /// What happened when a note was to be opened in Orgro.
-enum OpenResult { opened, noOrgro, noFile }
+enum OpenResult { opened, noApp, noFile }
 
 /// Opens a note in Orgro (#10), by its path relative to `roam/`.
-typedef NoteOpener = Future<OpenResult> Function(String path);
+/// Opens the note [path] (relative to `roam/`) in another app: Orgro on
+/// Android, Emacs on the desktop (#116), there at [line].
+typedef NoteOpener = Future<OpenResult> Function(String path, {int line});
 
 /// Shows a node as formatted Org (#8): a file node's whole file, a heading
 /// node's heading with its subtree. `id:` links open the linked node on a
@@ -293,18 +296,22 @@ class _NodeScreenState extends State<NodeScreen> {
   }
 
   /// Opens the node's file in Orgro, at the top: Orgro has no way to jump
-  /// to a heading from outside (decision 6).
+  /// to a heading from outside (decision 6). On the desktop in Emacs, at
+  /// the node's line (#116).
   Future<void> _openInOrgro(NoteOpener open, RoamNode node) async {
-    final result = await open(node.file);
+    final result = await open(node.file, line: node.line);
     if (!mounted) return;
     switch (result) {
       case OpenResult.opened:
-        if (!node.isFile) {
+        if (!node.isFile && !isDesktop) {
           _tell('Orgro opens ${node.file} at the top; '
               'it cannot jump to the heading.');
         }
-      case OpenResult.noOrgro:
-        _tell('Orgro is not installed.');
+      case OpenResult.noApp:
+        _tell(isDesktop
+            ? 'Emacs could not be started. Check the Emacs command in '
+                'Settings.'
+            : 'Orgro is not installed.');
       case OpenResult.noFile:
         _tell('Could not find ${node.file} in the folder.');
     }
@@ -466,7 +473,7 @@ class _NodeScreenState extends State<NodeScreen> {
             ),
           if (widget.openInOrgro case final open? when node != null)
             IconButton(
-              tooltip: 'Open in Orgro',
+              tooltip: 'Open in $noteAppName',
               icon: const Icon(Icons.open_in_new),
               onPressed: () => _openInOrgro(open, node),
             ),

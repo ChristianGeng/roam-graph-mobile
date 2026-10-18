@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/capture/share_inbox.dart';
@@ -287,7 +288,7 @@ void main() {
     testWidgets('a file node opens its file, without a message',
         (tester) async {
       final opened = <String>[];
-      await open(tester, 'b', openInOrgro: (path) async {
+      await open(tester, 'b', openInOrgro: (path, {line = 1}) async {
         opened.add(path);
         return OpenResult.opened;
       });
@@ -300,7 +301,7 @@ void main() {
     testWidgets('a heading node opens its file at the top, and says so',
         (tester) async {
       final opened = <String>[];
-      await open(tester, 'p', openInOrgro: (path) async {
+      await open(tester, 'p', openInOrgro: (path, {line = 1}) async {
         opened.add(path);
         return OpenResult.opened;
       });
@@ -315,10 +316,29 @@ void main() {
 
     testWidgets('a file that is not in the folder', (tester) async {
       await open(tester, 'a',
-          openInOrgro: (path) async => OpenResult.noFile);
+          openInOrgro: (path, {line = 1}) async => OpenResult.noFile);
       await tester.tap(find.byTooltip('Open in Orgro'));
       await tester.pump();
       expect(find.text('Could not find a.org in the folder.'), findsOneWidget);
+    });
+
+    testWidgets('on the desktop: "Open in Emacs", at the heading (#116)',
+        (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      final opened = <(String, int)>[];
+      await open(tester, 'p', openInOrgro: (path, {line = 1}) async {
+        opened.add((path, line));
+        return OpenResult.opened;
+      });
+      expect(find.byTooltip('Open in Orgro'), findsNothing);
+      await tester.tap(find.byTooltip('Open in Emacs'));
+      await tester.pump();
+      debugDefaultTargetPlatformOverride = null;
+      final heading = graphOf(notes).nodes['p']!;
+      expect(opened, [('b.org', heading.line)]);
+      expect(heading.line, greaterThan(1));
+      // Emacs goes to the heading: nothing to say.
+      expect(find.byType(SnackBar), findsNothing);
     });
 
     testWidgets('no button without a way to open files', (tester) async {

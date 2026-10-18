@@ -53,3 +53,22 @@ publishes the APK. A new release stays a draft until its APK is attached, so Obt
 Obtainium checks the releases for new versions and updates in one tap. The
 repo is public, so no GitHub token is needed; a token only raises GitHub's
 rate limit for frequent update checks.
+
+In Obtainium's settings for the app, keep the APK filter on `\.apk$`: the
+releases also carry the desktop app.
+
+## Install on Linux (#116)
+
+Each release also carries `roam-graph-<version>-linux-x64.tar.gz`, built on
+Ubuntu 24.04.
+
+1. Download it from the release and unpack it, for example to
+   `~/.local/opt/roam-graph`:
+   `tar -xzf roam-graph-*-linux-x64.tar.gz -C ~/.local/opt/roam-graph`
+2. Start `~/.local/opt/roam-graph/bundle/roam-graph`.
+3. Choose the org folder, the one that holds `roam/`.
+
+It needs GTK 3 and libsecret, which Ubuntu has. "Open in Emacs" runs
+`emacsclient`; Emacs needs `(server-start)`, which Doom runs. A newer
+release is installed by unpacking it over the old one.
+
