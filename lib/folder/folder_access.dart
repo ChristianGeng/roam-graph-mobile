@@ -55,6 +55,12 @@ abstract interface class FolderAccess {
   /// complete (#13).
   Future<String> createFile(String dir, String name, Uint8List bytes);
 
+  /// The URI of the directory [name] in the directory [dir], made if it is
+  /// missing (#112: the folder for new images). A [PlatformException] with
+  /// the code `write_failed` if it cannot be made, or `not_a_dir` if a
+  /// file has the name.
+  Future<String> createDirectory(String dir, String name);
+
   /// Replaces the file [uri], named [name] in the directory [dir], with
   /// [bytes], and returns its URI afterwards (#35). Only if the file is
   /// still the version the app read: its SHA-256 (hex) must be [expected],
@@ -125,6 +131,11 @@ class PlatformFolderAccess implements FolderAccess {
         {'uri': file.uri, 'package': packageName},
       ) ??
       false;
+
+  @override
+  Future<String> createDirectory(String dir, String name) async =>
+      (await _channel.invokeMethod<String>(
+          'createDirectory', {'dir': dir, 'name': name}))!;
 
   @override
   Future<String> createFile(String dir, String name, Uint8List bytes) async =>

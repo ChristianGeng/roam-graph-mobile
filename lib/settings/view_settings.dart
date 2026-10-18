@@ -79,7 +79,11 @@ class ViewSettings {
     this.startLayout = StartLayout.force,
     this.lastLayout = LayoutKind.force,
     this.theme = AppTheme.system,
+    this.imageFolder = defaultImageFolder,
   });
+
+  /// Where new images go (#112), relative to `roam/`.
+  static const defaultImageFolder = 'img';
 
   /// The graph's share of the width on a tablet in landscape (#69): 40 %,
   /// so the note gets 60 %.
@@ -105,6 +109,10 @@ class ViewSettings {
   /// Light, dark, or as Android is set (#90).
   final AppTheme theme;
 
+  /// The folder for images the AI makes (#112), relative to `roam/`, as
+  /// [cleanImageFolder] gives it.
+  final String imageFolder;
+
   /// The layout a graph view opening now starts with.
   LayoutKind get layoutAtStart => switch (startLayout) {
         StartLayout.force => LayoutKind.force,
@@ -119,6 +127,7 @@ class ViewSettings {
     StartLayout? startLayout,
     LayoutKind? lastLayout,
     AppTheme? theme,
+    String? imageFolder,
   }) =>
       ViewSettings(
         sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
@@ -127,6 +136,7 @@ class ViewSettings {
         startLayout: startLayout ?? this.startLayout,
         lastLayout: lastLayout ?? this.lastLayout,
         theme: theme ?? this.theme,
+        imageFolder: imageFolder ?? this.imageFolder,
       );
 
   Map<String, Object?> toJson() => {
@@ -136,6 +146,7 @@ class ViewSettings {
         'startLayout': startLayout.name,
         'lastLayout': lastLayout.name,
         'theme': theme.name,
+        'imageFolder': imageFolder,
       };
 
   /// Settings from [json]; a missing or unknown value keeps its default.
@@ -165,6 +176,10 @@ class ViewSettings {
               .where((value) => value.name == json['theme'])
               .firstOrNull ??
           defaults.theme,
+      imageFolder: switch (json['imageFolder']) {
+        final String folder => cleanImageFolder(folder) ?? defaults.imageFolder,
+        _ => defaults.imageFolder,
+      },
     );
   }
 
@@ -176,11 +191,32 @@ class ViewSettings {
       other.graphCollapsed == graphCollapsed &&
       other.startLayout == startLayout &&
       other.lastLayout == lastLayout &&
-      other.theme == theme;
+      other.theme == theme &&
+      other.imageFolder == imageFolder;
 
   @override
   int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
-      startLayout, lastLayout, theme);
+      startLayout, lastLayout, theme, imageFolder);
+}
+
+/// [folder] as a folder inside `roam/`: slashes at the ends and doubled
+/// ones go, `.` parts go; null for an empty folder, one that leaves
+/// `roam/` (`..`), or a part Android cannot name (`\`, `:`, …). `roam/`
+/// itself is written `.`.
+String? cleanImageFolder(String folder) {
+  final parts = [
+    for (final part in folder.trim().split('/'))
+      if (part.isNotEmpty && part != '.') part,
+  ];
+  if (folder.trim() == '.') return '.';
+  if (parts.isEmpty) return null;
+  for (final part in parts) {
+    if (part == '..' || RegExp(r'[\\:*?"<>|]').hasMatch(part) ||
+        part.startsWith('.')) {
+      return null;
+    }
+  }
+  return parts.join('/');
 }
 
 /// Loads and saves [ViewSettings]. An interface so screens can be tested
@@ -420,6 +456,56 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  /// Asks for the image folder; saves it when it is a folder in `roam/`.
+  Future<void> _chooseImageFolder(
+      BuildContext context, ViewSettings settings) async {
+    final field = TextEditingController(text: settings.imageFolder);
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          final clean = cleanImageFolder(field.text);
+          return AlertDialog(
+            title: const Text('Folder for new images'),
+            content: TextField(
+              key: const ValueKey('image-folder-field'),
+              controller: field,
+              autofocus: true,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                prefixText: 'roam/',
+                helperText: 'A folder inside roam/, made if it is missing. '
+                    '"." is roam/ itself.',
+                errorText: clean == null ? 'Not a folder inside roam/.' : null,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(
+                    context, ViewSettings.defaultImageFolder),
+                child: const Text('Default'),
+              ),
+              FilledButton(
+                key: const ValueKey('image-folder-save'),
+                onPressed:
+                    clean == null ? null : () => Navigator.pop(context, clean),
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    field.dispose();
+    if (chosen != null && context.mounted) {
+      await _save(context, settings.copyWith(imageFolder: chosen));
+    }
+  }
+
   Future<void> _save(BuildContext context, ViewSettings settings) async {
     try {
       await ViewSettingsScope.change(context, settings);
@@ -523,6 +609,15 @@ class SettingsScreen extends StatelessWidget {
                 'model and key of the AI chat'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => AiSettingsScreen.open(context),
+          ),
+          const Divider(),
+          ListTile(
+            key: const ValueKey('settings-image-folder'),
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Folder for new images'),
+            subtitle: Text('roam/${settings.imageFolder == '.' ? '' : '${settings.imageFolder}/'}'
+                ' · images the AI makes go here'),
+            onTap: () => _chooseImageFolder(context, settings),
           ),
           const Divider(),
           const ListTile(title: Text('Theme')),

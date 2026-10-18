@@ -11,7 +11,11 @@ class ModelPickerScreen extends StatefulWidget {
     required this.provider,
     required this.load,
     this.euOnly = false,
+    this.images = false,
   });
+
+  /// Lists image models instead of chat models (#112).
+  final bool images;
 
   final String provider;
   final Future<List<ModelInfo>> Function({bool refresh}) load;
@@ -25,11 +29,12 @@ class ModelPickerScreen extends StatefulWidget {
     required String provider,
     required Future<List<ModelInfo>> Function({bool refresh}) load,
     bool euOnly = false,
+    bool images = false,
   }) => Navigator.push<String>(
     context,
     MaterialPageRoute(
-      builder: (_) =>
-          ModelPickerScreen(provider: provider, load: load, euOnly: euOnly),
+      builder: (_) => ModelPickerScreen(
+          provider: provider, load: load, euOnly: euOnly, images: images),
     ),
   );
 
@@ -93,8 +98,10 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
     // By default only what the chat can use (#110): chat models, and where
     // the list says which call tools, only those that do. A list that
     // never says shows its chat models, marked.
-    bool usable(ModelInfo m) =>
-        m.chat != false && (!knowsTools || m.tools == true);
+    // For images (#112): the models that make them.
+    bool usable(ModelInfo m) => widget.images
+        ? m.images == true
+        : m.chat != false && (!knowsTools || m.tools == true);
     final hidden =
         (models ?? const <ModelInfo>[]).where((m) => !usable(m)).length;
     final shown = [
@@ -141,13 +148,14 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
                     value: _all,
                     onChanged: (on) => setState(() => _all = on),
                     title: Text('Also other models ($hidden)'),
-                    subtitle: const Text(
-                      'Models without tools, and models that do not chat, '
-                      'such as embedding or image models. The chat needs a '
-                      'chat model that calls tools to read and change notes.',
-                    ),
+                    subtitle: Text(widget.images
+                        ? 'Models the list does not name as image models.'
+                        : 'Models without tools, and models that do not chat, '
+                            'such as embedding or image models. The chat needs '
+                            'a chat model that calls tools to read and change '
+                            'notes.'),
                   ),
-                if (!knowsTools)
+                if (!knowsTools && !widget.images)
                   const Padding(
                     padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
                     child: Text(
@@ -190,10 +198,13 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
                           '\$${_price(m.inputPrice!)} in, '
                               '\$${_price(m.outputPrice!)} out per '
                               'million tokens',
-                        if (m.chat == false) 'no chat model',
-                        if (m.tools == false) 'no tools',
-                        if (m.tools == null && m.chat != false)
-                          'tools not known',
+                        if (!widget.images) ...[
+                          if (m.chat == false) 'no chat model',
+                          if (m.tools == false) 'no tools',
+                          if (m.tools == null && m.chat != false)
+                            'tools not known',
+                        ] else if (m.images == true && m.chat == true)
+                          'chat model with image output',
                         if (noEu) 'no EU route: fails with "EU only"',
                       ].join(' · ');
                       return ListTile(

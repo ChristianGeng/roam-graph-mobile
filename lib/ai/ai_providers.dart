@@ -34,7 +34,21 @@ class ProviderPreset {
     this.dataStaysInEu = false,
     this.euSwitch = false,
     this.keyHint = 'API key',
+    this.imagesPath,
+    this.imageModel = '',
   });
+
+  /// The image model new images are made with (#112); empty when there is
+  /// no default.
+  final String imageModel;
+
+  /// Where the provider makes images (#112), after the base URL, as its
+  /// documentation says: `/images/generations` (OpenAI's Images API, also
+  /// Vercel AI Gateway's), `/images` (OpenRouter's); null where the app
+  /// does not make images with this provider.
+  final String? imagesPath;
+
+  bool get makesImages => imagesPath != null;
 
   /// Stable, for the saved settings and the key store.
   final String id;
@@ -106,6 +120,9 @@ const providerPresets = <ProviderPreset>[
     api: ApiKind.openAi,
     baseUrl: 'https://ai-gateway.vercel.sh/v1',
     defaultModel: 'deepseek/deepseek-v4-pro',
+    imagesPath: '/images/generations',
+    // Vercel's documentation names it for the Images API.
+    imageModel: 'openai/gpt-image-2',
     note: 'US company. "EU only" is off, as the default model, '
         'deepseek/deepseek-v4-pro, has no EU route: it is processed outside '
         'the EU. With "EU only" on, inference and stored data stay in the '
@@ -148,6 +165,7 @@ const providerPresets = <ProviderPreset>[
     name: 'OpenRouter',
     api: ApiKind.openAi,
     baseUrl: 'https://openrouter.ai/api/v1',
+    imagesPath: '/images',
     note: 'Routes to many providers, whose terms apply; EU-only routing only '
         'on the Business plan; 5.5 % fee on credits.',
   ),
@@ -165,10 +183,27 @@ const providerPresets = <ProviderPreset>[
     id: 'custom',
     name: 'Custom',
     api: ApiKind.openAi,
+    imagesPath: '/images/generations',
     note: 'Any provider with one of the two APIs, for example IONOS, Nebius, '
         'OVHcloud, STACKIT, Infomaniak or a local Ollama. Its terms apply.',
   ),
 ];
+
+/// How an image model is asked (#112).
+enum ImageApi {
+  /// The Images API: `POST <base><imagesPath>`, the image in
+  /// `data[].b64_json`. For image-only models (GPT Image, Flux, …).
+  images('Images API (image-only models)'),
+
+  /// Chat Completions with `modalities: ["image", "text"]`, the image in
+  /// `message.images[].image_url.url` (Vercel AI Gateway). For chat
+  /// models that also make images (Gemini Image, …).
+  chat('Chat with image output (Gemini Image and similar)');
+
+  const ImageApi(this.label);
+
+  final String label;
+}
 
 /// The preset with [id], or Anthropic's.
 ProviderPreset presetById(String id) => providerPresets.firstWhere(
