@@ -47,7 +47,7 @@ menu; they are saved only after the diff (#39). The AI can also propose a
 change set, edits to several notes reviewed and saved together, and undone
 together (#76). In agent mode, the default, the AI creates, edits and
 links notes itself, under the same rules, and the chat shows what it
-changed afterwards, with "Undo all" (#82). "Recent AI changes" undoes them later too, after the chat is closed (#99). "Edit with AI" changes just the note shown, by an instruction, after a diff (#103). Web, mail and phone links open in their app (#108). "Create image" draws a picture with an AI image model and adds it to the note, in an image folder set in Settings (#112). The same app runs on Linux, where notes open in Emacs (#116). What changed in each
+changed afterwards, with "Undo all" (#82). "Recent AI changes" undoes them later too, after the chat is closed (#99). "Edit with AI" changes just the note shown, by an instruction, after a diff (#103). Web, mail and phone links open in their app (#108). "Create image" draws a picture with an AI image model and adds it to the note, in an image folder set in Settings (#112). The same app runs on Linux, Windows and macOS, where notes open in Emacs (#116). What changed in each
 release is in [CHANGELOG.md](CHANGELOG.md), and the release text repeats it
 (#70). On a tablet in landscape, the divider between graph and note can be
 dragged, and the graph folded away (#69). The graph starts force-directed,

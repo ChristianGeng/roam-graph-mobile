@@ -247,6 +247,12 @@ jobs:
           flutter build linux --release \
             --build-name="$VERSION" \
             --dart-define=APP_VERSION="$VERSION"
+          bundle=build/linux/x64/release/bundle
+          # The installer, the menu icon and the version go with the app.
+          cp linux/packaging/install.sh "$bundle/"
+          cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+            "$bundle/roam-graph.png"
+          echo "Roam Graph $VERSION" > "$bundle/VERSION"
           tar -C build/linux/x64/release -czf \
             "roam-graph-$VERSION-linux-x64.tar.gz" bundle
 
@@ -255,6 +261,76 @@ jobs:
         with:
           name: linux
           path: roam-graph-*-linux-x64.tar.gz
+          if-no-files-found: error
+
+  windows:
+    # The desktop app for Windows (#116), as a zip of the Release folder.
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Build the Windows app
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          flutter build windows --release `
+            --build-name="$env:VERSION" `
+            --dart-define=APP_VERSION="$env:VERSION"
+          $out = "build/windows/x64/runner/Release"
+          "Roam Graph $env:VERSION" | Out-File -Encoding utf8 "$out/VERSION.txt"
+          Compress-Archive -Path "$out/*" `
+            -DestinationPath "roam-graph-$env:VERSION-windows-x64.zip"
+
+      - name: Keep the Windows app as a build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows
+          path: roam-graph-*-windows-x64.zip
+          if-no-files-found: error
+
+  macos:
+    # The desktop app for macOS (#116), as a zip of the app. Not signed:
+    # macOS asks once before it opens.
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Build the macOS app
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          flutter build macos --release \
+            --build-name="$VERSION" \
+            --dart-define=APP_VERSION="$VERSION"
+          cd build/macos/Build/Products/Release
+          # ditto keeps the app's links and attributes, as Finder's zip.
+          ditto -c -k --keepParent "Roam Graph.app" \
+            "$GITHUB_WORKSPACE/roam-graph-$VERSION-macos.zip"
+
+      - name: Keep the macOS app as a build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macos
+          path: roam-graph-*-macos.zip
           if-no-files-found: error
 
   org-roam:
@@ -282,7 +358,7 @@ jobs:
             test/fixtures/org_roam_expected_tables.json
 
   release:
-    needs: [build, linux, org-roam]
+    needs: [build, linux, windows, macos, org-roam]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -296,6 +372,14 @@ jobs:
         with:
           name: linux
 
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: macos
+
       - name: Publish the GitHub release
         # A new release starts as a draft with the APK attached and is
         # published only after that, so Obtainium never sees a release
@@ -308,12 +392,14 @@ jobs:
           TAG: v${{ needs.build.outputs.version }}
           APK: roam-graph-${{ needs.build.outputs.version }}.apk
           LINUX: roam-graph-${{ needs.build.outputs.version }}-linux-x64.tar.gz
+          WINDOWS: roam-graph-${{ needs.build.outputs.version }}-windows-x64.zip
+          MACOS: roam-graph-${{ needs.build.outputs.version }}-macos.zip
         run: |
           if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" "$LINUX" --clobber
+            gh release upload "$TAG" "$APK" "$LINUX" "$WINDOWS" "$MACOS" --clobber
             gh release edit "$TAG" --notes-file release-notes.md
           else
-            gh release create "$TAG" "$APK" "$LINUX" \
+            gh release create "$TAG" "$APK" "$LINUX" "$WINDOWS" "$MACOS" \
               --draft \
               --target "${{ github.sha }}" \
               --title "$TAG" \
