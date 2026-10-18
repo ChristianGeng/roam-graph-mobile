@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-18: Told when a chosen model is gone ([#114](https://github.com/ChristianGeng/roam-graph-mobile/pull/114))
+
+- Added: AI settings mark a chosen model that is no longer in the
+  provider's model list, and the chat says so when it starts, with a
+  button to AI settings, instead of failing with the provider's error.
+- Nothing is said offline or when the list cannot be fetched.
+- Closes [#113](https://github.com/ChristianGeng/roam-graph-mobile/issues/113).
+
 ## 2026-10-18: The model list shows only models the chat can use ([#111](https://github.com/ChristianGeng/roam-graph-mobile/pull/111))
 
 - Changed: "Choose model" in AI settings now lists only chat models that

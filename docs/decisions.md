@@ -1795,6 +1795,18 @@ devices through Syncthing.
       servers): their chat models are shown, marked "tools not known".
     - **Nothing is lost:** "Also other models (N)" shows every model, and
       a model can still be typed in.
+69. **A chosen model that a provider retired is named** (#113). The
+    lists are live (#75), but the chosen models and the presets' defaults
+    are names that go stale.
+    - **Where:** AI settings mark a default or strong model that is not in
+      the provider's list now; a chat checks its model in the background
+      when it starts and shows the same message, with the way to AI
+      settings, instead of failing later with the provider's error.
+    - **Only when known:** offline, without a key, or where the list
+      cannot be fetched (Bedrock), nothing is said. The list is the
+      session's cache (#75), fetched once.
+    - **The defaults** are kept current in releases: when a provider
+      retires a default, the preset changes, with a changelog entry.
 
 ## Recommended, not decided
 

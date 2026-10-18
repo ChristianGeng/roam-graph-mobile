@@ -428,4 +428,44 @@ void main() {
     expect(find.byKey(const ValueKey('model-a/tools')), findsOneWidget);
     expect(find.text('Also other models (2)'), findsOneWidget);
   });
+
+  testWidgets('a chosen model gone from the list is marked (#113)',
+      (tester) async {
+    final store = MemoryAiSettingsStore(const AiSettings(provider: 'mistral'));
+    final keys = MemoryKeyStore()..keys['mistral'] = 'm-key';
+    final get = FakeGet([
+      {
+        'data': [
+          {'id': 'mistral-large-5', 'capabilities': {'function_calling': true}},
+        ],
+      },
+    ]);
+    await tester.pumpWidget(AiSettingsHost(
+      store: store,
+      keys: keys,
+      child: MaterialApp(home: AiSettingsScreen(get: get.call)),
+    ));
+    await tester.pumpAndSettle();
+    const gone = 'mistral-large-4 is not in Mistral\'s model list now. '
+        'Choose another model.';
+    await scrollTo(tester, find.byKey(const ValueKey('default-model-mistral')));
+    expect(find.text(gone), findsOneWidget);
+    // The list was fetched once; choosing uses it.
+    final choose = find.byKey(const ValueKey('choose-default-mistral'));
+    await scrollTo(tester, choose);
+    await tester.tap(choose);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('mistral-large-5'));
+    await tester.pumpAndSettle();
+    expect(find.text(gone), findsNothing);
+    expect(get.requests, hasLength(1));
+  });
+
+  test('the message names a gone model only when the list is known', () {
+    expect(modelGoneMessage('X', 'a', {'a'}), isNull);
+    expect(modelGoneMessage('X', 'a', null), isNull);
+    expect(modelGoneMessage('X', ' ', {'a'}), isNull);
+    expect(modelGoneMessage('X', 'b ', {'a'}),
+        'b is not in X\'s model list now. Choose another model.');
+  });
 }

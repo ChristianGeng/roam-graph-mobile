@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:roam_graph_mobile/ai/ai_chat.dart' show HttpReply;
+import 'package:roam_graph_mobile/ai/ai_models.dart' show HttpGet, clearModelCache;
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 import 'package:roam_graph_mobile/ai/chat_screen.dart';
 import 'package:roam_graph_mobile/capture/capture_screen.dart';
@@ -37,6 +39,7 @@ Future<void> openChat(
   AgentLog? agentLog,
   ValueNotifier<RoamGraph>? graphNotifier,
   UrlOpener? openUrl,
+  HttpGet? getModels,
 }) async {
   await tester.pumpWidget(AiSettingsHost(
     store: MemoryAiSettingsStore(settings),
@@ -51,6 +54,8 @@ Future<void> openChat(
         post: server.post,
         agentLog: agentLog ?? MemoryAgentLog(),
         openUrl: openUrl ?? (uri) async => true,
+        // No model list unless a test gives one.
+        getModels: getModels ?? (url, headers) async => const HttpReply(404, ''),
       ),
     ),
   ));
@@ -244,6 +249,46 @@ void main() {
     expect(opened, isNotNull);
     expect(jsonEncode([for (final r in server.requests) r.body]),
         isNot(contains('My diary')));
+  });
+
+  testWidgets('a model gone from the provider\'s list is named (#113)',
+      (tester) async {
+    clearModelCache();
+    addTearDown(clearModelCache);
+    await openChat(tester, FakeServer([]),
+        getModels: (url, headers) async => HttpReply(
+            200,
+            jsonEncode({
+              'data': [
+                {'id': 'claude-sonnet-6'},
+              ],
+            })));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-model-gone')), findsOneWidget);
+    expect(
+        find.text('claude-sonnet-5-5 is not in Anthropic\'s model list now. '
+            'Choose another model.'),
+        findsOneWidget);
+  });
+
+  testWidgets('a model in the list, or no list, says nothing (#113)',
+      (tester) async {
+    clearModelCache();
+    addTearDown(clearModelCache);
+    await openChat(tester, FakeServer([]),
+        getModels: (url, headers) async => HttpReply(
+            200,
+            jsonEncode({
+              'data': [
+                {'id': 'claude-sonnet-5-5'},
+              ],
+            })));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-model-gone')), findsNothing);
+    clearModelCache();
+    await openChat(tester, FakeServer([]));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-model-gone')), findsNothing);
   });
 
   testWidgets('a web link in an answer opens in the browser (#108)',
