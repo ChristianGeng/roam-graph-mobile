@@ -88,6 +88,22 @@ void main() {
     expect(paths.where((p) => p.contains('loop/')), isEmpty);
   });
 
+  test('a note that is a link is saved where it points', () async {
+    if (Platform.isWindows) return;
+    final elsewhere = Directory.systemTemp.createTempSync('roam-target');
+    addTearDown(() => elsewhere.deleteSync(recursive: true));
+    final target = '${elsewhere.path}${sep}real.org';
+    File(target).writeAsStringSync('R');
+    final roam = '${dir.path}${sep}roam';
+    final link = '$roam${sep}link.org';
+    Link(link).createSync(target);
+    await access.replaceFile(roam, 'link.org', link,
+        expected: hash('R'), bytes: bytes('R2'));
+    expect(File(target).readAsStringSync(), 'R2');
+    expect(FileSystemEntity.isLinkSync(link), isTrue);
+    expect(elsewhere.listSync(), hasLength(1));
+  });
+
   test('the write check leaves a file of its name alone', () async {
     final folder = (await access.pickFolder())!;
     expect(folder.canWrite, isTrue);

@@ -238,34 +238,44 @@ class DesktopFolderAccess implements FolderAccess {
   }) async {
     File? temp;
     File? old;
+    // A note that is a symbolic link is saved where it points: the link
+    // stays, and the temporary files are next to the real file, so each
+    // rename stays on one file system.
+    final String real;
     try {
-      temp = await _temp(dir, name, bytes);
-      await _checkHash(uri, expected);
+      real = await File(uri).resolveSymbolicLinks();
+    } on FileSystemException {
+      throw PlatformException(code: 'missing', message: '$name is gone');
+    }
+    final realDir = File(real).parent.path;
+    try {
+      temp = await _temp(realDir, name, bytes);
+      await _checkHash(real, expected);
       // As FolderAccess.kt: the old file is renamed aside first, and its
       // hash checked again there, where no editor writes. A save that
       // came between the first check and the rename is in it: then it is
       // put back, and nothing is replaced.
-      old = _tempFile(dir, '$name.old');
-      await File(uri).rename(old.path);
+      old = _tempFile(realDir, '$name.old');
+      await File(real).rename(old.path);
       if (sha256.convert(await old.readAsBytes()).toString() != expected) {
-        await _putBack(old, uri);
+        await _putBack(old, real);
         old = null;
         throw PlatformException(
             code: 'changed', message: '$name changed since it was read');
       }
-      if (await FileSystemEntity.type(uri) != FileSystemEntityType.notFound) {
+      if (await FileSystemEntity.type(real) != FileSystemEntityType.notFound) {
         // Written anew in the moment it was aside: that one stays.
         await old.delete();
         old = null;
         throw PlatformException(
             code: 'changed', message: '$name changed since it was read');
       }
-      await temp.rename(uri);
+      await temp.rename(real);
       await old.delete();
       old = null;
       return uri;
     } on FileSystemException catch (e) {
-      if (old != null) await _putBack(old, uri);
+      if (old != null) await _putBack(old, real);
       old = null;
       throw PlatformException(code: 'write_failed', message: e.message);
     } finally {
