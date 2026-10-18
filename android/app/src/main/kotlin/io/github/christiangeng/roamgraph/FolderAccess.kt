@@ -57,6 +57,9 @@ import java.util.concurrent.Executors
  *   (#82: undoing a note the AI created). Only if it is still the version
  *   the app wrote: its SHA-256 must be [expected], else error "changed".
  *   Errors: "changed", "missing", "write_failed".
+ * - createDirectory({dir, name}) -> the URI of the directory [name] in
+ *   [dir], made if it is missing (#112). Errors: "not_a_dir" if a file has
+ *   the name, "write_failed".
  * - openUrl({url}) -> true if an app was started to show [url]
  *   (ACTION_VIEW), false if none can (#108). Only http, https, mailto and
  *   tel; other schemes return false without asking Android.
@@ -140,6 +143,15 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                 }
                 result.success(openWith(Uri.parse(uri), packageName))
             }
+            "createDirectory" -> {
+                val dir = call.argument<String>("dir")
+                val name = call.argument<String>("name")
+                if (dir == null || name == null) {
+                    result.error("bad_args", "dir or name is missing", null)
+                    return
+                }
+                createDirectory(Uri.parse(dir), name, result)
+            }
             "openUrl" -> {
                 val url = call.argument<String>("url")
                 if (url == null) {
@@ -150,6 +162,66 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
             }
             else -> result.notImplemented()
         }
+    }
+
+    private fun createDirectory(dir: Uri, name: String, result: MethodChannel.Result) {
+        executor.execute {
+            val outcome: Pair<String?, Pair<String, String>?> = try {
+                Pair(findOrMakeDirectory(dir, name), null)
+            } catch (e: NotADirectoryException) {
+                Pair(null, Pair("not_a_dir", "$name is a file, not a folder"))
+            } catch (e: Exception) {
+                Pair(null, Pair("write_failed", e.message ?: e.toString()))
+            }
+            mainThread.post {
+                val error = outcome.second
+                if (error == null) result.success(outcome.first) else result.error(error.first, error.second, null)
+            }
+        }
+    }
+
+    private class NotADirectoryException : Exception()
+
+    private fun findOrMakeDirectory(dir: Uri, name: String): String {
+        val resolver = activity.contentResolver
+        val parent = documentUri(dir)
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(
+            parent,
+            DocumentsContract.getDocumentId(parent),
+        )
+        resolver.query(
+            children,
+            arrayOf(Document.COLUMN_DOCUMENT_ID, Document.COLUMN_DISPLAY_NAME, Document.COLUMN_MIME_TYPE),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(1) != name) continue
+                if (cursor.getString(2) != Document.MIME_TYPE_DIR) throw NotADirectoryException()
+                return DocumentsContract.buildDocumentUriUsingTree(parent, cursor.getString(0)).toString()
+            }
+        }
+        val made = DocumentsContract.createDocument(resolver, parent, Document.MIME_TYPE_DIR, name)
+            ?: throw IllegalStateException("Could not make the folder $name")
+        // A provider may change the name, for example to "name (1)": then
+        // the note's link would point elsewhere.
+        val madeName = resolver.query(
+            made,
+            arrayOf(Document.COLUMN_DISPLAY_NAME),
+            null,
+            null,
+            null,
+        )?.use { if (it.moveToFirst()) it.getString(0) else null }
+        if (madeName != name) {
+            try {
+                DocumentsContract.deleteDocument(resolver, made)
+            } catch (_: Exception) {
+                // Left for the user; the error names it.
+            }
+            throw IllegalStateException("The folder $name was made as $madeName")
+        }
+        return made.toString()
     }
 
     private fun openUrl(uri: Uri): Boolean {

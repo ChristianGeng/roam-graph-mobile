@@ -148,6 +148,7 @@ class _FolderScreenState extends State<FolderScreen>
 
   late final _writer = NoteWriter(
     create: _createNote,
+    createFile: _createRoamFile,
     allowWriting: _choose,
     editor: NoteEditor(
       store: _FolderNoteStore(this),
@@ -274,6 +275,45 @@ class _FolderScreenState extends State<FolderScreen>
           fileName, _status == _Status.failed ? _error : 'it was not found');
     }
     return Created(fileName);
+  }
+
+  /// Writes [bytes] as the new file [path], relative to roam/, making its
+  /// folders first (#112), then indexes the folder, so the node view finds
+  /// the file. Never replaces a file.
+  Future<CreateResult> _createRoamFile(String path, Uint8List bytes) async {
+    final folder = _folder;
+    if (folder == null || _roamDir == null) {
+      return const CreateFailed('No folder is indexed.');
+    }
+    if (!folder.canWrite) return const NoWriteAccess();
+    final clean = normalizePath(path);
+    if (clean.isEmpty || clean == '..' || clean.startsWith('../') ||
+        clean.startsWith('/')) {
+      return CreateFailed('$path is not inside roam/.');
+    }
+    final parts = clean.split('/');
+    final name = parts.removeLast();
+    // The folders, from the chosen folder down, made where missing.
+    var inFolder = _roamPrefix.endsWith('/')
+        ? _roamPrefix.substring(0, _roamPrefix.length - 1)
+        : _roamPrefix;
+    var dir = _dirs[inFolder] ?? _roamDir!;
+    try {
+      for (final part in parts) {
+        inFolder = inFolder.isEmpty ? part : '$inFolder/$part';
+        dir = _dirs[inFolder] ??=
+            await widget.folderAccess.createDirectory(dir, part);
+      }
+      await widget.folderAccess.createFile(dir, name, bytes);
+    } on PlatformException catch (e) {
+      return switch (e.code) {
+        'exists' => const FileExists(),
+        'not_a_dir' => CreateFailed('${e.message ?? e.code}.'),
+        _ => CreateFailed(e.message ?? e.code),
+      };
+    }
+    await _rescan();
+    return Created(clean);
   }
 
   /// Opens the note at [path], relative to roam/, in Orgro.

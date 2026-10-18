@@ -11,6 +11,7 @@ import '../edit/ai_edit_screen.dart';
 import '../edit/append_screen.dart';
 import '../edit/edit_screen.dart';
 import '../edit/history_screen.dart';
+import '../edit/image_screen.dart';
 import '../edit/meta_screen.dart';
 import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
@@ -252,6 +253,19 @@ class _NodeScreenState extends State<NodeScreen> {
     if (message != null && mounted) _tell(message);
   }
 
+  /// Makes an image with the AI and adds it to this note (#112). Not for a
+  /// note hidden from AI.
+  Future<void> _createImage(NoteWriter writer, RoamNode node) async {
+    final settings = await AiSettingsScope.current(context);
+    if (!mounted) return;
+    if (settings.visibility.hides(node)) {
+      _tell('This note is hidden from AI, so no image is made for it.');
+      return;
+    }
+    final message = await ImageScreen.open(context, writer, node);
+    if (message != null && mounted) _tell(message);
+  }
+
   /// Changes this one note by an instruction to the AI, after a diff
   /// (#103). Not for a note hidden from AI.
   Future<void> _aiEdit(NoteWriter writer, RoamNode node) async {
@@ -422,20 +436,24 @@ class _NodeScreenState extends State<NodeScreen> {
                 _EditAction.edit => _edit(writer, node),
                 _EditAction.meta => _meta(writer, node),
                 _EditAction.ai => _aiEdit(writer, node),
+                _EditAction.image => _createImage(writer, node),
                 _EditAction.history => HistoryScreen.open(context, writer, node),
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
+              itemBuilder: (_) => [
+                const PopupMenuItem(
                     value: _EditAction.append,
                     child: Text('Add to this node')),
-                PopupMenuItem(
+                const PopupMenuItem(
                     value: _EditAction.edit, child: Text('Edit text')),
-                PopupMenuItem(
+                const PopupMenuItem(
                     value: _EditAction.meta,
                     child: Text('Title, tags and aliases')),
-                PopupMenuItem(
+                const PopupMenuItem(
                     value: _EditAction.ai, child: Text('Edit with AI')),
-                PopupMenuItem(
+                if (writer.createFile != null)
+                  const PopupMenuItem(
+                      value: _EditAction.image, child: Text('Create image')),
+                const PopupMenuItem(
                     value: _EditAction.history,
                     child: Text('Earlier versions')),
               ],
@@ -572,4 +590,4 @@ class _NodeScreenState extends State<NodeScreen> {
 enum _AiAction { ask, share }
 
 /// The edits of an existing note (v4).
-enum _EditAction { append, edit, meta, ai, history }
+enum _EditAction { append, edit, meta, ai, image, history }

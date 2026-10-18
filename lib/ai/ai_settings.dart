@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../capture/new_node.dart';
 import 'ai_chat.dart';
+import 'ai_images.dart';
 import 'ai_models.dart';
 import 'model_picker.dart';
 import 'ai_providers.dart';
@@ -22,6 +23,8 @@ class ProviderSettings {
     required this.defaultModel,
     required this.strongModel,
     this.euOnly = false,
+    this.imageModel = '',
+    this.imageApi = ImageApi.images,
   });
 
   /// The preset's values.
@@ -30,7 +33,14 @@ class ProviderSettings {
         baseUrl: preset.baseUrl,
         defaultModel: preset.defaultModel,
         strongModel: preset.strongModel,
+        imageModel: preset.imageModel,
       );
+
+  /// The model "Create image" uses (#112); empty when none is chosen.
+  final String imageModel;
+
+  /// How [imageModel] is asked.
+  final ImageApi imageApi;
 
   /// The API; only Custom can change it.
   final ApiKind api;
@@ -50,6 +60,8 @@ class ProviderSettings {
         'defaultModel': defaultModel,
         'strongModel': strongModel,
         'euOnly': euOnly,
+        'imageModel': imageModel,
+        'imageApi': imageApi.name,
       };
 
   /// [json] over [preset]'s values; what is missing or unreadable keeps
@@ -68,6 +80,9 @@ class ProviderSettings {
       defaultModel: text('defaultModel', base.defaultModel),
       strongModel: text('strongModel', base.strongModel),
       euOnly: json['euOnly'] is bool ? json['euOnly'] as bool : base.euOnly,
+      imageModel: text('imageModel', base.imageModel),
+      imageApi: ImageApi.values.firstWhere((k) => k.name == json['imageApi'],
+          orElse: () => base.imageApi),
     );
   }
 }
@@ -238,6 +253,22 @@ Future<ProviderConfig> providerConfig(
     maxOutputTokens: settings.maxOutputTokens,
     // A local server such as Ollama needs no key.
     keyRequired: preset.id != 'custom',
+  );
+}
+
+/// What "Create image" needs (#112): the chosen provider's connection
+/// with its image model, and how to ask it; null when the provider makes
+/// no images in the app.
+Future<ImageConfig?> imageConfig(AiSettings settings, ApiKeyStore keys) async {
+  final preset = settings.preset;
+  final path = preset.imagesPath;
+  if (path == null || preset.api != ApiKind.openAi) return null;
+  final values = settings.providerSettings();
+  final base = await providerConfig(settings, keys);
+  return ImageConfig(
+    base.withModel(values.imageModel),
+    api: values.imageApi,
+    imagesPath: path,
   );
 }
 
@@ -422,12 +453,16 @@ class _Draft {
   _Draft(ProviderSettings settings, this.hasKey)
       : api = settings.api,
         euOnly = settings.euOnly,
+        imageApi = settings.imageApi,
+        imageModel = TextEditingController(text: settings.imageModel),
         baseUrl = TextEditingController(text: settings.baseUrl),
         defaultModel = TextEditingController(text: settings.defaultModel),
         strongModel = TextEditingController(text: settings.strongModel);
 
   ApiKind api;
   bool euOnly;
+  ImageApi imageApi;
+  final TextEditingController imageModel;
   final TextEditingController baseUrl;
   final TextEditingController defaultModel;
   final TextEditingController strongModel;
@@ -445,10 +480,12 @@ class _Draft {
         defaultModel: defaultModel.text.trim(),
         strongModel: strongModel.text.trim(),
         euOnly: euOnly,
+        imageModel: imageModel.text.trim(),
+        imageApi: imageApi,
       );
 
   void dispose() {
-    for (final c in [baseUrl, defaultModel, strongModel, key]) {
+    for (final c in [baseUrl, defaultModel, strongModel, imageModel, key]) {
       c.dispose();
     }
   }
@@ -757,11 +794,14 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           }
         }
         if (!mounted) return;
+        final images = which == 'image';
+        var models = const <ModelInfo>[];
         final id = await ModelPickerScreen.open(
           context,
           provider: preset.name,
           euOnly: preset.euSwitch && draft.euOnly,
-          load: ({bool refresh = false}) => fetchModels(
+          images: images,
+          load: ({bool refresh = false}) async => models = await fetchModels(
             provider: preset.name,
             api: draft.api,
             baseUrl: draft.baseUrl.text,
@@ -770,7 +810,21 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             refresh: refresh,
           ),
         );
-        if (id != null && mounted) setState(() => field.text = id);
+        if (id != null && mounted) {
+          setState(() {
+            field.text = id;
+            // A chat model that also makes images is asked through the
+            // chat; OpenRouter's Images API takes them all (#112).
+            if (images) {
+              final model = models.where((m) => m.id == id).firstOrNull;
+              draft.imageApi = preset.id != 'openrouter' &&
+                      model?.chat == true &&
+                      model?.images == true
+                  ? ImageApi.chat
+                  : ImageApi.images;
+            }
+          });
+        }
         // The list is fetched now: check the models against it.
         if (mounted) {
           unawaited(_checkModels(preset.id));
@@ -785,12 +839,19 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   Widget _resetModels(ProviderPreset preset, _Draft draft) {
     final base = ProviderSettings.of(preset);
     return ListenableBuilder(
-      listenable: Listenable.merge(
-          [draft.baseUrl, draft.defaultModel, draft.strongModel]),
+      listenable: Listenable.merge([
+        draft.baseUrl,
+        draft.defaultModel,
+        draft.strongModel,
+        draft.imageModel,
+      ]),
       builder: (context, _) {
         final differs = draft.baseUrl.text.trim() != base.baseUrl ||
             draft.defaultModel.text.trim() != base.defaultModel ||
             draft.strongModel.text.trim() != base.strongModel ||
+            (preset.makesImages &&
+                (draft.imageModel.text.trim() != base.imageModel ||
+                    draft.imageApi != base.imageApi)) ||
             (preset.euSwitch && draft.euOnly != base.euOnly);
         if (!differs) return const SizedBox.shrink();
         return Align(
@@ -805,6 +866,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               draft.baseUrl.text = base.baseUrl;
               draft.defaultModel.text = base.defaultModel;
               draft.strongModel.text = base.strongModel;
+              draft.imageModel.text = base.imageModel;
+              draft.imageApi = base.imageApi;
               draft.euOnly = base.euOnly;
             }),
           ),
@@ -906,6 +969,46 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           ),
         ),
       ),
+      if (preset.makesImages) ...[
+        ListenableBuilder(
+          listenable: draft.imageModel,
+          builder: (context, _) => TextField(
+            key: ValueKey('image-model-${preset.id}'),
+            controller: draft.imageModel,
+            decoration: InputDecoration(
+              labelText: 'Image model (optional)',
+              helperText: 'For "Create image" in a note\'s edit menu.',
+              errorText: modelGoneMessage(
+                  preset.name, draft.imageModel.text, _listedNow(preset.id)),
+              errorMaxLines: 3,
+              suffixIcon:
+                  _chooseModel(preset, draft, draft.imageModel, 'image'),
+            ),
+          ),
+        ),
+        DropdownButtonFormField<ImageApi>(
+          // Keyed by the value, so a model chosen from the list shows here.
+          key: ValueKey('image-api-${preset.id}-${draft.imageApi.name}'),
+          initialValue: draft.imageApi,
+          isExpanded: true,
+          decoration:
+              const InputDecoration(labelText: 'How the image model is asked'),
+          items: [
+            for (final kind in ImageApi.values)
+              DropdownMenuItem(
+                  value: kind,
+                  child: Text(kind.label, overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: (kind) =>
+              setState(() => draft.imageApi = kind ?? draft.imageApi),
+        ),
+      ] else
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text('${preset.name} cannot make images in the app.',
+              key: ValueKey('no-images-${preset.id}'),
+              style: Theme.of(context).textTheme.bodySmall),
+        ),
       _resetModels(preset, draft),
       TextField(
         key: ValueKey('api-key-${preset.id}'),

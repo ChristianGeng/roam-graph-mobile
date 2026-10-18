@@ -73,10 +73,37 @@ class FakeFolderAccess implements FolderAccess {
     return files;
   }
 
+  /// The bytes of every file created, by path.
+  final createdBytes = <String, Uint8List>{};
+
+  @override
+  Future<String> createDirectory(String dir, String name) async {
+    final parent = files
+        .where((f) => f.isDirectory && f.uri == dir)
+        .firstOrNull
+        ?.path;
+    final path = parent == null ? 'roam/$name' : '$parent/$name';
+    final existing = files.where((f) => f.path == path).firstOrNull;
+    if (existing != null) {
+      if (!existing.isDirectory) {
+        throw PlatformException(code: 'not_a_dir', message: '$name is a file');
+      }
+      return existing.uri;
+    }
+    final uri = 'content://dir/$path';
+    files = [...files, FolderFile(path: path, uri: uri, isDirectory: true)];
+    return uri;
+  }
+
   @override
   Future<String> createFile(String dir, String name, Uint8List bytes) async {
-    // The test folders keep their notes in roam/.
-    final path = 'roam/$name';
+    // The test folders keep their notes in roam/; a directory made with
+    // createDirectory has its own path.
+    final parent = files
+        .where((f) => f.isDirectory && f.uri == dir)
+        .firstOrNull
+        ?.path;
+    final path = parent == null ? 'roam/$name' : '$parent/$name';
     if (everyNameTaken || files.any((f) => f.path == path)) {
       throw PlatformException(code: 'exists', message: '$name exists');
     }
@@ -84,7 +111,8 @@ class FakeFolderAccess implements FolderAccess {
     listError = listErrorAfterCreate;
     final uri = 'content://new/$name';
     files = [...files, FolderFile(path: path, uri: uri, modified: 1)];
-    texts = {...texts, path: utf8.decode(bytes)};
+    texts = {...texts, path: utf8.decode(bytes, allowMalformed: true)};
+    createdBytes[path] = bytes;
     return uri;
   }
 

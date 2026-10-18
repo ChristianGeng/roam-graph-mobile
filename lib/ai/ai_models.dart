@@ -45,6 +45,7 @@ class ModelInfo {
     this.name,
     this.tools,
     this.chat,
+    this.images,
     this.inputPrice,
     this.outputPrice,
     this.regions,
@@ -63,6 +64,10 @@ class ModelInfo {
   /// embedding, image, speech, rerank and moderation models; null when
   /// neither the list nor the name says.
   final bool? chat;
+
+  /// Whether it makes images (#112): from the list where it says, else
+  /// from the name; null when neither says.
+  final bool? images;
 
   /// US dollars per million tokens, in and out; null when not given.
   final double? inputPrice;
@@ -139,6 +144,16 @@ List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
     }
     // Where the list says nothing, the name may.
     chat ??= notChatName.hasMatch(id) ? false : null;
+    bool? images;
+    if (type is String) {
+      // Vercel: an image model, or a chat model tagged for image output.
+      images = type == 'image' ||
+          (tags is List && tags.contains('image-generation'));
+    } else if (outputs is List) {
+      images = outputs.contains('image');
+    } else {
+      images = imageName.hasMatch(id) ? true : null;
+    }
     models.add(
       ModelInfo(
         id,
@@ -148,6 +163,7 @@ List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
         },
         tools: tools,
         chat: chat,
+        images: images,
         inputPrice: pricing is Map
             ? perMillion(pricing['input'] ?? pricing['prompt'])
             : null,
@@ -170,6 +186,15 @@ final notChatName = RegExp(
   r'whisper|tts|speech|transcribe|transcription|audio|'
   r'dall-e|gpt-image|imagen|image|flux|stable-diffusion|sdxl|'
   r'rerank|reranker|moderation|guard|ocr'
+  r')([/:_.-]|\d|$)',
+  caseSensitive: false,
+);
+
+/// Names of image models, read only where the list does not say (#112).
+final imageName = RegExp(
+  r'(^|[/:_.-])('
+  r'dall-e|gpt-image|imagen|image|flux|stable-diffusion|sdxl|seedream|'
+  r'recraft|imagine|ideogram'
   r')([/:_.-]|\d|$)',
   caseSensitive: false,
 );

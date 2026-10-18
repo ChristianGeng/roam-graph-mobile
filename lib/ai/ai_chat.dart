@@ -695,40 +695,48 @@ class ChatSession {
           'local server without one.');
     }
     lastRequest = request;
-    HttpReply reply;
-    try {
-      reply = await post(request.url, request.headers, jsonEncode(request.body));
-    } on SocketException catch (e) {
-      throw AiError('No connection to ${request.url.host}: ${e.message}. '
-          'Check the network.');
-    } on HandshakeException catch (e) {
-      throw AiError('No secure connection to ${request.url.host}: '
-          '${e.message}.');
-    } on TimeoutException {
-      throw AiError('${request.url.host} did not answer in time. Try again.');
-    } on HttpException catch (e) {
-      throw AiError('The connection to ${request.url.host} failed: '
-          '${e.message}.');
-    }
-    Object? json;
-    try {
-      json = jsonDecode(reply.body);
-    } on FormatException {
-      json = null;
-    }
-    if (reply.status >= 300 && reply.status < 400) {
-      throw AiError('${config.name} answered with a redirect (HTTP '
-          '${reply.status}), which the app does not follow, so nothing goes '
-          'to another host. Check the base URL.');
-    }
-    if (reply.status < 200 || reply.status >= 300) {
-      throw AiError(_httpError(config, reply.status, _message(json, reply.body)));
-    }
-    if (json is! Map) {
-      throw AiError('${config.name} sent an answer the app cannot read.');
-    }
-    return _api.read(config, json.cast<String, Object?>());
+    final json =
+        await postJson(config, request.url, request.headers, request.body, post);
+    return _api.read(config, json);
   }
+}
+
+/// POSTs [body] as JSON to [url] for [config]'s provider and returns the
+/// JSON object it answers with; every failure is an [AiError] in plain
+/// words. Also for images (#112).
+Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
+    Map<String, String> headers, Object? body, HttpPost post) async {
+  HttpReply reply;
+  try {
+    reply = await post(url, headers, jsonEncode(body));
+  } on SocketException catch (e) {
+    throw AiError('No connection to ${url.host}: ${e.message}. '
+        'Check the network.');
+  } on HandshakeException catch (e) {
+    throw AiError('No secure connection to ${url.host}: ${e.message}.');
+  } on TimeoutException {
+    throw AiError('${url.host} did not answer in time. Try again.');
+  } on HttpException catch (e) {
+    throw AiError('The connection to ${url.host} failed: ${e.message}.');
+  }
+  Object? json;
+  try {
+    json = jsonDecode(reply.body);
+  } on FormatException {
+    json = null;
+  }
+  if (reply.status >= 300 && reply.status < 400) {
+    throw AiError('${config.name} answered with a redirect (HTTP '
+        '${reply.status}), which the app does not follow, so nothing goes '
+        'to another host. Check the base URL.');
+  }
+  if (reply.status < 200 || reply.status >= 300) {
+    throw AiError(_httpError(config, reply.status, _message(json, reply.body)));
+  }
+  if (json is! Map) {
+    throw AiError('${config.name} sent an answer the app cannot read.');
+  }
+  return json.cast<String, Object?>();
 }
 
 /// The provider's own error message, from the shapes the APIs use.

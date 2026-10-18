@@ -8,6 +8,16 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-18: Create images with AI ([#115](https://github.com/ChristianGeng/roam-graph-mobile/pull/115))
+
+- Added: "Create image" in a note's edit menu. Describe the picture; the
+  image model draws it; "Add to the note" saves it in the image folder
+  and adds it to the note, where it shows inline with its description.
+- Added: an image model per provider in AI settings, for Vercel AI
+  Gateway, OpenRouter and Custom, and the folder for new images in
+  Settings (`img` by default).
+- Part of [#112](https://github.com/ChristianGeng/roam-graph-mobile/issues/112).
+
 ## 2026-10-18: Told when a chosen model is gone ([#114](https://github.com/ChristianGeng/roam-graph-mobile/pull/114))
 
 - Added: AI settings mark a chosen model that is no longer in the
