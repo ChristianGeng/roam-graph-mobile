@@ -8,6 +8,15 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-18: The app for Windows and macOS, and a Linux installer ([#119](https://github.com/ChristianGeng/roam-graph-mobile/pull/119))
+
+- Added: every release also carries the app for Windows
+  (`-windows-x64.zip`) and macOS (`-macos.zip`), not signed yet; see
+  docs/releases.md.
+- Added: on Linux, `install.sh` in the package puts the app in the app
+  menu, and `install.sh --update` installs the newest release.
+- Part of [#116](https://github.com/ChristianGeng/roam-graph-mobile/issues/116).
+
 ## 2026-10-18: The app on Linux ([#118](https://github.com/ChristianGeng/roam-graph-mobile/pull/118))
 
 - Added: a Linux build of the app with every release

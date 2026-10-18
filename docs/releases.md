@@ -59,16 +59,54 @@ releases also carry the desktop app.
 
 ## Install on Linux (#116)
 
-Each release also carries `roam-graph-<version>-linux-x64.tar.gz`, built on
-Ubuntu 24.04.
+Each release carries `roam-graph-<version>-linux-x64.tar.gz`, built on
+Ubuntu 24.04. It needs GTK 3 and libsecret, which Ubuntu has.
 
-1. Download it from the release and unpack it, for example to
-   `~/.local/opt/roam-graph`:
-   `tar -xzf roam-graph-*-linux-x64.tar.gz -C ~/.local/opt/roam-graph`
-2. Start `~/.local/opt/roam-graph/bundle/roam-graph`.
-3. Choose the org folder, the one that holds `roam/`.
+1. Download it from the release and unpack it anywhere, for example in
+   Downloads: `tar -xzf roam-graph-*-linux-x64.tar.gz`
+2. Run `bundle/install.sh`. It copies the app to
+   `~/.local/share/roam-graph/app` and adds **Roam Graph** to the app menu.
+3. Start it from the menu and choose the org folder, the one that holds
+   `roam/`.
 
-It needs GTK 3 and libsecret, which Ubuntu has. "Open in Emacs" runs
-`emacsclient`; Emacs needs `(server-start)`, which Doom runs. A newer
-release is installed by unpacking it over the old one.
+**Updates:** run `~/.local/share/roam-graph/app/install.sh --update`. It
+downloads the newest release from GitHub and installs it over the old
+one. Running `install.sh` from a newer unpacked release does the same.
+`install.sh --remove` takes the app and its menu entry away.
 
+**What stays where:** the app's own data (its database of the graph,
+settings, the edit history) is in `~/.local/share/io.github.christiangeng.roamgraph`;
+API keys are in the system keyring; the notes stay in their folder. An
+update or `--remove` changes none of them.
+
+"Open in Emacs" runs `emacsclient`; Emacs needs `(server-start)`, which
+Doom runs. Another command can be set in Settings.
+
+## Install on Windows (#116)
+
+Each release carries `roam-graph-<version>-windows-x64.zip`.
+
+1. Unpack it, for example to `%LOCALAPPDATA%\Programs\Roam Graph`.
+2. Start `roam_graph_mobile.exe`; to have it in the Start menu, right-click
+   it and choose "Pin to Start".
+3. "Open in Emacs" runs `emacsclientw.exe`; if Emacs is not on the `PATH`,
+   set its full path in Settings, for example
+   `C:\Program Files\Emacs\emacs-30.1\bin\emacsclientw.exe`.
+
+The app is not signed, so Windows SmartScreen may warn the first time:
+"More info", then "Run anyway". An update is unpacked over the old folder.
+
+## Install on macOS (#116)
+
+Each release carries `roam-graph-<version>-macos.zip`, the app for Apple
+silicon and Intel.
+
+1. Unpack it and move **Roam Graph** to Applications.
+2. The app is not signed: the first time, macOS refuses to open it. Open
+   System Settings → Privacy & Security and choose "Open Anyway" for Roam
+   Graph, once.
+3. "Open in Emacs" runs `emacsclient`. Apps started from the Dock do not
+   see the shell's `PATH`, so set the full path in Settings, for example
+   `/opt/homebrew/bin/emacsclient`.
+
+An update replaces the app in Applications.

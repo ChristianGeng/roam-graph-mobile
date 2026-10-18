@@ -1873,9 +1873,16 @@ devices through Syncthing.
       shared into the app does not exist there.
     - **Which code runs** is told by `defaultTargetPlatform`, so widget
       tests, which run as Android, can test the desktop too.
-    - **Builds:** CI builds the Linux bundle on Ubuntu 24.04 for every pull
-      request and attaches `roam-graph-<version>-linux-x64.tar.gz` to each
-      release. Windows and macOS follow under #116.
+    - **Builds:** CI builds the Linux bundle on Ubuntu 24.04, the Windows
+      app on Windows and the macOS app on macOS, for every pull request,
+      and attaches `roam-graph-<version>-linux-x64.tar.gz`,
+      `-windows-x64.zip` and `-macos.zip` to each release, next to the
+      APK, which stays the only APK, so Obtainium is not affected. The
+      desktop builds are not signed.
+    - **Linux install:** `install.sh` in the bundle copies the app to
+      `~/.local/share/roam-graph/app`, adds a menu entry, and with
+      `--update` fetches the newest release from GitHub; the app's data,
+      keys and notes are elsewhere and stay.
 
 ## Recommended, not decided
 
