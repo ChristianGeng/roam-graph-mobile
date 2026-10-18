@@ -118,6 +118,7 @@ class _ImageScreenState extends State<ImageScreen> {
             settings.visibility.hidesInText(widget.node, text.text))) {
       return 'This note is hidden from AI; nothing was sent.';
     }
+    if (!mounted) return null;
     // A new attempt: the image shown before is not saved by mistake.
     setState(() {
       _image = null;
