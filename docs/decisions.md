@@ -1807,6 +1807,37 @@ devices through Syncthing.
       session's cache (#75), fetched once.
     - **The defaults** are kept current in releases: when a provider
       retires a default, the preset changes, with a changelog entry.
+70. **"Create image": an AI image, saved after I have seen it** (#112),
+    `lib/edit/image_screen.dart` and `lib/ai/ai_images.dart`, in a note's
+    edit menu.
+    - **The image model** is a setting per provider in AI settings, with
+      its own "Choose model" list of image models. Two ways to ask, as
+      the providers document them (checked 2026-10-18): the Images API
+      (`/images/generations` at Vercel AI Gateway and Custom, `/images` at
+      OpenRouter; the image in `data[].b64_json`) and chat with image
+      output (Vercel's `modalities: ["image", "text"]`; the image in
+      `message.images[].image_url.url`). Picking a model from the list
+      sets the way; it can be changed. Vercel's default is
+      `openai/gpt-image-2`, which its documentation names. Providers whose
+      image API is not confirmed (Anthropic, Bedrock, Mistral, DeepSeek,
+      Qwen, Scaleway, Hugging Face) say that they cannot make images.
+    - **What is sent:** only the description I type. A note hidden from AI
+      gets no image.
+    - **Saved only after "Add to the note":** the image is shown first;
+      "Try again" asks again. Only PNG, JPEG and WebP are saved, checked
+      by their first bytes.
+    - **Where:** the folder for new images, a setting in Settings (`img`
+      by default, relative to `roam/`; only folders inside `roam/`), made
+      when missing (`createDirectory` in `FolderAccess.kt`). The file is
+      named as capture names notes, `<time>-<slug>.<ext>`, written through
+      a temporary file and never over another (#13); a taken name is
+      tried a second later.
+    - **In the note:** `#+caption: <description>` and `[[file:<path>]]`,
+      relative to the note's folder as Org reads file links, added at the
+      end of the node and saved as every edit (decision 10). The node view
+      shows it inline (#46).
+    - **Not yet:** the agent's `create_image` tool, a follow-up under
+      #112.
 
 ## Recommended, not decided
 

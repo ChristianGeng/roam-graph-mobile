@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../edit/note_editor.dart';
@@ -46,7 +48,14 @@ class NoteWriter {
     required this.create,
     required this.allowWriting,
     this.editor,
+    this.createFile,
   });
+
+  /// Writes [bytes] as the new file [path], relative to `roam/`, making
+  /// its folders when they are missing (#112: images). Never replaces a
+  /// file. Null where files cannot be written.
+  final Future<CreateResult> Function(String path, Uint8List bytes)?
+      createFile;
 
   /// Writes [text] as the new file [fileName] in `roam/`, then indexes the
   /// folder, so the graph has the new node when this returns.
