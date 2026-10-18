@@ -1,0 +1,32 @@
+# One-off (#116): resolves the packages with the pinned Flutter and commits
+# pubspec.lock and the desktop plugin registrants to this branch. Removed
+# again afterwards.
+name: Refresh lock
+
+on:
+  push:
+    branches: [desktop-scaffold]
+    paths: [.github/workflows/refresh-lock.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+      - run: flutter pub get
+      - name: Commit the lock and registrants
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -q .github/workflows/refresh-lock.yml
+          git add pubspec.lock linux/flutter windows/flutter macos/Flutter
+          git status --short
+          git commit -m "pubspec.lock and plugin registrants with file_selector (#116)"
+          git push
