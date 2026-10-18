@@ -255,6 +255,12 @@ jobs:
           echo "Roam Graph $VERSION" > "$bundle/VERSION"
           tar -C build/linux/x64/release -czf \
             "roam-graph-$VERSION-linux-x64.tar.gz" bundle
+          # install.sh --update accepts only plain files and folders under
+          # bundle/: checked here, so a release it would refuse is not made.
+          if tar -tvzf "roam-graph-$VERSION-linux-x64.tar.gz" | grep -E '^[^-d]'; then
+            echo "::error::The Linux package holds links; install.sh --update would refuse it."
+            exit 1
+          fi
 
       - name: Keep the Linux app as a build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -287,6 +293,11 @@ jobs:
             --build-name="$env:VERSION" `
             --dart-define=APP_VERSION="$env:VERSION"
           $out = "build/windows/x64/runner/Release"
+          # The Visual C++ runtime goes with the app, so it starts on a
+          # Windows without the redistributable.
+          foreach ($dll in "msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll") {
+            Copy-Item "$env:SystemRoot\System32\$dll" $out
+          }
           "Roam Graph $env:VERSION" | Out-File -Encoding utf8 "$out/VERSION.txt"
           Compress-Archive -Path "$out/*" `
             -DestinationPath "roam-graph-$env:VERSION-windows-x64.zip"
@@ -322,8 +333,11 @@ jobs:
             --build-name="$VERSION" \
             --dart-define=APP_VERSION="$VERSION"
           cd build/macos/Build/Products/Release
+          # The one app the build made, whatever its product name.
+          app=$(ls -d *.app | head -n 1)
+          [ -n "$app" ] || { echo "::error::No .app was built."; exit 1; }
           # ditto keeps the app's links and attributes, as Finder's zip.
-          ditto -c -k --keepParent "Roam Graph.app" \
+          ditto -c -k --keepParent "$app" \
             "$GITHUB_WORKSPACE/roam-graph-$VERSION-macos.zip"
 
       - name: Keep the macOS app as a build artifact
