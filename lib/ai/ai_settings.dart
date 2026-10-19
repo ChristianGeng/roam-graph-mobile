@@ -34,6 +34,7 @@ class ProviderSettings {
         defaultModel: preset.defaultModel,
         strongModel: preset.strongModel,
         imageModel: preset.imageModel,
+        imageApi: preset.imageApi,
       );
 
   /// The model "Create image" uses (#112); empty when none is chosen.
@@ -814,14 +815,17 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           setState(() {
             field.text = id;
             // A chat model that also makes images is asked through the
-            // chat; OpenRouter's Images API takes them all (#112).
+            // chat; OpenRouter's Images API takes them all (#112); Qwen's
+            // are asked through DashScope.
             if (images) {
               final model = models.where((m) => m.id == id).firstOrNull;
-              draft.imageApi = preset.id != 'openrouter' &&
-                      model?.chat == true &&
-                      model?.images == true
-                  ? ImageApi.chat
-                  : ImageApi.images;
+              draft.imageApi = preset.imageApi == ImageApi.dashscope
+                  ? ImageApi.dashscope
+                  : preset.id != 'openrouter' &&
+                          model?.chat == true &&
+                          model?.images == true
+                      ? ImageApi.chat
+                      : ImageApi.images;
             }
           });
         }

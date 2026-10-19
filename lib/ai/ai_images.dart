@@ -4,7 +4,9 @@
 /// Vercel's and OpenRouter's documentation on 2026-10-18.
 library;
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'ai_chat.dart';
@@ -53,10 +55,54 @@ String? imageExtension(Uint8List bytes) {
   return null;
 }
 
+/// Downloads an image the provider made; tests replace it.
+typedef ImageDownload = Future<Uint8List> Function(Uri url);
+
+/// The most bytes an image may have.
+const maxImageBytes = 30 * 1024 * 1024;
+
+/// [ImageDownload] with `dart:io`: no redirects, a time limit, and at most
+/// [maxImageBytes].
+Future<Uint8List> downloadWithDartIo(Uri url) async {
+  final client = HttpClient()
+    ..connectionTimeout = const Duration(seconds: 20)
+    ..userAgent = 'RoamGraph';
+  try {
+    final request = await client.getUrl(url);
+    request.followRedirects = false;
+    final response =
+        await request.close().timeout(const Duration(minutes: 2));
+    if (response.statusCode != 200) {
+      throw AiError('The image could not be downloaded (HTTP '
+          '${response.statusCode}).');
+    }
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in response.timeout(const Duration(minutes: 2))) {
+      bytes.add(chunk);
+      if (bytes.length > maxImageBytes) {
+        throw const AiError('The image is too large to save.');
+      }
+    }
+    return bytes.takeBytes();
+  } on SocketException catch (e) {
+    throw AiError('The image could not be downloaded: ${e.message}.');
+  } on TimeoutException {
+    throw const AiError('The image download took too long. Try again.');
+  } finally {
+    client.close(force: true);
+  }
+}
+
+/// Whether [url] is where DashScope puts the images it makes: Alibaba
+/// Cloud's object storage, over HTTPS. Nothing else is downloaded.
+bool isDashscopeImageUrl(Uri url) =>
+    url.scheme == 'https' && url.host.endsWith('.aliyuncs.com');
+
 /// Asks [config]'s image model for a picture of [prompt]. Throws
 /// [AiError] in plain words.
 Future<MadeImage> makeImage(ImageConfig config, String prompt,
-    {HttpPost post = postWithDartIo}) async {
+    {HttpPost post = postWithDartIo,
+    ImageDownload download = downloadWithDartIo}) async {
   final provider = config.provider;
   if (provider.model.trim().isEmpty) {
     throw AiError('Choose an image model for ${provider.name} in AI '
@@ -70,9 +116,15 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
     base = base.substring(0, base.length - 1);
   }
   final chat = config.api == ImageApi.chat;
+  final dashscope = config.api == ImageApi.dashscope;
   final Uri url;
   try {
-    url = Uri.parse(chat ? '$base/chat/completions' : '$base${config.imagesPath}');
+    final baseUri = Uri.parse(base);
+    url = dashscope
+        // DashScope's path starts at the host, not at the base URL's
+        // compatible-mode/v1.
+        ? baseUri.replace(path: config.imagesPath, query: null)
+        : Uri.parse(chat ? '$base/chat/completions' : '$base${config.imagesPath}');
   } on FormatException {
     throw AiError('The base URL of ${provider.name} is not a valid URL.');
   }
@@ -87,7 +139,23 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
   };
   final body = <String, Object?>{
     'model': provider.model,
-    if (chat) ...{
+    if (dashscope) ...{
+      'input': {
+        'messages': [
+          {
+            'role': 'user',
+            'content': [
+              {'text': prompt},
+            ],
+          },
+        ],
+      },
+      'parameters': {
+        'size': '1024*1024',
+        'n': 1,
+        'watermark': false,
+      },
+    } else if (chat) ...{
       'messages': [
         {'role': 'user', 'content': prompt},
       ],
@@ -105,7 +173,44 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
         },
       },
   };
-  final json = await postJson(provider, url, headers, body, post);
+  final Map<String, Object?> json;
+  try {
+    json = await postJson(provider, url, headers, body, post);
+  } on AiError catch (e) {
+    // Vercel with "EU only": the model has no route in the EU.
+    if (provider.euOnly &&
+        e.message.toLowerCase().contains('inference region')) {
+      throw AiError('"${provider.model}" has no EU route, and "EU only" is '
+          'on for ${provider.name}. Choose an image model that runs in the '
+          'EU ("Choose model" marks the others), or turn "EU only" off in AI '
+          'settings.');
+    }
+    rethrow;
+  }
+  if (dashscope) {
+    final link = _fromDashscope(json);
+    if (link == null) {
+      throw AiError('${provider.name} sent no image. The model '
+          '"${provider.model}" may not make images.');
+    }
+    final Uri imageUrl;
+    try {
+      imageUrl = Uri.parse(link);
+    } on FormatException {
+      throw AiError('${provider.name} sent an image link the app cannot read.');
+    }
+    if (!isDashscopeImageUrl(imageUrl)) {
+      throw AiError('${provider.name} sent an image link to '
+          '${imageUrl.host}, which the app does not download.');
+    }
+    final bytes = await download(imageUrl);
+    final extension = imageExtension(bytes);
+    if (extension == null) {
+      throw AiError('${provider.name} sent something that is no PNG, JPEG '
+          'or WebP image; nothing is saved.');
+    }
+    return MadeImage(bytes, extension);
+  }
   final encoded = chat ? _fromChat(json) : _fromImages(json);
   if (encoded == null) {
     throw AiError('${provider.name} sent no image. The model '
@@ -134,6 +239,23 @@ String? _fromImages(Map<String, Object?> json) {
   final first = data.first as Map;
   if (first['b64_json'] case final String b64 when b64.isNotEmpty) return b64;
   if (first['url'] case final String url) return _dataUrl(url);
+  return null;
+}
+
+/// The link to the first image of a DashScope answer:
+/// `output.choices[0].message.content[0].image`.
+String? _fromDashscope(Map<String, Object?> json) {
+  final output = json['output'];
+  final choices = output is Map ? output['choices'] : null;
+  if (choices is! List || choices.isEmpty || choices.first is! Map) {
+    return null;
+  }
+  final message = (choices.first as Map)['message'];
+  final content = message is Map ? message['content'] : null;
+  if (content is! List) return null;
+  for (final part in content) {
+    if (part is Map && part['image'] is String) return part['image'] as String;
+  }
   return null;
 }
 

@@ -1821,8 +1821,18 @@ devices through Syncthing.
       `openai/gpt-image-2`, which its documentation names. Providers whose
       image API is not confirmed (Anthropic, Bedrock, Mistral, DeepSeek,
       Qwen, Scaleway, Hugging Face) say that they cannot make images.
-    - **What is sent:** only the description I type. A note hidden from AI
-      gets no image.
+    - **Qwen Image** (#120): Alibaba Cloud's DashScope API on the Qwen
+      preset's host (`/api/v1/services/aigc/multimodal-generation/generation`),
+      `qwen-image-2.0` by default, 0.035 USD per image in Singapore
+      (checked 2026-10-19), 1024×1024. DashScope answers with a link; the
+      app downloads it at once, only from Alibaba Cloud's storage
+      (`*.aliyuncs.com`) over HTTPS, without redirects, at most 30 MB.
+    - **"EU only"** on Vercel applies to images too; a model without an EU
+      route fails there, and the app says so in those words, with the two
+      ways out (#120).
+    - **What is sent:** the description I type and, unless I untick it,
+      the note's title (#120), so "an image for this note" works. A note
+      hidden from AI gets no image.
     - **Saved only after "Add to the note":** the image is shown first;
       "Try again" asks again. Only PNG, JPEG and WebP are saved, checked
       by their first bytes.

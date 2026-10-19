@@ -31,6 +31,9 @@ void main() {
     expect(relativeLink('sub/fox.org', 'img/a.png'), '../img/a.png');
     expect(relativeLink('sub/fox.org', 'sub/img/a.png'), 'img/a.png');
     expect(relativeLink('a/b/fox.org', 'a.png'), '../../a.png');
+    expect(imagePrompt('A fox', 'Red fox'),
+        'A fox\n\nThe image is for a note titled "Red fox".');
+    expect(imagePrompt('A fox', null), 'A fox');
     expect(imageAddition('A fox\n in snow', 'img/a.png'),
         '#+caption: A fox in snow\n[[file:img/a.png]]\n');
   });
@@ -104,7 +107,9 @@ void main() {
         find.byKey(const ValueKey('image-prompt')), 'A red fox in snow');
     await tester.tap(find.byKey(const ValueKey('image-make')));
     await tester.pumpAndSettle();
-    expect(prompts, ['A red fox in snow']);
+    // With the note's title, as the box is ticked by default.
+    expect(prompts,
+        ['A red fox in snow\n\nThe image is for a note titled "Red fox".']);
     expect(find.byKey(const ValueKey('image-preview')), findsOneWidget);
     // Nothing is saved yet.
     expect(written, isEmpty);
