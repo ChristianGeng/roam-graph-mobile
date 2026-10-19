@@ -221,8 +221,15 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    Future<void> tapVisible(WidgetTester tester, Key key) async {
+      await tester.ensureVisible(find.byKey(key));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(key));
+      await tester.pumpAndSettle();
+    }
+
     Future<void> goAhead(WidgetTester tester) async {
-      await tester.tap(find.byKey(const ValueKey('ai-edit-go')));
+      await tapVisible(tester, const ValueKey('ai-edit-go'));
       await tester.pumpAndSettle();
     }
 
@@ -290,8 +297,7 @@ void main() {
     testWidgets('"Back" from the plan keeps the instruction', (tester) async {
       await open(tester, [textReply(planReply(['a']))]);
       await ask(tester);
-      await tester.tap(find.byKey(const ValueKey('ai-edit-back')));
-      await tester.pumpAndSettle();
+      await tapVisible(tester, const ValueKey('ai-edit-back'));
       expect(find.byKey(const ValueKey('ai-edit-plan')), findsNothing);
       expect(find.text('Remove all links to this note'), findsOneWidget);
       expect(find.byKey(const ValueKey('ai-edit-ask')), findsOneWidget);
