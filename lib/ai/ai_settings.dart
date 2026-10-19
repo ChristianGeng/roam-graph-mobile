@@ -129,7 +129,12 @@ class AiSettings {
     this.maxChangeSetFiles = 20,
     this.editMode = AiEditMode.agent,
     this.maxAgentChanges = 30,
+    this.imageProvider = '',
   });
+
+  /// The preset ID of the provider "Create image" uses (#127); empty for
+  /// "Same as the chat".
+  final String imageProvider;
 
   /// Tags that hide a note from AI; by default `private`.
   final List<String> hiddenTags;
@@ -175,6 +180,7 @@ class AiSettings {
     int? maxChangeSetFiles,
     AiEditMode? editMode,
     int? maxAgentChanges,
+    String? imageProvider,
   }) =>
       AiSettings(
         hiddenTags: hiddenTags ?? this.hiddenTags,
@@ -185,6 +191,7 @@ class AiSettings {
         maxChangeSetFiles: maxChangeSetFiles ?? this.maxChangeSetFiles,
         editMode: editMode ?? this.editMode,
         maxAgentChanges: maxAgentChanges ?? this.maxAgentChanges,
+        imageProvider: imageProvider ?? this.imageProvider,
       );
 
   Map<String, Object?> toJson() => {
@@ -199,6 +206,7 @@ class AiSettings {
         'maxChangeSetFiles': maxChangeSetFiles,
         'editMode': editMode.name,
         'maxAgentChanges': maxAgentChanges,
+        'imageProvider': imageProvider,
       };
 
   /// Settings from [json]; a missing or unreadable value keeps its default.
@@ -234,19 +242,32 @@ class AiSettings {
               .firstOrNull ??
           defaults.editMode,
       maxAgentChanges: positive('maxAgentChanges', defaults.maxAgentChanges),
+      // Missing in settings saved before #127, or a provider that makes no
+      // images: the chat's provider.
+      imageProvider: switch (json['imageProvider']) {
+        final String id when imageProviders.any((p) => p.id == id) => id,
+        _ => defaults.imageProvider,
+      },
     );
   }
 }
 
-/// The connection of the chosen provider, with its key from [keys]:
-/// its default model, or its strong one when [strong] and it has one.
+/// The providers that can make images in the app, for "Images with:"
+/// (#127).
+Iterable<ProviderPreset> get imageProviders => providerPresets
+    .where((p) => p.makesImages && p.api == ApiKind.openAi);
+
+/// The connection of the chosen provider (or of the provider [id]), with
+/// its key from [keys]: its default model, or its strong one when
+/// [strong] and it has one.
 Future<ProviderConfig> providerConfig(
   AiSettings settings,
   ApiKeyStore keys, {
   bool strong = false,
+  String? id,
 }) async {
-  final preset = settings.preset;
-  final values = settings.providerSettings();
+  final preset = presetById(id ?? settings.provider);
+  final values = settings.providerSettings(preset.id);
   String key;
   try {
     key = await keys.read(preset.id) ?? '';
@@ -268,20 +289,42 @@ Future<ProviderConfig> providerConfig(
   );
 }
 
-/// What "Create image" needs (#112): the chosen provider's connection
-/// with its image model, and how to ask it; null when the provider makes
-/// no images in the app.
+/// The provider "Create image" uses: the one of "Images with:", or the
+/// chat's (#127).
+ProviderPreset imagePreset(AiSettings settings) =>
+    settings.imageProvider.isEmpty
+        ? settings.preset
+        : presetById(settings.imageProvider);
+
+/// What "Create image" needs (#112): the image provider's connection with
+/// its own key, image model and "EU only" (#127), and how to ask it; null
+/// when the provider makes no images in the app.
 Future<ImageConfig?> imageConfig(AiSettings settings, ApiKeyStore keys) async {
-  final preset = settings.preset;
+  final preset = imagePreset(settings);
   final path = preset.imagesPath;
   if (path == null || preset.api != ApiKind.openAi) return null;
-  final values = settings.providerSettings();
-  final base = await providerConfig(settings, keys);
+  final values = settings.providerSettings(preset.id);
+  final base = await providerConfig(settings, keys, id: preset.id);
+  // With "EU only", the preset's default image model gives way to its
+  // default with an EU route (#127).
+  final euDefault = base.euOnly &&
+      preset.euImageModel.isNotEmpty &&
+      values.imageModel == preset.imageModel &&
+      values.imageApi == preset.imageApi;
   return ImageConfig(
-    base.withModel(values.imageModel),
-    api: values.imageApi,
+    base.withModel(euDefault ? preset.euImageModel : values.imageModel),
+    api: euDefault ? preset.euImageApi : values.imageApi,
     imagesPath: path,
   );
+}
+
+/// Where [config]'s image is made, for the line on "Create image" (#127):
+/// in the EU, outside it, or not known. With "EU only" on, the provider
+/// makes it in the EU or refuses.
+String imageRegion(ProviderPreset preset, ImageConfig config) {
+  if (preset.dataStaysInEu || config.provider.euOnly) return 'in the EU';
+  if (preset.outsideEu || preset.euSwitch) return 'outside the EU';
+  return 'region not known';
 }
 
 /// Keeps API keys, one per provider. An interface so screens can be
@@ -525,6 +568,9 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   /// the defaults over saved values.
   TextEditingController? _tags;
   late String _provider;
+
+  /// "Images with:"; empty for the chat's provider (#127).
+  String _imageProvider = '';
   final _drafts = <String, _Draft>{};
   final _rounds = TextEditingController();
   final _tokens = TextEditingController();
@@ -628,12 +674,14 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       if (!mounted) return;
       _loaded = settings;
       _provider = settings.provider;
+      _imageProvider = settings.imageProvider;
       _rounds.text = '${settings.maxToolRounds}';
       _tokens.text = '${settings.maxOutputTokens}';
       _files.text = '${settings.maxChangeSetFiles}';
       _changes.text = '${settings.maxAgentChanges}';
       _editMode = settings.editMode;
       await _draft(_provider);
+      if (_imageProvider.isNotEmpty) await _draft(_imageProvider);
       if (mounted) {
         setState(() => _tags = TextEditingController(
             text: settings.hiddenTags.join(' ')));
@@ -708,6 +756,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final settings = AiSettingsScope.of(context).copyWith(
       hiddenTags: parseTags(tags.text),
       provider: _provider,
+      imageProvider: _imageProvider,
       providers: {
         ...loaded.providers,
         for (final MapEntry(:key, :value) in _drafts.entries)
@@ -891,6 +940,163 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     );
   }
 
+  /// The image model and how it is asked, for [preset] (#112).
+  List<Widget> _imageFields(ProviderPreset preset, _Draft draft) {
+    return [
+      if (preset.makesImages) ...[
+        ListenableBuilder(
+          listenable: draft.imageModel,
+          builder: (context, _) => TextField(
+            key: ValueKey('image-model-${preset.id}'),
+            controller: draft.imageModel,
+            decoration: InputDecoration(
+              labelText: 'Image model (optional)',
+              helperText: 'For "Create image" in a note\'s edit menu.',
+              errorText: modelGoneMessage(
+                  preset.name, draft.imageModel.text, _listedNow(preset.id)),
+              errorMaxLines: 3,
+              suffixIcon:
+                  _chooseModel(preset, draft, draft.imageModel, 'image'),
+            ),
+          ),
+        ),
+        DropdownButtonFormField<ImageApi>(
+          // Keyed by the value, so a model chosen from the list shows here.
+          key: ValueKey('image-api-${preset.id}-${draft.imageApi.name}'),
+          initialValue: draft.imageApi,
+          isExpanded: true,
+          decoration:
+              const InputDecoration(labelText: 'How the image model is asked'),
+          items: [
+            // Qwen only through DashScope and Mistral only through its
+            // image tool; the others never through these.
+            for (final kind in ImageApi.values)
+              if (kind.ownProvider
+                  ? kind == preset.imageApi
+                  : !preset.imageApi.ownProvider)
+                DropdownMenuItem(
+                    value: kind,
+                    child: Text(kind.label, overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: (kind) =>
+              setState(() => draft.imageApi = kind ?? draft.imageApi),
+        ),
+      ] else
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text('${preset.name} cannot make images in the app.',
+              key: ValueKey('no-images-${preset.id}'),
+              style: Theme.of(context).textTheme.bodySmall),
+        ),
+    ];
+  }
+
+  /// The API key of [preset].
+  List<Widget> _keyFields(ProviderPreset preset, _Draft draft) {
+    return [
+      TextField(
+        key: ValueKey('api-key-${preset.id}'),
+        controller: draft.key,
+        obscureText: true,
+        autocorrect: false,
+        enableSuggestions: false,
+        decoration: InputDecoration(
+          labelText: preset.keyHint,
+          helperText: draft.hasKey && !draft.removeKey
+              ? 'A key is saved. Type a new one to replace it.'
+              : 'Kept in Android\'s secure storage, never in the notes.',
+          helperMaxLines: 2,
+        ),
+      ),
+      if (draft.hasKey && !draft.removeKey)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () => setState(() => draft.removeKey = true),
+            child: const Text('Remove the saved key'),
+          ),
+        ),
+    ];
+  }
+
+  /// "EU only" of [preset], where it has the switch.
+  List<Widget> _euFields(
+      ProviderPreset preset, _Draft draft, String switchKey) {
+    return [
+      if (preset.euSwitch)
+        SwitchListTile(
+          key: ValueKey(switchKey),
+          contentPadding: EdgeInsets.zero,
+          value: draft.euOnly,
+          onChanged: (on) => setState(() {
+            draft.euOnly = on;
+            // The default image model follows: one with an EU route
+            // while "EU only" is on (#127).
+            final (from, to, api) = on
+                ? (preset.imageModel, preset.euImageModel, preset.euImageApi)
+                : (preset.euImageModel, preset.imageModel, preset.imageApi);
+            if (preset.euImageModel.isNotEmpty &&
+                draft.imageModel.text.trim() == from) {
+              draft.imageModel.text = to;
+              draft.imageApi = api;
+            }
+          }),
+          title: const Text('EU only'),
+          subtitle: const Text('Inference and stored data in the EU; models '
+              'without an EU route then fail.'),
+        ),
+    ];
+  }
+
+  /// "Images with:" (#127): the provider "Create image" uses, the chat's
+  /// by default; another one shows its own image model, key and "EU only"
+  /// here.
+  List<Widget> _imageProviderSection(BuildContext context) {
+    final chat = presetById(_provider);
+    final other = _imageProvider.isEmpty || _imageProvider == _provider
+        ? null
+        : presetById(_imageProvider);
+    return [
+      const SizedBox(height: 16),
+      Text('Create image: provider',
+          style: Theme.of(context).textTheme.titleMedium),
+      DropdownButtonFormField<String>(
+        key: ValueKey('image-provider-$_imageProvider'),
+        initialValue: _imageProvider,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Images with:',
+          helperText: 'Only the description and the note\'s title go to it, '
+              'when I tap "Make image".',
+          helperMaxLines: 2,
+        ),
+        items: [
+          DropdownMenuItem(
+              value: '',
+              child: Text('Same as the chat (${chat.name})',
+                  overflow: TextOverflow.ellipsis)),
+          for (final p in imageProviders)
+            DropdownMenuItem(
+                value: p.id,
+                child: Text(p.name, overflow: TextOverflow.ellipsis)),
+        ],
+        onChanged: (id) async {
+          if (id == null) return;
+          if (id.isNotEmpty) await _draft(id);
+          if (mounted) setState(() => _imageProvider = id);
+          if (mounted && id.isNotEmpty) unawaited(_checkModels(id));
+        },
+      ),
+      if (other != null) ...[
+        const SizedBox(height: 8),
+        Text(other.note, key: const ValueKey('image-provider-note')),
+        ..._imageFields(other, _drafts[other.id]!),
+        ..._keyFields(other, _drafts[other.id]!),
+        ..._euFields(other, _drafts[other.id]!, 'eu-only-image'),
+      ],
+    ];
+  }
+
   List<Widget> _providerSection(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final draft = _drafts[_provider]!;
@@ -984,84 +1190,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           ),
         ),
       ),
-      if (preset.makesImages) ...[
-        ListenableBuilder(
-          listenable: draft.imageModel,
-          builder: (context, _) => TextField(
-            key: ValueKey('image-model-${preset.id}'),
-            controller: draft.imageModel,
-            decoration: InputDecoration(
-              labelText: 'Image model (optional)',
-              helperText: 'For "Create image" in a note\'s edit menu.',
-              errorText: modelGoneMessage(
-                  preset.name, draft.imageModel.text, _listedNow(preset.id)),
-              errorMaxLines: 3,
-              suffixIcon:
-                  _chooseModel(preset, draft, draft.imageModel, 'image'),
-            ),
-          ),
-        ),
-        DropdownButtonFormField<ImageApi>(
-          // Keyed by the value, so a model chosen from the list shows here.
-          key: ValueKey('image-api-${preset.id}-${draft.imageApi.name}'),
-          initialValue: draft.imageApi,
-          isExpanded: true,
-          decoration:
-              const InputDecoration(labelText: 'How the image model is asked'),
-          items: [
-            // Qwen only through DashScope and Mistral only through its
-            // image tool; the others never through these.
-            for (final kind in ImageApi.values)
-              if (kind.ownProvider
-                  ? kind == preset.imageApi
-                  : !preset.imageApi.ownProvider)
-                DropdownMenuItem(
-                    value: kind,
-                    child: Text(kind.label, overflow: TextOverflow.ellipsis)),
-          ],
-          onChanged: (kind) =>
-              setState(() => draft.imageApi = kind ?? draft.imageApi),
-        ),
-      ] else
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text('${preset.name} cannot make images in the app.',
-              key: ValueKey('no-images-${preset.id}'),
-              style: Theme.of(context).textTheme.bodySmall),
-        ),
+      ..._imageFields(preset, draft),
       _resetModels(preset, draft),
-      TextField(
-        key: ValueKey('api-key-${preset.id}'),
-        controller: draft.key,
-        obscureText: true,
-        autocorrect: false,
-        enableSuggestions: false,
-        decoration: InputDecoration(
-          labelText: preset.keyHint,
-          helperText: draft.hasKey && !draft.removeKey
-              ? 'A key is saved. Type a new one to replace it.'
-              : 'Kept in Android\'s secure storage, never in the notes.',
-          helperMaxLines: 2,
-        ),
-      ),
-      if (draft.hasKey && !draft.removeKey)
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton(
-            onPressed: () => setState(() => draft.removeKey = true),
-            child: const Text('Remove the saved key'),
-          ),
-        ),
-      if (preset.euSwitch)
-        SwitchListTile(
-          key: const ValueKey('eu-only'),
-          contentPadding: EdgeInsets.zero,
-          value: draft.euOnly,
-          onChanged: (on) => setState(() => draft.euOnly = on),
-          title: const Text('EU only'),
-          subtitle: const Text('Inference and stored data in the EU; models '
-              'without an EU route then fail.'),
-        ),
+      ..._keyFields(preset, draft),
+      ..._euFields(preset, draft, 'eu-only'),
+      ..._imageProviderSection(context),
       const SizedBox(height: 16),
       Text('Limits', style: text.titleSmall),
       TextField(

@@ -382,7 +382,7 @@ void main() {
                     'requested inference region.',
               },
             }, status: 400)),
-        throwsA(isA<AiError>().having((e) => e.message, 'message',
+        throwsA(isA<NoEuRouteError>().having((e) => e.message, 'message',
             contains('has no EU route, and "EU only" is on'))));
   });
 

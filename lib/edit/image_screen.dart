@@ -3,6 +3,8 @@
 /// link to it, shown inline as every image in the notes (#46).
 library;
 
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
 import '../ai/ai_chat.dart';
@@ -99,6 +101,39 @@ class _ImageScreenState extends State<ImageScreen> {
   /// The description [_image] was made from.
   String _madeFrom = '';
 
+  /// Which provider and model make the image, and where (#127); null
+  /// until the settings are read.
+  String? _where;
+  bool _whereAsked = false;
+
+  /// Whether the last error was "no EU route", so the image can be made
+  /// once outside the EU (#127).
+  bool _offerOutsideEu = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_whereAsked) return;
+    _whereAsked = true;
+    unawaited(_loadWhere());
+  }
+
+  Future<void> _loadWhere() async {
+    final settings = await AiSettingsScope.current(context);
+    if (!mounted) return;
+    final keys = AiSettingsScope.keysOf(context);
+    if (keys == null) return;
+    final preset = imagePreset(settings);
+    final config = await imageConfig(settings, keys);
+    if (!mounted) return;
+    final model = config?.provider.model ?? '';
+    setState(() => _where = config == null
+        ? '${preset.name} cannot make images in the app.'
+        : 'Made by ${preset.name} with '
+            '${model.isEmpty ? 'no image model yet' : model}, '
+            '${imageRegion(preset, config)}.');
+  }
+
   @override
   void dispose() {
     _prompt.dispose();
@@ -110,6 +145,7 @@ class _ImageScreenState extends State<ImageScreen> {
     setState(() {
       _working = true;
       _error = null;
+      _offerOutsideEu = false;
     });
     try {
       final error = await work();
@@ -119,8 +155,9 @@ class _ImageScreenState extends State<ImageScreen> {
     }
   }
 
-  /// Asks the image model; the image is only shown, not saved.
-  Future<String?> _make() async {
+  /// Asks the image model; the image is only shown, not saved. With
+  /// [outsideEu], this once without "EU only"; the setting stays on.
+  Future<String?> _make({bool outsideEu = false}) async {
     final prompt = _prompt.text.trim();
     if (prompt.isEmpty) return 'Describe the image first.';
     final settings = await AiSettingsScope.current(context);
@@ -141,11 +178,17 @@ class _ImageScreenState extends State<ImageScreen> {
       _image = null;
       _madeFrom = '';
     });
-    final config = await imageConfig(settings, keys);
-    if (config == null) {
-      return '${settings.preset.name} cannot make images in the app. '
-          'Choose Vercel AI Gateway, OpenRouter or Custom in AI settings.';
+    final found = await imageConfig(settings, keys);
+    if (found == null) {
+      return '${imagePreset(settings).name} cannot make images in the app. '
+          'Choose one that does under "Images with:" in AI settings.';
     }
+    final config = outsideEu
+        ? ImageConfig(
+            found.provider.withModel(found.provider.model, euOnly: false),
+            api: found.api,
+            imagesPath: found.imagesPath)
+        : found;
     try {
       final image = await makeImage(
           config, imagePrompt(prompt, _withTitle ? widget.node.displayTitle : null),
@@ -157,6 +200,9 @@ class _ImageScreenState extends State<ImageScreen> {
         });
       }
       return null;
+    } on NoEuRouteError catch (e) {
+      if (mounted) setState(() => _offerOutsideEu = true);
+      return e.message;
     } on AiError catch (e) {
       return e.message;
     }
@@ -254,6 +300,10 @@ class _ImageScreenState extends State<ImageScreen> {
                   'note".'
               : 'Only this description is sent to the image model. The '
                   'image is saved only when you tap "Add to the note".'),
+          if (_where case final where?) ...[
+            const SizedBox(height: 8),
+            Text(where, key: const ValueKey('image-where')),
+          ],
           const SizedBox(height: 16),
           Wrap(
             alignment: WrapAlignment.end,
@@ -286,6 +336,16 @@ class _ImageScreenState extends State<ImageScreen> {
                 error,
                 key: const ValueKey('image-error'),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+          if (_offerOutsideEu && !_working)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                key: const ValueKey('image-outside-eu'),
+                onPressed: () => _run(() => _make(outsideEu: true)),
+                icon: const Icon(Icons.public),
+                label: const Text('Make this one outside the EU'),
               ),
             ),
           if (image != null)

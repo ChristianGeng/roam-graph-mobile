@@ -112,6 +112,13 @@ bool isDashscopeImageUrl(Uri url) =>
 bool isMistralImageUrl(Uri url) =>
     url.scheme == 'https' && url.host == 'files.mistral.ai';
 
+/// The error when "EU only" is on and the image model has no EU route;
+/// "Create image" then offers to make this one image outside the EU
+/// (#127).
+class NoEuRouteError extends AiError {
+  const NoEuRouteError(super.message);
+}
+
 /// Asks [config]'s image model for a picture of [prompt]. Throws
 /// [AiError] in plain words.
 Future<MadeImage> makeImage(ImageConfig config, String prompt,
@@ -204,7 +211,7 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
     // Vercel with "EU only": the model has no route in the EU.
     if (provider.euOnly &&
         e.message.toLowerCase().contains('inference region')) {
-      throw AiError('"${provider.model}" has no EU route, and "EU only" is '
+      throw NoEuRouteError('"${provider.model}" has no EU route, and "EU only" is '
           'on for ${provider.name}. Choose an image model that runs in the '
           'EU ("Choose model" marks the others), or turn "EU only" off in AI '
           'settings.');

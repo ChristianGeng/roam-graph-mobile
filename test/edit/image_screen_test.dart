@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_chat.dart';
+import 'package:roam_graph_mobile/ai/ai_providers.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 import 'package:roam_graph_mobile/capture/capture_screen.dart';
 import 'package:roam_graph_mobile/edit/image_screen.dart';
@@ -51,7 +52,10 @@ void main() {
 
   Future<(MemoryNoteStore, Map<String, Uint8List>, List<String>)> open(
       WidgetTester tester, String id,
-      {Set<String> taken = const {}, String provider = 'vercel'}) async {
+      {Set<String> taken = const {},
+      String provider = 'vercel',
+      AiSettings? settings,
+      HttpPost? post}) async {
     final store = MemoryNoteStore(Map.of(notes));
     final written = <String, Uint8List>{};
     final prompts = <String>[];
@@ -74,14 +78,15 @@ void main() {
     await tester.pumpWidget(ViewSettingsHost(
       store: MemoryViewSettingsStore(const ViewSettings(imageFolder: 'img')),
       child: AiSettingsHost(
-        store: MemoryAiSettingsStore(AiSettings(provider: provider)),
+        store: MemoryAiSettingsStore(settings ?? AiSettings(provider: provider)),
         keys: MemoryKeyStore()..keys[provider] = 'v-key',
         child: MaterialApp(
           home: ImageScreen(
             writer: writer,
             node: node,
             now: () => DateTime(2026, 10, 18, 9, 5, 7),
-            post: (url, headers, body) async {
+            post: post ??
+                (url, headers, body) async {
               prompts.add((jsonDecode(body) as Map)['prompt'] as String);
               return HttpReply(
                   200,
@@ -143,7 +148,102 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('image-make')));
     await tester.pumpAndSettle();
     expect(prompts, isEmpty);
-    expect(find.textContaining('cannot make images in the app'),
+    expect(
+        find.byKey(const ValueKey('image-where')),
         findsOneWidget);
+    expect(
+        tester.widget<Text>(find.byKey(const ValueKey('image-error'))).data,
+        contains('cannot make images in the app'));
+  });
+
+  final openScreen = open;
+  String where(WidgetTester tester) =>
+      tester.widget<Text>(find.byKey(const ValueKey('image-where'))).data!;
+
+  testWidgets('the line above "Make image": provider, model, region (#127)',
+      (tester) async {
+    // A new screen each time, not the one before with new settings.
+    Future<void> open(WidgetTester tester, String id,
+        {String provider = 'vercel', AiSettings? settings}) async {
+      await tester.pumpWidget(const SizedBox());
+      await openScreen(tester, id, provider: provider, settings: settings);
+    }
+
+    await open(tester, 'fox', provider: 'mistral');
+    expect(where(tester), 'Made by Mistral with mistral-medium-latest, in the EU.');
+    await open(tester, 'fox');
+    expect(where(tester),
+        'Made by Vercel AI Gateway with openai/gpt-image-2, outside the EU.');
+    await open(tester, 'fox',
+        settings: AiSettings(provider: 'vercel', providers: {
+          'vercel': ProviderSettings.fromJson(
+              {'euOnly': true}, presetById('vercel')),
+        }));
+    expect(where(tester),
+        'Made by Vercel AI Gateway with google/gemini-2.5-flash-image, in the EU.');
+    await open(tester, 'fox', provider: 'openrouter');
+    expect(where(tester), endsWith(', region not known.'));
+    // Another provider than the chat's.
+    await open(tester, 'fox',
+        settings: const AiSettings(provider: 'anthropic', imageProvider: 'qwen'));
+    expect(where(tester),
+        'Made by Qwen (Alibaba Cloud) with qwen-image-2.0, outside the EU.');
+  });
+
+  testWidgets('"Make this one outside the EU": once, the setting stays on',
+      (tester) async {
+    final bodies = <Map<String, Object?>>[];
+    await open(tester, 'fox',
+        settings: AiSettings(provider: 'vercel', providers: {
+          'vercel': ProviderSettings.fromJson(
+              {'euOnly': true, 'imageModel': 'bfl/flux-2-pro'},
+              presetById('vercel')),
+        }),
+        post: (url, headers, body) async {
+          final json = jsonDecode(body) as Map<String, Object?>;
+          bodies.add(json);
+          if (json.containsKey('providerOptions')) {
+            return HttpReply(
+                400,
+                jsonEncode({
+                  'error': {
+                    'message': 'No provider for bfl/flux-2-pro supports the '
+                        'requested inference region.',
+                  },
+                }));
+          }
+          return HttpReply(
+              200,
+              jsonEncode({
+                'data': [
+                  {'b64_json': png},
+                ],
+              }));
+        });
+    final outside = find.byKey(const ValueKey('image-outside-eu'));
+    await tester.enterText(
+        find.byKey(const ValueKey('image-prompt')), 'A red fox');
+    await tester.tap(find.byKey(const ValueKey('image-make')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('has no EU route'), findsOneWidget);
+    expect(find.text('Make this one outside the EU'), findsOneWidget);
+
+    await tester.tap(outside);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('image-preview')), findsOneWidget);
+    expect(outside, findsNothing);
+    expect(bodies, hasLength(2));
+    expect(bodies[1].containsKey('providerOptions'), isFalse);
+    // Only the description and the title.
+    expect(bodies[1]['prompt'],
+        'A red fox\n\nThe image is for a note titled "Red fox".');
+    expect(where(tester), endsWith(', in the EU.'));
+
+    // "EU only" is still on: the next image asks in the EU again.
+    await tester.tap(find.byKey(const ValueKey('image-make')));
+    await tester.pumpAndSettle();
+    expect(bodies, hasLength(3));
+    expect(bodies[2].containsKey('providerOptions'), isTrue);
+    expect(outside, findsOneWidget);
   });
 }
