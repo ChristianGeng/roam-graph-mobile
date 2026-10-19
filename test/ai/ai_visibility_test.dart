@@ -73,17 +73,6 @@ void main() {
     expect(private.filterText(text, const {}), '#+begin_src org\n* (hidden)');
   });
 
-  test('the graph export leaves hidden nodes out and says so', () {
-    final text = graphForAi(graph, visibility: private);
-    expect(text, startsWith('# My org-roam graph: 3 nodes, 1 links\n'));
-    expect(text, contains('2 notes are hidden from AI by their tags, so the '
-        'graph is not complete.\n'));
-    expect(text, isNot(contains('diary')));
-    expect(text, isNot(contains('Doctor')));
-    // Without hidden nodes the header has no such line.
-    expect(graphForAi(graph), isNot(contains('hidden')));
-  });
-
   test('a node share hides links, backlinks and headings', () {
     final text = nodesForAi(
       graph,

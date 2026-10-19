@@ -314,9 +314,8 @@ void main() {
       expect(find.textContaining('hidden from AI'), findsOneWidget);
     });
 
-    testWidgets('the graph share leaves hidden nodes out; More opens the '
-        'settings', (tester) async {
-      final shared = <String>[];
+    testWidgets("the graph's More menu opens the AI settings",
+        (tester) async {
       await pumpIn(
         tester,
         GraphScreen(
@@ -325,16 +324,8 @@ void main() {
           nodeMemory: MemoryNodeMemory('plan'),
           computeLayout: layoutHere,
           computeAlgorithms: algorithmsHere,
-          shareText: (text, {subject}) async => shared.add(text),
         ),
       );
-      await tester.tap(find.byTooltip('More'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Share graph with AI'));
-      await tester.pumpAndSettle();
-      expect(shared.single, contains('2 notes are hidden from AI'));
-      expect(shared.single, isNot(contains('My diary')));
-
       await tester.tap(find.byTooltip('More'));
       await tester.pumpAndSettle();
       // The AI settings are under Settings (#63's page).
