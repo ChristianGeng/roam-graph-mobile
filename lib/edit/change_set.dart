@@ -179,7 +179,8 @@ class ChangeSet {
   /// save. [onEach] runs after each file.
   ///
   /// With [allOrNothing], every file is checked first: if one changed
-  /// since it was read, none is saved.
+  /// since it was read, none is saved; and if a file still cannot be
+  /// saved, the files saved before it are put back.
   Future<void> save(NoteEditor editor, {void Function()? onEach}) async {
     if (allOrNothing) {
       final changed = <ChangeEntry>{};
@@ -231,6 +232,31 @@ class ChangeSet {
             ..problem = message;
       }
       onEach?.call();
+      if (allOrNothing && entry.state == EntryState.refused) {
+        await _rollBack(editor);
+        onEach?.call();
+        return;
+      }
+    }
+  }
+
+  /// For [allOrNothing], after a file could not be saved: the files saved
+  /// so far get their old text back, and none of the set counts as saved.
+  /// A file that cannot be put back stays saved, so "Undo" can try again.
+  Future<void> _rollBack(NoteEditor editor) async {
+    await undo(editor);
+    for (final e in entries) {
+      if (e.state == EntryState.undone) {
+        e
+          ..state = EntryState.refused
+          ..problem = 'Saved, then put back, because another note of the '
+              'set could not be saved.';
+      } else if (e.state == EntryState.accepted) {
+        e
+          ..state = EntryState.refused
+          ..problem = 'Not saved, because another note of the set could '
+              'not be saved.';
+      }
     }
   }
 

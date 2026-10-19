@@ -1926,7 +1926,8 @@ devices through Syncthing.
       plan's line; links to IDs that are no note are named. Each file is
       saved only over the version the AI read (decision 10). The set is
       saved only as a whole: if one file changed since it was read, no
-      file is saved.
+      file is saved, and if a file still cannot be saved (for example an
+      `:ID:` the AI changed), the files saved before it are put back.
     - **Undo:** the set is undone as one on the change-set screen, and it
       is in "Recent AI changes" (#99) as one entry, with the instruction.
 

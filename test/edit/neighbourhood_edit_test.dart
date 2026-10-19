@@ -369,5 +369,24 @@ void main() {
       expect(find.byKey(const ValueKey('change-undo')), findsNothing);
       expect(log.entries, isEmpty);
     });
+
+    testWidgets('a file that cannot be saved: the others are put back',
+        (tester) async {
+      await open(tester, [
+        textReply(planReply(['a', 'topic'])),
+        // The second file changes a heading's :ID:, which stays as it is.
+        textReply('=== ID: a ===\nA mentions the topic.\n=== end ===\n'
+            '=== ID: topic ===\nTopic links to [[id:c][C]].\n'
+            '* Part\n:PROPERTIES:\n:ID: other-part\n:END:\n'
+            'Also [[id:d2][D two]].\n* (hidden)\n=== end ===\n'),
+      ]);
+      await ask(tester);
+      await goAhead(tester);
+      await saveAll(tester);
+      expect(store.files, notes);
+      expect(find.textContaining('Saved, then put back'), findsOneWidget);
+      expect(find.byKey(const ValueKey('change-undo')), findsNothing);
+      expect(log.entries, isEmpty);
+    });
   });
 }
