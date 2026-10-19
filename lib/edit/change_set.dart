@@ -85,10 +85,14 @@ class ChangeSetError implements Exception {
 
 /// Edits to several notes, reviewed together (#76).
 class ChangeSet {
-  ChangeSet(this.entries, {this.summary = ''});
+  ChangeSet(this.entries, {this.summary = '', this.allOrNothing = false});
 
   final List<ChangeEntry> entries;
   final String summary;
+
+  /// Whether the set is saved only as a whole (#122): when a file changed
+  /// since it was read, no file of the set is saved.
+  final bool allOrNothing;
 
   /// Builds the set from [proposals]: each note is read now, and the edit
   /// applied to it. [visible] is the graph without the notes hidden from
@@ -173,7 +177,30 @@ class ChangeSet {
   /// Saves the accepted entries one by one, each over the version it was
   /// built on. A file changed meanwhile is refused alone; the others still
   /// save. [onEach] runs after each file.
+  ///
+  /// With [allOrNothing], every file is checked first: if one changed
+  /// since it was read, none is saved.
   Future<void> save(NoteEditor editor, {void Function()? onEach}) async {
+    if (allOrNothing) {
+      final changed = <ChangeEntry>{};
+      for (final entry in accepted) {
+        final now = await editor.read(entry.file);
+        if (now == null || now.hash != entry.base.hash) changed.add(entry);
+      }
+      if (changed.isNotEmpty) {
+        for (final entry in accepted.toList()) {
+          entry
+            ..state = EntryState.refused
+            ..problem = changed.contains(entry)
+                ? 'Changed on the laptop or through Syncthing since the AI '
+                    'read it, so no note of the set was saved.'
+                : 'Not saved, because another note of the set changed '
+                    'since the AI read it.';
+        }
+        onEach?.call();
+        return;
+      }
+    }
     for (final entry in accepted.toList()) {
       final result = await editor.save(entry.file, entry.base, entry.after);
       switch (result) {

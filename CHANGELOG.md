@@ -8,6 +8,15 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-19: "Edit with AI" also changes the linked notes, after a plan ([#123](https://github.com/ChristianGeng/roam-graph-mobile/pull/123))
+
+- "Edit with AI" has "Also the linked notes": the note, the notes that link to it and the notes it links to are sent, as far as AI may see them, so it can do tasks such as "remove all links to this note".
+- The AI first says what it will do and which notes it will change. Nothing is changed until you tap "Go ahead"; "Back" keeps your instruction.
+- Then all changes are reviewed together, one diff per note, and saved with "Save". If one of the notes changed since the AI read it, none is saved. The set can be undone as one, also later in "Recent AI changes".
+- At most "Most notes one AI change set may edit" notes are sent; the plan says how many were left out.
+
+Closes #122.
+
 ## 2026-10-19: Cheaper images with Qwen, and clearer image errors ([#121](https://github.com/ChristianGeng/roam-graph-mobile/pull/121))
 
 - Added: "Create image" works with the Qwen provider too, with Qwen Image

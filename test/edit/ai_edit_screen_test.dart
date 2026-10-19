@@ -85,6 +85,13 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
+    // Only this note (#103); with the linked notes, see
+    // neighbourhood_edit_test.dart.
+    final linked = find.byKey(const ValueKey('ai-edit-linked'));
+    if (linked.evaluate().isNotEmpty) {
+      await tester.tap(linked);
+      await tester.pumpAndSettle();
+    }
     return (store, server);
   }
 

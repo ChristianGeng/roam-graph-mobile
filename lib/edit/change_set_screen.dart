@@ -17,17 +17,31 @@ class ChangeSetScreen extends StatefulWidget {
     required this.set,
     required this.writer,
     required this.graph,
+    this.onSaved,
+    this.onUndone,
   });
 
   final ChangeSet set;
   final NoteWriter writer;
   final RoamGraph graph;
 
+  /// Runs once the set is saved, for example to log it (#122).
+  final Future<void> Function(ChangeSet set)? onSaved;
+
+  /// Runs once the whole set is undone.
+  final Future<void> Function(ChangeSet set)? onUndone;
+
   static Future<void> open(BuildContext context, ChangeSet set,
-          NoteWriter writer, RoamGraph graph) =>
+          NoteWriter writer, RoamGraph graph,
+          {Future<void> Function(ChangeSet set)? onSaved,
+          Future<void> Function(ChangeSet set)? onUndone}) =>
       Navigator.of(context).push(MaterialPageRoute<void>(
-        builder: (_) =>
-            ChangeSetScreen(set: set, writer: writer, graph: graph),
+        builder: (_) => ChangeSetScreen(
+            set: set,
+            writer: writer,
+            graph: graph,
+            onSaved: onSaved,
+            onUndone: onUndone),
       ));
 
   @override
@@ -127,6 +141,7 @@ class _ChangeSetScreenState extends State<ChangeSetScreen> {
       await _set.save(editor, onEach: () {
         if (mounted) setState(() {});
       });
+      if (_saved) await widget.onSaved?.call(_set);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -147,6 +162,7 @@ class _ChangeSetScreenState extends State<ChangeSetScreen> {
     final Map<String, String> problems;
     try {
       problems = await _set.undo(editor);
+      if (problems.isEmpty) await widget.onUndone?.call(_set);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
