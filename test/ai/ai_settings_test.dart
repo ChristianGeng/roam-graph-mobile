@@ -525,4 +525,21 @@ void main() {
       expect(keys.keys, isEmpty);
     });
   });
+
+  test('saved Qwen settings from before images get Qwen Image (#120)', () {
+    final qwen = presetById('qwen');
+    final old = ProviderSettings.fromJson(
+        {'imageModel': '', 'imageApi': 'images', 'defaultModel': 'qwen3.8-max'},
+        qwen);
+    expect(old.imageModel, 'qwen-image-2.0');
+    expect(old.imageApi, ImageApi.dashscope);
+    final chosen = ProviderSettings.fromJson(
+        {'imageModel': 'qwen-image-2.0-pro', 'imageApi': 'chat'}, qwen);
+    expect(chosen.imageModel, 'qwen-image-2.0-pro');
+    expect(chosen.imageApi, ImageApi.dashscope);
+    // Elsewhere DashScope is never taken from a file.
+    final vercel = ProviderSettings.fromJson(
+        {'imageApi': 'dashscope'}, presetById('vercel'));
+    expect(vercel.imageApi, ImageApi.images);
+  });
 }

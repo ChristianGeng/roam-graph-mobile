@@ -86,6 +86,11 @@ Future<Uint8List> downloadWithDartIo(Uri url) async {
     return bytes.takeBytes();
   } on SocketException catch (e) {
     throw AiError('The image could not be downloaded: ${e.message}.');
+  } on HandshakeException catch (e) {
+    throw AiError('No secure connection for the image download: '
+        '${e.message}.');
+  } on HttpException catch (e) {
+    throw AiError('The image could not be downloaded: ${e.message}.');
   } on TimeoutException {
     throw const AiError('The image download took too long. Try again.');
   } finally {
