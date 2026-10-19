@@ -35,6 +35,6 @@ algorithm; see [[id:roam-graph-help-views][Graph views]].
 - *Centre*: moves the selected node to the middle.
 - *Circular* and *Force-directed*: the layout; see
   [[id:roam-graph-help-layouts][Layouts]].
-- *Share graph with AI*, *Ask AI*: see [[id:roam-graph-help-ai][AI]].
+- *Ask AI*: see [[id:roam-graph-help-ai][AI]].
 - *Settings*: see [[id:roam-graph-help-settings][Settings]].
 - *Help*: these pages.

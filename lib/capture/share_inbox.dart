@@ -50,7 +50,7 @@ abstract interface class ShareInbox {
 }
 
 /// Sends text to another app through Android's share menu, for example
-/// the graph to an AI app (#40).
+/// notes to an AI app (#41).
 typedef TextSharer = Future<void> Function(String text, {String? subject});
 
 /// [TextSharer] through `MainActivity.kt`.

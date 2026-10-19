@@ -11,10 +11,8 @@ that are. Set the tags in [[id:roam-graph-help-settings][Settings]], under
 AI.
 
 * Sharing with an AI app
-- *Share graph with AI* (the graph's "More" menu) sends the structure of
-  the graph: titles, IDs, tags and links, without texts.
-- *Share with AI* (a note's AI menu, or several notes selected in search
-  with a long press) sends the notes with their texts and links.
+*Share with AI* (a note's AI menu, or several notes selected in search
+with a long press) sends the notes with their texts and links.
 An AI app's answer can come back as a new note: share it to Roam Graph
 ([[id:roam-graph-help-capture][Capture and shared text]]).
 

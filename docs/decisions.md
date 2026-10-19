@@ -640,6 +640,8 @@ devices through Syncthing.
       layouts, so the bar fits a phone. A share Android refuses says so; a
       text over 400 KB is not sent, since Android hands shared text over in
       one transaction of about 1 MB.
+    - **Removed in #124** (decision 73): the app no longer has "Share graph
+      with AI". This entry stays as the record of what it was.
 
 36. **Nodes can be shared with an AI, with their texts** (#41): the reading
     half of decision 35. When an AI asks to see notes, I pass them on.
@@ -863,8 +865,8 @@ devices through Syncthing.
       as written, as Org compares them. Of several nodes with one ID, the
       one the graph keeps (decision 20) decides.
     - **A hidden node does not exist for an AI.** The graph export (#40,
-      decision 35) leaves it out with its links, and its header says how
-      many nodes are hidden, so the AI knows the graph is not complete.
+      decision 35) left it out with its links, and its header said how
+      many nodes were hidden; the export was removed in #124 (decision 73).
       "Share with AI" on a hidden node says that it is hidden, with its
       tag, and shares nothing. A selection in search leaves hidden nodes
       out and says how many.
@@ -889,8 +891,8 @@ devices through Syncthing.
       (decision 36). Tags are read at the end of the heading line, as
       Org's `org-tag-group-re` reads them.
     - **Not covered:** a link written under a hidden heading that is no
-      node belongs to its file's node, as in org-roam. The graph export
-      and the backlinks listed with another shared node still count it,
+      node belongs to its file's node, as in org-roam. The backlinks
+      listed with another shared node still count it,
       as a link between two visible nodes; its text is hidden. Hiding it
       there needs the heading's tags for each link in the index.
 
@@ -1930,6 +1932,18 @@ devices through Syncthing.
       `:ID:` the AI changed), the files saved before it are put back.
     - **Undo:** the set is undone as one on the change-set screen, and it
       is in "Recent AI changes" (#99) as one entry, with the instruction.
+
+73. **"Share graph with AI" is removed** (#124). The graph export of
+    decision 35 sent each node's ID, tags and title and the list of links,
+    but no note texts. It carries no meaning of the notes, so an AI can do
+    little with it. The AI chat in the app (decisions 44 to 46) reads the
+    graph and the notes itself, through its tools, and that is what I use.
+    - **Removed:** the item in the graph's "More" menu, `graphForAi` in
+      `lib/graph/ai_share.dart`, their tests and their help lines.
+    - **Stays:** "Share with AI" for one node and for a selection in
+      search (decision 36, #41): `nodesForAi`, `nodeText` and
+      `maxShareLength`.
+    - Decision 35 stays as the record of what the export was.
 
 ## Recommended, not decided
 

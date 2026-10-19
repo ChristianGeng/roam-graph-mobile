@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-19: "Share graph with AI" removed ([#125](https://github.com/ChristianGeng/roam-graph-mobile/pull/125))
+
+- Removed: "Share graph with AI" in the graph's "More" menu. It sent only titles, tags and links, with no note texts; the AI chat reads the graph and the notes itself.
+- "Share with AI" for one note and for notes selected in search stays.
+
+Closes #124.
+
 ## 2026-10-19: "Edit with AI" also changes the linked notes, after a plan ([#123](https://github.com/ChristianGeng/roam-graph-mobile/pull/123))
 
 - "Edit with AI" has "Also the linked notes": the note, the notes that link to it and the notes it links to are sent, as far as AI may see them, so it can do tasks such as "remove all links to this note".

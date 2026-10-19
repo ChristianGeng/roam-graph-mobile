@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/graph/graph_algorithms.dart';
 import 'package:roam_graph_mobile/graph/graph_layout.dart';
@@ -471,31 +470,6 @@ void main() {
     });
   });
 
-  testWidgets('"Share graph with AI" shares the connectivity (#40)',
-      (tester) async {
-    final shared = <(String, String?)>[];
-    await tester.pumpWidget(MaterialApp(
-      home: GraphScreen(
-        graph: ValueNotifier(graph),
-        readNote: (path) async => '',
-        nodeMemory: MemoryNodeMemory('hub'),
-        computeLayout: layoutHere,
-        computeAlgorithms: algorithmsHere,
-        shareText: (text, {subject}) async => shared.add((text, subject)),
-      ),
-    ));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('More'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Share graph with AI'));
-    await tester.pumpAndSettle();
-
-    final (text, subject) = shared.single;
-    expect(subject, 'My org-roam graph');
-    expect(text, startsWith('# My org-roam graph: 8 nodes, 7 links'));
-    expect(text, contains(' | hub | - | HUB'));
-  });
-
   testWidgets('"Settings" in the More menu opens the settings (#63)',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
@@ -514,26 +488,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sections when a note opens'), findsOneWidget);
-  });
-
-  testWidgets('a share that fails says so', (tester) async {
-    await tester.pumpWidget(MaterialApp(
-      home: GraphScreen(
-        graph: ValueNotifier(graph),
-        readNote: (path) async => '',
-        nodeMemory: MemoryNodeMemory('hub'),
-        computeLayout: layoutHere,
-        computeAlgorithms: algorithmsHere,
-        shareText: (text, {subject}) async =>
-            throw PlatformException(code: 'x', message: 'no app'),
-      ),
-    ));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('More'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Share graph with AI'));
-    await tester.pumpAndSettle();
-    expect(find.text('Could not share the graph: no app'), findsOneWidget);
   });
 
   testWidgets('the bar fits a phone of 360 points', (tester) async {

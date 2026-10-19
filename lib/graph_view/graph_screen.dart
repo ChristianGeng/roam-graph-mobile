@@ -2,15 +2,12 @@ import 'dart:isolate';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../ai/ai_settings.dart';
 import '../ai/chat_screen.dart';
 import '../help/help.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
-import '../graph/ai_share.dart';
 import '../graph/graph_algorithms.dart';
 import '../graph/graph_layout.dart';
 import '../graph/graph_scope.dart';
@@ -131,7 +128,6 @@ enum _MoreAction {
   centre,
   circo,
   force,
-  share,
   askAi,
   settings,
   helpLayouts,
@@ -611,8 +607,6 @@ class _GraphScreenState extends State<GraphScreen> {
     switch (action) {
       case _MoreAction.centre:
         _centreView();
-      case _MoreAction.share:
-        _shareGraph();
       case _MoreAction.askAi:
         ChatScreen.open(
           context,
@@ -649,33 +643,6 @@ class _GraphScreenState extends State<GraphScreen> {
               .catchError((Object _) {});
         });
     }
-  }
-
-  /// Shares the graph's connectivity with an AI app (#40), and says so if
-  /// Android cannot.
-  Future<void> _shareGraph() async {
-    // The saved settings, once loaded, so no saved hidden tag is missed.
-    final settings = await AiSettingsScope.current(context);
-    if (!mounted) return;
-    final text = graphForAi(_graph, visibility: settings.visibility);
-    // Android hands shared text over in one transaction, limited to about
-    // 1 MB; stay well below it.
-    if (text.length > 400000) {
-      _tellUser('The graph is too large to share at once '
-          '(${text.length ~/ 1000} KB).');
-      return;
-    }
-    try {
-      await widget.shareText(text, subject: 'My org-roam graph');
-    } on PlatformException catch (e) {
-      _tellUser('Could not share the graph: ${e.message ?? e.code}');
-    }
-  }
-
-  void _tellUser(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showView(_GraphView view) => setState(() {
@@ -807,11 +774,6 @@ class _GraphScreenState extends State<GraphScreen> {
               const PopupMenuItem(
                 value: _MoreAction.helpLayouts,
                 child: _HelpLabel('About the layouts'),
-              ),
-              PopupMenuItem(
-                value: _MoreAction.share,
-                enabled: _graph.nodes.isNotEmpty,
-                child: const Text('Share graph with AI'),
               ),
               const PopupMenuItem(
                 value: _MoreAction.askAi,
