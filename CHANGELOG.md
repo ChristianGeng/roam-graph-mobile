@@ -8,6 +8,16 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-19: Images with Mistral, and a provider for images of its own ([#128](https://github.com/ChristianGeng/roam-graph-mobile/pull/128))
+
+- Added: "Create image" works with Mistral, through its built-in image tool (Mistral Medium by default). The image is downloaded only from Mistral's own servers. Mistral settings saved before get these defaults.
+- Added: "Images with:" in AI settings. Images can come from another provider than the chat, with that provider's own key, image model and "EU only". By default it is the chat's provider, as before.
+- With "EU only" on, Vercel AI Gateway now makes images with Gemini 2.5 Flash Image by default, as it is the only image model there with an EU route.
+- "Create image" says which provider and model make the image, and whether that is in the EU, outside it, or not known.
+- When an image model has no EU route and "EU only" is on, "Make this one outside the EU" makes this one image without the EU option. "EU only" stays on.
+
+Closes #126. Closes #127.
+
 ## 2026-10-19: "Share graph with AI" removed ([#125](https://github.com/ChristianGeng/roam-graph-mobile/pull/125))
 
 - Removed: "Share graph with AI" in the graph's "More" menu. It sent only titles, tags and links, with no note texts; the AI chat reads the graph and the notes itself.

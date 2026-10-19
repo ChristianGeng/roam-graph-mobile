@@ -1823,6 +1823,7 @@ devices through Syncthing.
       `openai/gpt-image-2`, which its documentation names. Providers whose
       image API is not confirmed (Anthropic, Bedrock, Mistral, DeepSeek,
       Qwen, Scaleway, Hugging Face) say that they cannot make images.
+      Qwen (#120) and Mistral (#126, decision 74) make images now.
     - **Qwen Image** (#120): Alibaba Cloud's DashScope API on the Qwen
       preset's host (`/api/v1/services/aigc/multimodal-generation/generation`),
       `qwen-image-2.0` by default, 0.035 USD per image in Singapore
@@ -1831,7 +1832,8 @@ devices through Syncthing.
       (`*.aliyuncs.com`) over HTTPS, without redirects, at most 30 MB.
     - **"EU only"** on Vercel applies to images too; a model without an EU
       route fails there, and the app says so in those words, with the two
-      ways out (#120).
+      ways out (#120), and a third: this one image outside the EU
+      (decision 75).
     - **What is sent:** the description I type and, unless I untick it,
       the note's title (#120), so "an image for this note" works. A note
       hidden from AI gets no image.
@@ -1944,6 +1946,54 @@ devices through Syncthing.
       search (decision 36, #41): `nodesForAi`, `nodeText` and
       `maxShareLength`.
     - Decision 35 stays as the record of what the export was.
+
+74. **Images with Mistral's image tool** (#126). Mistral has no Images
+    API; its chat models make images through the built-in tool
+    `image_generation` in Chat Completions (`POST /v1/chat/completions`
+    with `tools: [{"type": "image_generation"}]`).
+    - **A new way to ask,** `ImageApi.mistral` ("Mistral image tool"), the
+      only one for the Mistral preset and never for another, as DashScope
+      for Qwen. The default image model is `mistral-medium-latest`, which
+      Mistral's documentation uses for the tool. Mistral settings saved
+      before get the image model and the way when they had none, as Qwen's
+      did (#120).
+    - **The answer:** the image is a chunk of the message content, in
+      `choices[].messages[]` (Mistral's form when a tool ran) or in
+      `choices[].message`: either `image_url`, a link on Mistral's file
+      host, or `tool_file` with a `file_id` for the Files API
+      (`/v1/files/<id>/content`), the form of Mistral's Agents API.
+    - **Downloaded at once, only from Mistral:** links only over HTTPS from
+      `files.mistral.ai`, files only from `api.mistral.ai`; the API key goes
+      only there. As for every image, no redirects, at most 30 MB, and only
+      PNG, JPEG and WebP are kept, checked by their first bytes.
+    - Mistral processes in the EU, so the image is made in the EU.
+
+75. **"Images with:": the image provider is a setting of its own** (#127).
+    - **"Images with:"** in AI settings lists the providers that make
+      images in the app, and "Same as the chat", the default and what
+      settings saved before get. Another provider there shows its image
+      model, key and "EU only" below it; the chat keeps its own provider,
+      key and model. Without a key for the image provider, "Create image"
+      says so and names it.
+    - **An EU default for Vercel:** in Vercel's model list
+      (`/v1/models`, checked 2026-10-19), `google/gemini-2.5-flash-image`
+      is the only image model with an EU route (`regions: ["eu", "us"]`);
+      `openai/gpt-image-2`, `google/gemini-3-pro-image` and the other image
+      models have none. So with "EU only" on, the preset's default image
+      model is `google/gemini-2.5-flash-image`, asked through the chat;
+      with it off, `openai/gpt-image-2` as before. Turning "EU only" on or
+      off in the settings switches the image model only while it is a
+      default. The model list still marks models without an EU route.
+    - **The line on "Create image"** says the provider, the model and the
+      region: "in the EU" for providers that keep data in the EU and for
+      "EU only" (the model then runs in the EU or the request fails);
+      "outside the EU" for providers known to process elsewhere and for
+      Vercel without "EU only"; "region not known" otherwise
+      (OpenRouter, Custom). It does not guess.
+    - **"Make this one outside the EU"** shows with the "no EU route"
+      error. It sends the same description, and the title if ticked, once
+      without the EU option; nothing asks to confirm. "EU only" stays on,
+      so the next image asks in the EU again.
 
 ## Recommended, not decided
 

@@ -16,6 +16,23 @@ with a long press) sends the notes with their texts and links.
 An AI app's answer can come back as a new note: share it to Roam Graph
 ([[id:roam-graph-help-capture][Capture and shared text]]).
 
+* Images
+*Create image* (a note's edit menu) asks an image model for a picture of
+what I describe; the image is added to the note only when I tap "Add to
+the note". Only the description and, if ticked, the note's title are sent.
+
+The provider is set under *Images with:* in AI settings: the chat's
+provider by default, or another one with its own key, image model and "EU
+only". Vercel AI Gateway, OpenRouter, Qwen, Mistral and Custom make images.
+Mistral makes them with its built-in image tool, in the EU; the app
+downloads them only from Mistral's servers.
+
+Above "Make image" a line says which provider and model make the image,
+and whether that is in the EU, outside it, or not known. With "EU only" on,
+Vercel uses Gemini 2.5 Flash Image, the one image model there with an EU
+route. When a model has no EU route, *Make this one outside the EU* makes
+this one image without the EU option; "EU only" stays on.
+
 * The AI chat
 *Ask AI* (the graph's "More" menu, or a note's AI menu) opens a chat. The
 AI reads the notes itself, with the tools of my org-roam MCP server:
