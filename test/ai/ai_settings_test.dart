@@ -533,4 +533,31 @@ void main() {
         {'imageApi': 'dashscope'}, presetById('vercel'));
     expect(vercel.imageApi, ImageApi.images);
   });
+
+  test('Mistral makes images with its image tool (#126)', () {
+    final mistral = presetById('mistral');
+    expect(mistral.makesImages, isTrue);
+    expect(mistral.imageModel, 'mistral-medium-latest');
+    expect(mistral.imageApi, ImageApi.mistral);
+    expect(ImageApi.mistral.label, 'Mistral image tool');
+    // Saved before Mistral made images: an empty image model, the Images
+    // API; now Mistral's defaults.
+    final old = ProviderSettings.fromJson({
+      'defaultModel': 'mistral-large-4',
+      'imageModel': '',
+      'imageApi': 'images',
+    }, mistral);
+    expect(old.defaultModel, 'mistral-large-4');
+    expect(old.imageModel, 'mistral-medium-latest');
+    expect(old.imageApi, ImageApi.mistral);
+    final chosen = ProviderSettings.fromJson(
+        {'imageModel': 'mistral-small-latest', 'imageApi': 'chat'}, mistral);
+    expect(chosen.imageModel, 'mistral-small-latest');
+    expect(chosen.imageApi, ImageApi.mistral);
+    // Elsewhere the image tool is never taken from a file.
+    final vercel = ProviderSettings.fromJson(
+        {'imageApi': 'mistral'}, presetById('vercel'));
+    expect(vercel.imageApi, ImageApi.images);
+  });
+
 }

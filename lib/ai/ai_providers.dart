@@ -104,6 +104,10 @@ const providerPresets = <ProviderPreset>[
     api: ApiKind.openAi,
     baseUrl: 'https://api.mistral.ai/v1',
     defaultModel: 'mistral-large-4',
+    // Mistral's built-in image tool in Chat Completions (#126).
+    imagesPath: '/chat/completions',
+    imageModel: 'mistral-medium-latest',
+    imageApi: ImageApi.mistral,
     note: 'Best value in the EU (Mistral Large 4, in public preview). EU '
         'company, EU processing; no training on paid use; abuse logs kept '
         '30 days.',
@@ -212,11 +216,20 @@ enum ImageApi {
   /// Alibaba Cloud's DashScope API for Qwen Image: `POST` to the host's
   /// `imagesPath`, the image as a link in
   /// `output.choices[0].message.content[0].image`, downloaded at once.
-  dashscope('DashScope (Qwen Image)');
+  dashscope('DashScope (Qwen Image)'),
+
+  /// Mistral's built-in `image_generation` tool in Chat Completions
+  /// (#126): the image as a link on Mistral's file host, or as a file ID
+  /// for its Files API, downloaded at once.
+  mistral('Mistral image tool');
 
   const ImageApi(this.label);
 
   final String label;
+
+  /// Whether only one provider is asked this way, and that provider only
+  /// this way.
+  bool get ownProvider => this == dashscope || this == mistral;
 }
 
 /// The preset with [id], or Anthropic's.

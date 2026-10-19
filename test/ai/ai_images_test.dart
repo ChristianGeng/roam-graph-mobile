@@ -154,7 +154,7 @@ void main() {
           ],
         },
       }),
-      download: (url) async {
+      download: (url, {headers = const {}}) async {
         downloaded.add(url);
         return base64.decode(png);
       },
@@ -201,10 +201,176 @@ void main() {
               ],
             },
           }),
-          download: (url) async => base64.decode(png),
+          download: (url, {headers = const {}}) async => base64.decode(png),
         ),
         throwsA(isA<AiError>().having(
             (e) => e.message, 'message', contains('does not download'))));
+  });
+
+  group('Mistral\'s image tool (#126)', () {
+    ImageConfig mistral({String baseUrl = 'https://api.mistral.ai/v1'}) =>
+        ImageConfig(
+          ProviderConfig(
+            name: 'Mistral',
+            api: ApiKind.openAi,
+            baseUrl: baseUrl,
+            model: 'mistral-medium-latest',
+            apiKey: 'm-key',
+          ),
+          api: ImageApi.mistral,
+          imagesPath: '/chat/completions',
+        );
+    Map<String, Object?> chunks(List<Object?> content,
+            {bool messages = true}) =>
+        {
+          'choices': [
+            messages
+                ? {
+                    'messages': [
+                      {'role': 'tool', 'content': 'image_generation'},
+                      {'role': 'assistant', 'content': content},
+                    ],
+                  }
+                : {
+                    'message': {'role': 'assistant', 'content': content},
+                  },
+          ],
+        };
+    late List<(Uri, Map<String, String>)> downloads;
+    ImageDownload bytes(List<int> data) => (url, {headers = const {}}) async {
+          downloads.add((url, headers));
+          return Uint8List.fromList(data);
+        };
+    setUp(() => downloads = []);
+
+    test('the request: Chat Completions with the image_generation tool',
+        () async {
+      await makeImage(mistral(), 'A red fox',
+          post: answer(chunks([
+            {'type': 'text', 'text': 'Here it is.'},
+            {
+              'type': 'image_url',
+              'image_url': {'url': 'https://files.mistral.ai/generated/a.png'},
+            },
+          ])),
+          download: bytes(base64.decode(png)));
+      final (url, headers, body) = sent.single;
+      expect(url.toString(), 'https://api.mistral.ai/v1/chat/completions');
+      expect(headers['authorization'], 'Bearer m-key');
+      expect(body, {
+        'model': 'mistral-medium-latest',
+        'messages': [
+          {'role': 'user', 'content': 'A red fox'},
+        ],
+        'tools': [
+          {'type': 'image_generation'},
+        ],
+      });
+    });
+
+    test('a link in choices[].messages[] or choices[].message, downloaded',
+        () async {
+      for (final inMessages in [true, false]) {
+        downloads.clear();
+        final image = await makeImage(mistral(), 'x',
+            post: answer(chunks([
+              {
+                'type': 'image_url',
+                // Also as a plain string, as Mistral's cookbook shows it.
+                'image_url': inMessages
+                    ? 'https://files.mistral.ai/generated/a.png'
+                    : {'url': 'https://files.mistral.ai/generated/a.png'},
+              },
+            ], messages: inMessages)),
+            download: bytes(base64.decode(png)));
+        expect(image.extension, 'png');
+        final (url, headers) = downloads.single;
+        expect(url.toString(), 'https://files.mistral.ai/generated/a.png');
+        expect(headers, {'authorization': 'Bearer m-key'});
+      }
+    });
+
+    test('a tool_file: fetched from the Files API, with the key', () async {
+      final image = await makeImage(mistral(), 'x',
+          post: answer(chunks([
+            {
+              'type': 'tool_file',
+              'tool': 'image_generation',
+              'file_id': 'f-1',
+              'file_type': 'png',
+            },
+          ])),
+          download: bytes(base64.decode(png)));
+      expect(image.extension, 'png');
+      final (url, headers) = downloads.single;
+      expect(url.toString(), 'https://api.mistral.ai/v1/files/f-1/content');
+      expect(headers, {'authorization': 'Bearer m-key'});
+      // A file ID from another host than api.mistral.ai is not fetched.
+      await expectLater(
+          makeImage(mistral(baseUrl: 'https://proxy.example/v1'), 'x',
+              post: answer(chunks([
+                {'type': 'tool_file', 'file_id': 'f-1'},
+              ])),
+              download: bytes(base64.decode(png))),
+          throwsA(isA<AiError>().having((e) => e.message, 'message',
+              contains('only from api.mistral.ai'))));
+      expect(downloads, hasLength(1));
+    });
+
+    test('a link to another host is not followed, nor sent the key',
+        () async {
+      for (final link in [
+        'https://evil.example/a.png',
+        'http://files.mistral.ai/a.png',
+        'https://files.mistral.ai.evil.example/a.png',
+      ]) {
+        await expectLater(
+            makeImage(mistral(), 'x',
+                post: answer(chunks([
+                  {'type': 'image_url', 'image_url': link},
+                ])),
+                download: bytes(base64.decode(png))),
+            throwsA(isA<AiError>().having(
+                (e) => e.message, 'message', contains('does not download'))));
+      }
+      expect(downloads, isEmpty);
+    });
+
+    test('no image, no image bytes, a failed download: said plainly',
+        () async {
+      await expectLater(
+          makeImage(mistral(), 'x',
+              post: answer(chunks([
+                {'type': 'text', 'text': 'I cannot draw.'},
+              ])),
+              download: bytes(base64.decode(png))),
+          throwsA(isA<AiError>().having(
+              (e) => e.message, 'message', contains('Mistral sent no image'))));
+      await expectLater(
+          makeImage(mistral(), 'x',
+              post: answer(chunks([
+                {
+                  'type': 'image_url',
+                  'image_url': 'https://files.mistral.ai/generated/a.png',
+                },
+              ])),
+              download: bytes(utf8.encode('<html>not an image</html>'))),
+          throwsA(isA<AiError>().having(
+              (e) => e.message, 'message', contains('no PNG, JPEG or WebP'))));
+      await expectLater(
+          makeImage(mistral(), 'x',
+              post: answer(chunks([
+                {
+                  'type': 'image_url',
+                  'image_url': 'https://files.mistral.ai/generated/a.png',
+                },
+              ])),
+              download: (url, {headers = const {}}) async => throw const AiError(
+                  'The image could not be downloaded (HTTP 403).')),
+          throwsA(isA<AiError>().having((e) => e.message, 'message',
+              'Mistral made an image, but the image could not be downloaded '
+                  '(HTTP 403).')));
+    });
   });
 
   test('"EU only" and a model without an EU route: said plainly', () async {

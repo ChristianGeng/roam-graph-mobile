@@ -87,12 +87,13 @@ class ProviderSettings {
         final String model when model.trim().isNotEmpty => model,
         _ => base.imageModel,
       },
-      // DashScope is Qwen's only way; another way is kept only where the
-      // provider has no own one.
-      imageApi: base.imageApi == ImageApi.dashscope
-          ? ImageApi.dashscope
+      // DashScope is Qwen's only way and the image tool Mistral's (#126);
+      // another way is kept only where the provider has no own one.
+      // Mistral settings saved before it made images get its own way.
+      imageApi: base.imageApi.ownProvider
+          ? base.imageApi
           : ImageApi.values.firstWhere(
-              (k) => k.name == json['imageApi'] && k != ImageApi.dashscope,
+              (k) => k.name == json['imageApi'] && !k.ownProvider,
               orElse: () => base.imageApi),
     );
   }
@@ -826,11 +827,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             field.text = id;
             // A chat model that also makes images is asked through the
             // chat; OpenRouter's Images API takes them all (#112); Qwen's
-            // are asked through DashScope.
+            // are asked through DashScope, Mistral's through its tool.
             if (images) {
               final model = models.where((m) => m.id == id).firstOrNull;
-              draft.imageApi = preset.imageApi == ImageApi.dashscope
-                  ? ImageApi.dashscope
+              draft.imageApi = preset.imageApi.ownProvider
+                  ? preset.imageApi
                   : preset.id != 'openrouter' &&
                           model?.chat == true &&
                           model?.images == true
@@ -1008,10 +1009,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           decoration:
               const InputDecoration(labelText: 'How the image model is asked'),
           items: [
-            // Qwen only through DashScope; the others never through it.
+            // Qwen only through DashScope and Mistral only through its
+            // image tool; the others never through these.
             for (final kind in ImageApi.values)
-              if ((kind == ImageApi.dashscope) ==
-                  (preset.imageApi == ImageApi.dashscope))
+              if (kind.ownProvider
+                  ? kind == preset.imageApi
+                  : !preset.imageApi.ownProvider)
                 DropdownMenuItem(
                     value: kind,
                     child: Text(kind.label, overflow: TextOverflow.ellipsis)),
