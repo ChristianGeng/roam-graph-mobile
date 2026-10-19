@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:roam_graph_mobile/ai/ai_chat.dart';
+import 'package:roam_graph_mobile/ai/ai_images.dart';
 import 'package:roam_graph_mobile/ai/ai_providers.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
@@ -532,5 +534,164 @@ void main() {
     final vercel = ProviderSettings.fromJson(
         {'imageApi': 'dashscope'}, presetById('vercel'));
     expect(vercel.imageApi, ImageApi.images);
+  });
+
+  test('Mistral makes images with its image tool (#126)', () {
+    final mistral = presetById('mistral');
+    expect(mistral.makesImages, isTrue);
+    expect(mistral.imageModel, 'mistral-medium-latest');
+    expect(mistral.imageApi, ImageApi.mistral);
+    expect(ImageApi.mistral.label, 'Mistral image tool');
+    // Saved before Mistral made images: an empty image model, the Images
+    // API; now Mistral's defaults.
+    final old = ProviderSettings.fromJson({
+      'defaultModel': 'mistral-large-4',
+      'imageModel': '',
+      'imageApi': 'images',
+    }, mistral);
+    expect(old.defaultModel, 'mistral-large-4');
+    expect(old.imageModel, 'mistral-medium-latest');
+    expect(old.imageApi, ImageApi.mistral);
+    final chosen = ProviderSettings.fromJson(
+        {'imageModel': 'mistral-small-latest', 'imageApi': 'chat'}, mistral);
+    expect(chosen.imageModel, 'mistral-small-latest');
+    expect(chosen.imageApi, ImageApi.mistral);
+    // Elsewhere the image tool is never taken from a file.
+    final vercel = ProviderSettings.fromJson(
+        {'imageApi': 'mistral'}, presetById('vercel'));
+    expect(vercel.imageApi, ImageApi.images);
+  });
+
+  group('"Images with:" (#127)', () {
+    test('saved and read back; before #127 or unknown: the chat\'s', () {
+      expect(const AiSettings().imageProvider, '');
+      expect(AiSettings.fromJson({'provider': 'anthropic'}).imageProvider, '');
+      final read = AiSettings.fromJson(
+          const AiSettings(provider: 'anthropic', imageProvider: 'mistral')
+              .toJson());
+      expect(read.provider, 'anthropic');
+      expect(read.imageProvider, 'mistral');
+      // A provider that makes no images, or none at all.
+      expect(AiSettings.fromJson({'imageProvider': 'anthropic'}).imageProvider,
+          '');
+      expect(AiSettings.fromJson({'imageProvider': 'nope'}).imageProvider, '');
+      expect(AiSettings.fromJson({'imageProvider': 3}).imageProvider, '');
+    });
+
+    test('its own key, image model and "EU only"; the chat is unchanged',
+        () async {
+      final keys = MemoryKeyStore()
+        ..keys.addAll({'anthropic': 'a-key', 'vercel': 'v-key'});
+      final settings = AiSettings(
+        provider: 'anthropic',
+        imageProvider: 'vercel',
+        providers: {
+          'vercel': ProviderSettings.fromJson(
+              {'euOnly': true, 'imageModel': 'bfl/flux-2-pro'},
+              presetById('vercel')),
+        },
+      );
+      expect(imagePreset(settings).id, 'vercel');
+      final image = (await imageConfig(settings, keys))!;
+      expect(image.provider.name, 'Vercel AI Gateway');
+      expect(image.provider.baseUrl, 'https://ai-gateway.vercel.sh/v1');
+      expect(image.provider.apiKey, 'v-key');
+      expect(image.provider.model, 'bfl/flux-2-pro');
+      expect(image.provider.euOnly, isTrue);
+      expect(image.api, ImageApi.images);
+      final chat = await providerConfig(settings, keys);
+      expect(chat.name, 'Anthropic');
+      expect(chat.apiKey, 'a-key');
+      expect(chat.model, presetById('anthropic').defaultModel);
+      expect(chat.euOnly, isFalse);
+      // "Same as the chat": the chat's provider, which makes no images.
+      expect(await imageConfig(settings.copyWith(imageProvider: ''), keys),
+          isNull);
+    });
+
+    test('an image provider without a key: said, with its name', () async {
+      final settings =
+          const AiSettings(provider: 'anthropic', imageProvider: 'mistral');
+      final keys = MemoryKeyStore()..keys['anthropic'] = 'a-key';
+      final config = (await imageConfig(settings, keys))!;
+      await expectLater(
+          makeImage(config, 'x',
+              post: (url, headers, body) async => fail('nothing is sent')),
+          throwsA(isA<AiError>().having((e) => e.message, 'message',
+              'Enter the API key for Mistral in AI settings.')));
+    });
+
+    test('Vercel with "EU only": the default image model has an EU route',
+        () async {
+      final keys = MemoryKeyStore()..keys['vercel'] = 'v-key';
+      final vercel = presetById('vercel');
+      expect(vercel.euImageModel, 'google/gemini-2.5-flash-image');
+      AiSettings withEu(bool on) => AiSettings(provider: 'vercel', providers: {
+            'vercel': ProviderSettings.fromJson({'euOnly': on}, vercel),
+          });
+      final eu = (await imageConfig(withEu(true), keys))!;
+      expect(eu.provider.model, 'google/gemini-2.5-flash-image');
+      expect(eu.api, ImageApi.chat);
+      final anywhere = (await imageConfig(withEu(false), keys))!;
+      expect(anywhere.provider.model, 'openai/gpt-image-2');
+      expect(anywhere.api, ImageApi.images);
+    });
+
+    test('where the image is made: in the EU, outside it, or not known',
+        () async {
+      final keys = MemoryKeyStore();
+      Future<String> region(String id, {bool euOnly = false}) async {
+        final settings = AiSettings(provider: id, providers: {
+          id: ProviderSettings.fromJson({'euOnly': euOnly}, presetById(id)),
+        });
+        return imageRegion(
+            presetById(id), (await imageConfig(settings, keys))!);
+      }
+
+      expect(await region('mistral'), 'in the EU');
+      expect(await region('vercel', euOnly: true), 'in the EU');
+      expect(await region('vercel'), 'outside the EU');
+      expect(await region('qwen'), 'outside the EU');
+      expect(await region('openrouter'), 'region not known');
+    });
+
+    testWidgets('chosen in AI settings, with its own key; the chat stays',
+        (tester) async {
+      final store = MemoryAiSettingsStore();
+      final keys = MemoryKeyStore();
+      await pumpIn(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => AiSettingsScreen.open(context),
+            child: const Text('open'),
+          ),
+        ),
+        store: store,
+        keys: keys,
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      final choice = find.byKey(const ValueKey('image-provider-'));
+      await scrollTo(tester, choice);
+      expect(find.text('Same as the chat (Anthropic)'), findsOneWidget);
+      await tester.tap(choice);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mistral').last);
+      await tester.pumpAndSettle();
+      final model = find.byKey(const ValueKey('image-model-mistral'));
+      await scrollTo(tester, model);
+      expect(tester.widget<TextField>(model).controller!.text,
+          'mistral-medium-latest');
+      final key = find.byKey(const ValueKey('api-key-mistral'));
+      await scrollTo(tester, key);
+      await tester.enterText(key, 'mi-key');
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(store.settings.provider, 'anthropic');
+      expect(store.settings.imageProvider, 'mistral');
+      expect(keys.keys, {'mistral': 'mi-key'});
+      expect(jsonEncode(store.settings.toJson()), isNot(contains('mi-key')));
+    });
   });
 }

@@ -37,7 +37,22 @@ class ProviderPreset {
     this.imagesPath,
     this.imageModel = '',
     this.imageApi = ImageApi.images,
+    this.euImageModel = '',
+    this.euImageApi = ImageApi.images,
+    this.outsideEu = false,
   });
+
+  /// The default image model while "EU only" is on (#127): one with an EU
+  /// route; empty when the provider has none or no "EU only" switch.
+  final String euImageModel;
+
+  /// How [euImageModel] is asked.
+  final ImageApi euImageApi;
+
+  /// Whether the data is known to be processed outside the EU, for the
+  /// line on "Create image" (#127). With [dataStaysInEu] and this both
+  /// false, the region is not known.
+  final bool outsideEu;
 
   /// How the preset's image model is asked.
   final ImageApi imageApi;
@@ -104,6 +119,10 @@ const providerPresets = <ProviderPreset>[
     api: ApiKind.openAi,
     baseUrl: 'https://api.mistral.ai/v1',
     defaultModel: 'mistral-large-4',
+    // Mistral's built-in image tool in Chat Completions (#126).
+    imagesPath: '/chat/completions',
+    imageModel: 'mistral-medium-latest',
+    imageApi: ImageApi.mistral,
     note: 'Best value in the EU (Mistral Large 4, in public preview). EU '
         'company, EU processing; no training on paid use; abuse logs kept '
         '30 days.',
@@ -127,6 +146,10 @@ const providerPresets = <ProviderPreset>[
     imagesPath: '/images/generations',
     // Vercel's documentation names it for the Images API.
     imageModel: 'openai/gpt-image-2',
+    // The only image model with an EU route in Vercel's list (checked
+    // 2026-10-19), for "EU only" (#127).
+    euImageModel: 'google/gemini-2.5-flash-image',
+    euImageApi: ImageApi.chat,
     note: 'US company. "EU only" is off, as the default model, '
         'deepseek/deepseek-v4-pro, has no EU route: it is processed outside '
         'the EU. With "EU only" on, inference and stored data stay in the '
@@ -144,6 +167,7 @@ const providerPresets = <ProviderPreset>[
     strongModel: 'claude-opus-5-5',
     note: 'Safe default (Sonnet 5.5). Processed globally or in the US; a US '
         'company (CLOUD Act); no training on API data by default.',
+    outsideEu: true,
   ),
   ProviderPreset(
     id: 'deepseek',
@@ -154,6 +178,7 @@ const providerPresets = <ProviderPreset>[
     note: 'Best value outside the EU (DeepSeek V4 Pro). Processed and stored '
         'in China; reports say inputs may be used for training; Chinese law '
         'can require access.',
+    outsideEu: true,
   ),
   ProviderPreset(
     id: 'qwen',
@@ -168,6 +193,7 @@ const providerPresets = <ProviderPreset>[
     imageApi: ImageApi.dashscope,
     note: 'Singapore; Alibaba says no training on customer data; a Chinese '
         'company. A key works only in its own region.',
+    outsideEu: true,
   ),
   ProviderPreset(
     id: 'openrouter',
@@ -212,11 +238,20 @@ enum ImageApi {
   /// Alibaba Cloud's DashScope API for Qwen Image: `POST` to the host's
   /// `imagesPath`, the image as a link in
   /// `output.choices[0].message.content[0].image`, downloaded at once.
-  dashscope('DashScope (Qwen Image)');
+  dashscope('DashScope (Qwen Image)'),
+
+  /// Mistral's built-in `image_generation` tool in Chat Completions
+  /// (#126): the image as a link on Mistral's file host, or as a file ID
+  /// for its Files API, downloaded at once.
+  mistral('Mistral image tool');
 
   const ImageApi(this.label);
 
   final String label;
+
+  /// Whether only one provider is asked this way, and that provider only
+  /// this way.
+  bool get ownProvider => this == dashscope || this == mistral;
 }
 
 /// The preset with [id], or Anthropic's.

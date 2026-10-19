@@ -107,13 +107,13 @@ class ProviderConfig {
   /// False for a provider that needs no key, such as a local Ollama.
   final bool keyRequired;
 
-  ProviderConfig withModel(String model) => ProviderConfig(
+  ProviderConfig withModel(String model, {bool? euOnly}) => ProviderConfig(
         name: name,
         api: api,
         baseUrl: baseUrl,
         model: model,
         apiKey: apiKey,
-        euOnly: euOnly,
+        euOnly: euOnly ?? this.euOnly,
         maxOutputTokens: maxOutputTokens,
         keyRequired: keyRequired,
       );

@@ -55,21 +55,25 @@ String? imageExtension(Uint8List bytes) {
   return null;
 }
 
-/// Downloads an image the provider made; tests replace it.
-typedef ImageDownload = Future<Uint8List> Function(Uri url);
+/// Downloads an image the provider made, with [headers] (the API key,
+/// only for the provider's own host); tests replace it.
+typedef ImageDownload = Future<Uint8List> Function(Uri url,
+    {Map<String, String> headers});
 
 /// The most bytes an image may have.
 const maxImageBytes = 30 * 1024 * 1024;
 
 /// [ImageDownload] with `dart:io`: no redirects, a time limit, and at most
 /// [maxImageBytes].
-Future<Uint8List> downloadWithDartIo(Uri url) async {
+Future<Uint8List> downloadWithDartIo(Uri url,
+    {Map<String, String> headers = const {}}) async {
   final client = HttpClient()
     ..connectionTimeout = const Duration(seconds: 20)
     ..userAgent = 'RoamGraph';
   try {
     final request = await client.getUrl(url);
     request.followRedirects = false;
+    headers.forEach(request.headers.set);
     final response =
         await request.close().timeout(const Duration(minutes: 2));
     if (response.statusCode != 200) {
@@ -103,6 +107,18 @@ Future<Uint8List> downloadWithDartIo(Uri url) async {
 bool isDashscopeImageUrl(Uri url) =>
     url.scheme == 'https' && url.host.endsWith('.aliyuncs.com');
 
+/// Whether [url] is Mistral's file host, where its image tool puts the
+/// images it makes (#126), over HTTPS. Nothing else is downloaded.
+bool isMistralImageUrl(Uri url) =>
+    url.scheme == 'https' && url.host == 'files.mistral.ai';
+
+/// The error when "EU only" is on and the image model has no EU route;
+/// "Create image" then offers to make this one image outside the EU
+/// (#127).
+class NoEuRouteError extends AiError {
+  const NoEuRouteError(super.message);
+}
+
 /// Asks [config]'s image model for a picture of [prompt]. Throws
 /// [AiError] in plain words.
 Future<MadeImage> makeImage(ImageConfig config, String prompt,
@@ -122,6 +138,7 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
   }
   final chat = config.api == ImageApi.chat;
   final dashscope = config.api == ImageApi.dashscope;
+  final mistral = config.api == ImageApi.mistral;
   final Uri url;
   try {
     final baseUri = Uri.parse(base);
@@ -129,7 +146,9 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
         // DashScope's path starts at the host, not at the base URL's
         // compatible-mode/v1.
         ? baseUri.replace(path: config.imagesPath, query: null)
-        : Uri.parse(chat ? '$base/chat/completions' : '$base${config.imagesPath}');
+        : Uri.parse(chat || mistral
+            ? '$base/chat/completions'
+            : '$base${config.imagesPath}');
   } on FormatException {
     throw AiError('The base URL of ${provider.name} is not a valid URL.');
   }
@@ -160,6 +179,13 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
         'n': 1,
         'watermark': false,
       },
+    } else if (mistral) ...{
+      'messages': [
+        {'role': 'user', 'content': prompt},
+      ],
+      'tools': [
+        {'type': 'image_generation'},
+      ],
     } else if (chat) ...{
       'messages': [
         {'role': 'user', 'content': prompt},
@@ -185,7 +211,7 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
     // Vercel with "EU only": the model has no route in the EU.
     if (provider.euOnly &&
         e.message.toLowerCase().contains('inference region')) {
-      throw AiError('"${provider.model}" has no EU route, and "EU only" is '
+      throw NoEuRouteError('"${provider.model}" has no EU route, and "EU only" is '
           'on for ${provider.name}. Choose an image model that runs in the '
           'EU ("Choose model" marks the others), or turn "EU only" off in AI '
           'settings.');
@@ -216,6 +242,9 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
     }
     return MadeImage(bytes, extension);
   }
+  if (mistral) {
+    return _mistralImage(json, provider, url, headers, download);
+  }
   final encoded = chat ? _fromChat(json) : _fromImages(json);
   if (encoded == null) {
     throw AiError('${provider.name} sent no image. The model '
@@ -234,6 +263,94 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
         'WebP image; nothing is saved.');
   }
   return MadeImage(bytes, extension);
+}
+
+/// The image of a Mistral answer with its image tool (#126): a link on
+/// Mistral's file host, or a file ID for its Files API at [chatUrl]'s
+/// host, which must be Mistral's. Only these hosts get the API key.
+Future<MadeImage> _mistralImage(
+    Map<String, Object?> json,
+    ProviderConfig provider,
+    Uri chatUrl,
+    Map<String, String> headers,
+    ImageDownload download) async {
+  final auth = {'authorization': ?headers['authorization']};
+  final Uri imageUrl;
+  switch (_fromMistral(json)) {
+    case null:
+      throw AiError('${provider.name} sent no image. The model '
+          '"${provider.model}" may not use the image tool; try '
+          'mistral-medium-latest.');
+    case (link: final link?, fileId: _):
+      final parsed = Uri.tryParse(link);
+      if (parsed == null) {
+        throw AiError(
+            '${provider.name} sent an image link the app cannot read.');
+      }
+      if (!isMistralImageUrl(parsed)) {
+        throw AiError('${provider.name} sent an image link to '
+            '${parsed.host}, which the app does not download.');
+      }
+      imageUrl = parsed;
+    case (link: null, fileId: final fileId?):
+      if (chatUrl.scheme != 'https' || chatUrl.host != 'api.mistral.ai') {
+        throw AiError('${provider.name} sent an image as a file of '
+            '${chatUrl.host}, which the app downloads only from '
+            'api.mistral.ai.');
+      }
+      imageUrl = Uri.https('api.mistral.ai',
+          '/v1/files/${Uri.encodeComponent(fileId)}/content');
+    default:
+      throw AiError('${provider.name} sent no image.');
+  }
+  final Uint8List bytes;
+  try {
+    bytes = await download(imageUrl, headers: auth);
+  } on AiError catch (e) {
+    throw AiError('${provider.name} made an image, but '
+        '${e.message[0].toLowerCase()}${e.message.substring(1)}');
+  }
+  final extension = imageExtension(bytes);
+  if (extension == null) {
+    throw AiError('${provider.name} sent something that is no PNG, JPEG or '
+        'WebP image; nothing is saved.');
+  }
+  return MadeImage(bytes, extension);
+}
+
+/// The first image in a Mistral answer: an `image_url` chunk (a link) or
+/// a `tool_file` chunk (a file ID), in `choices[].messages[]`, which
+/// Mistral sends when a tool ran, or in `choices[].message`.
+({String? link, String? fileId})? _fromMistral(Map<String, Object?> json) {
+  final choices = json['choices'];
+  if (choices is! List) return null;
+  for (final choice in choices) {
+    if (choice is! Map) continue;
+    final messages = [
+      if (choice['messages'] case final List list) ...list,
+      if (choice['message'] case final Map message) message,
+    ];
+    for (final message in messages) {
+      final content = message is Map ? message['content'] : null;
+      if (content is! List) continue;
+      for (final chunk in content) {
+        if (chunk is! Map) continue;
+        if (chunk['type'] == 'image_url') {
+          final value = chunk['image_url'];
+          final link = value is Map ? value['url'] : value;
+          if (link is String && link.isNotEmpty) {
+            return (link: link, fileId: null);
+          }
+        }
+        if (chunk['type'] == 'tool_file') {
+          if (chunk['file_id'] case final String id when id.isNotEmpty) {
+            return (link: null, fileId: id);
+          }
+        }
+      }
+    }
+  }
+  return null;
 }
 
 /// The base64 of the first image in an Images API answer: `b64_json`, or
