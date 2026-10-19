@@ -1893,6 +1893,43 @@ devices through Syncthing.
       `~/.local/share/roam-graph/app`, adds a menu entry, and with
       `--update` fetches the newest release from GitHub; the app's data,
       keys and notes are elsewhere and stay.
+72. **"Edit with AI" on a note and its linked notes: plan first, then
+    one change set** (#122), `lib/edit/neighbourhood_edit.dart` and
+    `lib/edit/ai_edit_screen.dart`. Widens decision 66: tasks such as
+    "remove all links to this note" or "rename X to Y here and in the
+    notes that link here" change the notes around the note.
+    - **Scope:** with "Also the linked notes" (on by default when there
+      are any), the note, the notes that link to it, and the notes it
+      links to (also from its headings), in that order. A change set has
+      one edit per file, so each other file is in it once: its own node
+      when AI may see it, else the first of its nodes in the scope. Other
+      nodes in the note's own file are only in it through the note's
+      text. Without linked notes, or with the box off, decision 66 applies
+      as before.
+    - **What is sent:** the instruction and each note as AI may see it
+      (decision 57), with its ID, title, file and relation ("the note",
+      "links here", "linked from it"), and no tools. Notes hidden from AI,
+      also by a tag added since the index was built, are left out; hidden
+      headings go out as `* (hidden)` and come back as in decision 66.
+    - **Limit:** at most "Most notes one AI change set may edit" (AI
+      settings); the note first, then the backlinks, then the forward
+      links. The plan says how many were left out.
+    - **Plan first:** the model answers only with a summary and the notes
+      it will change, one line each, as JSON; nothing is written. A note
+      that was not sent is refused. "Back" keeps the instruction; "Go
+      ahead" asks, in the same conversation, for the new texts, each in a
+      block `=== ID: x ===` … `=== end ===`. A text for a note that is not
+      in the plan, two texts for one note, a dropped hidden part, or a
+      changed `#+title`/`#+filetags` line refuses the whole answer.
+    - **Review:** the change-set screen (decision 58, #76), with the
+      plan's summary at the top and one diff per note, each with the
+      plan's line; links to IDs that are no note are named. Each file is
+      saved only over the version the AI read (decision 10). The set is
+      saved only as a whole: if one file changed since it was read, no
+      file is saved, and if a file still cannot be saved (for example an
+      `:ID:` the AI changed), the files saved before it are put back.
+    - **Undo:** the set is undone as one on the change-set screen, and it
+      is in "Recent AI changes" (#99) as one entry, with the instruction.
 
 ## Recommended, not decided
 
