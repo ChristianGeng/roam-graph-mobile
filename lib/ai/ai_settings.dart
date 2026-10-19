@@ -34,6 +34,7 @@ class ProviderSettings {
         defaultModel: preset.defaultModel,
         strongModel: preset.strongModel,
         imageModel: preset.imageModel,
+        imageApi: preset.imageApi,
       );
 
   /// The model "Create image" uses (#112); empty when none is chosen.
@@ -80,9 +81,19 @@ class ProviderSettings {
       defaultModel: text('defaultModel', base.defaultModel),
       strongModel: text('strongModel', base.strongModel),
       euOnly: json['euOnly'] is bool ? json['euOnly'] as bool : base.euOnly,
-      imageModel: text('imageModel', base.imageModel),
-      imageApi: ImageApi.values.firstWhere((k) => k.name == json['imageApi'],
-          orElse: () => base.imageApi),
+      // An empty image model was saved before the provider made images:
+      // the preset's default then (#120).
+      imageModel: switch (json['imageModel']) {
+        final String model when model.trim().isNotEmpty => model,
+        _ => base.imageModel,
+      },
+      // DashScope is Qwen's only way; another way is kept only where the
+      // provider has no own one.
+      imageApi: base.imageApi == ImageApi.dashscope
+          ? ImageApi.dashscope
+          : ImageApi.values.firstWhere(
+              (k) => k.name == json['imageApi'] && k != ImageApi.dashscope,
+              orElse: () => base.imageApi),
     );
   }
 }
@@ -814,14 +825,17 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           setState(() {
             field.text = id;
             // A chat model that also makes images is asked through the
-            // chat; OpenRouter's Images API takes them all (#112).
+            // chat; OpenRouter's Images API takes them all (#112); Qwen's
+            // are asked through DashScope.
             if (images) {
               final model = models.where((m) => m.id == id).firstOrNull;
-              draft.imageApi = preset.id != 'openrouter' &&
-                      model?.chat == true &&
-                      model?.images == true
-                  ? ImageApi.chat
-                  : ImageApi.images;
+              draft.imageApi = preset.imageApi == ImageApi.dashscope
+                  ? ImageApi.dashscope
+                  : preset.id != 'openrouter' &&
+                          model?.chat == true &&
+                          model?.images == true
+                      ? ImageApi.chat
+                      : ImageApi.images;
             }
           });
         }
@@ -994,10 +1008,13 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           decoration:
               const InputDecoration(labelText: 'How the image model is asked'),
           items: [
+            // Qwen only through DashScope; the others never through it.
             for (final kind in ImageApi.values)
-              DropdownMenuItem(
-                  value: kind,
-                  child: Text(kind.label, overflow: TextOverflow.ellipsis)),
+              if ((kind == ImageApi.dashscope) ==
+                  (preset.imageApi == ImageApi.dashscope))
+                DropdownMenuItem(
+                    value: kind,
+                    child: Text(kind.label, overflow: TextOverflow.ellipsis)),
           ],
           onChanged: (kind) =>
               setState(() => draft.imageApi = kind ?? draft.imageApi),

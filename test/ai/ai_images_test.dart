@@ -122,6 +122,104 @@ void main() {
     expect(sent, hasLength(3));
   });
 
+  test('Qwen Image through DashScope: the link is downloaded (#112)',
+      () async {
+    final downloaded = <Uri>[];
+    final image = await makeImage(
+      ImageConfig(
+        const ProviderConfig(
+          name: 'Qwen (Alibaba Cloud)',
+          api: ApiKind.openAi,
+          baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+          model: 'qwen-image-2.0',
+          apiKey: 'q-key',
+        ),
+        api: ImageApi.dashscope,
+        imagesPath: '/api/v1/services/aigc/multimodal-generation/generation',
+      ),
+      'A red fox',
+      post: answer({
+        'output': {
+          'choices': [
+            {
+              'message': {
+                'content': [
+                  {
+                    'image':
+                        'https://dashscope-result-sg.oss-ap-southeast-1.aliyuncs.com/x.png?Expires=1',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+      download: (url) async {
+        downloaded.add(url);
+        return base64.decode(png);
+      },
+    );
+    expect(image.extension, 'png');
+    final (url, headers, body) = sent.single;
+    expect(url.toString(),
+        'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation');
+    expect(headers['authorization'], 'Bearer q-key');
+    expect((body['input'] as Map)['messages'], [
+      {
+        'role': 'user',
+        'content': [
+          {'text': 'A red fox'},
+        ],
+      },
+    ]);
+    expect(downloaded.single.host, endsWith('.aliyuncs.com'));
+    // A link elsewhere is not followed.
+    await expectLater(
+        makeImage(
+          ImageConfig(
+            const ProviderConfig(
+              name: 'Qwen',
+              api: ApiKind.openAi,
+              baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+              model: 'qwen-image-2.0',
+              apiKey: 'q-key',
+            ),
+            api: ImageApi.dashscope,
+            imagesPath: '/api/v1/x',
+          ),
+          'x',
+          post: answer({
+            'output': {
+              'choices': [
+                {
+                  'message': {
+                    'content': [
+                      {'image': 'https://evil.example/x.png'},
+                    ],
+                  },
+                },
+              ],
+            },
+          }),
+          download: (url) async => base64.decode(png),
+        ),
+        throwsA(isA<AiError>().having(
+            (e) => e.message, 'message', contains('does not download'))));
+  });
+
+  test('"EU only" and a model without an EU route: said plainly', () async {
+    await expectLater(
+        makeImage(config(euOnly: true), 'x',
+            post: answer({
+              'error': {
+                'message': 'No provider for openai/gpt-image-2 supports the '
+                    'requested inference region.',
+              },
+            }, status: 400)),
+        throwsA(isA<AiError>().having((e) => e.message, 'message',
+            contains('has no EU route, and "EU only" is on'))));
+  });
+
   test('image kinds by their first bytes', () {
     expect(imageExtension(base64.decode(png)), 'png');
     expect(imageExtension(Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0])), 'jpg');

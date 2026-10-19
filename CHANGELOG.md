@@ -8,6 +8,16 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-19: Cheaper images with Qwen, and clearer image errors ([#121](https://github.com/ChristianGeng/roam-graph-mobile/pull/121))
+
+- Added: "Create image" works with the Qwen provider too, with Qwen Image
+  2.0 (about 0.035 USD per image).
+- Added: the image model is told the note's title, so "an image for this
+  note" works; a box turns it off.
+- Fixed: with "EU only" on at Vercel, a model without an EU route now
+  says so and names the ways out, instead of the gateway's error.
+- Closes [#120](https://github.com/ChristianGeng/roam-graph-mobile/issues/120).
+
 ## 2026-10-18: The app for Windows and macOS, and a Linux installer ([#119](https://github.com/ChristianGeng/roam-graph-mobile/pull/119))
 
 - Added: every release also carries the app for Windows

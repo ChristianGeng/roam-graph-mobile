@@ -42,6 +42,14 @@ String relativeLink(String note, String target) {
   ].join('/');
 }
 
+/// What the image model is asked: [description], and, when [title] is
+/// given, the note it is for, so a description such as "an image for this
+/// note" can be drawn.
+String imagePrompt(String description, String? title) =>
+    title == null || title.trim().isEmpty
+        ? description
+        : '$description\n\nThe image is for a note titled "${oneLine(title)}".';
+
 /// What is added to the note: the description as the caption, and the
 /// link, each on its own line.
 String imageAddition(String prompt, String link) =>
@@ -53,8 +61,13 @@ class ImageScreen extends StatefulWidget {
     required this.writer,
     required this.node,
     this.post = postWithDartIo,
+    this.download = downloadWithDartIo,
     this.now = DateTime.now,
   });
+
+  /// Downloads an image a provider gives as a link (Qwen); tests replace
+  /// it.
+  final ImageDownload download;
 
   final NoteWriter writer;
   final RoamNode node;
@@ -76,6 +89,10 @@ class ImageScreen extends StatefulWidget {
 class _ImageScreenState extends State<ImageScreen> {
   final _prompt = TextEditingController();
   bool _working = false;
+
+  /// Whether the image model is told the note's title, so "an image for
+  /// this note" works (#112).
+  bool _withTitle = true;
   String? _error;
   MadeImage? _image;
 
@@ -130,7 +147,9 @@ class _ImageScreenState extends State<ImageScreen> {
           'Choose Vercel AI Gateway, OpenRouter or Custom in AI settings.';
     }
     try {
-      final image = await makeImage(config, prompt, post: widget.post);
+      final image = await makeImage(
+          config, imagePrompt(prompt, _withTitle ? widget.node.displayTitle : null),
+          post: widget.post, download: widget.download);
       if (mounted) {
         setState(() {
           _image = image;
@@ -221,8 +240,20 @@ class _ImageScreenState extends State<ImageScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text('Only this description is sent to the image model. The '
-              'image is saved only when you tap "Add to the note".'),
+          CheckboxListTile(
+            key: const ValueKey('image-with-title'),
+            contentPadding: EdgeInsets.zero,
+            value: _withTitle,
+            onChanged: (on) => setState(() => _withTitle = on ?? true),
+            title: Text('Tell the image model the note\'s title '
+                '("${widget.node.displayTitle}")'),
+          ),
+          Text(_withTitle
+              ? 'Only this description and the title are sent to the image '
+                  'model. The image is saved only when you tap "Add to the '
+                  'note".'
+              : 'Only this description is sent to the image model. The '
+                  'image is saved only when you tap "Add to the note".'),
           const SizedBox(height: 16),
           Wrap(
             alignment: WrapAlignment.end,

@@ -36,7 +36,11 @@ class ProviderPreset {
     this.keyHint = 'API key',
     this.imagesPath,
     this.imageModel = '',
+    this.imageApi = ImageApi.images,
   });
+
+  /// How the preset's image model is asked.
+  final ImageApi imageApi;
 
   /// The image model new images are made with (#112); empty when there is
   /// no default.
@@ -157,6 +161,11 @@ const providerPresets = <ProviderPreset>[
     api: ApiKind.openAi,
     baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
     defaultModel: 'qwen3.8-max',
+    // DashScope's own image API, on the same host; Qwen Image 2.0 costs
+    // 0.035 USD per image in the Singapore region (checked 2026-10-19).
+    imagesPath: '/api/v1/services/aigc/multimodal-generation/generation',
+    imageModel: 'qwen-image-2.0',
+    imageApi: ImageApi.dashscope,
     note: 'Singapore; Alibaba says no training on customer data; a Chinese '
         'company. A key works only in its own region.',
   ),
@@ -198,7 +207,12 @@ enum ImageApi {
   /// Chat Completions with `modalities: ["image", "text"]`, the image in
   /// `message.images[].image_url.url` (Vercel AI Gateway). For chat
   /// models that also make images (Gemini Image, …).
-  chat('Chat with image output (Gemini Image and similar)');
+  chat('Chat with image output (Gemini Image and similar)'),
+
+  /// Alibaba Cloud's DashScope API for Qwen Image: `POST` to the host's
+  /// `imagesPath`, the image as a link in
+  /// `output.choices[0].message.content[0].image`, downloaded at once.
+  dashscope('DashScope (Qwen Image)');
 
   const ImageApi(this.label);
 
