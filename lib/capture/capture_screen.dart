@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../edit/note_editor.dart';
 import 'new_node.dart';
+import '../edit/unsaved_text.dart';
 
 /// What happened when a note was to be written.
 sealed class CreateResult {
@@ -159,10 +160,20 @@ class _CaptureScreenState extends State<CaptureScreen> {
   void initState() {
     super.initState();
     _title.addListener(() => setState(() {}));
+    for (final field in [_title, _tags, _body]) {
+      field.addListener(_markUnsaved);
+    }
+    _markUnsaved();
   }
+
+  void _markUnsaved() => UnsavedText.mark(
+      this,
+      !_written &&
+          [_title, _tags, _body].any((f) => f.text.trim().isNotEmpty));
 
   @override
   void dispose() {
+    UnsavedText.mark(this, false);
     _title.dispose();
     _tags.dispose();
     _body.dispose();

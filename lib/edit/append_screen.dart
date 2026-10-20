@@ -4,6 +4,7 @@ import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
 import 'append.dart';
 import 'note_editor.dart';
+import 'unsaved_text.dart';
 
 /// "Add to this node" (#36): text typed here goes to the end of the node,
 /// and nothing that is there changes. The note is read again when saving,
@@ -49,12 +50,17 @@ class _AppendScreenState extends State<AppendScreen> {
   @override
   void initState() {
     super.initState();
-    _text.addListener(() => setState(() {}));
+    _text.addListener(() {
+      UnsavedText.mark(this, _text.text.trim().isNotEmpty);
+      setState(() {});
+    });
+    UnsavedText.mark(this, _text.text.trim().isNotEmpty);
     _noteKey = widget.writer.editor?.store.historyKey(widget.node.file);
   }
 
   @override
   void dispose() {
+    UnsavedText.mark(this, false);
     _text.dispose();
     super.dispose();
   }

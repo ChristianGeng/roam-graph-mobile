@@ -57,6 +57,9 @@ class FakeFolderAccess implements FolderAccess {
   /// The paths of every file read, in order.
   final readPaths = <String>[];
 
+  /// The paths read by each call of [readFiles].
+  final readCalls = <List<String>>[];
+
   @override
   Future<ChosenFolder?> savedFolder() async => saved;
 
@@ -186,6 +189,7 @@ class FakeFolderAccess implements FolderAccess {
   @override
   Future<List<Uint8List?>> readFiles(List<FolderFile> files) async {
     readPaths.addAll([for (final file in files) file.path]);
+    readCalls.add([for (final file in files) file.path]);
     return [
       for (final file in files)
         if (texts[file.path] case final text?) utf8.encode(text) else null,
