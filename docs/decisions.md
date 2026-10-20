@@ -1995,6 +1995,46 @@ devices through Syncthing.
       without the EU option; nothing asks to confirm. "EU only" stays on,
       so the next image asks in the EU again.
 
+76. **Images in the chat: `create_image` for the agent** (#129),
+    `lib/ai/agent_tools.dart`, `lib/ai/ai_chat.dart`. "Create image"
+    (#112) sends only my description and the title, so for "an
+    infographic of the last 5 years" the image model draws from its own
+    training, which ends around 2024, and invents numbers. The chat model
+    can read the notes first and write the prompt with the facts.
+    - **The tool:** `create_image` with `id`, `prompt` and `caption`, in
+      agent mode only (decision 59), where the AI writes notes
+      anyway. It uses the image provider of "Images with:" (decision 75);
+      without one set up (model and key), the tool is not offered.
+    - **In the note:** below the note's text, `# image prompt: <prompt>`,
+      `#+caption: <caption>` and the file link, saved as every agent
+      change (decision 10) and logged for "Undo all" and "Recent AI
+      changes" (#82, #99). Undo takes the block out of the note; the image
+      file stays in the image folder, as a file "Create image" wrote
+      stays when the note is not changed.
+    - **The tool's description says which model draws**, and where (as
+      decision 75's line), that only the prompt reaches it, and how to
+      write it: every fact in the prompt, few short labels. DashScope takes
+      prompts of at most 800 characters, the others 4000; a longer one is
+      refused with the limit.
+    - **Today's date** is in the chat's system prompt, in every mode. The
+      prompt then changes once a day, so the provider's cache starts anew
+      once a day.
+    - **At most one image per message** by default ("Most images the
+      agent may make for one message" in AI settings); an image costs about
+      3 to 21 cents (Mistral 10). A failed request does not count. A second
+      image for the same note in one message replaces the first in the
+      note: the corrected one.
+    - **The model sees the image**, to check it: with the tool's result,
+      for Anthropic as an image block in the tool result, for the
+      OpenAI-style APIs in a message of mine after the tool results (a tool
+      message holds only text there). Only for the current message: later
+      messages do not send it again. A model that takes no images refuses
+      the request (HTTP 400, 415 or 422): the app sends it once more
+      without images, and tells the model it could not see the image;
+      images are then no longer sent in that chat.
+    - **"Create image"** in the edit menu stays as it is, for a quick
+      image without the notes.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

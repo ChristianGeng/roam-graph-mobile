@@ -18,8 +18,10 @@ import '../edit/save_messages.dart';
 import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
 import '../node_view/web_links.dart';
+import '../settings/view_settings.dart';
 import 'agent_tools.dart';
 import 'ai_chat.dart';
+import 'ai_images.dart';
 import 'ai_models.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
@@ -213,6 +215,12 @@ class _ChatScreenState extends State<ChatScreen> {
     final keys = AiSettingsScope.keysOf(context);
     final config = keys == null ? null : await providerConfig(settings, keys);
     if (!mounted) return;
+    // Only the agent makes images: other modes do not wait for it.
+    final maker = widget.writer?.editor != null &&
+            settings.editMode == AiEditMode.agent
+        ? await _imageMaker(settings, keys)
+        : null;
+    if (!mounted) return;
     final values = settings.providerSettings();
     final start = widget.startNode;
     var startShown = start != null && !settings.visibility.hides(start);
@@ -261,6 +269,7 @@ class _ChatScreenState extends State<ChatScreen> {
               folder: () => editor!.store.historyKey('').split('\n').first,
               limit: settings.maxAgentChanges,
               log: widget.agentLog,
+              images: maker,
             )
           : null;
       _session = config == null
@@ -277,9 +286,12 @@ class _ChatScreenState extends State<ChatScreen> {
                     proposeEditTool,
                     proposeEditsTool(settings.maxChangeSetFiles),
                   ],
-                AiEditMode.agent => [...aiTools, ...agentTools],
+                AiEditMode.agent => [...aiTools, ..._agent!.tools],
               },
-              system: mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt,
+              system: withToday(
+                  mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt,
+                  DateTime.now()),
+              toolImage: _agent?.imageFor,
               handlers: {
                 if (mode == AiEditMode.review) ...{
                   'propose_edit': _propose,
@@ -292,6 +304,31 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_setupProblem == null && config != null) {
       unawaited(_checkModel(config, config.model));
     }
+  }
+
+  /// The image model of "Images with:" for the agent's `create_image`
+  /// (#129), or null where none is set up: then the tool is not offered.
+  Future<ImageMaker?> _imageMaker(
+      AiSettings settings, ApiKeyStore? keys) async {
+    if (keys == null || widget.writer?.createFile == null) return null;
+    final config = await imageConfig(settings, keys);
+    if (config == null || !mounted) return null;
+    final provider = config.provider;
+    if (provider.model.trim().isEmpty ||
+        (provider.keyRequired && provider.apiKey.isEmpty)) {
+      return null;
+    }
+    final view = await ViewSettingsScope.current(context,
+        limit: const Duration(seconds: 10));
+    final preset = imagePreset(settings);
+    return ImageMaker(
+      make: (prompt) => makeImage(config, prompt, post: widget.post),
+      model: '${provider.model} at ${preset.name}, '
+          '${imageRegion(preset, config)}',
+      folder: view.imageFolder,
+      maxPrompt: maxImagePrompt(config.api),
+      limit: settings.maxImagesPerMessage,
+    );
   }
 
   /// Checks the chat's model against the provider's list as it is now,
@@ -796,6 +833,24 @@ class _ChatScreenState extends State<ChatScreen> {
             children.add(
               _ToolCallTile(key: ValueKey('chat-tool-$i-$j'), result: result),
             );
+            // The image create_image made (#129).
+            if (result.image case final image?) {
+              children.add(
+                Padding(
+                  key: ValueKey('chat-image-$i-$j'),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 48, 4),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      Uint8List.fromList(image.bytes),
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, _, _) =>
+                          const Text('The image cannot be shown here.'),
+                    ),
+                  ),
+                ),
+              );
+            }
             final callId = result.call.id;
             if (_setProposals[callId] case final proposed?) {
               final set = _sets[callId];

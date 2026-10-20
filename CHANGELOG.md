@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-20: Images in the chat: the AI reads the notes, then draws ([#130](https://github.com/ChristianGeng/roam-graph-mobile/pull/130))
+
+- In agent mode, ask the chat for an image, such as "an infographic of my training over the last 5 years for this note". The AI reads the notes first, writes the image prompt with the facts in it, and adds the image to the note with a caption it writes, and the prompt as a comment.
+- The AI is shown the image, if its model can see images, and checks it. The chat now knows today's date.
+- One image per message by default ("Most images the agent may make for one message" in AI settings). "Undo all changes of this message" takes the image out of the note.
+
+Closes #129.
+
 ## 2026-10-19: Images with Mistral, and a provider for images of its own ([#128](https://github.com/ChristianGeng/roam-graph-mobile/pull/128))
 
 - Added: "Create image" works with Mistral, through its built-in image tool (Mistral Medium by default). The image is downloaded only from Mistral's own servers. Mistral settings saved before get these defaults.

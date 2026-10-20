@@ -13,9 +13,12 @@ import '../edit/agent_changes.dart';
 import '../edit/append.dart';
 import '../edit/node_meta.dart';
 import '../edit/node_text.dart';
+import '../edit/image_screen.dart';
 import '../edit/note_editor.dart';
 import '../graph/roam_graph.dart';
 import 'ai_chat.dart';
+import 'ai_images.dart';
+import 'ai_providers.dart';
 import 'ai_tools.dart';
 import 'ai_visibility.dart';
 
@@ -168,6 +171,86 @@ const agentTools = [
   setAliasesTool,
 ];
 
+/// What `create_image` needs (#129): the image model of "Images with:"
+/// (#127), said in words for the tool's description, and where images go.
+class ImageMaker {
+  const ImageMaker({
+    required this.make,
+    required this.model,
+    required this.folder,
+    this.maxPrompt = 4000,
+    this.limit = 1,
+  });
+
+  /// Asks the image model; throws [AiError].
+  final Future<MadeImage> Function(String prompt) make;
+
+  /// Which model makes the images, and where, for example
+  /// "mistral-medium-latest at Mistral, in the EU".
+  final String model;
+
+  /// The image folder, relative to `roam/` (`.` is `roam/`), from the
+  /// settings (#112).
+  final String folder;
+
+  /// The longest prompt the provider takes.
+  final int maxPrompt;
+
+  /// The most images for one message.
+  final int limit;
+}
+
+/// The longest prompt for images asked in [api]: DashScope takes about
+/// 800 characters; the others far more.
+int maxImagePrompt(ImageApi api) => api == ImageApi.dashscope ? 800 : 4000;
+
+/// `create_image` (#129), described with the image model in use, so the
+/// model knows what it asks.
+AiTool createImageTool(ImageMaker maker) => AiTool(
+      'create_image',
+      'Make an image with an image model and add it to a note, below its '
+          'text, with a caption. The image model is ${maker.model}. Only '
+          'the prompt goes to it, never the notes, and it knows nothing '
+          'after its training: first read what the image is about with the '
+          'other tools, then put every fact, number, year and label the '
+          'image needs into the prompt, in English. Image models draw text '
+          'and numbers poorly: keep labels few and short, and numbers few '
+          'and large. At most ${maker.maxPrompt} characters. At most '
+          '${maker.limit} ${maker.limit == 1 ? 'image' : 'images'} for one '
+          'message, so use it only when I ask for an image, and only once '
+          'unless the image is wrong. You are shown the image if you can '
+          'see images: check it against the prompt. If a word or number '
+          'is wrong and the limit allows, make it again for the same note: '
+          'the new image replaces the one of this message; else tell me '
+          'what is wrong.',
+      {
+        'type': 'object',
+        'properties': {
+          'id': {
+            'type': 'string',
+            'description': 'The ID of the note the image is for',
+          },
+          'prompt': {
+            'type': 'string',
+            'description': 'What the image shows, with all facts and labels',
+          },
+          'caption': {
+            'type': 'string',
+            'description': 'A short caption for the note, one line, in the '
+                'language of the note',
+          },
+        },
+        'required': ['id', 'prompt', 'caption'],
+      },
+    );
+
+/// [system] with today's date, so "the last 5 years" is counted from
+/// today, not from the end of the model's training (#129).
+String withToday(String system, DateTime now) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '$system Today is ${now.year}-${two(now.month)}-${two(now.day)}.';
+}
+
 /// The system prompt in agent mode: as [systemPrompt], but notes are
 /// changed with the write tools, which save at once.
 final agentSystemPrompt = systemPrompt.replaceFirst(
@@ -193,10 +276,28 @@ class AgentWriter {
     required this.folder,
     required this.limit,
     this.log = const FileAgentLog(),
+    this.images,
     DateTime Function()? now,
     Random? random,
   })  : _now = now ?? DateTime.now,
         _random = random;
+
+  /// The image model for `create_image`; null where there is none (#129).
+  final ImageMaker? images;
+
+  /// The images made for the current message, by tool call, to show the
+  /// model; and the block each note got, to replace with a better one.
+  final _imagesByCall = <String, ToolImage>{};
+  final _imageBlocks = <String, String>{};
+  int _imageCount = 0;
+
+  /// The image the call [call] made, for [ChatSession.toolImage].
+  ToolImage? imageFor(ToolCall call) => _imagesByCall[call.id];
+
+  /// The tools this writer offers: [agentTools], and `create_image` where
+  /// there is an image model.
+  List<AiTool> get tools =>
+      [...agentTools, if (images case final maker?) createImageTool(maker)];
 
   final NoteWriter writer;
 
@@ -231,6 +332,9 @@ class AgentWriter {
   AgentChanges startMessage({String prompt = ''}) {
     final time = _now();
     final words = prompt.replaceAll(RegExp(r'\s+'), ' ').trim();
+    _imagesByCall.clear();
+    _imageBlocks.clear();
+    _imageCount = 0;
     return changes = AgentChanges(
       messageId: '${time.microsecondsSinceEpoch.toRadixString(36)}-'
           '${(_random ?? Random()).nextInt(1 << 30).toRadixString(36)}',
@@ -241,7 +345,7 @@ class AgentWriter {
 
   /// The tools this writer runs, by name, for [ChatSession.handlers].
   Map<String, Future<String> Function(ToolCall call)> get handlers => {
-        for (final tool in agentTools) tool.name: run,
+        for (final tool in tools) tool.name: run,
       };
 
   /// Runs one tool call; the text goes back to the model. A call that
@@ -265,6 +369,7 @@ class AgentWriter {
         'set_tags' ||
         'set_aliases' =>
           await _meta(editor, call.name, call.input),
+        'create_image' => await _image(editor, call),
         _ => 'Error: unknown tool ${call.name}.',
       };
     } on ToolError catch (e) {
@@ -463,6 +568,88 @@ class AgentWriter {
     }
     return _save(editor, 'add_link', from, base, after,
         'Linked "${from.displayTitle}" to "${to.displayTitle}".');
+  }
+
+  /// `create_image` (#129): the image model draws the prompt; the image
+  /// goes into the image folder and, with its prompt and caption, below
+  /// the note's text. A second image for the same note in one message
+  /// replaces the first in the note.
+  Future<String> _image(NoteEditor editor, ToolCall call) async {
+    final maker = images;
+    final createFile = writer.createFile;
+    if (maker == null || createFile == null) {
+      throw const ToolError('no image model is set up; tell me to choose '
+          'one under "Images with:" in AI settings.');
+    }
+    final args = call.input;
+    final node = _node(_string(args, 'id'));
+    final prompt = _string(args, 'prompt').trim();
+    final caption = oneLine(_string(args, 'caption', required: false));
+    if (prompt.length > maker.maxPrompt) {
+      throw ToolError('the prompt has ${prompt.length} characters; the image '
+          'model takes at most ${maker.maxPrompt}. Shorten it.');
+    }
+    if (_imageCount >= maker.limit) {
+      throw ToolError('the limit of ${maker.limit} '
+          '${maker.limit == 1 ? 'image' : 'images'} for one message is '
+          'reached. Tell me what is wrong with the image instead; I can ask '
+          'for another in the next message.');
+    }
+    // The note must be one the AI may see, before anything is made.
+    await _read(editor, node);
+    final MadeImage image;
+    try {
+      image = await maker.make(prompt);
+    } on AiError catch (e) {
+      throw ToolError('the image model failed: ${e.message}');
+    }
+    // Counted once made: a failed request costs nothing.
+    _imageCount++;
+    // A free name: a second later if the name is taken.
+    var time = _now();
+    String? path;
+    for (var attempt = 0; attempt < 5 && path == null; attempt++) {
+      final candidate =
+          imagePath(maker.folder, time, node.displayTitle, image.extension);
+      switch (await createFile(candidate, image.bytes)) {
+        case Created() || WrittenNotIndexed():
+          path = candidate;
+        case FileExists():
+          time = time.add(const Duration(seconds: 1));
+        case NoWriteAccess():
+          throw const ToolError('the app may only read the folder. Tell me '
+              'to choose the folder again in the app to allow writing.');
+        case CreateFailed(:final message):
+          throw ToolError('the image could not be written: $message');
+      }
+    }
+    if (path == null) throw const ToolError('no free file name for the image.');
+    final block = '# image prompt: ${oneLine(prompt)}\n'
+        '${imageAddition(caption.isEmpty ? oneLine(prompt) : caption, relativeLink(node.file, path))}';
+    // The note as it is now: the image took a while.
+    final (base, lines) = await _read(editor, node);
+    final earlier = _imageBlocks[node.id];
+    final body = lines.body;
+    final String after;
+    final String done;
+    final old = earlier == null ? null : _withNewline(earlier.trimRight(), lines);
+    if (old != null && old.allMatches(body).length == 1) {
+      after = lines.withBody(
+          body.replaceFirst(old, _withNewline(block.trimRight(), lines)));
+      done = 'Replaced the image of this message in "${node.displayTitle}"';
+    } else {
+      after = lines.withAddition(_withNewline(block, lines));
+      done = 'Added the image to "${node.displayTitle}"';
+    }
+    final result = await _save(editor, 'create_image', node, base, after,
+        '$done, as roam/$path, with the caption "${caption.isEmpty ? oneLine(prompt) : caption}".');
+    _imageBlocks[node.id] = block;
+    _imagesByCall[call.id] = ToolImage(image.bytes, switch (image.extension) {
+      'jpg' => 'image/jpeg',
+      'webp' => 'image/webp',
+      _ => 'image/png',
+    });
+    return '$result Made by ${maker.model}.';
   }
 
   /// `rename_node`, `set_tags` and `set_aliases` (#97): the node's head,
