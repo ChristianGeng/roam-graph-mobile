@@ -31,6 +31,21 @@ void main() {
           throwsA(isA<UnlinkError>()));
     });
 
+    test('an angle or plain link becomes its target', () {
+      expect(withoutIdLink('See <id:b> now.\n', 'b', line: 1),
+          'See b now.\n');
+      expect(withoutIdLink('See id:b, now.\n', 'b', line: 1),
+          'See b, now.\n');
+      expect(withoutIdLink('(id:b)\n', 'b', line: 1), '(b)\n');
+      // By position, among a bracket, an angle and a plain link.
+      const text = '[[id:b][one]] <id:b> id:b\n';
+      expect(withoutIdLink(text, 'b', pos: 15), '[[id:b][one]] b id:b\n');
+      expect(withoutIdLink(text, 'b', pos: 22), '[[id:b][one]] <id:b> b\n');
+      // Inside a word it is no link, as for org-roam.
+      expect(() => withoutIdLink('xid:b\n', 'b', line: 1),
+          throwsA(isA<UnlinkError>()));
+    });
+
     test('a link no longer there is an error', () {
       expect(() => withoutIdLink('[[id:c]]\n', 'b', line: 1),
           throwsA(isA<UnlinkError>()));

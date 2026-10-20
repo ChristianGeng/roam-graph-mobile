@@ -19,27 +19,75 @@ class UnlinkError implements Exception {
 final _idLink =
     RegExp(r'\[\[id:([^\]\[]+?)(?:::[^\]]*)?\](?:\[([^\]]*)\])?\]');
 
+/// `<id:x>` and plain `id:x`, as org-roam reads them too
+/// (`org_roam_parser.dart`).
+final _angleIdLink = RegExp(r'<id:([^>\n]*)>');
+final _plainIdLink = RegExp(r'id:([^\[\]\s()<>]+)');
+final _wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
+const _punctuation = r'''!"#$%&'()*+,-.:;<=>?@[\]^_`{|}~''';
+
 /// The line of [offset] in [text], from 1.
 int _lineOf(String text, int offset) =>
     '\n'.allMatches(text.substring(0, offset)).length + 1;
 
-/// [text] with one `id:` link to [dest] replaced by its description, or
-/// by its target without one. The link is the one at [pos], org-roam's
-/// position (characters from 1); [line] (from 1), when known, narrows the
-/// search. Links read back from the index have no line, only the position.
-/// Without a link at [pos], the only link to [dest] there, or the first on
-/// [line]. Throws [UnlinkError] if none is found.
+typedef _FoundLink = ({int start, int end, String target, String text});
+
+/// The `id:` links in [text]: where each is, its target, and the text it
+/// becomes. A bracket link becomes its description, or its target without
+/// one; an angle or plain link becomes its target.
+List<_FoundLink> _idLinks(String text) {
+  final found = <_FoundLink>[];
+  bool taken(int start, int end) =>
+      found.any((f) => start < f.end && f.start < end);
+  for (final m in _idLink.allMatches(text)) {
+    found.add((
+      start: m.start,
+      end: m.end,
+      target: m.group(1)!.trim(),
+      text: m.group(2) ?? m.group(1)!,
+    ));
+  }
+  for (final m in _angleIdLink.allMatches(text)) {
+    final target = m.group(1)!.split('::').first.trim();
+    if (target.isEmpty || taken(m.start, m.end)) continue;
+    found.add((start: m.start, end: m.end, target: target, text: target));
+  }
+  for (final m in _plainIdLink.allMatches(text)) {
+    if (m.start > 0 && _wordChar.hasMatch(text[m.start - 1])) continue;
+    // Org leaves trailing punctuation out of a plain link, but a slash.
+    var path = m.group(1)!;
+    while (path.isNotEmpty &&
+        path[path.length - 1] != '/' &&
+        _punctuation.contains(path[path.length - 1])) {
+      path = path.substring(0, path.length - 1);
+    }
+    final end = m.start + 3 + path.length;
+    final target = path.split('::').first;
+    if (target.isEmpty || taken(m.start, end)) continue;
+    found.add((start: m.start, end: end, target: target, text: target));
+  }
+  return found..sort((a, b) => a.start.compareTo(b.start));
+}
+
+/// [text] with one `id:` link to [dest] replaced by its text: a bracket
+/// link by its description, or by its target without one; an angle
+/// `<id:x>` or plain `id:x` link by its target. The link is the one at
+/// [pos], org-roam's position (characters from 1); [line] (from 1), when
+/// known, narrows the search. Links read back from the index have no
+/// line, only the position. Without a link at [pos], the only link to
+/// [dest] there, or the first on [line]. Throws [UnlinkError] if none is
+/// found.
 String withoutIdLink(String text, String dest, {int line = 0, int pos = 0}) {
   final found = [
-    for (final m in _idLink.allMatches(text))
-      if (m.group(1)!.trim() == dest &&
-          (line <= 0 || _lineOf(text, m.start) == line))
-        m,
+    for (final link in _idLinks(text))
+      if (link.target == dest &&
+          (line <= 0 || _lineOf(text, link.start) == line))
+        link,
   ];
-  RegExpMatch? hit;
+  _FoundLink? hit;
   if (pos > 0) {
-    for (final m in found) {
-      if (text.substring(0, m.start).runes.length == pos - 1) hit = m;
+    for (final link in found) {
+      if (text.substring(0, link.start).runes.length == pos - 1) hit = link;
     }
   }
   hit ??= found.length == 1 || (line > 0 && found.isNotEmpty)
@@ -49,7 +97,7 @@ String withoutIdLink(String text, String dest, {int line = 0, int pos = 0}) {
     throw const UnlinkError('The link is no longer there; the file changed '
         'since the app read it.');
   }
-  return text.replaceRange(hit.start, hit.end, hit.group(2) ?? hit.group(1)!);
+  return text.replaceRange(hit.start, hit.end, hit.text);
 }
 
 final _imageLine = RegExp(
