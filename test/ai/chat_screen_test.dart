@@ -171,8 +171,9 @@ void main() {
   });
 
   testWidgets('an error, then "Send again"', (tester) async {
+    // Each failure is tried twice more before the error shows (#131).
     final server = FakeServer([
-      const SocketException('offline'),
+      for (var i = 0; i < 3; i++) const SocketException('offline'),
       anthropicReply([
         {'type': 'text', 'text': 'Here now.'},
       ]),
@@ -671,7 +672,9 @@ void main() {
 
     testWidgets('after an error, a new question waits for "Send again"',
         (tester) async {
-      final server = FakeServer([const SocketException('offline')]);
+      final server = FakeServer([
+        for (var i = 0; i < 3; i++) const SocketException('offline'),
+      ]);
       await openChat(tester, server);
       await ask(tester, 'First?');
       final send = tester

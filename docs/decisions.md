@@ -2035,6 +2035,24 @@ devices through Syncthing.
     - **"Create image"** in the edit menu stays as it is, for a quick
       image without the notes.
 
+77. **A broken request is tried again; the screen stays on while the AI
+    works** (#131), `lib/ai/ai_chat.dart`, `lib/platform/screen_awake.dart`.
+    In agent mode a task is one request per tool round; on 2026-10-20 one
+    broke off between two rounds ("Software caused connection abort"), and
+    the agent stopped with its changes made but no answer.
+    - **Tried again with backoff:** a chat request that fails for a
+      passing reason (`AiError.passing`: a broken connection, or HTTP 502,
+      503, 504 or Anthropic's 529) is sent again after 2 seconds, and once
+      more after 6; then the error shows, with "Send again" as before. It
+      is the same request, and a round writes only after its answer came,
+      so nothing is done twice. A wrong key, no credit (429), a bad request
+      or HTTP 500 show at once: waiting does not mend them. Image requests
+      are not repeated, as one may be billed already.
+    - **The screen stays on** while the chat, "Edit with AI" and "Create
+      image" wait (Android's `FLAG_KEEP_SCREEN_ON`, through the channel
+      `roam_graph/screen`), so it does not lock in the middle of a task.
+      Nothing on the desktop.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
