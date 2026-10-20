@@ -3,6 +3,8 @@
 /// nothing happens.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -13,12 +15,14 @@ int _holders = 0;
 
 /// Runs [work] with the screen kept on, and lets it lock again afterwards
 /// unless other work still runs.
+/// The work does not wait for the screen: a platform that never answers
+/// must not hold it up.
 Future<T> whileScreenOn<T>(Future<T> Function() work) async {
-  if (_holders++ == 0) await _set(true);
+  if (_holders++ == 0) unawaited(_set(true));
   try {
     return await work();
   } finally {
-    if (--_holders == 0) await _set(false);
+    if (--_holders == 0) unawaited(_set(false));
   }
 }
 
