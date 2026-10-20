@@ -211,6 +211,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
         _problem = 'Saved as roam/$path, but the folder could not be '
             'indexed: $message. The node appears after the next scan.';
         _written = true;
+        // Written: nothing unsaved is left to protect from the folder check.
+        _markUnsaved();
       case FileExists():
         _problem = '$fileName exists already. Wait a second and save again.';
       case CreateFailed(:final message):
