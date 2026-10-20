@@ -409,8 +409,9 @@ Widget? loadNoteImage(
   NoteFiles files,
   String note,
   OrgTree root,
-  OrgLink link,
-) {
+  OrgLink link, {
+  VoidCallback? onRemove,
+}) {
   final path = linkedImagePath(note, link.location);
   if (path == null || !files.reaches(path)) return null;
   final file = files.find(path);
@@ -422,6 +423,7 @@ Widget? loadNoteImage(
     file: file,
     files: files,
     width: orgImageWidth(root, link),
+    onRemove: onRemove,
   );
 }
 
@@ -435,6 +437,7 @@ class NoteImage extends StatelessWidget {
     required this.file,
     required this.files,
     this.width,
+    this.onRemove,
   });
 
   final OrgLink link;
@@ -442,12 +445,32 @@ class NoteImage extends StatelessWidget {
   final NoteFiles files;
   final OrgImageWidth? width;
 
+  /// Removes the image's link from the note (#133); no trash icon when
+  /// null.
+  final VoidCallback? onRemove;
+
   @override
   Widget build(BuildContext context) {
     final image = isSvg(file.path) ? _svg(context) : _raster(context);
-    return GestureDetector(
+    final shown = GestureDetector(
       onTap: () => ImagePage.open(context, file, files),
       child: image,
+    );
+    final remove = onRemove;
+    if (remove == null) return shown;
+    // Below the image, not over it: a small or broken image leaves no
+    // room for the button.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        shown,
+        IconButton(
+          tooltip: 'Remove this image from the note',
+          icon: const Icon(Icons.delete_outline),
+          onPressed: remove,
+        ),
+      ],
     );
   }
 
