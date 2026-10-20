@@ -7,6 +7,7 @@ import 'diff_screen.dart';
 import 'node_meta.dart';
 import 'note_editor.dart';
 import 'save_messages.dart';
+import 'unsaved_text.dart';
 
 /// "Title, tags and aliases" (#97): the node's head, the only part of it
 /// that changes here; the `:ID:` and every other property stay. "Review"
@@ -69,8 +70,22 @@ class _MetaScreenState extends State<MetaScreen> {
       TextEditingController(text: widget.meta.aliases.join('\n'));
   bool _saving = false;
 
+  bool get _changed =>
+      _title.text != widget.meta.title ||
+      _tags.text != widget.meta.tags.join(' ') ||
+      _aliases.text != widget.meta.aliases.join('\n');
+
+  @override
+  void initState() {
+    super.initState();
+    for (final field in [_title, _tags, _aliases]) {
+      field.addListener(() => UnsavedText.mark(this, _changed));
+    }
+  }
+
   @override
   void dispose() {
+    UnsavedText.mark(this, false);
     _title.dispose();
     _tags.dispose();
     _aliases.dispose();

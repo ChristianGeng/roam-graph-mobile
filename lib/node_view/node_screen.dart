@@ -13,6 +13,8 @@ import '../edit/edit_screen.dart';
 import '../edit/history_screen.dart';
 import '../edit/image_screen.dart';
 import '../edit/meta_screen.dart';
+import '../edit/remove_link.dart';
+import '../edit/unlink.dart';
 import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
@@ -289,6 +291,49 @@ class _NodeScreenState extends State<NodeScreen> {
     if (message != null && mounted) _tell(message);
   }
 
+  /// The writer, when this view may change notes: not for help pages.
+  NoteWriter? get _editWriter => switch (widget.writer) {
+        final writer? when writer.editor != null && !widget.help => writer,
+        _ => null,
+      };
+
+  String _titleOf(String id) =>
+      widget.graph.value.nodes[id]?.displayTitle ?? id;
+
+  /// Removes [link], from this note or from the note of a backlink, after
+  /// the diff (#133). The link becomes its description, so no text is
+  /// lost.
+  Future<void> _removeLink(NoteWriter writer, RoamLink link) async {
+    final from = _titleOf(link.source), to = _titleOf(link.dest);
+    final message = await removeFromNote(
+      context,
+      writer,
+      file: link.file,
+      title: 'Remove the link to $to from $from',
+      change: (text) =>
+          withoutIdLink(text, link.dest, line: link.line, pos: link.pos),
+      done: 'Removed the link to $to from $from; its text stays.',
+    );
+    if (message != null && mounted) _tell(message);
+  }
+
+  /// Removes the image [link] from [node], with its caption and prompt
+  /// lines, after the diff (#133). The image file stays.
+  Future<void> _removeImage(
+      NoteWriter writer, RoamNode node, OrgLink link) async {
+    final path = linkedImagePath(node.file, link.location) ?? link.location;
+    final message = await removeFromNote(
+      context,
+      writer,
+      file: node.file,
+      title: 'Remove the image from ${node.displayTitle}',
+      change: (text) => withoutImageLink(text, link.location),
+      done: 'Removed the image from ${node.displayTitle}. The file $path '
+          'stays in the folder.',
+    );
+    if (message != null && mounted) _tell(message);
+  }
+
   /// Changes the node's title, tags and aliases (#97).
   Future<void> _meta(NoteWriter writer, RoamNode node) async {
     final message = await MetaScreen.open(context, writer, node);
@@ -500,7 +545,13 @@ class _NodeScreenState extends State<NodeScreen> {
   }
 
   Widget _content(BuildContext context, RoamNode node, String? text) {
-    final backlinks = backlinksOf(widget.graph.value, node.id);
+    final graph = widget.graph.value;
+    final backlinks = backlinksOf(graph, node.id);
+    final links = [
+      for (final link in graph.links)
+        if (link.source == node.id && link.type == 'id') link,
+    ];
+    final writer = _editWriter;
     final textTheme = Theme.of(context).textTheme;
     return ListView(
       key: ValueKey('node-${node.id}'),
@@ -512,6 +563,29 @@ class _NodeScreenState extends State<NodeScreen> {
           )
         else
           _org(node, text),
+        // The id: links of this note, to remove one (#133).
+        if (links.isNotEmpty && writer != null) ...[
+          const Divider(height: 32),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Links: ${links.length}', style: textTheme.titleMedium),
+          ),
+          for (final (i, link) in links.indexed)
+            ListTile(
+              key: ValueKey('link-$i'),
+              title: Text(_titleOf(link.dest)),
+              subtitle: Text(Backlink(node, link).outline),
+              onTap: graph.nodes.containsKey(link.dest)
+                  ? () => _openId(link.dest)
+                  : null,
+              trailing: IconButton(
+                key: ValueKey('remove-link-$i'),
+                tooltip: 'Remove this link',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => _removeLink(writer, link),
+              ),
+            ),
+        ],
         const Divider(height: 32),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -528,6 +602,15 @@ class _NodeScreenState extends State<NodeScreen> {
             title: Text(backlink.source.displayTitle),
             subtitle: Text(backlink.outline),
             onTap: () => _openId(backlink.source.id),
+            trailing: writer == null
+                ? null
+                : IconButton(
+                    key: ValueKey('remove-backlink-$i'),
+                    tooltip: 'Remove this link from '
+                        '${backlink.source.displayTitle}',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => _removeLink(writer, backlink.link),
+                  ),
           ),
         const SizedBox(height: 24),
       ],
@@ -575,7 +658,11 @@ class _NodeScreenState extends State<NodeScreen> {
         loadImage: (link) =>
             loadMermaidDrawing(link) ??
             switch (files) {
-              final files? => loadNoteImage(files, node.file, tree, link),
+              final files? => loadNoteImage(files, node.file, tree, link,
+                  onRemove: switch (_editWriter) {
+                    final writer? => () => _removeImage(writer, node, link),
+                    null => null,
+                  }),
               null => null,
             },
         child: tree is OrgSection

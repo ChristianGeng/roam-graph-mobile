@@ -9,6 +9,7 @@ import 'diff_screen.dart';
 import 'node_text.dart';
 import 'note_editor.dart';
 import 'save_messages.dart';
+import 'unsaved_text.dart';
 
 /// "Edit text" (#37): the node's Org text, to change on the device. The
 /// head stays as it is (decision 10, rule 5) and is shown above the text
@@ -102,11 +103,16 @@ class _EditScreenState extends State<EditScreen> {
   @override
   void initState() {
     super.initState();
-    _text.addListener(() => setState(() {}));
+    _text.addListener(() {
+      UnsavedText.mark(this, _changed);
+      setState(() {});
+    });
+    UnsavedText.mark(this, _changed);
   }
 
   @override
   void dispose() {
+    UnsavedText.mark(this, false);
     _text.dispose();
     super.dispose();
   }

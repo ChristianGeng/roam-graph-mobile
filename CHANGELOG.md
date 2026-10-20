@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-20: Links removed show at once; trash icons for links and images ([#134](https://github.com/ChristianGeng/roam-graph-mobile/pull/134))
+
+- Added: trash icons in the note view, on this note's links (a new "Links" list), on its backlinks and on its images. A removed link becomes its text; an image goes with its caption and prompt lines, and its file stays. The diff comes first, as for every edit.
+- Changed: while the app is open, it checks the folder for changed files every 30 seconds, so notes changed in Emacs and brought by Syncthing show without leaving the app.
+
+Closes #133.
+
 ## 2026-10-20: A broken connection no longer stops the AI ([#132](https://github.com/ChristianGeng/roam-graph-mobile/pull/132))
 
 - When a request to the AI breaks off, or the provider is busy for a moment, the chat tries again by itself, after 2 and after 6 seconds, before it shows an error. An agent task with several steps no longer stops in the middle.

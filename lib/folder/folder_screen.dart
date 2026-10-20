@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show ProcessException;
 
@@ -14,6 +15,7 @@ import '../edit/edit_proposal.dart';
 import '../edit/edit_screen.dart';
 import '../edit/node_picker.dart';
 import '../edit/note_editor.dart';
+import '../edit/unsaved_text.dart';
 import '../graph/graph_index.dart';
 import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
@@ -104,6 +106,10 @@ typedef _Result = ({
 
 const _noResult = (graph: null, unreadable: <String>[], conflicts: <String>[]);
 
+/// How often the indexed folder is checked for files changed from outside
+/// while the app is in the foreground (#133).
+const changeCheckInterval = Duration(seconds: 30);
+
 class _FolderScreenState extends State<FolderScreen>
     with WidgetsBindingObserver {
   _Status _status = _Status.loading;
@@ -121,7 +127,78 @@ class _FolderScreenState extends State<FolderScreen>
     WidgetsBinding.instance.addObserver(this);
     widget.shareInbox.listen(_takeShare);
     _start();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle == null || lifecycle == AppLifecycleState.resumed) {
+      _startChecking();
+    }
   }
+
+  /// Checks the folder for changed files every [changeCheckInterval] while
+  /// the app is in the foreground; null in the background.
+  Timer? _changeTimer;
+
+  /// True while a check lists the folder.
+  bool _checking = false;
+
+  void _startChecking() {
+    _changeTimer ??=
+        Timer.periodic(changeCheckInterval, (_) => _checkForChanges());
+  }
+
+  void _stopChecking() {
+    _changeTimer?.cancel();
+    _changeTimer = null;
+  }
+
+  /// Files that Syncthing brings, changed in Emacs, while the app stays
+  /// open (#133): lists the folder and compares the modification times
+  /// with the last scan, as [_checkSavedFolder] does on resume. Only when
+  /// something changed is the folder indexed again, which reads only the
+  /// changed files. No check while a scan runs, or while an editor has
+  /// text not saved yet: its note must not change under it.
+  Future<void> _checkForChanges() async {
+    final folder = _folder;
+    if (folder == null ||
+        _checking ||
+        _status != _Status.indexed ||
+        UnsavedText.any) {
+      return;
+    }
+    _checking = true;
+    try {
+      final generation = _generation;
+      final entries = await widget.folderAccess.listFiles(folder);
+      if (!mounted ||
+          generation != _generation ||
+          _status != _Status.indexed ||
+          UnsavedText.any) {
+        return;
+      }
+      final files = selectRoamFiles(folder.name, entries);
+      final prefix = roamPrefix(folder.name, entries);
+      final changed = files == null ||
+          prefix == null ||
+          _changedSinceScan({
+            for (final file in files)
+              file.path.substring(prefix.length): file.modified,
+          }) ||
+          !_sameSet(conflictCopies(entries), _result.conflicts);
+      if (changed) await _rescan();
+    } on PlatformException {
+      // Not now; the next check or "Scan again" tries again.
+    } finally {
+      _checking = false;
+    }
+  }
+
+  /// Whether [listing], modification times by path relative to roam/,
+  /// differs from the last scan's: a file added, gone or changed.
+  bool _changedSinceScan(Map<String, int> listing) =>
+      listing.length != _roamFiles.length ||
+      listing.entries.any((e) => _roamFiles[e.key]?.modified != e.value);
+
+  static bool _sameSet(List<String> a, List<String> b) =>
+      a.length == b.length && a.toSet().containsAll(b);
 
   /// The latest graph, for an open graph view; null before the first.
   ValueNotifier<RoamGraph>? _graph;
@@ -362,13 +439,24 @@ class _FolderScreenState extends State<FolderScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _stopChecking();
     _graph?.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _checkSavedFolder();
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _startChecking();
+        _checkSavedFolder();
+      case AppLifecycleState.paused ||
+            AppLifecycleState.hidden ||
+            AppLifecycleState.detached:
+        _stopChecking();
+      case AppLifecycleState.inactive:
+        break;
+    }
   }
 
   /// When the app comes back, the saved folder may have changed: a folder

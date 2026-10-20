@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/capture/capture_screen.dart';
 import 'package:roam_graph_mobile/capture/share_inbox.dart';
 import 'package:roam_graph_mobile/edit/note_editor.dart';
+import 'package:roam_graph_mobile/edit/unsaved_text.dart';
 import 'package:roam_graph_mobile/folder/folder_access.dart';
 import 'package:roam_graph_mobile/folder/folder_screen.dart';
 import 'package:roam_graph_mobile/folder/org_files.dart';
@@ -56,6 +57,9 @@ class FakeFolderAccess implements FolderAccess {
 
   /// The paths of every file read, in order.
   final readPaths = <String>[];
+
+  /// The paths read by each call of [readFiles].
+  final readCalls = <List<String>>[];
 
   @override
   Future<ChosenFolder?> savedFolder() async => saved;
@@ -186,6 +190,7 @@ class FakeFolderAccess implements FolderAccess {
   @override
   Future<List<Uint8List?>> readFiles(List<FolderFile> files) async {
     readPaths.addAll([for (final file in files) file.path]);
+    readCalls.add([for (final file in files) file.path]);
     return [
       for (final file in files)
         if (texts[file.path] case final text?) utf8.encode(text) else null,
@@ -644,6 +649,23 @@ void main() {
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
       expect(access.created, hasLength(1));
+    });
+
+    testWidgets('written but not indexed: the folder check runs again (#133)',
+        (tester) async {
+      final access = await openCapture(tester, writableOrg);
+      access.listErrorAfterCreate =
+          PlatformException(code: 'io', message: 'listing failed');
+      await tester.enterText(
+          find.byKey(const ValueKey('capture-title')), 'Saved');
+      await tester.pump();
+      expect(UnsavedText.any, isTrue);
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Saved as roam/'), findsOneWidget);
+      // Nothing unsaved is left on the screen, which is still open.
+      expect(UnsavedText.any, isFalse);
     });
 
     testWidgets('another folder without roam/ does not get the capture',
