@@ -509,7 +509,9 @@ void main() {
       expect(find.text('sk-old'), findsNothing);
       final remove = find.text('Remove the saved key');
       await scrollTo(tester, remove);
-      expect(find.text('A key is saved. Type a new one to replace it.'),
+      expect(
+          find.text('A key is saved. Type a new one to replace it.',
+              skipOffstage: false),
           findsOneWidget);
       await tester.tap(remove);
       await tester.pumpAndSettle();
