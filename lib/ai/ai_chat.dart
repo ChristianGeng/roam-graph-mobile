@@ -70,9 +70,13 @@ Future<HttpReply> postWithDartIo(
 
 /// Something the user can act on, in plain words.
 class AiError implements Exception {
-  const AiError(this.message, {this.status});
+  const AiError(this.message, {this.status, this.passing = false});
 
   final String message;
+
+  /// Whether the same request may well work a moment later: the
+  /// connection broke, or the provider is overloaded for now.
+  final bool passing;
 
   /// The HTTP status the provider answered with, where it refused the
   /// request.
@@ -628,7 +632,14 @@ class ChatSession {
     this.handlers = const {},
     this.system = systemPrompt,
     this.toolImage,
+    this.retryDelays = const [Duration(seconds: 2), Duration(seconds: 6)],
   }) : _config = config;
+
+  /// The waits before each new try of a request that failed for a passing
+  /// reason ([AiError.passing]): a broken connection between two tool
+  /// rounds should not stop the agent. Each try sends the same request, so
+  /// nothing is done twice.
+  final List<Duration> retryDelays;
 
   /// The image a handler made for a call, if any, to show the model with
   /// the call's result (#129).
@@ -811,9 +822,19 @@ class ChatSession {
           'local server without one.');
     }
     lastRequest = request;
-    final json =
-        await postJson(config, request.url, request.headers, request.body, post);
-    return _api.read(config, json);
+    for (var attempt = 0;; attempt++) {
+      try {
+        final json = await postJson(
+            config, request.url, request.headers, request.body, post);
+        return _api.read(config, json);
+      } on AiError catch (e) {
+        if (!e.passing || attempt >= retryDelays.length || _cancelled) {
+          rethrow;
+        }
+        await Future<void>.delayed(retryDelays[attempt]);
+        if (_cancelled) rethrow;
+      }
+    }
   }
 }
 
@@ -826,14 +847,16 @@ Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
   try {
     reply = await post(url, headers, jsonEncode(body));
   } on SocketException catch (e) {
-    throw AiError('No connection to ${url.host}: ${e.message}. '
-        'Check the network.');
+    throw AiError(
+        'No connection to ${url.host}: ${e.message}. Check the network.',
+        passing: true);
   } on HandshakeException catch (e) {
     throw AiError('No secure connection to ${url.host}: ${e.message}.');
   } on TimeoutException {
     throw AiError('${url.host} did not answer in time. Try again.');
   } on HttpException catch (e) {
-    throw AiError('The connection to ${url.host} failed: ${e.message}.');
+    throw AiError('The connection to ${url.host} failed: ${e.message}.',
+        passing: true);
   }
   Object? json;
   try {
@@ -848,7 +871,9 @@ Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
   }
   if (reply.status < 200 || reply.status >= 300) {
     throw AiError(_httpError(config, reply.status, _message(json, reply.body)),
-        status: reply.status);
+        status: reply.status,
+        // A gateway or an overloaded provider (Anthropic's 529), for now.
+        passing: const {502, 503, 504, 529}.contains(reply.status));
   }
   if (json is! Map) {
     throw AiError('${config.name} sent an answer the app cannot read.');

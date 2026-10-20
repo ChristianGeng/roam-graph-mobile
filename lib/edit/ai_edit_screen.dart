@@ -14,6 +14,7 @@ import '../ai/ai_settings.dart';
 import '../ai/ai_tools.dart';
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
+import '../platform/screen_awake.dart';
 import 'agent_changes.dart';
 import 'change_set.dart';
 import 'change_set_screen.dart';
@@ -129,7 +130,8 @@ class _AiEditScreenState extends State<AiEditScreen> {
       _error = null;
     });
     try {
-      final error = await (_hasNeighbours && _withLinked == true
+      final error = await whileScreenOn(() => _hasNeighbours &&
+              _withLinked == true
           ? _askPlan(instruction)
           : _run(instruction));
       if (mounted) setState(() => _error = error);
@@ -221,7 +223,7 @@ class _AiEditScreenState extends State<AiEditScreen> {
       _error = null;
     });
     try {
-      final error = await _change();
+      final error = await whileScreenOn(_change);
       if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _working = false);

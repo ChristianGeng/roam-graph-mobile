@@ -442,7 +442,11 @@ void main() {
         call(2),
       ]);
       final session = ChatSession(
-          tools: tools(), config: anthropic, post: server.post, maxToolRounds: 1);
+          tools: tools(),
+          config: anthropic,
+          post: server.post,
+          maxToolRounds: 1,
+          retryDelays: const []);
       await expectLater(session.send('Orphans?'), throwsA(isA<AiError>()));
       await session.resume();
       expect(session.transcript.whereType<ToolResults>(), hasLength(1));
@@ -576,7 +580,10 @@ void main() {
     test('HTTP errors and network errors say what to do', () async {
       Future<String> errorOf(Object reply) async {
         final session = ChatSession(
-            tools: tools(), config: anthropic, post: FakeServer([reply]).post);
+            tools: tools(),
+            config: anthropic,
+            post: FakeServer([reply]).post,
+            retryDelays: const []);
         try {
           await session.send('Hi');
         } on AiError catch (e) {
@@ -622,13 +629,72 @@ void main() {
           {'type': 'text', 'text': 'Back.'},
         ]),
       ]);
-      final session =
-          ChatSession(tools: tools(), config: anthropic, post: server.post);
+      final session = ChatSession(
+          tools: tools(),
+          config: anthropic,
+          post: server.post,
+          retryDelays: const []);
       await expectLater(session.send('Hi'), throwsA(isA<AiError>()));
       expect(session.waiting, isTrue);
       await session.resume();
       expect((session.transcript.last as AssistantMessage).text, 'Back.');
       expect(session.transcript.whereType<UserMessage>(), hasLength(1));
+    });
+
+    group('a passing error is tried again (#131)', () {
+      ChatSession session(FakeServer server) => ChatSession(
+          tools: tools(),
+          config: anthropic,
+          post: server.post,
+          retryDelays: const [Duration.zero, Duration.zero]);
+      final ok = anthropicReply([
+        {'type': 'text', 'text': 'Done.'},
+      ]);
+
+      test('a broken connection, then an answer', () async {
+        final server = FakeServer([
+          const HttpException('Software caused connection abort'),
+          const SocketException('offline'),
+          ok,
+        ]);
+        final chat = session(server);
+        await chat.send('Hi');
+        expect(server.requests, hasLength(3));
+        // The same request each time.
+        expect(jsonEncode(server.requests[2].body),
+            jsonEncode(server.requests[0].body));
+        expect((chat.transcript.last as AssistantMessage).text, 'Done.');
+      });
+
+      test('an overloaded provider, then an answer', () async {
+        for (final status in [502, 503, 504, 529]) {
+          final server = FakeServer([HttpReply(status, 'busy'), ok]);
+          await session(server).send('Hi');
+          expect(server.requests, hasLength(2), reason: '$status');
+        }
+      });
+
+      test('at most twice more, then the error', () async {
+        final server = FakeServer([
+          for (var i = 0; i < 3; i++) const SocketException('offline'),
+        ]);
+        await expectLater(session(server).send('Hi'),
+            throwsA(isA<AiError>().having((e) => e.passing, 'passing', true)));
+        expect(server.requests, hasLength(3));
+      });
+
+      test('an error that waiting does not mend: at once', () async {
+        for (final reply in [
+          const HttpReply(401, 'no'),
+          const HttpReply(429, 'no credit'),
+          const HttpReply(400, 'bad'),
+          const HttpReply(500, 'oops'),
+        ]) {
+          final server = FakeServer([reply]);
+          await expectLater(session(server).send('Hi'), throwsA(isA<AiError>()));
+          expect(server.requests, hasLength(1), reason: '${reply.status}');
+        }
+      });
     });
 
     test('the model can be switched for the rest of a chat', () async {

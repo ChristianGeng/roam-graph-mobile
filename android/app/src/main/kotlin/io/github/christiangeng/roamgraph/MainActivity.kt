@@ -2,6 +2,7 @@ package io.github.christiangeng.roamgraph
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -77,6 +78,22 @@ class MainActivity : FlutterActivity() {
             }
         }
         shareChannel = share
+        // keepScreenOn({on}): the screen stays on while the AI works (#131),
+        // so it does not lock in the middle of a request.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SCREEN_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "keepScreenOn" -> {
+                        if (call.argument<Boolean>("on") == true) {
+                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        } else {
+                            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        }
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         // A share that started the app. A recreated activity gets its
         // original intent back from Android, but that share is in the saved
         // queue already, or was taken: reading it again would repeat it.
@@ -116,6 +133,7 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         const val SHARE_CHANNEL = "roam_graph/share"
+        const val SCREEN_CHANNEL = "roam_graph/screen"
         private const val KEY_SHARES = "pending_shares"
     }
 }

@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-20: A broken connection no longer stops the AI ([#132](https://github.com/ChristianGeng/roam-graph-mobile/pull/132))
+
+- When a request to the AI breaks off, or the provider is busy for a moment, the chat tries again by itself, after 2 and after 6 seconds, before it shows an error. An agent task with several steps no longer stops in the middle.
+- The screen stays on while the AI works, so it does not lock during a request.
+
+Closes #131.
+
 ## 2026-10-20: Images in the chat: the AI reads the notes, then draws ([#130](https://github.com/ChristianGeng/roam-graph-mobile/pull/130))
 
 - In agent mode, ask the chat for an image, such as "an infographic of my training over the last 5 years for this note". The AI reads the notes first, writes the image prompt with the facts in it, and adds the image to the note with a caption it writes, and the prompt as a comment.

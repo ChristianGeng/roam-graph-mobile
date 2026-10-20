@@ -13,6 +13,7 @@ import '../ai/ai_settings.dart';
 import '../capture/capture_screen.dart';
 import '../capture/new_node.dart';
 import '../graph/roam_graph.dart';
+import '../platform/screen_awake.dart';
 import '../settings/view_settings.dart';
 import 'node_text.dart';
 import 'note_editor.dart';
@@ -148,7 +149,7 @@ class _ImageScreenState extends State<ImageScreen> {
       _offerOutsideEu = false;
     });
     try {
-      final error = await work();
+      final error = await whileScreenOn(work);
       if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _working = false);

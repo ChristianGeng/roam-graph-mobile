@@ -18,6 +18,7 @@ import '../edit/save_messages.dart';
 import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
 import '../node_view/web_links.dart';
+import '../platform/screen_awake.dart';
 import '../settings/view_settings.dart';
 import 'agent_tools.dart';
 import 'ai_chat.dart';
@@ -386,7 +387,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _error = null;
     });
     try {
-      await work();
+      await whileScreenOn(work);
     } on AiError catch (e) {
       _error = e.message;
     } finally {
