@@ -129,6 +129,7 @@ class AiSettings {
     this.maxChangeSetFiles = 20,
     this.editMode = AiEditMode.agent,
     this.maxAgentChanges = 30,
+    this.maxImagesPerMessage = 1,
     this.imageProvider = '',
   });
 
@@ -161,6 +162,10 @@ class AiSettings {
   /// The most changes the agent may make for one message (#82).
   final int maxAgentChanges;
 
+  /// The most images the agent may make for one message (#129): each
+  /// costs money.
+  final int maxImagesPerMessage;
+
   AiVisibility get visibility => AiVisibility(hiddenTags.toSet());
 
   ProviderPreset get preset => presetById(provider);
@@ -180,6 +185,7 @@ class AiSettings {
     int? maxChangeSetFiles,
     AiEditMode? editMode,
     int? maxAgentChanges,
+    int? maxImagesPerMessage,
     String? imageProvider,
   }) =>
       AiSettings(
@@ -191,6 +197,7 @@ class AiSettings {
         maxChangeSetFiles: maxChangeSetFiles ?? this.maxChangeSetFiles,
         editMode: editMode ?? this.editMode,
         maxAgentChanges: maxAgentChanges ?? this.maxAgentChanges,
+        maxImagesPerMessage: maxImagesPerMessage ?? this.maxImagesPerMessage,
         imageProvider: imageProvider ?? this.imageProvider,
       );
 
@@ -206,6 +213,7 @@ class AiSettings {
         'maxChangeSetFiles': maxChangeSetFiles,
         'editMode': editMode.name,
         'maxAgentChanges': maxAgentChanges,
+        'maxImagesPerMessage': maxImagesPerMessage,
         'imageProvider': imageProvider,
       };
 
@@ -242,6 +250,8 @@ class AiSettings {
               .firstOrNull ??
           defaults.editMode,
       maxAgentChanges: positive('maxAgentChanges', defaults.maxAgentChanges),
+      maxImagesPerMessage:
+          positive('maxImagesPerMessage', defaults.maxImagesPerMessage),
       // Missing in settings saved before #127, or a provider that makes no
       // images: the chat's provider.
       imageProvider: switch (json['imageProvider']) {
@@ -576,6 +586,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _tokens = TextEditingController();
   final _files = TextEditingController();
   final _changes = TextEditingController();
+  final _images = TextEditingController();
   AiEditMode _editMode = AiEditMode.agent;
   AiSettings? _loaded;
   String? _problem;
@@ -679,6 +690,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _tokens.text = '${settings.maxOutputTokens}';
       _files.text = '${settings.maxChangeSetFiles}';
       _changes.text = '${settings.maxAgentChanges}';
+      _images.text = '${settings.maxImagesPerMessage}';
       _editMode = settings.editMode;
       await _draft(_provider);
       if (_imageProvider.isNotEmpty) await _draft(_imageProvider);
@@ -719,6 +731,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _tokens.dispose();
     _files.dispose();
     _changes.dispose();
+    _images.dispose();
     for (final d in _drafts.values) {
       d.dispose();
     }
@@ -741,6 +754,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     if (changes == null || changes < 1) {
       setState(() => _problem =
           'The changes per message must be at least 1.');
+      return;
+    }
+    final images = int.tryParse(_images.text.trim());
+    if (images == null || images < 1) {
+      setState(() => _problem =
+          'The images per message must be at least 1.');
       return;
     }
     if (rounds == null ||
@@ -767,6 +786,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       maxChangeSetFiles: files,
       editMode: _editMode,
       maxAgentChanges: changes,
+      maxImagesPerMessage: images,
     );
     final keys = AiSettingsScope.keysOf(context);
     try {
@@ -1233,6 +1253,15 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(
           labelText: 'Most changes the agent may make for one message',
+        ),
+      ),
+      TextField(
+        key: const ValueKey('max-images'),
+        controller: _images,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: 'Most images the agent may make for one message',
+          helperText: 'Each image costs money at the image provider.',
         ),
       ),
       TextField(

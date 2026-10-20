@@ -70,9 +70,13 @@ Future<HttpReply> postWithDartIo(
 
 /// Something the user can act on, in plain words.
 class AiError implements Exception {
-  const AiError(this.message);
+  const AiError(this.message, {this.status});
 
   final String message;
+
+  /// The HTTP status the provider answered with, where it refused the
+  /// request.
+  final int? status;
 
   @override
   String toString() => message;
@@ -151,12 +155,41 @@ class ToolCall {
   final String? badArguments;
 }
 
+/// An image a tool made, shown to the model with the tool's result so it
+/// can check it (#129).
+class ToolImage {
+  const ToolImage(this.bytes, this.mediaType);
+
+  final List<int> bytes;
+
+  /// `image/png`, `image/jpeg` or `image/webp`.
+  final String mediaType;
+
+  String get base64Data => base64Encode(bytes);
+}
+
 /// A tool's result, for the model.
 class ToolResult {
-  const ToolResult(this.call, this.content);
+  const ToolResult(this.call, this.content, {this.image});
 
   final ToolCall call;
   final String content;
+
+  /// An image to show the model with [content].
+  final ToolImage? image;
+}
+
+/// The text that tells the model it could not be shown the image.
+const imageNotShown = '(The image could not be shown to you: this model '
+    'does not take images. Do not judge it; tell me to look at it.)';
+
+/// The index of the first entry of the current message: images of tool
+/// results before it are not sent again, so they cost nothing later.
+int currentMessageStart(List<ChatEntry> transcript) {
+  for (var i = transcript.length - 1; i >= 0; i--) {
+    if (transcript[i] is UserMessage) return i;
+  }
+  return 0;
 }
 
 /// One entry of a conversation.
@@ -237,7 +270,7 @@ abstract class ModelApi {
   /// conversation so far, which only grows.
   ApiRequest request(
       ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
-      {String system = systemPrompt});
+      {String system = systemPrompt, bool images = true});
 
   /// Reads a successful answer.
   ApiReply read(ProviderConfig config, Map<String, Object?> json);
@@ -260,7 +293,8 @@ class AnthropicApi extends ModelApi {
   @override
   ApiRequest request(
       ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
-      {String system = systemPrompt}) {
+      {String system = systemPrompt, bool images = true}) {
+    final current = currentMessageStart(transcript);
     final messages = <Map<String, Object?>>[];
     void addUser(List<Map<String, Object?>> blocks) {
       // Tool results and my next message go into one user message.
@@ -271,7 +305,7 @@ class AnthropicApi extends ModelApi {
       }
     }
 
-    for (final entry in transcript) {
+    for (final (index, entry) in transcript.indexed) {
       switch (entry) {
         case UserMessage():
           addUser([
@@ -298,7 +332,24 @@ class AnthropicApi extends ModelApi {
               {
                 'type': 'tool_result',
                 'tool_use_id': result.call.id,
-                'content': result.content,
+                'content': switch (result.image) {
+                  // Only in the current message, and only to a model that
+                  // takes images (#129).
+                  final image? when index >= current && images => [
+                      {'type': 'text', 'text': result.content},
+                      {
+                        'type': 'image',
+                        'source': {
+                          'type': 'base64',
+                          'media_type': image.mediaType,
+                          'data': image.base64Data,
+                        },
+                      },
+                    ],
+                  final _? when index >= current =>
+                    '${result.content}\n\n$imageNotShown',
+                  _ => result.content,
+                },
               },
           ]);
       }
@@ -386,11 +437,12 @@ class OpenAiApi extends ModelApi {
   @override
   ApiRequest request(
       ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
-      {String system = systemPrompt}) {
+      {String system = systemPrompt, bool images = true}) {
+    final current = currentMessageStart(transcript);
     final messages = <Map<String, Object?>>[
       {'role': 'system', 'content': system},
     ];
-    for (final entry in transcript) {
+    for (final (index, entry) in transcript.indexed) {
       switch (entry) {
         case UserMessage():
           messages.add({'role': 'user', 'content': entry.forModel});
@@ -428,11 +480,39 @@ class OpenAiApi extends ModelApi {
               'reasoning_content': raw['reasoning_content'],
           });
         case ToolResults():
+          final shown = <ToolResult>[];
           for (final result in entry.results) {
+            final image = index >= current ? result.image : null;
+            if (image != null && images) shown.add(result);
             messages.add({
               'role': 'tool',
               'tool_call_id': result.call.id,
-              'content': result.content,
+              'content': image != null && !images
+                  ? '${result.content}\n\n$imageNotShown'
+                  : result.content,
+            });
+          }
+          // A tool message holds only text in this API: the images follow
+          // in a message of mine, after all the tool results (#129).
+          if (shown.isNotEmpty) {
+            messages.add({
+              'role': 'user',
+              'content': [
+                for (final result in shown) ...[
+                  {
+                    'type': 'text',
+                    'text': 'The image ${result.call.name} made '
+                        '(${result.call.id}):',
+                  },
+                  {
+                    'type': 'image_url',
+                    'image_url': {
+                      'url': 'data:${result.image!.mediaType};base64,'
+                          '${result.image!.base64Data}',
+                    },
+                  },
+                ],
+              ],
             });
           }
       }
@@ -547,7 +627,16 @@ class ChatSession {
     this.toolList,
     this.handlers = const {},
     this.system = systemPrompt,
+    this.toolImage,
   }) : _config = config;
+
+  /// The image a handler made for a call, if any, to show the model with
+  /// the call's result (#129).
+  final ToolImage? Function(ToolCall call)? toolImage;
+
+  /// False once the model refused a request with an image: images are no
+  /// longer sent in this chat (#129).
+  bool _images = true;
 
   /// The system prompt: [systemPrompt], or the agent's (#82).
   final String system;
@@ -615,7 +704,17 @@ class ChatSession {
   Future<void> resume({void Function()? onUpdate}) async {
     final offered = toolList ?? aiTools;
     while (waiting && !_cancelled) {
-      final reply = await _request(offered);
+      ApiReply reply;
+      try {
+        reply = await _request(offered);
+      } on AiError catch (e) {
+        // A model that does not take images refuses the request: once,
+        // the same again without them (#129).
+        if (!_images || !_imageSent || !_refusedRequest(e)) rethrow;
+        _images = false;
+        if (_cancelled) return;
+        reply = await _request(offered);
+      }
       if (_cancelled) return;
       usage += reply.usage;
       final message = reply.message;
@@ -645,7 +744,8 @@ class ChatSession {
       final results = <ToolResult>[];
       for (final call in message.toolCalls) {
         if (_cancelled) return;
-        results.add(ToolResult(call, await _runTool(call)));
+        final content = await _runTool(call);
+        results.add(ToolResult(call, content, image: toolImage?.call(call)));
       }
       if (last) {
         final end = results.removeLast();
@@ -653,7 +753,8 @@ class ChatSession {
             end.call,
             '${end.content}\n\n(That was the last of the $maxToolRounds '
             'tool rounds the app allows for one message: answer now, with '
-            'what you have.)'));
+            'what you have.)',
+            image: end.image));
       }
       transcript.add(ToolResults(results));
       onUpdate?.call();
@@ -674,6 +775,20 @@ class ChatSession {
     }
   }
 
+  /// Whether the current message has an image for the model.
+  bool get _imageSent {
+    final current = currentMessageStart(transcript);
+    for (final entry in transcript.skip(current)) {
+      if (entry is ToolResults && entry.results.any((r) => r.image != null)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _refusedRequest(AiError e) =>
+      e.status == 400 || e.status == 415 || e.status == 422;
+
   Future<ApiReply> _request(List<AiTool> offered) async {
     final config = _config;
     if (config.model.trim().isEmpty) {
@@ -688,7 +803,8 @@ class ChatSession {
       throw AiError('No base URL for ${config.name}. Enter it in AI '
           'settings.');
     }
-    final request = _api.request(config, offered, transcript, system: system);
+    final request = _api.request(config, offered, transcript,
+        system: system, images: _images);
     if (request.url.scheme != 'https' && config.apiKey.isNotEmpty) {
       throw AiError('The app sends an API key only over HTTPS. Use an '
           'https:// base URL for ${config.name}, or remove the key for a '
@@ -731,7 +847,8 @@ Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
         'to another host. Check the base URL.');
   }
   if (reply.status < 200 || reply.status >= 300) {
-    throw AiError(_httpError(config, reply.status, _message(json, reply.body)));
+    throw AiError(_httpError(config, reply.status, _message(json, reply.body)),
+        status: reply.status);
   }
   if (json is! Map) {
     throw AiError('${config.name} sent an answer the app cannot read.');
