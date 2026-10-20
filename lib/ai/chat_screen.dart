@@ -215,7 +215,11 @@ class _ChatScreenState extends State<ChatScreen> {
     final keys = AiSettingsScope.keysOf(context);
     final config = keys == null ? null : await providerConfig(settings, keys);
     if (!mounted) return;
-    final maker = await _imageMaker(settings, keys);
+    // Only the agent makes images: other modes do not wait for it.
+    final maker = widget.writer?.editor != null &&
+            settings.editMode == AiEditMode.agent
+        ? await _imageMaker(settings, keys)
+        : null;
     if (!mounted) return;
     final values = settings.providerSettings();
     final start = widget.startNode;
