@@ -2053,6 +2053,46 @@ devices through Syncthing.
       `roam_graph/screen`), so it does not lock in the middle of a task.
       Nothing on the desktop.
 
+78. **The graph follows removed links; trash icons for links and images**
+    (#133), `lib/folder/folder_screen.dart`, `lib/edit/unlink.dart`,
+    `lib/edit/remove_link.dart`, `lib/node_view/node_screen.dart`.
+    The owner removed a link, and the note it pointed to still listed the
+    backlink.
+    - **In the app, a removed link goes at once.** Widget tests remove an
+      `id:` link with "Edit text" and with the agent's `edit_node_text`
+      while the target's node view is open: `graph.links` and the open
+      view lose the backlink at once, as every save indexes the folder
+      again (decision 10). So the backlink that stayed came from outside.
+    - **Changes from outside show while the app is open.** Before, the
+      folder was checked only when the app came back to the foreground. Now,
+      while it is in the foreground with an indexed folder, it lists the
+      folder every 30 seconds and compares the modification times (and the
+      conflict copies) with the last scan; only when something changed does
+      it index again, which reads only the changed files. No check while a
+      scan runs or while an editor (Edit text, Add to this node, Title,
+      tags and aliases, a new node) has text not saved yet, so a note does
+      not change under it; none in the background. The timer is used on
+      the desktop too: `Directory.watch` is not used, as the folder there
+      may be on a drive whose events do not come, and one way for every
+      platform is simpler to test.
+    - **Trash icons in the node view**, where the app may write: on each
+      `id:` link of this note, in a new list "Links" above the backlinks
+      (the text itself is drawn by org_flutter and has no room for
+      buttons); on each backlink, which removes that one link from the other
+      note; and on each image, which removes its link with the lines right
+      above it that belong to it (`#+caption:`, `#+name:`, `#+attr_...:`,
+      `# image prompt:`). The image file stays, and the message says so.
+    - **A removed link becomes its text:** its description, or its target
+      without one, as `delete_node` does it (decision 62), so no text is
+      lost. The link is found by org-roam's position (`pos`, in characters;
+      the index has no line numbers), else as the only link to that note.
+      An image linked twice in a note is not guessed: "Edit text" does it.
+    - **Saved as every edit** (decision 10): the diff first ("Remove" or
+      "Cancel"), only over the version read, the `:ID:` and the drawers
+      locked, the old version in the history. A folder with read access
+      only offers to choose it again. Notes in subfolders can be changed,
+      as with the other edits.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

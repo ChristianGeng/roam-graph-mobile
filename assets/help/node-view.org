@@ -8,8 +8,15 @@ Shows a note as formatted Org: a whole file, or a heading with its subtree.
 
 - *Links*: an ~id:~ link opens the linked note on a new page; Back
   returns. Other links are shown but not opened.
-- *Backlinks*: below the text, every link to this note, with where in the
-  linking note it is.
+- *Links* and *Backlinks*: below the text, this note's ~id:~ links, and
+  every link to this note, with where in the linking note it is.
+- *Trash icons* remove a link: on a link, from this note; on a backlink,
+  from the other note. The link becomes its text, so nothing is lost. On an
+  image, the image link goes with its ~#+caption:~ and ~# image prompt:~
+  lines; the image file stays in the folder. Each shows the change first,
+  and is saved as every edit, with the old version kept.
+- Changes made in Emacs show within about 30 seconds while the app is
+  open, once Syncthing has brought them.
 - *Sections* open collapsed or expanded, as set in
   [[id:roam-graph-help-settings][Settings]]; a note's own ~#+STARTUP:~
   line comes first. Tap a heading to open or close it.
