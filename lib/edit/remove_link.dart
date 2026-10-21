@@ -1,5 +1,6 @@
 /// Removing one link or image from a note with the trash icons of the node
-/// view (#133). Saved as every edit (decision 10): the diff first, then
+/// view (#133), and adding a link with "+" (#135). Saved as every edit
+/// (decision 10): the diff first, then
 /// only over the version read, with the `:ID:` and the drawers as they
 /// are and the old version kept. The save indexes the folder again, so the
 /// graph and the backlinks change at once.
@@ -16,13 +17,14 @@ import 'unlink.dart';
 /// Changes the note [file] by [change], after the diff titled [title].
 /// Returns what to tell the user: [done] once saved, why nothing was
 /// saved, or null when the user went back.
-Future<String?> removeFromNote(
+Future<String?> changeNote(
   BuildContext context,
   NoteWriter writer, {
   required String file,
   required String title,
   required String Function(String text) change,
   required String done,
+  String saveLabel = 'Save',
 }) async {
   final editor = writer.editor;
   if (editor == null) return null;
@@ -32,7 +34,7 @@ Future<String?> removeFromNote(
   final String after;
   try {
     after = change(base.text);
-  } on UnlinkError catch (e) {
+  } on NoteChangeError catch (e) {
     return '${e.message} Nothing was changed.';
   }
   if (!context.mounted) return null;
@@ -41,7 +43,7 @@ Future<String?> removeFromNote(
     title: title,
     before: base.text,
     after: after,
-    saveLabel: 'Remove',
+    saveLabel: saveLabel,
     backLabel: 'Cancel',
   );
   if (!save) return null;

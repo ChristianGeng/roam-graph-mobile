@@ -7,6 +7,7 @@ import '../ai/ai_settings.dart';
 import '../ai/chat_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../edit/add_link.dart';
 import '../edit/ai_edit_screen.dart';
 import '../edit/append_screen.dart';
 import '../edit/edit_screen.dart';
@@ -287,7 +288,8 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// Edits the text of [node] (#37); the diff (#38) comes before saving.
   Future<void> _edit(NoteWriter writer, RoamNode node) async {
-    final message = await EditScreen.open(context, writer, node);
+    final message = await EditScreen.open(context, writer, node,
+        graph: widget.graph.value);
     if (message != null && mounted) _tell(message);
   }
 
@@ -305,7 +307,7 @@ class _NodeScreenState extends State<NodeScreen> {
   /// lost.
   Future<void> _removeLink(NoteWriter writer, RoamLink link) async {
     final from = _titleOf(link.source), to = _titleOf(link.dest);
-    final message = await removeFromNote(
+    final message = await changeNote(
       context,
       writer,
       file: link.file,
@@ -313,6 +315,7 @@ class _NodeScreenState extends State<NodeScreen> {
       change: (text) =>
           withoutIdLink(text, link.dest, line: link.line, pos: link.pos),
       done: 'Removed the link to $to from $from; its text stays.',
+      saveLabel: 'Remove',
     );
     if (message != null && mounted) _tell(message);
   }
@@ -322,7 +325,7 @@ class _NodeScreenState extends State<NodeScreen> {
   Future<void> _removeImage(
       NoteWriter writer, RoamNode node, OrgLink link) async {
     final path = linkedImagePath(node.file, link.location) ?? link.location;
-    final message = await removeFromNote(
+    final message = await changeNote(
       context,
       writer,
       file: node.file,
@@ -330,8 +333,51 @@ class _NodeScreenState extends State<NodeScreen> {
       change: (text) => withoutImageLink(text, link.location),
       done: 'Removed the image from ${node.displayTitle}. The file $path '
           'stays in the folder.',
+      saveLabel: 'Remove',
     );
     if (message != null && mounted) _tell(message);
+  }
+
+  /// The node viewed last, to offer first in the list of notes.
+  Future<RoamNode?> _lastViewed() async =>
+      widget.graph.value.nodes[await widget.nodeMemory.lastNode()];
+
+  /// "+" next to "Links" (#135): a link to the chosen note, or to a new
+  /// one, on this note's "See also:" line, after the diff.
+  Future<void> _addLink(NoteWriter writer, RoamNode node) async {
+    final proposed = await _lastViewed();
+    if (!mounted) return;
+    final target = await chooseLinkTarget(context, writer, widget.graph.value,
+        proposed: proposed,
+        excluded: {node.id},
+        title: 'Link ${node.displayTitle} to',
+        tell: _tell);
+    if (target == null || !mounted) return;
+    await addSeeAlso(context, writer, from: node, to: target, tell: _tell);
+  }
+
+  /// "+" next to "Backlinks" (#135): a link to this note on the chosen
+  /// note's "See also:" line, after the diff; for hub notes.
+  Future<void> _addBacklink(NoteWriter writer, RoamNode node) async {
+    final proposed = await _lastViewed();
+    if (!mounted) return;
+    final target = await chooseLinkTarget(context, writer, widget.graph.value,
+        proposed: proposed,
+        excluded: {node.id},
+        title: 'Link to ${node.displayTitle} from',
+        tell: _tell);
+    if (target == null || !mounted) return;
+    // A new note is in the graph once it is indexed.
+    final from = widget.graph.value.nodes[target.id];
+    if (from == null) {
+      _tell('The new note roam/${target.newFile} is not indexed yet; add the '
+          'link after the next scan.');
+      return;
+    }
+    await addSeeAlso(context, writer,
+        from: from,
+        to: (id: node.id, title: node.displayTitle, newFile: null),
+        tell: _tell);
   }
 
   /// Changes the node's title, tags and aliases (#97).
@@ -563,12 +609,27 @@ class _NodeScreenState extends State<NodeScreen> {
           )
         else
           _org(node, text),
-        // The id: links of this note, to remove one (#133).
-        if (links.isNotEmpty && writer != null) ...[
+        // The id: links of this note, to remove one (#133) or add one
+        // (#135).
+        if (writer != null) ...[
           const Divider(height: 32),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Links: ${links.length}', style: textTheme.titleMedium),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                      links.isEmpty ? 'No links' : 'Links: ${links.length}',
+                      style: textTheme.titleMedium),
+                ),
+                IconButton(
+                  key: const ValueKey('add-link'),
+                  tooltip: 'Add a link to another note',
+                  icon: const Icon(Icons.add),
+                  onPressed: () => _addLink(writer, node),
+                ),
+              ],
+            ),
           ),
           for (final (i, link) in links.indexed)
             ListTile(
@@ -589,11 +650,24 @@ class _NodeScreenState extends State<NodeScreen> {
         const Divider(height: 32),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text(
-            backlinks.isEmpty
-                ? 'No backlinks'
-                : 'Backlinks: ${backlinks.length}',
-            style: textTheme.titleMedium,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  backlinks.isEmpty
+                      ? 'No backlinks'
+                      : 'Backlinks: ${backlinks.length}',
+                  style: textTheme.titleMedium,
+                ),
+              ),
+              if (writer != null)
+                IconButton(
+                  key: const ValueKey('add-backlink'),
+                  tooltip: 'Link another note to this one',
+                  icon: const Icon(Icons.add),
+                  onPressed: () => _addBacklink(writer, node),
+                ),
+            ],
           ),
         ),
         for (final (i, backlink) in backlinks.indexed)
