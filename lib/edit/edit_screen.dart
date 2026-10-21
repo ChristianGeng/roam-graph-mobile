@@ -4,7 +4,9 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../capture/capture_screen.dart';
+import '../capture/new_node.dart';
 import '../graph/roam_graph.dart';
+import 'add_link.dart';
 import 'diff_screen.dart';
 import 'node_text.dart';
 import 'note_editor.dart';
@@ -26,7 +28,12 @@ class EditScreen extends StatefulWidget {
     required this.lines,
     required this.noteKey,
     this.initialBody,
+    this.graph,
   });
+
+  /// The notes to link to with "Insert link" (#135); without them there is
+  /// no such button.
+  final RoamGraph? graph;
 
   final NoteWriter writer;
   final RoamNode node;
@@ -51,7 +58,7 @@ class EditScreen extends StatefulWidget {
   /// its save is reported too; it starts from the new version's text, not
   /// from [initialBody].
   static Future<String?> open(BuildContext context, NoteWriter writer,
-      RoamNode node, {String? initialBody}) async {
+      RoamNode node, {String? initialBody, RoamGraph? graph}) async {
     final editor = writer.editor;
     if (editor == null) return null;
     final messenger = ScaffoldMessenger.of(context);
@@ -80,7 +87,8 @@ class EditScreen extends StatefulWidget {
             base: base,
             lines: lines,
             noteKey: noteKey,
-            initialBody: initialBody),
+            initialBody: initialBody,
+            graph: graph),
       ));
       initialBody = null;
       if (result == _startAgain) continue;
@@ -132,6 +140,28 @@ class _EditScreenState extends State<EditScreen> {
   }
 
   bool get _changed => _text.text != widget.lines.body;
+
+  /// Inserts a link to a chosen note, or to a new one, at the cursor
+  /// (#135); a selection is replaced and becomes the link's description.
+  Future<void> _insertLink(RoamGraph graph) async {
+    final target = await chooseLinkTarget(context, widget.writer, graph,
+        excluded: {widget.node.id}, title: 'Insert a link to', tell: _tell);
+    if (target == null || !mounted) return;
+    final text = _text.text;
+    final selection = _text.selection;
+    final start = selection.isValid ? selection.start : text.length;
+    final end = selection.isValid ? selection.end : text.length;
+    final selected = text.substring(start, end);
+    final link =
+        orgLink(target.id, selected.trim().isEmpty ? target.title : selected);
+    _text.value = TextEditingValue(
+      text: text.replaceRange(start, end, link),
+      selection: TextSelection.collapsed(offset: start + link.length),
+    );
+    if (target.newFile case final file?) {
+      _tell('Made the new note roam/$file.');
+    }
+  }
 
   Future<void> _review() async {
     final editor = widget.writer.editor;
@@ -253,6 +283,12 @@ class _EditScreenState extends State<EditScreen> {
         appBar: AppBar(
           title: Text('Edit ${widget.node.displayTitle}'),
           actions: [
+            if (widget.graph case final graph?)
+              IconButton(
+                tooltip: 'Insert link',
+                icon: const Icon(Icons.add_link),
+                onPressed: _saving ? null : () => _insertLink(graph),
+              ),
             IconButton(
               tooltip: 'Review',
               icon: const Icon(Icons.difference_outlined),
