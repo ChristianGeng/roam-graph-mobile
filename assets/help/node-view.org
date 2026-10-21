@@ -15,6 +15,14 @@ Shows a note as formatted Org: a whole file, or a heading with its subtree.
   image, the image link goes with its ~#+caption:~ and ~# image prompt:~
   lines; the image file stays in the folder. Each shows the change first,
   and is saved as every edit, with the old version kept.
+- *+* adds a link: next to *Links*, to the note you choose, on this
+  note's "See also:" line; next to *Backlinks*, to this note, on the
+  chosen note's "See also:" line. Type a title that is no note's, and the
+  list offers a *New note* with it first, as Emacs's org-roam-node-insert
+  does; it is made at once and the link goes to it. The change shows
+  first, and is saved as every edit.
+- *Insert link* in *Edit text* puts a link to a note you choose at the
+  cursor; selected text becomes the link's description.
 - Changes made in Emacs show within about 30 seconds while the app is
   open, once Syncthing has brought them.
 - *Sections* open collapsed or expanded, as set in

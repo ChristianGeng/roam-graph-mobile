@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-21: Add links from the note view and the editor ([#136](https://github.com/ChristianGeng/roam-graph-mobile/pull/136))
+
+- Added: "+" next to "Links" adds a link to another note on this note's "See also:" line; "+" next to "Backlinks" adds a link to this note on the other note's line. The diff comes first, as for every edit.
+- Added: "Insert link" in "Edit text" puts a link at the cursor; selected text becomes its description.
+- In the list of notes, text that is not a note's title can become a new note, as in Emacs's org-roam-node-insert, and the link goes to it.
+
+Closes #135.
+
 ## 2026-10-20: Links removed show at once; trash icons for links and images ([#134](https://github.com/ChristianGeng/roam-graph-mobile/pull/134))
 
 - Added: trash icons in the note view, on this note's links (a new "Links" list), on its backlinks and on its images. A removed link becomes its text; an image goes with its caption and prompt lines, and its file stays. The diff comes first, as for every edit.

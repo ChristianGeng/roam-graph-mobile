@@ -2093,6 +2093,36 @@ devices through Syncthing.
       only offers to choose it again. Notes in subfolders can be changed,
       as with the other edits.
 
+79. **Links are added from the note view and the editor** (#135),
+    `lib/edit/add_link.dart`, `lib/edit/see_also.dart`,
+    `lib/edit/node_picker.dart`. The other half of decision 78: making a
+    link without typing `[[id:…][…]]` by hand.
+    - **Three places, one list:** "+" next to "Links" adds a link to the
+      chosen note to this note's "See also:" line; "+" next to "Backlinks"
+      adds a link to this note to the chosen note's line (for hub notes);
+      "Insert link" in "Edit text" puts the link at the cursor, where a
+      selection becomes its description, and it is saved with the rest of
+      the edit. The list is `NodePicker`: titles, aliases and tags, the
+      note viewed last first, the note itself left out.
+    - **One "See also:" rule** for these and the agent's `add_link`,
+      `withSeeAlso` in `lib/edit/see_also.dart`: the last line of the
+      node's own text gets the link if it starts with "See also:"; else a
+      new such line follows the last line that is not blank, before any
+      subheading that is a node of its own. A note that links there
+      already is not changed, and the app says so.
+    - **A new note on the spot**, as `org-roam-node-insert` does: when the
+      typed text is not exactly a note's title, the list offers
+      `New note "<text>"` first. It is made as capture makes one
+      (`nodeFileName`, `nodeFileText`, `newOrgId`, `NoteWriter.create`), is
+      indexed at once, and does not open. If the link is then not saved,
+      the app says that the new note stays, with its name.
+    - **The link text** is the target's title (`displayTitle`), escaped
+      with `orgLink`, as everywhere.
+    - **Saved as every edit** (decision 10): the diff first, only over the
+      version read, the `:ID:` and the drawers locked, the old version in
+      the history; then the graph updates at once. A folder with read
+      access only offers to choose it again.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
