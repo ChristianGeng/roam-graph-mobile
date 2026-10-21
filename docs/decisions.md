@@ -2123,6 +2123,25 @@ devices through Syncthing.
       the history; then the graph updates at once. A folder with read
       access only offers to choose it again.
 
+80. **The issue is the spec; the flow of one change** (#138), `AGENTS.md`.
+    `AGENTS.md` asked for spec and plan files under `docs/superpowers/`
+    before code. The project stopped writing them long ago: each change
+    starts as an issue the owner agrees to, and its pull request adds a
+    decision entry here. The old rule only made the review bots ask for
+    files nobody writes, and a new session had to learn the real flow from
+    the conversation.
+    - **The issue is the spec**, the decision entry records what was
+      decided and why. No spec or plan files.
+    - **The flow:** plan, issue, build (Devin in a new session per issue,
+      or Claude when the owner says so), review (CI and the bots; findings
+      for Devin as an `@devin` comment in the pull request), merge with a
+      merge commit, release. Written in `AGENTS.md`, so a new session needs
+      no hand-over text.
+    - **Releases are not cancelled:** a merge to `main` no longer cancels
+      the release run of the merge before it (`cancel-in-progress` only for
+      pull requests), so a release is never stopped half-way, with a tag but
+      without its files.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
