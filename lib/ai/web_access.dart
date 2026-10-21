@@ -133,9 +133,14 @@ Future<PageReply> getWithPinnedAddress(Uri url, InternetAddress address,
 Future<Socket> connectSecure(
     InternetAddress address, Uri url, Duration limit) async {
   final raw = await Socket.connect(address, url.port, timeout: limit);
+  final secure = SecureSocket.secure(raw, host: url.host);
   try {
-    return await SecureSocket.secure(raw, host: url.host).timeout(limit);
+    return await secure.timeout(limit);
   } catch (_) {
+    // The handshake may still end later, with a socket or an error: the
+    // socket is closed, the error caught, so neither is left behind.
+    unawaited(secure.then((socket) => socket.destroy(),
+        onError: (Object _) {}));
     raw.destroy();
     rethrow;
   }
