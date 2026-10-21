@@ -15,6 +15,7 @@ import '../edit/node_meta.dart';
 import '../edit/node_text.dart';
 import '../edit/image_screen.dart';
 import '../edit/note_editor.dart';
+import '../edit/see_also.dart';
 import '../graph/roam_graph.dart';
 import 'ai_chat.dart';
 import 'ai_images.dart';
@@ -529,42 +530,11 @@ class AgentWriter {
     if (from.id == to.id) throw const ToolError('a note cannot link itself.');
     final description = _string(args, 'description', required: false);
     final (base, lines) = await _read(editor, from);
-    // The node's own lines: up to its first subheading that is a node of
-    // its own, whose links org-roam counts for that node instead.
-    final own = _ownEnd(lines);
-    final nodeText = lines.lines.sublist(lines.start, own).join('\n');
-    if (idLinkTargets(nodeText).contains(to.id)) {
+    final after = withSeeAlso(lines, to.id,
+        orgLink(to.id, description.trim().isEmpty ? to.displayTitle : description));
+    if (after == null) {
       return '"${from.displayTitle}" links to "${to.displayTitle}" already; '
           'nothing changed.';
-    }
-    final link = orgLink(
-        to.id, description.trim().isEmpty ? to.displayTitle : description);
-    // The last "See also:" line of the node gets the link; else a new one.
-    var at = -1;
-    for (var i = own - 1; i >= lines.bodyStart; i--) {
-      if (lines.lines[i].startsWith('See also:')) {
-        at = i;
-        break;
-      }
-      if (lines.lines[i].trim().isNotEmpty) break;
-    }
-    final String after;
-    if (at >= 0) {
-      final changed = [...lines.lines];
-      final line = changed[at].trimRight();
-      changed[at] = line == 'See also:' ? '$line $link' : '$line, $link';
-      after = changed.join(lines.newline);
-    } else {
-      // A new line after the last line of the node's own text that is not
-      // blank, before any subheading that is a node.
-      var end = own;
-      while (end > lines.bodyStart && lines.lines[end - 1].trim().isEmpty) {
-        end--;
-      }
-      final changed = [...lines.lines]..insert(end, 'See also: $link');
-      // A file that did not end with a newline gets one.
-      if (end == lines.lines.length) changed.add('');
-      after = changed.join(lines.newline);
     }
     return _save(editor, 'add_link', from, base, after,
         'Linked "${from.displayTitle}" to "${to.displayTitle}".');
@@ -858,27 +828,6 @@ class AgentWriter {
       }
     }
     return (changed, left);
-  }
-
-  /// The end of the node's own text in [lines]: the first heading below
-  /// its head whose property drawer has an `:ID:`, or the node's end.
-  static int _ownEnd(NodeLines lines) {
-    final all = lines.lines;
-    final drawer = RegExp(r'^[ \t]*:PROPERTIES:[ \t]*$', caseSensitive: false);
-    final planning =
-        RegExp(r'^[ \t]*(SCHEDULED|DEADLINE|CLOSED):', caseSensitive: false);
-    final id = RegExp(r'^[ \t]*:ID:[ \t]+\S', caseSensitive: false);
-    final end = RegExp(r'^[ \t]*:END:[ \t]*$', caseSensitive: false);
-    for (var i = lines.bodyStart; i < lines.end; i++) {
-      if (!headingLine.hasMatch(all[i])) continue;
-      var j = i + 1;
-      if (j < all.length && planning.hasMatch(all[j])) j++;
-      if (j >= all.length || !drawer.hasMatch(all[j])) continue;
-      for (var k = j + 1; k < all.length && !end.hasMatch(all[k]); k++) {
-        if (id.hasMatch(all[k])) return i;
-      }
-    }
-    return lines.end;
   }
 
   /// [text] with the line endings of the file of [lines].
