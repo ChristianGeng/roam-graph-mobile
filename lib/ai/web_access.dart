@@ -80,8 +80,10 @@ typedef PageGet = Future<PageReply> Function(Uri url, InternetAddress address);
 /// TLS is checked for the URL's host name. No cookies, no stored logins,
 /// a plain user agent, no redirects.
 ///
-/// After [limit] the connection is closed, also while the body is still
-/// coming, and [TimeoutException] is thrown. Tests replace [connect].
+/// After [limit] [TimeoutException] is thrown, and the connection is
+/// closed, also while the body is still coming; only the socket of a TLS
+/// handshake that never ends can stay open (see [connectSecure]). Tests
+/// replace [connect].
 Future<PageReply> getWithPinnedAddress(Uri url, InternetAddress address,
     {Duration limit = pageTimeLimit,
     Future<Socket> Function(InternetAddress address, Uri url, Duration limit)
@@ -139,8 +141,8 @@ Future<Socket> connectSecure(
   try {
     return await secure.timeout(limit);
   } catch (_) {
-    // The handshake may still end later, with a socket or an error: the
-    // socket is closed, the error caught, so neither is left behind.
+    // If the handshake still ends later, its socket is closed and its error
+    // caught; if it never ends, the socket stays open (the known limit).
     unawaited(secure.then((socket) => socket.destroy(),
         onError: (Object _) {}));
     try {
