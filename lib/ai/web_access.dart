@@ -79,16 +79,26 @@ typedef PageGet = Future<PageReply> Function(Uri url, InternetAddress address);
 /// the name cannot be resolved again to another address after the check;
 /// TLS is checked for the URL's host name. No cookies, no stored logins,
 /// a plain user agent, no redirects.
-Future<PageReply> getWithPinnedAddress(Uri url, InternetAddress address) async {
+///
+/// After [limit] the connection is closed, also while the body is still
+/// coming, and [TimeoutException] is thrown. Tests replace [connect].
+Future<PageReply> getWithPinnedAddress(Uri url, InternetAddress address,
+    {Duration limit = pageTimeLimit,
+    Future<Socket> Function(InternetAddress address, Uri url, Duration limit)
+        connect = connectSecure}) async {
   final client = HttpClient()
-    ..connectionTimeout = pageTimeLimit
+    ..connectionTimeout = limit
     ..userAgent = 'RoamGraph'
     ..findProxy = ((_) => 'DIRECT')
-    ..connectionFactory = (uri, proxyHost, proxyPort) async {
-      final socket = Socket.connect(address, uri.port, timeout: pageTimeLimit)
-          .then((s) => SecureSocket.secure(s, host: uri.host));
-      return ConnectionTask.fromSocket(socket, () {});
-    };
+    ..connectionFactory = (uri, proxyHost, proxyPort) async =>
+        ConnectionTask.fromSocket(connect(address, uri, limit), () {});
+  var late = false;
+  final timer = Timer(limit, () {
+    late = true;
+    client.close(force: true);
+  });
+  TimeoutException tooLate() =>
+      TimeoutException('The page did not load in time.', limit);
   try {
     final request = await client.getUrl(url);
     request.followRedirects = false;
@@ -100,16 +110,27 @@ Future<PageReply> getWithPinnedAddress(Uri url, InternetAddress address) async {
       bytes.add(chunk);
       if (bytes.length >= maxPageBytes) break;
     }
+    if (late) throw tooLate();
     return PageReply(
       response.statusCode,
       location: response.headers.value('location'),
       contentType: response.headers.value('content-type'),
       body: bytes.takeBytes(),
     );
+  } catch (e) {
+    if (late && e is! TimeoutException) throw tooLate();
+    rethrow;
   } finally {
+    timer.cancel();
     client.close(force: true);
   }
 }
+
+/// A TLS connection to [address], checked for [url]'s host name.
+Future<Socket> connectSecure(
+        InternetAddress address, Uri url, Duration limit) =>
+    Socket.connect(address, url.port, timeout: limit)
+        .then((s) => SecureSocket.secure(s, host: url.host));
 
 /// Whether [address] is in the own network or the phone itself: loopback,
 /// private, link-local, carrier-grade NAT, unspecified and multicast

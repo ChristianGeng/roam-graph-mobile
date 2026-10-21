@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -44,6 +45,9 @@ class FakeWeb {
   Future<String> fetch(String url) =>
       fetchWebPage(url, resolve: resolve, get: get);
 }
+
+/// The real [HttpClient], not flutter_test's.
+class RealHttp extends HttpOverrides {}
 
 PageReply html(String body) => PageReply(200,
     contentType: 'text/html; charset=utf-8', body: utf8.encode(body));
@@ -249,6 +253,61 @@ void main() {
           web.fetch('https://example.org/gone'),
           throwsA(isA<WebPageError>()
               .having((e) => e.message, 'message', contains('404'))));
+    });
+  });
+
+  group('the connection', () {
+    test('a body that never ends is cut off at the limit, and closed',
+        () async {
+      // A server that sends the headers, then a little of the body,
+      // forever.
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(server.close);
+      final closed = <Future<void>>[];
+      Timer? drip;
+      addTearDown(() => drip?.cancel());
+      server.listen((socket) {
+        final done = Completer<void>();
+        closed.add(done.future);
+        socket.listen((_) {
+          socket.write('HTTP/1.1 200 OK\r\n'
+              'Content-Type: text/plain\r\n'
+              'Transfer-Encoding: chunked\r\n\r\n');
+          drip = Timer.periodic(const Duration(milliseconds: 20), (_) {
+            try {
+              socket.write('5\r\nhello\r\n');
+            } on Object {
+              // The client is gone.
+            }
+          });
+        }, onDone: () {
+          drip?.cancel();
+          if (!done.isCompleted) done.complete();
+          socket.destroy();
+        }, onError: (_) {
+          drip?.cancel();
+          if (!done.isCompleted) done.complete();
+        });
+      });
+      final watch = Stopwatch()..start();
+      // flutter_test replaces HttpClient with one that answers 400.
+      await HttpOverrides.runWithHttpOverrides(
+        () => expectLater(
+          getWithPinnedAddress(
+            Uri.parse('https://example.org:${server.port}/slow'),
+            InternetAddress.loopbackIPv4,
+            limit: const Duration(milliseconds: 300),
+            connect: (address, url, limit) =>
+                Socket.connect(address, url.port),
+          ),
+          throwsA(isA<TimeoutException>()),
+        ),
+        RealHttp(),
+      );
+      expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
+      // The server sees the connection closed: nothing reads on.
+      expect(closed, hasLength(1));
+      await closed.single.timeout(const Duration(seconds: 5));
     });
   });
 
