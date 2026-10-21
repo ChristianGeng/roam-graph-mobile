@@ -80,8 +80,10 @@ typedef PageGet = Future<PageReply> Function(Uri url, InternetAddress address);
 /// TLS is checked for the URL's host name. No cookies, no stored logins,
 /// a plain user agent, no redirects.
 ///
-/// After [limit] the connection is closed, also while the body is still
-/// coming, and [TimeoutException] is thrown. Tests replace [connect].
+/// After [limit] [TimeoutException] is thrown, and the connection is
+/// closed, also while the body is still coming; only the socket of a TLS
+/// handshake that never ends can stay open (see [connectSecure]). Tests
+/// replace [connect].
 Future<PageReply> getWithPinnedAddress(Uri url, InternetAddress address,
     {Duration limit = pageTimeLimit,
     Future<Socket> Function(InternetAddress address, Uri url, Duration limit)
@@ -127,9 +129,11 @@ Future<PageReply> getWithPinnedAddress(Uri url, InternetAddress address,
 }
 
 /// A TLS connection to [address], checked for [url]'s host name. The
-/// handshake has the same time limit as the connect: a server that accepts
-/// the connection but never finishes the handshake is cut off, and its
-/// socket closed.
+/// handshake has the same time limit as the connect, so the call gives up
+/// in time. Known limit (decision 82): once `SecureSocket.secure` has taken
+/// over the socket, `dart:io` offers no way to close it; a server that
+/// never finishes the handshake keeps that one socket open until it closes
+/// it itself.
 Future<Socket> connectSecure(
     InternetAddress address, Uri url, Duration limit) async {
   final raw = await Socket.connect(address, url.port, timeout: limit);
@@ -137,14 +141,15 @@ Future<Socket> connectSecure(
   try {
     return await secure.timeout(limit);
   } catch (_) {
-    // The handshake may still end later, with a socket or an error: the
-    // socket is closed, the error caught, so neither is left behind.
+    // If the handshake still ends later, its socket is closed and its error
+    // caught; if it never ends, the socket stays open (the known limit).
     unawaited(secure.then((socket) => socket.destroy(),
         onError: (Object _) {}));
     try {
       raw.destroy();
     } catch (_) {
-      // Taken over by the handshake: it is closed with its result.
+      // Taken over by the handshake: closed only if the handshake still
+      // ends (above); see the known limit in the doc comment.
     }
     rethrow;
   }

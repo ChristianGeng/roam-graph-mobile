@@ -2222,6 +2222,14 @@ devices through Syncthing.
       the provider and that pages are fetched from the phone. Hidden notes
       stay hidden (decision 57): the AI never sees them, so it cannot send
       them to a search.
+    - **Known limit:** a page fetch gives up after 20 seconds in every case,
+      and a slow body is cut off with its connection. But a server that
+      accepts the connection and never finishes the TLS handshake keeps
+      that one socket open until it closes it itself: once
+      `SecureSocket.secure` has taken over the socket, `dart:io` has no way
+      to close it (#142). Fixing it would need an own `Socket` around
+      `RawSecureSocket`; not worth it for a server that misbehaves on
+      purpose, which the AI would have to choose to visit.
 
 ## Recommended, not decided
 
