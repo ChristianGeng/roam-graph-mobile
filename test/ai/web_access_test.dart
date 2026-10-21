@@ -640,4 +640,28 @@ void main() {
       expect(store.settings.maxWebSearches, 3);
     });
   });
+
+  test('a TLS handshake that never finishes is cut off, and its socket closed',
+      () async {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final closed = Completer<void>();
+    // Accepts the connection and never answers the handshake.
+    server.listen((socket) => socket.listen((_) {},
+        onDone: () {
+          if (!closed.isCompleted) closed.complete();
+        },
+        onError: (Object _) {
+          if (!closed.isCompleted) closed.complete();
+        }));
+    try {
+      await expectLater(
+          connectSecure(InternetAddress.loopbackIPv4,
+              Uri.parse('https://example.test:${server.port}/'),
+              const Duration(milliseconds: 300)),
+          throwsA(isA<TimeoutException>()));
+      await closed.future.timeout(const Duration(seconds: 5));
+    } finally {
+      await server.close();
+    }
+  });
 }

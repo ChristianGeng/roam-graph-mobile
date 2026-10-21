@@ -126,11 +126,20 @@ Future<PageReply> getWithPinnedAddress(Uri url, InternetAddress address,
   }
 }
 
-/// A TLS connection to [address], checked for [url]'s host name.
+/// A TLS connection to [address], checked for [url]'s host name. The
+/// handshake has the same time limit as the connect: a server that accepts
+/// the connection but never finishes the handshake is cut off, and its
+/// socket closed.
 Future<Socket> connectSecure(
-        InternetAddress address, Uri url, Duration limit) =>
-    Socket.connect(address, url.port, timeout: limit)
-        .then((s) => SecureSocket.secure(s, host: url.host));
+    InternetAddress address, Uri url, Duration limit) async {
+  final raw = await Socket.connect(address, url.port, timeout: limit);
+  try {
+    return await SecureSocket.secure(raw, host: url.host).timeout(limit);
+  } catch (_) {
+    raw.destroy();
+    rethrow;
+  }
+}
 
 /// Whether [address] is in the own network or the phone itself: loopback,
 /// private, link-local, carrier-grade NAT, unspecified and multicast
