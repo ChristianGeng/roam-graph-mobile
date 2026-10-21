@@ -589,6 +589,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final id = await CaptureScreen.open(
       context,
       writer,
+      graph: widget.graph.value,
       initialTitle: proposal.title,
       initialBody: proposal.body,
       linkTo: start == null ? null : (id: start.id, title: start.displayTitle),
@@ -670,7 +671,8 @@ class _ChatScreenState extends State<ChatScreen> {
             tooltip: 'AI settings',
             icon: const Icon(Icons.settings_outlined),
             onPressed: () async {
-              await AiSettingsScreen.open(context);
+              await AiSettingsScreen.open(context,
+                  graph: widget.graph.value);
               // The new settings apply to a new chat.
               if (mounted && (session?.transcript.isEmpty ?? true)) _start();
             },
@@ -700,7 +702,8 @@ class _ChatScreenState extends State<ChatScreen> {
             title: Text(gone),
             trailing: TextButton(
               onPressed: () async {
-                await AiSettingsScreen.open(context);
+                await AiSettingsScreen.open(context,
+                    graph: widget.graph.value);
                 if (mounted) _start();
               },
               child: const Text('AI settings'),
@@ -717,7 +720,8 @@ class _ChatScreenState extends State<ChatScreen> {
             title: Text(problem),
             trailing: TextButton(
               onPressed: () async {
-                await AiSettingsScreen.open(context);
+                await AiSettingsScreen.open(context,
+                    graph: widget.graph.value);
                 if (mounted) _start();
               },
               child: const Text('AI settings'),

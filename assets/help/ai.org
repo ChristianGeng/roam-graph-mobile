@@ -8,7 +8,8 @@
 Notes with a tag such as ~:private:~ are never shown to an AI: not in a
 share, not to the chat. Headings with such a tag are left out of the notes
 that are. Set the tags in [[id:roam-graph-help-settings][Settings]], under
-AI.
+AI: tap the graph's tags below the field, or type a tag, also one no note
+has yet, and add it with space, comma, colon or Enter.
 
 * Sharing with an AI app
 *Share with AI* (a note's AI menu, or several notes selected in search

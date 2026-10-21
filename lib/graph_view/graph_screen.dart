@@ -594,6 +594,7 @@ class _GraphScreenState extends State<GraphScreen> {
     final id = await CaptureScreen.open(
       context,
       writer,
+      graph: _graph,
       linkTo: selected == null
           ? null
           : (id: selected.id, title: selected.displayTitle),
@@ -623,7 +624,7 @@ class _GraphScreenState extends State<GraphScreen> {
           },
         );
       case _MoreAction.settings:
-        SettingsScreen.open(context);
+        SettingsScreen.open(context, graph: _graph);
       case _MoreAction.helpLayouts:
         openHelp(context, id: helpLayouts);
       case _MoreAction.help:

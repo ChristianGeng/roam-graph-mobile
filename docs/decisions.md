@@ -2142,7 +2142,39 @@ devices through Syncthing.
       pull requests), so a release is never stopped half-way, with a tag but
       without its files.
 
-81. **Web access for the AI chat** (#137), `lib/ai/web_access.dart`.
+81. **One tag field everywhere: chips and the existing tags** (#140),
+    `lib/edit/tag_field.dart`. Tags were typed by hand, with spaces between
+    them, in three places; on a phone that is slow, and a typo makes a new
+    tag. Now one widget, `TagField`, is used in "Title, tags and aliases",
+    "New node" and the AI settings' "Hidden from AI: tags", and offers the
+    tags that exist, as `org-roam-tag-add` does with completion in Emacs.
+    - **The chosen tags are chips**, each with an x to remove it, in the
+      order Org keeps.
+    - **Below, the graph's tags** (`tagCounts`): the most used first, each
+      with the number of notes (files) where a node has it, for example
+      `gmbh (12)`; equal counts in alphabetical order. A tag inherited by a
+      heading node does not count its file twice. Chosen tags are left out.
+      A tap adds one. The first 20 show; "All N tags" shows the rest.
+    - **Typing filters** the list (contains, ignoring case). Space, comma,
+      colon or Enter adds the typed text; Enter keeps the focus, so on the
+      desktop the next tag can be typed at once. Text typed but not added
+      yet is saved with the chips, so nothing typed is lost.
+    - **A new tag is marked:** a text that is no tag as written shows "New
+      tag: <text>", so a typo is seen before it is added. Tags are compared
+      as written (decision 42): `GmbH` and `gmbh` are two tags, each shown
+      with its own count.
+    - **Characters Org does not read in a tag** (anything but letters,
+      digits and `_@#%`, the rule of `validTag`) are refused as they are
+      typed, with a short message.
+    - **The tags come from the graph the screen is opened with:** the note
+      view and capture pass theirs; the AI settings get it from the folder
+      screen, the graph's Settings and the chat. Before a folder is read
+      there are none to offer, and a tag such as `private` can still be
+      typed.
+    - **What is saved does not change:** `#+filetags:` and heading tags
+      as before, the AI settings as before. Renaming or merging a tag in
+      all notes is for later; the agent can do it now with `set_tags`.
+82. **Web access for the AI chat** (#137), `lib/ai/web_access.dart`.
     The AI read only the notes, so it could not answer questions about
     things that are not in them, such as numbers for an infographic of "the
     last 5 years". A setting *Web access for the AI*, off by default,

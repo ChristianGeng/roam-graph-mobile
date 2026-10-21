@@ -10,6 +10,10 @@ new note as org-roam's capture does on the laptop: a file
 ~roam/<date and time>-<title>.org~ with a new ~:ID:~, ~#+title:~ and
 ~#+filetags:~. Syncthing brings it to the laptop, where org-roam finds it.
 
+The tags are chosen as in *Title, tags and aliases*: tap the graph's tags
+below the field, or type one and add it with space, comma, colon or Enter;
+a tag no note has yet shows as *New tag*.
+
 From a note, the new note can link to it. The link is in the new file, so
 the old note gets a backlink and is never changed.
 
