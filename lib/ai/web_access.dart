@@ -127,9 +127,11 @@ Future<PageReply> getWithPinnedAddress(Uri url, InternetAddress address,
 }
 
 /// A TLS connection to [address], checked for [url]'s host name. The
-/// handshake has the same time limit as the connect: a server that accepts
-/// the connection but never finishes the handshake is cut off, and its
-/// socket closed.
+/// handshake has the same time limit as the connect, so the call gives up
+/// in time. Known limit (decision 82): once `SecureSocket.secure` has taken
+/// over the socket, `dart:io` offers no way to close it; a server that
+/// never finishes the handshake keeps that one socket open until it closes
+/// it itself.
 Future<Socket> connectSecure(
     InternetAddress address, Uri url, Duration limit) async {
   final raw = await Socket.connect(address, url.port, timeout: limit);
@@ -144,7 +146,8 @@ Future<Socket> connectSecure(
     try {
       raw.destroy();
     } catch (_) {
-      // Taken over by the handshake: it is closed with its result.
+      // Taken over by the handshake: closed only if the handshake still
+      // ends (above); see the known limit in the doc comment.
     }
     rethrow;
   }
