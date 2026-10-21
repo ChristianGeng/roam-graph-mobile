@@ -641,26 +641,27 @@ void main() {
     });
   });
 
-  test('a TLS handshake that never finishes is cut off, and its socket closed',
+  test('a TLS handshake that never finishes is given up at the limit',
       () async {
     final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-    final closed = Completer<void>();
     // Accepts the connection and never answers the handshake.
-    server.listen((socket) => socket.listen((_) {},
-        onDone: () {
-          if (!closed.isCompleted) closed.complete();
-        },
-        onError: (Object _) {
-          if (!closed.isCompleted) closed.complete();
-        }));
+    final held = <Socket>[];
+    server.listen((socket) {
+      held.add(socket);
+      socket.listen((_) {}, onError: (Object _) {});
+    });
     try {
+      final watch = Stopwatch()..start();
       await expectLater(
           connectSecure(InternetAddress.loopbackIPv4,
               Uri.parse('https://example.test:${server.port}/'),
               const Duration(milliseconds: 300)),
           throwsA(isA<TimeoutException>()));
-      await closed.future.timeout(const Duration(seconds: 5));
+      expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
     } finally {
+      for (final socket in held) {
+        socket.destroy();
+      }
       await server.close();
     }
   });

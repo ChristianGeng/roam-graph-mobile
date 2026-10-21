@@ -141,7 +141,11 @@ Future<Socket> connectSecure(
     // socket is closed, the error caught, so neither is left behind.
     unawaited(secure.then((socket) => socket.destroy(),
         onError: (Object _) {}));
-    raw.destroy();
+    try {
+      raw.destroy();
+    } catch (_) {
+      // Taken over by the handshake: it is closed with its result.
+    }
     rethrow;
   }
 }
