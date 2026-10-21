@@ -134,6 +134,39 @@ void main() {
     });
   });
 
+  testWidgets('"Hidden from AI" saves the tags chosen with the tag field '
+      '(#140)', (tester) async {
+    final store = MemoryAiSettingsStore();
+    final tagged = graphOf({
+      'a.org': ':PROPERTIES:\n:ID: a\n:END:\n#+title: A\n'
+          '#+filetags: :diary:work:\n',
+      'b.org': ':PROPERTIES:\n:ID: b\n:END:\n#+title: B\n'
+          '#+filetags: :work:\n',
+    });
+    await pumpIn(
+      tester,
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => AiSettingsScreen.open(context, graph: tagged),
+          child: const Text('open'),
+        ),
+      ),
+      store: store,
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.text('work (2)'), findsOneWidget);
+    await tester.tap(find.text('diary (1)'));
+    await tester.pump();
+    // A tag no note has yet can be typed.
+    await tester.enterText(find.byKey(const ValueKey('hidden-tags')), 'secret');
+    await tester.pump();
+    expect(find.text('New tag: secret'), findsOneWidget);
+    await tester.tap(find.byTooltip('Save'));
+    await tester.pumpAndSettle();
+    expect(store.settings.hiddenTags, ['private', 'diary', 'secret']);
+  });
+
   group('the saved settings are loaded first (#61 review)', () {
     testWidgets('a share waits for the saved tags', (tester) async {
       final store = MemoryAiSettingsStore(const AiSettings(hiddenTags: []))
@@ -204,7 +237,8 @@ void main() {
       );
       await tester.tap(find.text('tags: [private]'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byKey(const ValueKey('hidden-tags')), '');
+      await tester.tap(find.byTooltip('Remove private'));
+      await tester.pump();
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Could not save the settings'), findsOneWidget);

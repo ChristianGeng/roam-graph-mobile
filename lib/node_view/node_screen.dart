@@ -247,6 +247,7 @@ class _NodeScreenState extends State<NodeScreen> {
     final id = await CaptureScreen.open(
       context,
       writer,
+      graph: widget.graph.value,
       linkTo: (id: node.id, title: node.displayTitle),
     );
     if (id != null && mounted) _openId(id);
@@ -382,7 +383,8 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// Changes the node's title, tags and aliases (#97).
   Future<void> _meta(NoteWriter writer, RoamNode node) async {
-    final message = await MetaScreen.open(context, writer, node);
+    final message = await MetaScreen.open(context, writer, node,
+        graph: widget.graph.value);
     if (message != null && mounted) _tell(message);
   }
 
