@@ -33,7 +33,9 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push to a pull request makes the older run useless; on main
+  # each run builds a release, which must not stop half-way (decision 80).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Pinned so the Android project files match the Flutter that builds them.

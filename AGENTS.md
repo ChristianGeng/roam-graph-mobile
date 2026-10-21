@@ -21,9 +21,12 @@ folder is the only connection.
 
 ## How we work
 
-- **Spec before code.** The stack is decided (Flutter, #1) and the build
-  skeleton exists (#2). The next step is to write the spec to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`,
-  then an implementation plan. No product code before the spec is approved.
+- **The issue is the spec.** Each change starts as a GitHub issue that
+  says what to build, what stays as it is, and how it is tested; the owner
+  agrees to it in the conversation. A pull request adds a decision entry
+  to `docs/decisions.md` (numbered, before "## Recommended, not
+  decided") that records what was decided and why. No separate spec or
+  plan files.
 - **Never put my real notes in the repo.** It is public. Tests use synthetic
   org files under the test directory. Comparisons with my real data are
   local scripts that read the files and the laptop `org-roam.db` from my
@@ -45,3 +48,32 @@ folder is the only connection.
   unsure, read org-roam's source rather than guessing.
 - Plain, literal English in docs, commit messages and issues: the reader's
   first language may not be English.
+
+## The flow of one change
+
+1. **Plan:** the owner and Claude agree on the change; Claude writes the
+   issue.
+2. **Build:** Devin, in a new session for each issue, started with a
+   prompt that names the issue and the rules of this file; or Claude,
+   when the owner says so. One pull request per issue, with
+   "Closes #<issue>". Devin does not merge.
+3. **Review:** CI (Android build with all tests, Linux, Windows, macOS,
+   changelog, org-roam) and the review bots (Gitar, Sourcery, Devin).
+   Every finding is fixed or answered. Findings for Devin go to Devin as a
+   pull request comment that starts with `@devin`; Devin answers such
+   comments from users with write access.
+4. **Merge:** with a merge commit, only when CI is green and every
+   comment is dealt with. A merge to `main` builds the release (APK,
+   Linux, Windows, macOS), which Obtainium installs; the owner is told
+   when it is out.
+
+Things to know:
+
+- **Flutter runs only in CI**, not in the cloud sessions: CI is the test
+  run. Read a failure from the check run's annotations.
+- **macOS runners are sometimes not available** on GitHub ("not acquired
+  by Runner"); the job is then cancelled. Run that job again; the release
+  waits for it.
+- **Open points are issues**, so a new session finds them; nothing is
+  kept only in a conversation.
+
