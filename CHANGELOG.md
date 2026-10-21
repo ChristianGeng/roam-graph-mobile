@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-21: Web access for the AI chat ([#139](https://github.com/ChristianGeng/roam-graph-mobile/pull/139))
+
+- Added: "Web access for the AI" in AI settings, off by default. With it on, the chat can read web pages (fetched from the phone, https only, never from the own network) and, with Anthropic, search the web; search words go to the provider.
+- Added: "Most web searches for one message", 5 by default; each page read counts too.
+- The AI names its sources as links, also in the notes it writes from web facts.
+
+Closes #137.
+
 ## 2026-10-21: One tag field: chips and the existing tags ([#141](https://github.com/ChristianGeng/roam-graph-mobile/pull/141))
 
 - Changed: in "Title, tags and aliases", "New node" and "Hidden from AI: tags", the chosen tags are chips with an x, and below them the graph's tags, the most used first with their number of notes, can be tapped. Typing filters them; space, comma, colon or Enter adds the typed tag.

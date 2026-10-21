@@ -2174,6 +2174,54 @@ devices through Syncthing.
     - **What is saved does not change:** `#+filetags:` and heading tags
       as before, the AI settings as before. Renaming or merging a tag in
       all notes is for later; the agent can do it now with `set_tags`.
+82. **Web access for the AI chat** (#137), `lib/ai/web_access.dart`.
+    The AI read only the notes, so it could not answer questions about
+    things that are not in them, such as numbers for an infographic of "the
+    last 5 years". A setting *Web access for the AI*, off by default,
+    lets it use the web. With it off, nothing changes: no web tool is
+    offered and the system prompt is the same.
+    - **`fetch_web_page(url)`, the app's own tool, for every provider.**
+      The phone fetches the page and gives the model its readable text
+      (HTML without scripts, styles, comments and markup; other text types
+      as they are; no other types). Only `https:`; at most 20 seconds,
+      5 redirects, 2 MB read and 100,000 characters returned, with a line
+      that says when the text was cut. No cookies, no stored logins, the
+      user agent `RoamGraph`, no proxy.
+    - **Never the own network.** `localhost`, loopback, private,
+      link-local, carrier-grade NAT, unspecified and multicast addresses
+      (IPv4, IPv6, and IPv4 inside IPv6) are refused. A name is resolved
+      first, and refused when any of its addresses is such an address; the
+      connection then goes to the checked address itself
+      (`HttpClient.connectionFactory`), with TLS checked for the name, so
+      a second lookup cannot give another address. Every redirect is
+      checked as the first address.
+    - **Anthropic's own web search** on Anthropic's API: the server tool
+      `web_search_20250305` (named `web_search`), the basic version; the
+      later versions filter with code execution, which not every model
+      has. `max_uses` is the number of searches left for the message. Its
+      `server_tool_use` and `web_search_tool_result` blocks go back to
+      Anthropic unchanged (they carry encrypted content), show in the chat
+      as tool calls, and a `pause_turn` is sent back as it is and counts
+      as a tool round. The pages an answer cites are listed under
+      "Sources:" when the text does not link them already. Claude on
+      Amazon Bedrock has no web search (Anthropic's documentation).
+    - **No Mistral web search for now.** The issue planned Mistral's
+      `web_search` tool in Chat Completions; Mistral's documentation (as of
+      2026-10-21) says `web_search` and `web_search_premium` work only in
+      its Conversations and Agents APIs, not in Chat Completions, which the
+      chat uses. Mistral, like every OpenAI-compatible provider, gets
+      `fetch_web_page` only.
+    - **One limit:** *Most web searches for one message*, 5 by default.
+      Each provider search and each page fetched counts; at the limit,
+      `web_search` is no longer offered and `fetch_web_page` answers that
+      the limit is reached.
+    - **Sources:** with web access on, the system prompt asks the AI to
+      name its sources as links, and to put them as Org links into the
+      notes it writes or changes with facts from the web.
+    - **Privacy:** the setting and the help say that search words go to
+      the provider and that pages are fetched from the phone. Hidden notes
+      stay hidden (decision 57): the AI never sees them, so it cannot send
+      them to a search.
 
 ## Recommended, not decided
 
