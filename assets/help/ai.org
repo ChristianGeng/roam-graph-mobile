@@ -61,3 +61,23 @@ chat, and only when I send a message: my message and the notes the AI
 reads go to that provider. Each provider's note says where the data goes;
 some keep it in the EU. Where the provider has a stronger model, the chat
 can switch to it.
+
+** Web access
+With *Web access for the AI* on (AI settings, under "Web"; off by
+default), the chat can also use the web, for questions the notes do not
+answer:
+- *fetch_web_page* reads a web page, with every provider. The page is
+  fetched from the phone: only ~https://~ addresses, never an address in
+  the own network (the phone itself, the router, other devices at home;
+  also not after a redirect), without cookies or logins, at most 20
+  seconds and about 100,000 characters of text.
+- *web_search* is Anthropic's own search: the search words go to
+  Anthropic, which searches and reads the results. Mistral has a web
+  search only in another API than the one the chat uses, and Claude on
+  Amazon Bedrock has none; there the AI only reads pages whose address it
+  knows.
+
+Searches and pages together are at most *Most web searches for one
+message* (5 by default). The AI names its sources as links, also in the
+notes it writes from facts of the web. Notes hidden from AI stay hidden:
+the AI does not see them, so it cannot put them into a search.

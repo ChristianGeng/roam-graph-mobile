@@ -12,6 +12,9 @@
 - *AI*: the tags that hide notes from AI, and the chat's provider, base
   URL, models and key, with the limits of a chat; under *Images with:*,
   the provider for "Create image" (the chat's by default, or another with
-  its own key, image model and "EU only"). Keys are kept in
+  its own key, image model and "EU only"); under *Web*, *Web access
+  for the AI* (off by default: search words go to the provider, pages
+  are fetched from the phone) and the most web searches for one message.
+  Keys are kept in
   Android's secure storage, never in the notes. See
   [[id:roam-graph-help-ai][AI]].

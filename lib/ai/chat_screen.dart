@@ -27,6 +27,7 @@ import 'ai_models.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
 import 'edit_tools.dart';
+import 'web_access.dart';
 
 /// Opens a node by its ID, from a link in an answer.
 typedef OpenNode = void Function(BuildContext context, String id);
@@ -293,6 +294,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt,
                   DateTime.now()),
               toolImage: _agent?.imageFor,
+              web: settings.webAccess
+                  ? WebAccess(
+                      limit: settings.maxWebSearches,
+                      search: hasWebSearch(config),
+                    )
+                  : null,
               handlers: {
                 if (mode == AiEditMode.review) ...{
                   'propose_edit': _propose,
@@ -766,6 +773,12 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           );
         case AssistantMessage():
+          // The provider's own web searches (#137).
+          for (final (j, result) in entry.searches.indexed) {
+            children.add(
+              _ToolCallTile(key: ValueKey('chat-search-$i-$j'), result: result),
+            );
+          }
           if (entry.text.trim().isNotEmpty) {
             final writer = widget.writer;
             children.add(
@@ -813,7 +826,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
             );
-          } else if (entry.toolCalls.isEmpty) {
+          } else if (entry.toolCalls.isEmpty &&
+              entry.searches.isEmpty &&
+              !entry.paused) {
             // A final answer without text: say so rather than show nothing.
             children.add(
               Padding(

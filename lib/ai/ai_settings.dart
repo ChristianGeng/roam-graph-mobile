@@ -131,7 +131,17 @@ class AiSettings {
     this.maxAgentChanges = 30,
     this.maxImagesPerMessage = 1,
     this.imageProvider = '',
+    this.webAccess = false,
+    this.maxWebSearches = 5,
   });
+
+  /// "Web access for the AI" (#137): the chat may read web pages, and
+  /// search with the provider's own web search where it has one. Off by
+  /// default.
+  final bool webAccess;
+
+  /// The most web searches and fetched pages for one message (#137).
+  final int maxWebSearches;
 
   /// The preset ID of the provider "Create image" uses (#127); empty for
   /// "Same as the chat".
@@ -187,6 +197,8 @@ class AiSettings {
     int? maxAgentChanges,
     int? maxImagesPerMessage,
     String? imageProvider,
+    bool? webAccess,
+    int? maxWebSearches,
   }) =>
       AiSettings(
         hiddenTags: hiddenTags ?? this.hiddenTags,
@@ -199,6 +211,8 @@ class AiSettings {
         maxAgentChanges: maxAgentChanges ?? this.maxAgentChanges,
         maxImagesPerMessage: maxImagesPerMessage ?? this.maxImagesPerMessage,
         imageProvider: imageProvider ?? this.imageProvider,
+        webAccess: webAccess ?? this.webAccess,
+        maxWebSearches: maxWebSearches ?? this.maxWebSearches,
       );
 
   Map<String, Object?> toJson() => {
@@ -215,6 +229,8 @@ class AiSettings {
         'maxAgentChanges': maxAgentChanges,
         'maxImagesPerMessage': maxImagesPerMessage,
         'imageProvider': imageProvider,
+        'webAccess': webAccess,
+        'maxWebSearches': maxWebSearches,
       };
 
   /// Settings from [json]; a missing or unreadable value keeps its default.
@@ -258,6 +274,8 @@ class AiSettings {
         final String id when imageProviders.any((p) => p.id == id) => id,
         _ => defaults.imageProvider,
       },
+      webAccess: json['webAccess'] == true,
+      maxWebSearches: positive('maxWebSearches', defaults.maxWebSearches),
     );
   }
 }
@@ -587,6 +605,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _files = TextEditingController();
   final _changes = TextEditingController();
   final _images = TextEditingController();
+  final _webSearches = TextEditingController();
+  bool _webAccess = false;
   AiEditMode _editMode = AiEditMode.agent;
   AiSettings? _loaded;
   String? _problem;
@@ -691,6 +711,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _files.text = '${settings.maxChangeSetFiles}';
       _changes.text = '${settings.maxAgentChanges}';
       _images.text = '${settings.maxImagesPerMessage}';
+      _webSearches.text = '${settings.maxWebSearches}';
+      _webAccess = settings.webAccess;
       _editMode = settings.editMode;
       await _draft(_provider);
       if (_imageProvider.isNotEmpty) await _draft(_imageProvider);
@@ -732,6 +754,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _files.dispose();
     _changes.dispose();
     _images.dispose();
+    _webSearches.dispose();
     for (final d in _drafts.values) {
       d.dispose();
     }
@@ -762,6 +785,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           'The images per message must be at least 1.');
       return;
     }
+    final webSearches = int.tryParse(_webSearches.text.trim());
+    if (webSearches == null || webSearches < 1) {
+      setState(() => _problem =
+          'The web searches per message must be at least 1.');
+      return;
+    }
     if (rounds == null ||
         rounds < 1 ||
         tokens == null ||
@@ -787,6 +816,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       editMode: _editMode,
       maxAgentChanges: changes,
       maxImagesPerMessage: images,
+      webAccess: _webAccess,
+      maxWebSearches: webSearches,
     );
     final keys = AiSettingsScope.keysOf(context);
     try {
@@ -1215,6 +1246,29 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       ..._keyFields(preset, draft),
       ..._euFields(preset, draft, 'eu-only'),
       ..._imageProviderSection(context),
+      const SizedBox(height: 16),
+      Text('Web', style: text.titleSmall),
+      SwitchListTile(
+        key: const ValueKey('web-access'),
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Web access for the AI'),
+        subtitle: const Text(
+            'The chat may search the web and read web pages. Search words '
+            'go to the provider (Anthropic searches itself); pages are '
+            'fetched from this phone, over https only, never from the '
+            'own network. Notes hidden from AI stay hidden.'),
+        value: _webAccess,
+        onChanged: (on) => setState(() => _webAccess = on),
+      ),
+      TextField(
+        key: const ValueKey('max-web-searches'),
+        controller: _webSearches,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: 'Most web searches for one message',
+          helperText: 'Each page the AI reads counts as one too.',
+        ),
+      ),
       const SizedBox(height: 16),
       Text('Limits', style: text.titleSmall),
       TextField(

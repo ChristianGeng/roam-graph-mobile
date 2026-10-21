@@ -13,9 +13,11 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'ai_providers.dart';
 import 'ai_tools.dart';
+import 'web_access.dart';
 
 /// What the model is told before the conversation. It never changes, so
 /// every request starts with the same bytes and the provider can cache
@@ -219,10 +221,21 @@ class AssistantMessage extends ChatEntry {
     this.toolCalls = const [],
     required this.model,
     this.raw,
+    this.searches = const [],
+    this.paused = false,
   });
 
   final String text;
   final List<ToolCall> toolCalls;
+
+  /// The provider's own web searches in this answer (#137), with their
+  /// results, to show as tool calls are shown; the provider ran them.
+  final List<ToolResult> searches;
+
+  /// True when the provider paused a long turn of its own tools
+  /// (Anthropic's `pause_turn`): the answer is sent back as it is, and
+  /// the provider goes on.
+  final bool paused;
 
   /// The model that answered.
   final String model;
@@ -251,10 +264,14 @@ class ApiRequest {
 
 /// What one request returned.
 class ApiReply {
-  const ApiReply(this.message, this.usage, {this.cut = false});
+  const ApiReply(this.message, this.usage,
+      {this.cut = false, this.webSearches = 0});
 
   final AssistantMessage message;
   final TokenUsage usage;
+
+  /// The web searches the provider ran for this answer (#137).
+  final int webSearches;
 
   /// True when the answer stopped at [ProviderConfig.maxOutputTokens].
   final bool cut;
@@ -274,7 +291,7 @@ abstract class ModelApi {
   /// conversation so far, which only grows.
   ApiRequest request(
       ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
-      {String system = systemPrompt, bool images = true});
+      {String system = systemPrompt, bool images = true, int webSearches = 0});
 
   /// Reads a successful answer.
   ApiReply read(ProviderConfig config, Map<String, Object?> json);
@@ -297,7 +314,7 @@ class AnthropicApi extends ModelApi {
   @override
   ApiRequest request(
       ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
-      {String system = systemPrompt, bool images = true}) {
+      {String system = systemPrompt, bool images = true, int webSearches = 0}) {
     final current = currentMessageStart(transcript);
     final messages = <Map<String, Object?>>[];
     void addUser(List<Map<String, Object?>> blocks) {
@@ -361,7 +378,8 @@ class AnthropicApi extends ModelApi {
     // Cache breakpoints: after the system prompt (tools and system), and
     // at the end of the conversation, so the next round reads all of this
     // from the cache. Earlier ends are found again by the API.
-    if (messages.isNotEmpty) {
+    // A paused answer of mine goes back unchanged.
+    if (messages.isNotEmpty && messages.last['role'] == 'user') {
       final last = (messages.last['content'] as List).cast<Object?>();
       final block = Map<String, Object?>.of(last.last as Map<String, Object?>);
       block['cache_control'] = _ephemeral;
@@ -387,6 +405,15 @@ class AnthropicApi extends ModelApi {
               'description': tool.description,
               'input_schema': tool.parameters,
             },
+          // Anthropic's own web search (#137), with as many searches as
+          // are left for this message. The basic version: the later ones
+          // filter results with code execution, which not every model has.
+          if (webSearches > 0)
+            {
+              'type': 'web_search_20250305',
+              'name': 'web_search',
+              'max_uses': webSearches,
+            },
         ],
         'system': [
           {'type': 'text', 'text': system, 'cache_control': _ephemeral},
@@ -401,10 +428,28 @@ class AnthropicApi extends ModelApi {
     final content = (json['content'] as List? ?? const []).cast<Object?>();
     final text = StringBuffer();
     final calls = <ToolCall>[];
+    final searches = <String, ToolCall>{};
+    final results = <ToolResult>[];
+    final sources = <String, String>{};
     for (final block in content.whereType<Map<String, Object?>>()) {
       switch (block['type']) {
         case 'text':
           text.write(block['text'] as String? ?? '');
+          for (final citation
+              in (block['citations'] as List? ?? const []).whereType<Map>()) {
+            if (citation['url'] case final String url) {
+              sources.putIfAbsent(url, () => '${citation['title'] ?? url}');
+            }
+          }
+        case 'server_tool_use':
+          final id = block['id'] as String? ?? '';
+          searches[id] = ToolCall(id, block['name'] as String? ?? '',
+              (block['input'] as Map?)?.cast<String, Object?>() ?? const {});
+        case 'web_search_tool_result':
+          final id = block['tool_use_id'] as String? ?? '';
+          results.add(ToolResult(
+              searches.remove(id) ?? ToolCall(id, 'web_search', const {}),
+              _searchResultText(block['content'])));
         case 'tool_use':
           calls.add(ToolCall(
             block['id'] as String,
@@ -415,12 +460,27 @@ class AnthropicApi extends ModelApi {
     }
     final usage = (json['usage'] as Map?)?.cast<String, Object?>() ?? const {};
     int n(String key) => (usage[key] as num?)?.toInt() ?? 0;
+    final server = usage['server_tool_use'];
+    final said = text.toString();
+    // The cited pages, as Anthropic asks for when its answers are shown;
+    // those the text links already are not repeated.
+    final unlinked = {
+      for (final MapEntry(:key, :value) in sources.entries)
+        if (!said.contains(key)) key: value,
+    };
     return ApiReply(
       AssistantMessage(
-        text: text.toString(),
+        text: unlinked.isEmpty
+            ? said
+            : '${said.trimRight()}\n\nSources:\n${[
+                for (final MapEntry(:key, :value) in unlinked.entries)
+                  '- [[$key][${value.replaceAll(RegExp(r'[\[\]]'), '')}]]',
+              ].join('\n')}',
         toolCalls: calls,
         model: json['model'] as String? ?? config.model,
         raw: content,
+        searches: results,
+        paused: json['stop_reason'] == 'pause_turn',
       ),
       TokenUsage(
         input: n('input_tokens') +
@@ -430,8 +490,32 @@ class AnthropicApi extends ModelApi {
         output: n('output_tokens'),
       ),
       cut: json['stop_reason'] == 'max_tokens',
+      webSearches: server is Map
+          ? (server['web_search_requests'] as num?)?.toInt() ?? 0
+          : 0,
     );
   }
+}
+
+/// Whether [config]'s provider has a built-in web search the app offers
+/// (#137): Anthropic's own API. Claude on Amazon Bedrock has none, and
+/// Mistral has it only in its Conversations API, which the chat does not
+/// use.
+bool hasWebSearch(ProviderConfig config) =>
+    config.api == ApiKind.anthropic &&
+    Uri.tryParse(config.baseUrl.trim())?.host == 'api.anthropic.com';
+
+/// The text of a `web_search_tool_result`: one line per page found, or
+/// the error.
+String _searchResultText(Object? content) {
+  if (content is Map) {
+    return 'Error: the web search failed (${content['error_code']}).';
+  }
+  if (content is! List || content.isEmpty) return 'Nothing found.';
+  return [
+    for (final result in content.whereType<Map>())
+      '${result['title'] ?? ''}\n  ${result['url'] ?? ''}',
+  ].join('\n');
 }
 
 /// OpenAI's Chat Completions API, which many providers offer.
@@ -441,7 +525,7 @@ class OpenAiApi extends ModelApi {
   @override
   ApiRequest request(
       ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
-      {String system = systemPrompt, bool images = true}) {
+      {String system = systemPrompt, bool images = true, int webSearches = 0}) {
     final current = currentMessageStart(transcript);
     final messages = <Map<String, Object?>>[
       {'role': 'system', 'content': system},
@@ -633,7 +717,24 @@ class ChatSession {
     this.system = systemPrompt,
     this.toolImage,
     this.retryDelays = const [Duration(seconds: 2), Duration(seconds: 6)],
+    this.web,
   }) : _config = config;
+
+  /// Web access (#137); null when "Web access for the AI" is off: then no
+  /// web tool is offered.
+  final WebAccess? web;
+
+  /// The web searches and fetched pages of the current message.
+  int _webUsed = 0;
+
+  /// The web searches and pages left for the current message.
+  int get webLeft => web == null ? 0 : max(0, web!.limit - _webUsed);
+
+  /// [system], with the sentences on web access when it is on.
+  String get _system => switch (web) {
+        null => system,
+        final web => '$system ${webAccessPrompt(search: web.search)}',
+      };
 
   /// The waits before each new try of a request that failed for a passing
   /// reason ([AiError.passing]): a broken connection between two tool
@@ -701,6 +802,7 @@ class ChatSession {
     final first = !transcript.any((e) => e is UserMessage);
     transcript.add(UserMessage(text, context: first ? context : null));
     _rounds = 0;
+    _webUsed = 0;
     onUpdate?.call();
     await resume(onUpdate: onUpdate);
   }
@@ -708,12 +810,16 @@ class ChatSession {
   /// Whether the conversation waits for the model: my message or tool
   /// results are last.
   bool get waiting =>
-      transcript.isNotEmpty && transcript.last is! AssistantMessage;
+      transcript.isNotEmpty &&
+      switch (transcript.last) {
+        AssistantMessage(:final paused) => paused,
+        _ => true,
+      };
 
   /// Continues after an error: sends the conversation again. The tool
   /// rounds of the message count on, so a retry gets no new rounds.
   Future<void> resume({void Function()? onUpdate}) async {
-    final offered = toolList ?? aiTools;
+    final offered = [...toolList ?? aiTools, if (web != null) fetchWebPageTool];
     while (waiting && !_cancelled) {
       ApiReply reply;
       try {
@@ -728,6 +834,7 @@ class ChatSession {
       }
       if (_cancelled) return;
       usage += reply.usage;
+      _webUsed += reply.webSearches;
       final message = reply.message;
       if (reply.cut) {
         // Not kept, so "Send again" asks again; a part of an answer, or of
@@ -747,8 +854,25 @@ class ChatSession {
         onUpdate?.call();
         return;
       }
+      if (message.paused && _rounds >= maxToolRounds) {
+        transcript.add(AssistantMessage(
+          text: message.text.isEmpty
+              ? '(Stopped after $maxToolRounds tool rounds.)'
+              : message.text,
+          model: message.model,
+          searches: message.searches,
+        ));
+        onUpdate?.call();
+        return;
+      }
       transcript.add(message);
       onUpdate?.call();
+      if (message.paused) {
+        // The provider goes on with its own tools when it gets the answer
+        // back; that counts as a round.
+        _rounds++;
+        continue;
+      }
       if (message.toolCalls.isEmpty) return;
       _rounds++;
       final last = _rounds >= maxToolRounds;
@@ -779,10 +903,29 @@ class ChatSession {
       return 'Error: the arguments are not valid JSON: ${call.badArguments}';
     }
     try {
+      if (call.name == fetchWebPageTool.name && web != null) {
+        return await _fetchPage(web!, call);
+      }
       if (handlers[call.name] case final handler?) return await handler(call);
       return await tools.call(call.name, call.input);
     } catch (e) {
       return 'Error: the tool failed: $e';
+    }
+  }
+
+  /// `fetch_web_page`: counts against the message's web searches.
+  Future<String> _fetchPage(WebAccess web, ToolCall call) async {
+    if (webLeft <= 0) {
+      return 'Error: the limit of ${web.limit} web searches and pages for '
+          'one message is reached. Answer with what you have.';
+    }
+    final url = call.input['url'];
+    if (url is! String || url.trim().isEmpty) return 'Error: url is missing.';
+    _webUsed++;
+    try {
+      return await web.fetch(url);
+    } on WebPageError catch (e) {
+      return 'Error: $e';
     }
   }
 
@@ -815,7 +958,9 @@ class ChatSession {
           'settings.');
     }
     final request = _api.request(config, offered, transcript,
-        system: system, images: _images);
+        system: _system,
+        images: _images,
+        webSearches: web?.search == true ? webLeft : 0);
     if (request.url.scheme != 'https' && config.apiKey.isNotEmpty) {
       throw AiError('The app sends an API key only over HTTPS. Use an '
           'https:// base URL for ${config.name}, or remove the key for a '
