@@ -1,12 +1,13 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:material_ui/material_ui.dart';
 
 import '../capture/capture_screen.dart';
-import '../capture/new_node.dart';
 import '../graph/roam_graph.dart';
 import 'diff_screen.dart';
 import 'node_meta.dart';
 import 'note_editor.dart';
 import 'save_messages.dart';
+import 'tag_field.dart';
 import 'unsaved_text.dart';
 
 /// "Title, tags and aliases" (#97): the node's head, the only part of it
@@ -20,6 +21,7 @@ class MetaScreen extends StatefulWidget {
     required this.base,
     required this.meta,
     required this.noteKey,
+    this.graph,
   });
 
   final NoteWriter writer;
@@ -31,10 +33,14 @@ class MetaScreen extends StatefulWidget {
   /// folder is chosen, nothing is saved.
   final String noteKey;
 
+  /// The graph whose tags the tag field offers.
+  final RoamGraph? graph;
+
   /// Reads the note and opens the form. Returns what to tell the user when
   /// something was saved, or null.
   static Future<String?> open(
-      BuildContext context, NoteWriter writer, RoamNode node) async {
+      BuildContext context, NoteWriter writer, RoamNode node,
+      {RoamGraph? graph}) async {
     final editor = writer.editor;
     if (editor == null) return null;
     final messenger = ScaffoldMessenger.of(context);
@@ -55,7 +61,8 @@ class MetaScreen extends StatefulWidget {
           node: node,
           base: base,
           meta: meta,
-          noteKey: noteKey),
+          noteKey: noteKey,
+          graph: graph),
     ));
   }
 
@@ -65,14 +72,15 @@ class MetaScreen extends StatefulWidget {
 
 class _MetaScreenState extends State<MetaScreen> {
   late final _title = TextEditingController(text: widget.meta.title);
-  late final _tags = TextEditingController(text: widget.meta.tags.join(' '));
+  late final _tags = TagFieldController(widget.meta.tags);
+  late final _known = tagCounts(widget.graph);
   late final _aliases =
       TextEditingController(text: widget.meta.aliases.join('\n'));
   bool _saving = false;
 
   bool get _changed =>
       _title.text != widget.meta.title ||
-      _tags.text != widget.meta.tags.join(' ') ||
+      !listEquals(_tags.tags, widget.meta.tags) ||
       _aliases.text != widget.meta.aliases.join('\n');
 
   @override
@@ -108,7 +116,7 @@ class _MetaScreenState extends State<MetaScreen> {
         widget.node,
         NodeMeta(
           title: _title.text,
-          tags: parseTags(_tags.text),
+          tags: _tags.tags,
           aliases: [
             for (final line in _aliases.text.split('\n'))
               if (line.trim().isNotEmpty) line.trim(),
@@ -176,11 +184,10 @@ class _MetaScreenState extends State<MetaScreen> {
             controller: _title,
             decoration: const InputDecoration(labelText: 'Title'),
           ),
-          TextField(
+          TagField(
             key: const ValueKey('meta-tags'),
             controller: _tags,
-            decoration: const InputDecoration(
-                labelText: 'Tags', hintText: 'Separated by spaces'),
+            known: _known,
           ),
           TextField(
             key: const ValueKey('meta-aliases'),

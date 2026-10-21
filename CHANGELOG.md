@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-21: One tag field: chips and the existing tags ([#141](https://github.com/ChristianGeng/roam-graph-mobile/pull/141))
+
+- Changed: in "Title, tags and aliases", "New node" and "Hidden from AI: tags", the chosen tags are chips with an x, and below them the graph's tags, the most used first with their number of notes, can be tapped. Typing filters them; space, comma, colon or Enter adds the typed tag.
+- A tag that does not exist yet shows "New tag: …", so a typo is seen; characters Org does not allow in tags are refused.
+
+Closes #140.
+
 ## 2026-10-21: Add links from the note view and the editor ([#136](https://github.com/ChristianGeng/roam-graph-mobile/pull/136))
 
 - Added: "+" next to "Links" adds a link to another note on this note's "See also:" line; "+" next to "Backlinks" adds a link to this note on the other note's line. The diff comes first, as for every edit.

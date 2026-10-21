@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:material_ui/material_ui.dart';
 
 import '../edit/note_editor.dart';
+import '../edit/tag_field.dart';
+import '../graph/roam_graph.dart';
 import 'new_node.dart';
 import '../edit/unsaved_text.dart';
 
@@ -91,9 +93,13 @@ class CaptureScreen extends StatefulWidget {
     this.initialTitle = '',
     this.initialBody = '',
     this.useForExisting,
+    this.graph,
   });
 
   final NoteWriter writer;
+
+  /// The graph whose tags the tag field offers.
+  final RoamGraph? graph;
 
   /// For shared text (#39): offers to use it for an existing node instead.
   /// The capture closes, then this runs.
@@ -123,6 +129,7 @@ class CaptureScreen extends StatefulWidget {
     String initialTitle = '',
     String initialBody = '',
     Future<void> Function(ShareUse use)? useForExisting,
+    RoamGraph? graph,
   }) =>
       Navigator.push<String>(
         context,
@@ -134,6 +141,7 @@ class CaptureScreen extends StatefulWidget {
             initialTitle: initialTitle,
             initialBody: initialBody,
             useForExisting: useForExisting,
+            graph: graph,
           ),
         ),
       );
@@ -144,7 +152,8 @@ class CaptureScreen extends StatefulWidget {
 
 class _CaptureScreenState extends State<CaptureScreen> {
   late final _title = TextEditingController(text: widget.initialTitle);
-  final _tags = TextEditingController();
+  final _tags = TagFieldController();
+  late final _known = tagCounts(widget.graph);
   late final _body = TextEditingController(text: widget.initialBody);
   bool _saving = false;
   late bool _link = widget.linkByDefault;
@@ -169,7 +178,8 @@ class _CaptureScreenState extends State<CaptureScreen> {
   void _markUnsaved() => UnsavedText.mark(
       this,
       !_written &&
-          [_title, _tags, _body].any((f) => f.text.trim().isNotEmpty));
+          (_tags.tags.isNotEmpty ||
+              [_title, _body].any((f) => f.text.trim().isNotEmpty)));
 
   @override
   void dispose() {
@@ -193,7 +203,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
     final text = nodeFileText(
       id: id,
       title: title,
-      tags: parseTags(_tags.text),
+      tags: _tags.tags,
       body: _body.text,
       linkTo: _link ? widget.linkTo : null,
     );
@@ -292,14 +302,10 @@ class _CaptureScreenState extends State<CaptureScreen> {
               ),
             ),
           const SizedBox(height: 16),
-          TextField(
+          TagField(
             key: const ValueKey('capture-tags'),
             controller: _tags,
-            decoration: const InputDecoration(
-              labelText: 'Tags',
-              hintText: 'Separated by spaces or commas',
-            ),
-            textInputAction: TextInputAction.next,
+            known: _known,
           ),
           if (widget.linkTo case final linkTo?)
             CheckboxListTile(

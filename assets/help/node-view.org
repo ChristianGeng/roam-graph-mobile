@@ -21,6 +21,12 @@ Shows a note as formatted Org: a whole file, or a heading with its subtree.
   list offers a *New note* with it first, as Emacs's org-roam-node-insert
   does; it is made at once and the link goes to it. The change shows
   first, and is saved as every edit.
+- *Title, tags and aliases* in the edit menu changes the note's head. The
+  tags are chips; tap the x to remove one. Below, the tags of the graph,
+  the most used first with their number of notes, can be tapped. Typing
+  filters them; space, comma, colon or Enter adds what is typed, and a tag
+  no note has yet shows as *New tag*. Only letters, digits and ~_@#%~ can
+  be in a tag.
 - *Insert link* in *Edit text* puts a link to a note you choose at the
   cursor; selected text becomes the link's description.
 - Changes made in Emacs show within about 30 seconds while the app is

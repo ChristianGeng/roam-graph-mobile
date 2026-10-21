@@ -6,7 +6,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../capture/new_node.dart';
+import '../edit/tag_field.dart';
+import '../graph/roam_graph.dart';
 import 'ai_chat.dart';
 import 'ai_images.dart';
 import 'ai_models.dart';
@@ -559,14 +560,20 @@ class _Draft {
 /// The AI settings page: the tags that hide notes from AI (#57), and the
 /// provider of the chat with its key and limits (#59).
 class AiSettingsScreen extends StatefulWidget {
-  const AiSettingsScreen({super.key, this.get = getWithDartIo});
+  const AiSettingsScreen({super.key, this.get = getWithDartIo, this.graph});
 
   /// HTTP for the model lists (#75); tests replace it.
   final HttpGet get;
 
-  static Future<void> open(BuildContext context) => Navigator.push(
+  /// The graph whose tags "Hidden from AI" offers; null before a folder is
+  /// read.
+  final RoamGraph? graph;
+
+  static Future<void> open(BuildContext context, {RoamGraph? graph}) =>
+      Navigator.push(
         context,
-        MaterialPageRoute<void>(builder: (_) => const AiSettingsScreen()),
+        MaterialPageRoute<void>(
+            builder: (_) => AiSettingsScreen(graph: graph)),
       );
 
   @override
@@ -576,7 +583,8 @@ class AiSettingsScreen extends StatefulWidget {
 class _AiSettingsScreenState extends State<AiSettingsScreen> {
   /// Filled once the saved settings are loaded, so the fields never show
   /// the defaults over saved values.
-  TextEditingController? _tags;
+  TagFieldController? _tags;
+  late final _known = tagCounts(widget.graph);
   late String _provider;
 
   /// "Images with:"; empty for the chat's provider (#127).
@@ -695,8 +703,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       await _draft(_provider);
       if (_imageProvider.isNotEmpty) await _draft(_imageProvider);
       if (mounted) {
-        setState(() => _tags = TextEditingController(
-            text: settings.hiddenTags.join(' ')));
+        setState(() => _tags = TagFieldController(settings.hiddenTags));
         unawaited(_checkModels(_provider));
       }
     });
@@ -773,7 +780,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       return;
     }
     final settings = AiSettingsScope.of(context).copyWith(
-      hiddenTags: parseTags(tags.text),
+      hiddenTags: tags.tags,
       provider: _provider,
       imageProvider: _imageProvider,
       providers: {
@@ -836,17 +843,14 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                           TextStyle(color: Theme.of(context).colorScheme.error),
                     ),
                   ),
-                TextField(
+                TagField(
                   key: const ValueKey('hidden-tags'),
-                  controller: _tags,
-                  decoration: const InputDecoration(
-                    labelText: 'Hidden from AI: tags',
-                    hintText: 'Separated by spaces or commas',
-                    helperText: 'Notes with one of these tags are never '
-                        'shared with an AI, nor shown to one. Headings with '
-                        'one of them are left out of the notes that are.',
-                    helperMaxLines: 4,
-                  ),
+                  controller: _tags!,
+                  known: _known,
+                  label: 'Hidden from AI: tags',
+                  helperText: 'Notes with one of these tags are never '
+                      'shared with an AI, nor shown to one. Headings with '
+                      'one of them are left out of the notes that are.',
                 ),
                 const SizedBox(height: 24),
                 ..._providerSection(context),

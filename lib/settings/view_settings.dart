@@ -17,6 +17,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../ai/ai_settings.dart';
 import '../graph/graph_layout.dart';
+import '../graph/roam_graph.dart';
 import '../platform/desktop.dart';
 
 /// How far a note's sections are open when the note opens: the values
@@ -454,11 +455,15 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
 /// The settings page: for now, how far sections are open when a note
 /// opens.
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.graph});
 
-  static Future<void> open(BuildContext context) => Navigator.push(
+  /// The graph, for the tags the AI settings offer.
+  final RoamGraph? graph;
+
+  static Future<void> open(BuildContext context, {RoamGraph? graph}) =>
+      Navigator.push(
         context,
-        MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+        MaterialPageRoute<void>(builder: (_) => SettingsScreen(graph: graph)),
       );
 
   Future<void> _choose(BuildContext context, SectionsOnOpen? value) async {
@@ -665,7 +670,7 @@ class SettingsScreen extends StatelessWidget {
             subtitle: const Text('Notes hidden from AI, and the provider, '
                 'model and key of the AI chat'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => AiSettingsScreen.open(context),
+            onTap: () => AiSettingsScreen.open(context, graph: graph),
           ),
           const Divider(),
           if (isDesktop) ...[

@@ -285,6 +285,7 @@ class _FolderScreenState extends State<FolderScreen>
     final id = await CaptureScreen.open(
       context,
       _writer,
+      graph: notifier.value,
       initialTitle: proposal.title,
       initialBody: proposal.body,
       // Offered, not on: a shared text is often about something else.
@@ -712,7 +713,8 @@ class _FolderScreenState extends State<FolderScreen>
           IconButton(
             tooltip: 'AI settings',
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => AiSettingsScreen.open(context),
+            onPressed: () =>
+                AiSettingsScreen.open(context, graph: _graph?.value),
           ),
         ],
       ),
