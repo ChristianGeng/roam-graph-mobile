@@ -28,7 +28,7 @@ void main() {
       // Moved since: the only link is still found; of two, none.
       expect(withoutIdLink('x [[id:b]]\n', 'b', pos: 1), 'x b\n');
       expect(() => withoutIdLink(text, 'b', pos: 5),
-          throwsA(isA<UnlinkError>()));
+          throwsA(isA<NoteChangeError>()));
     });
 
     test('an angle or plain link becomes its target', () {
@@ -43,14 +43,14 @@ void main() {
       expect(withoutIdLink(text, 'b', pos: 22), '[[id:b][one]] <id:b> b\n');
       // Inside a word it is no link, as for org-roam.
       expect(() => withoutIdLink('xid:b\n', 'b', line: 1),
-          throwsA(isA<UnlinkError>()));
+          throwsA(isA<NoteChangeError>()));
     });
 
     test('a link no longer there is an error', () {
       expect(() => withoutIdLink('[[id:c]]\n', 'b', line: 1),
-          throwsA(isA<UnlinkError>()));
+          throwsA(isA<NoteChangeError>()));
       expect(() => withoutIdLink('x\n[[id:b]]\n', 'b', line: 1),
-          throwsA(isA<UnlinkError>()));
+          throwsA(isA<NoteChangeError>()));
     });
   });
 
@@ -78,9 +78,9 @@ void main() {
 
     test('a link twice, or not at all, is an error', () {
       expect(() => withoutImageLink('[[file:p.png]]\n[[file:p.png]]\n',
-          'file:p.png'), throwsA(isA<UnlinkError>()));
+          'file:p.png'), throwsA(isA<NoteChangeError>()));
       expect(() => withoutImageLink('text\n', 'file:p.png'),
-          throwsA(isA<UnlinkError>()));
+          throwsA(isA<NoteChangeError>()));
     });
   });
 }

@@ -6,9 +6,10 @@
 /// Pure Dart (no Flutter).
 library;
 
-/// Why a link could not be removed: the text is not as the app read it.
-class UnlinkError implements Exception {
-  const UnlinkError(this.message);
+/// Why a note could not be changed: the text is not as the app read it, or
+/// the change is there already.
+class NoteChangeError implements Exception {
+  const NoteChangeError(this.message);
 
   final String message;
 
@@ -75,7 +76,7 @@ List<_FoundLink> _idLinks(String text) {
 /// [pos], org-roam's position (characters from 1); [line] (from 1), when
 /// known, narrows the search. Links read back from the index have no
 /// line, only the position. Without a link at [pos], the only link to
-/// [dest] there, or the first on [line]. Throws [UnlinkError] if none is
+/// [dest] there, or the first on [line]. Throws [NoteChangeError] if none is
 /// found.
 String withoutIdLink(String text, String dest, {int line = 0, int pos = 0}) {
   final found = [
@@ -94,7 +95,7 @@ String withoutIdLink(String text, String dest, {int line = 0, int pos = 0}) {
       ? found.first
       : null;
   if (hit == null) {
-    throw const UnlinkError('The link is no longer there; the file changed '
+    throw const NoteChangeError('The link is no longer there; the file changed '
         'since the app read it.');
   }
   return text.replaceRange(hit.start, hit.end, hit.text);
@@ -107,18 +108,18 @@ final _imageLine = RegExp(
 /// [text] without the image link `[[location]]`. When the link is alone on
 /// its line, the line goes, with the lines right above it that belong to
 /// the image: `#+caption:`, `#+name:`, `#+attr_...:` and
-/// `# image prompt:`. Throws [UnlinkError] if the link is not in [text]
+/// `# image prompt:`. Throws [NoteChangeError] if the link is not in [text]
 /// exactly once.
 String withoutImageLink(String text, String location) {
   final link = RegExp(
       '\\[\\[${RegExp.escape(location)}\\](?:\\[[^\\]]*\\])?\\]');
   final found = link.allMatches(text).toList();
   if (found.isEmpty) {
-    throw const UnlinkError('The image link is no longer there; the file '
+    throw const NoteChangeError('The image link is no longer there; the file '
         'changed since the app read it.');
   }
   if (found.length > 1) {
-    throw UnlinkError('The note links to this image ${found.length} times; '
+    throw NoteChangeError('The note links to this image ${found.length} times; '
         'remove the one you mean with "Edit text".');
   }
   final hit = found.single;
