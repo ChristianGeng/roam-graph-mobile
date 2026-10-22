@@ -50,6 +50,7 @@ Future<MemoryNodeMemory> show(
   String? remembered,
   Size screen = phoneScreen,
   AlgorithmsFunction? computeAlgorithms,
+  LayoutFunction? computeLayout,
 }) async {
   // The default test screen, 800 x 600, is a tablet in landscape (#16).
   tester.view
@@ -70,7 +71,7 @@ Future<MemoryNodeMemory> show(
       // Every note has the text "Text of <id>."
       readNote: (path) async => 'Text of ${path.replaceAll('.org', '')}.',
       nodeMemory: memory,
-      computeLayout: layoutHere,
+      computeLayout: computeLayout ?? layoutHere,
       computeAlgorithms: computeAlgorithms ?? algorithmsHere,
     ),
   ));
@@ -225,22 +226,60 @@ void main() {
   });
 
   testWidgets('both layouts, each centred on the node', (tester) async {
-    await show(tester, remembered: 'b');
-    await tester.tap(find.byTooltip('View'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Force-directed'));
-    await tester.pumpAndSettle();
+    final kinds = <LayoutKind>[];
+    // Large enough for every node; upright, so one screen at a time.
+    await show(tester, remembered: 'b', screen: const Size(1200, 1600),
+        computeLayout: (graph, kind) {
+      kinds.add(kind);
+      return layoutHere(graph, kind);
+    });
+    expect(kinds, [LayoutKind.circo]);
+
+    // Where hub is in each layout, seen from b in the middle.
+    final whole = DrawnGraph.of(graph, const WholeGraph());
+    Offset hubFromB(LayoutKind kind) {
+      final layout = layoutGraph(whole, kind);
+      final b = layout.positions['b']!, hub = layout.positions['hub']!;
+      return Offset(hub.x - b.x, hub.y - b.y);
+    }
+
+    final circo = hubFromB(LayoutKind.circo),
+        force = hubFromB(LayoutKind.force);
+    // Far enough apart that a tap at one cannot reach hub in the other.
+    expect((circo - force).distance, greaterThan(3 * tapReach(1)));
+
+    Future<void> tapHub(Offset at) async {
+      await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)) + at);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> choose(String label) async {
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    await choose('Force-directed');
+    // A new drawing, not only a new check mark.
+    expect(kinds, [LayoutKind.circo, LayoutKind.force]);
     await tapMiddle(tester);
     expect(nodeTitle('B'), findsOneWidget);
-
     await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('View'));
+    await tapHub(force);
+    expect(nodeTitle('HUB'), findsOneWidget);
+    await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Circular (circo)'));
-    await tester.pumpAndSettle();
+
+    await choose('Circular (circo)');
+    // The circular layout is drawn again (from the layouts kept).
     await tapMiddle(tester);
     expect(nodeTitle('B'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tapHub(circo);
+    expect(nodeTitle('HUB'), findsOneWidget);
   });
 
   group('the View menu: layouts and views (#143)', () {
