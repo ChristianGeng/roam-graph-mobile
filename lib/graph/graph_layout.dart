@@ -1,5 +1,6 @@
 /// Node positions for the graph view (#6): a circular layout after
-/// Graphviz's `circo`, and a force-directed one.
+/// Graphviz's `circo`, a force-directed one, and a radial one around the
+/// centred node (#153).
 ///
 /// Pure Dart (no Flutter), so it runs on another isolate and in tests.
 library;
@@ -15,7 +16,11 @@ enum LayoutKind {
   circo('Circular (circo)'),
 
   /// Fruchterman and Reingold's spring model.
-  force('Force-directed');
+  force('Force-directed'),
+
+  /// The centred node in the middle, the others on rings by their
+  /// distance in links (#153).
+  radial('Radial');
 
   const LayoutKind(this.label);
 
@@ -41,10 +46,15 @@ class GraphLayout {
 
 /// Lays out [graph] with [kind]. Takes about a second for 500 nodes and
 /// 2500 edges with [LayoutKind.force], so run it off the UI isolate.
-GraphLayout layoutGraph(DrawnGraph graph, LayoutKind kind) {
+///
+/// [centre] is the node in the middle of [LayoutKind.radial]; the other
+/// layouts do not use it. Without it, or when it is not in [graph], the
+/// node with the most links is the centre.
+GraphLayout layoutGraph(DrawnGraph graph, LayoutKind kind, {String? centre}) {
   final positions = switch (kind) {
     LayoutKind.circo => _circo(graph),
     LayoutKind.force => _force(graph),
+    LayoutKind.radial => _radial(graph, centre),
   };
   return _normalized(positions);
 }
@@ -286,6 +296,149 @@ Rectangle<double> _bounds(Iterable<Point<double>> points) {
   }
   if (left > right) return const Rectangle(0, 0, 0, 0);
   return Rectangle(left, top, right - left, bottom - top);
+}
+
+/// The centre of [LayoutKind.radial]: [centre] if it is in [graph], else
+/// the node with the most links (the first of them in node order); null
+/// for an empty graph.
+String? radialCentre(DrawnGraph graph, String? centre) {
+  if (centre != null && graph.neighbours.containsKey(centre)) return centre;
+  String? best;
+  var most = -1;
+  for (final node in graph.nodes) {
+    final links = graph.neighbours[node.id]!.length;
+    if (links > most) {
+      most = links;
+      best = node.id;
+    }
+  }
+  return best;
+}
+
+/// The radial layout (#153): the centre's connected part on rings around
+/// it, the other parts packed beside it.
+Map<String, Point<double>> _radial(DrawnGraph graph, String? centre) {
+  final root = radialCentre(graph, centre);
+  if (root == null) return {};
+  final parts = connectedParts(graph);
+  final rootPart = parts.firstWhere((part) => part.contains(root));
+  final ordered = [
+    rootPart,
+    for (final part in parts)
+      if (!identical(part, rootPart)) part,
+  ];
+  final placed = <List<Point<double>>>[];
+  for (final part in ordered) {
+    // A part beside the centre's part has its own most linked node in the
+    // middle.
+    final middle =
+        identical(part, rootPart) ? root : _mostLinkedOf(part, graph);
+    final positions = radialPart(middle, graph.neighbours);
+    placed.add([for (final id in part) positions[id]!]);
+  }
+  final shifted = _pack(placed);
+  return {
+    for (var i = 0; i < ordered.length; i++)
+      for (var j = 0; j < ordered[i].length; j++)
+        ordered[i][j]: shifted[i][j],
+  };
+}
+
+String _mostLinkedOf(List<String> part, DrawnGraph graph) {
+  var best = part.first;
+  for (final id in part) {
+    if (graph.neighbours[id]!.length > graph.neighbours[best]!.length) {
+      best = id;
+    }
+  }
+  return best;
+}
+
+/// A radial tree layout of the connected part of [root]: [root] at the
+/// origin, the nodes [d] links away on ring [d]. The rings come from a
+/// breadth-first search over [neighbours]; each node's parent is the node
+/// it was reached from. Every subtree gets a wedge in proportion to its
+/// number of leaves, and each node sits in the middle of its wedge, so a
+/// node is near its parent and siblings stay together.
+///
+/// Each ring's radius is a multiple of [nodeSpacing], at least
+/// [nodeSpacing] more than the ring inside it, and large enough that the
+/// nodes on it are [nodeSpacing] apart.
+Map<String, Point<double>> radialPart(
+  String root,
+  Map<String, Set<String>> neighbours,
+) {
+  final depth = <String, int>{root: 0};
+  final children = <String, List<String>>{};
+  final order = <String>[root];
+  final queue = Queue.of([root]);
+  while (queue.isNotEmpty) {
+    final id = queue.removeFirst();
+    final mine = children[id] = [];
+    for (final next in neighbours[id]!) {
+      if (depth.containsKey(next)) continue;
+      depth[next] = depth[id]! + 1;
+      mine.add(next);
+      order.add(next);
+      queue.add(next);
+    }
+  }
+  // Leaves per subtree, from the outermost ring in.
+  final leaves = <String, int>{};
+  for (final id in order.reversed) {
+    final mine = children[id]!;
+    leaves[id] = mine.isEmpty ? 1 : mine.fold(0, (sum, c) => sum + leaves[c]!);
+  }
+  // Each node's angle: the middle of its wedge.
+  final perLeaf = 2 * pi / leaves[root]!;
+  final angle = <String, double>{root: 0};
+  final wedgeStart = <String, double>{root: 0};
+  for (final id in order) {
+    final mine = children[id]!;
+    if (mine.isEmpty) continue;
+    var start = wedgeStart[id]!;
+    for (final child in mine) {
+      final width = perLeaf * leaves[child]!;
+      wedgeStart[child] = start;
+      angle[child] = start + width / 2;
+      start += width;
+    }
+  }
+  // The rings.
+  final rings = <List<String>>[];
+  for (final id in order.skip(1)) {
+    final d = depth[id]!;
+    while (rings.length < d) {
+      rings.add([]);
+    }
+    rings[d - 1].add(id);
+  }
+  final radius = <double>[0];
+  for (final ring in rings) {
+    var needed = radius.last + nodeSpacing;
+    if (ring.length > 1) {
+      final angles = [for (final id in ring) angle[id]!]..sort();
+      var gap = 2 * pi - (angles.last - angles.first);
+      for (var i = 1; i < angles.length; i++) {
+        gap = min(gap, angles[i] - angles[i - 1]);
+      }
+      // Two nodes [gap] apart on a circle of radius r are
+      // 2 r sin(gap / 2) apart.
+      if (gap < pi) needed = max(needed, nodeSpacing / (2 * sin(gap / 2)));
+    }
+    // A little below a multiple stays that multiple; rounding errors must
+    // not add a ring's width.
+    radius.add((needed / nodeSpacing - 1e-9).ceil() * nodeSpacing);
+  }
+  return {
+    for (final id in order)
+      id: id == root
+          ? const Point(0.0, 0.0)
+          : Point(
+              radius[depth[id]!] * cos(angle[id]!),
+              radius[depth[id]!] * sin(angle[id]!),
+            ),
+  };
 }
 
 /// Fruchterman and Reingold's layout: linked nodes pull each other

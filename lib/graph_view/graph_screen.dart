@@ -19,12 +19,14 @@ import 'node_memory.dart';
 import 'two_panes.dart';
 import '../node_view/note_images.dart';
 
-/// Computes a layout; by default on another isolate.
+/// Computes a layout; by default on another isolate. [centre] is the node
+/// in the middle of the radial layout (#153), null for the other layouts.
 typedef LayoutFunction = Future<GraphLayout> Function(
-    DrawnGraph graph, LayoutKind kind);
+    DrawnGraph graph, LayoutKind kind, String? centre);
 
-Future<GraphLayout> layoutOnIsolate(DrawnGraph graph, LayoutKind kind) =>
-    Isolate.run(() => layoutGraph(graph, kind));
+Future<GraphLayout> layoutOnIsolate(
+        DrawnGraph graph, LayoutKind kind, String? centre) =>
+    Isolate.run(() => layoutGraph(graph, kind, centre: centre));
 
 /// Computes the graph views' results (#7); by default on another isolate,
 /// so Louvain on a large graph does not stop the screen.
@@ -230,8 +232,13 @@ class _GraphScreenState extends State<GraphScreen> {
   _ViewOverlay? _overlayCache;
   Object? _overlayKey;
 
-  /// Layouts computed so far, so switching back is immediate.
-  final _layouts = <(GraphScope, LayoutKind), GraphLayout>{};
+  /// Layouts computed so far, so switching back is immediate. Of the
+  /// radial layouts only the latest is kept, with its centre (#153).
+  final _layouts = <(GraphScope, LayoutKind, String?), GraphLayout>{};
+
+  /// The node in the middle of the radial layout shown, or that is being
+  /// computed; null for the other layouts.
+  String? _layoutCentre;
 
   /// Counts layout requests; only the latest may be shown.
   int _generation = 0;
@@ -328,17 +335,24 @@ class _GraphScreenState extends State<GraphScreen> {
     final generation = ++_generation;
     final scope = _choice.scope(centre);
     final drawn = DrawnGraph.of(_graph, scope);
+    final layoutCentre = _kind == LayoutKind.radial ? centre : null;
     setState(() {
       _scopeCentre = centre;
+      _layoutCentre = layoutCentre;
       _drawn = drawn;
       _drawing?.dispose();
       _layout = null;
       _drawing = null;
     });
-    final key = (scope, _kind);
-    final layout =
-        _layouts[key] ?? await widget.computeLayout(drawn, _kind);
+    final key = (scope, _kind, layoutCentre);
+    final layout = _layouts[key] ??
+        await widget.computeLayout(drawn, _kind, layoutCentre);
     if (!mounted || generation != _generation) return;
+    // One radial layout is kept, the latest: one for every centre would
+    // grow with each "Centre" on a large graph.
+    if (layoutCentre != null) {
+      _layouts.removeWhere((k, _) => k.$3 != null && k != key);
+    }
     _layouts[key] = layout;
     setState(() {
       _layout = layout;
@@ -346,6 +360,16 @@ class _GraphScreenState extends State<GraphScreen> {
       _drawing = _Drawing(drawn, layout);
     });
     _centreView();
+  }
+
+  /// "Centre": the selected node to the middle. The radial layout is drawn
+  /// again around it (#153); the other layouts only move the view.
+  void _centreOnSelected() {
+    if (_kind == LayoutKind.radial && _layoutCentre != _centre) {
+      _update();
+    } else {
+      _centreView();
+    }
   }
 
   /// Moves the view so that the centre node is in the middle. The whole
@@ -573,7 +597,7 @@ class _GraphScreenState extends State<GraphScreen> {
           .catchError((Object _) {});
     }
     if (_choice == _ScopeChoice.whole) {
-      _centreView();
+      _centreOnSelected();
     } else {
       _update();
     }
@@ -599,7 +623,7 @@ class _GraphScreenState extends State<GraphScreen> {
   void _more(_MoreAction action) {
     switch (action) {
       case _MoreAction.centre:
-        _centreView();
+        _centreOnSelected();
       case _MoreAction.askAi:
         ChatScreen.open(
           context,

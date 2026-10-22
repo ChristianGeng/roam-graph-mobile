@@ -1,10 +1,10 @@
 :PROPERTIES:
 :ID:       roam-graph-help-layouts
 :END:
-#+title: Layouts: circular and force-directed
+#+title: Layouts: circular, force-directed and radial
 #+STARTUP: showall
 
-A layout decides where the dots go. The links are the same in both; only
+A layout decides where the dots go. The links are the same in all; only
 the picture changes. Switch in the graph's "View" menu (the chart icon),
 under "Layout".
 
@@ -20,15 +20,29 @@ Linked notes pull together; unlinked ones drift away. Clusters of notes on
 one topic show as clumps, and notes that join two topics sit between them.
 It is good for seeing the shape of the graph: topics, bridges and loners.
 
+* Radial
+Puts the selected note in the middle, and the other notes on rings around
+it: one link away on the first ring, two links away on the second, and so
+on, links taken in both directions. A note sits near the note it is
+reached from on the ring inside, and the notes reached from one note stay
+together, so few links cross. Notes that cannot be reached from the
+middle are drawn beside the rings.
+
+To put another note in the middle, tap it, come back to the graph, and
+choose "Centre" in the "More" menu: the rings are drawn again around it.
+"Show in graph" from a note does the same. It is good for looking at one
+note and its neighbourhood: how far away the other notes are.
+
 * Which one
 - To find a note, or to compare with ~org-roam-graph~ on the laptop:
   circular.
 - To see topics and how they connect: force-directed, together with the
   [[id:roam-graph-help-views][Communities]] view.
+- To see what is near one note: radial.
 
 * At start
 The graph opens with the force-directed layout. Settings, "Graph layout
-at start", can choose circular instead, or the layout chosen last in the
-"View" menu ([[id:roam-graph-help-settings][Settings]]).
+at start", can choose circular or radial instead, or the layout chosen
+last in the "View" menu ([[id:roam-graph-help-settings][Settings]]).
 
 Back to [[id:roam-graph-help-graph-view][the graph view]].

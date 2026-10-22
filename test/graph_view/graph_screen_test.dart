@@ -34,8 +34,9 @@ Future<AlgorithmResults> algorithmsHere(AlgorithmGraph graph) async =>
     computeAlgorithmResults(graph);
 
 /// The layout on this isolate: tests cannot wait for another one.
-Future<GraphLayout> layoutHere(DrawnGraph graph, LayoutKind kind) async =>
-    layoutGraph(graph, kind);
+Future<GraphLayout> layoutHere(
+        DrawnGraph graph, LayoutKind kind, String? centre) async =>
+    layoutGraph(graph, kind, centre: centre);
 
 /// hub links to six nodes; c links to d; lonely has no links.
 final graph = graphOf(
@@ -229,9 +230,9 @@ void main() {
     final kinds = <LayoutKind>[];
     // Large enough for every node; upright, so one screen at a time.
     await show(tester, remembered: 'b', screen: const Size(1200, 1600),
-        computeLayout: (graph, kind) {
+        computeLayout: (graph, kind, centre) {
       kinds.add(kind);
-      return layoutHere(graph, kind);
+      return layoutHere(graph, kind, centre);
     });
     expect(kinds, [LayoutKind.circo]);
 
@@ -303,6 +304,7 @@ void main() {
       expect(checks(tester), {
         'Circular (circo)': true,
         'Force-directed': false,
+        'Radial': false,
         'Plain': true,
         'Communities': false,
         'Importance: PageRank': false,
@@ -349,6 +351,56 @@ void main() {
       }
       expect(find.text('About the layouts'), findsNothing);
     });
+  });
+
+  testWidgets('radial: drawn again around the node "Centre" moves to (#153)',
+      (tester) async {
+    final calls = <(LayoutKind, String?)>[];
+    // Upright, so one screen at a time, and large enough for every node.
+    await show(tester, remembered: 'b', screen: const Size(1200, 1600),
+        computeLayout: (graph, kind, centre) {
+      calls.add((kind, centre));
+      return layoutHere(graph, kind, centre);
+    });
+    await tester.tap(find.byTooltip('View'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Radial'));
+    await tester.pumpAndSettle();
+    expect(calls, [(LayoutKind.circo, null), (LayoutKind.radial, 'b')]);
+    await tapMiddle(tester);
+    expect(nodeTitle('B'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // Opening hub selects it; the drawing stays around b...
+    final radial = layoutGraph(DrawnGraph.of(graph, const WholeGraph()),
+        LayoutKind.radial, centre: 'b');
+    final b = radial.positions['b']!, hub = radial.positions['hub']!;
+    await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)) +
+        Offset(hub.x - b.x, hub.y - b.y));
+    await tester.pumpAndSettle();
+    expect(nodeTitle('HUB'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(calls, hasLength(2));
+
+    // ...until "Centre" draws it again around hub, in the middle.
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Centre'));
+    await tester.pumpAndSettle();
+    expect(calls.last, (LayoutKind.radial, 'hub'));
+    await tapMiddle(tester);
+    expect(nodeTitle('HUB'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    // "Centre" again on the same node only moves the view.
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Centre'));
+    await tester.pumpAndSettle();
+    expect(calls, hasLength(3));
   });
 
   testWidgets('"Centre" returns to the centre node after panning',

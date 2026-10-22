@@ -2421,6 +2421,47 @@ devices through Syncthing.
       a diff and undone, a state chosen by long press and by slide, a
       file changed meanwhile, and a read-only folder.
 
+87. **A radial layout around the centred note** (#153),
+    `lib/graph/graph_layout.dart`. For looking at one note and its
+    neighbourhood: how many links away the other notes are.
+    - **`LayoutKind.radial` ("Radial"):** the centred note (the graph
+      screen's `_centre`) at the origin; the nodes one link away on the
+      first ring, two links away on the second, and so on. The rings come
+      from a breadth-first search over the links in both directions, as
+      the graph is drawn; each node's parent is the node it was first
+      reached from.
+    - **Wedges by leaves:** the usual radial tree layout. Each subtree gets
+      a wedge of the circle in proportion to its number of leaves, and its
+      root sits in the middle of the wedge, so a node is near its parent
+      and siblings stay together; links between rings cross little.
+    - **Ring radii:** each ring is a multiple of `nodeSpacing`, at least
+      one `nodeSpacing` outside the ring inside it, and large enough that
+      the two closest nodes on it are `nodeSpacing` apart. With many
+      leaves next to each other the rings get wide; that is the price of
+      keeping subtrees together, and a part of the graph ("Show") keeps
+      it small.
+    - **Other parts:** the parts not connected to the centre are each laid
+      out the same way around their own most linked node and packed beside
+      it with `_pack`, the centre's part first.
+    - **No centre:** the node with the most links (the first in node
+      order), as the graph screen picks when nothing is selected.
+    - **Drawn again on "Centre":** `layoutGraph` and the `LayoutFunction`
+      get the centre (null for the other layouts). A tap only selects a
+      node; "Centre" in the More menu, and "Show in graph" from a note,
+      draw the radial layout again around the selected node when it is not
+      the middle already. The layouts kept for switching back hold only the
+      latest radial layout, with its centre, so many "Centre"s on a large
+      graph do not fill the memory. The other layouts stay as they are.
+    - **Everywhere the other layouts are:** computed on the isolate, in the
+      View menu, in "Graph layout at start" (Settings) and in "Last used"
+      (#71, #81); "About the layouts" explains it.
+    - Tests (synthetic graphs only): the centre at the origin; every node at
+      distance d on ring d; ring radii multiples of `nodeSpacing`; nodes of
+      a ring at least `nodeSpacing` apart; children in their parent's
+      wedge; parts not connected beside the rings; no centre: the most
+      linked node; a graph of one node; a long chain; in the app, "Centre"
+      drawing it again, and the start setting.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
