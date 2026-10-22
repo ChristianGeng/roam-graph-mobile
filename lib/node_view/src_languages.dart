@@ -1,6 +1,8 @@
 import 'package:highlighting/languages/all.dart';
 import 'package:org_flutter/org_flutter.dart';
 
+import 'sclang_language.dart';
+
 /// Org's `org-src-lang-modes` in Org 9.7.39: the Emacs mode of a source
 /// block's language, without `-mode`. A language not listed here uses the
 /// mode of its own name, as `org-src-get-lang-mode` does: `python` is
@@ -39,7 +41,11 @@ const _highlightOfMode = {
 ///
 /// Names are compared as written, as Emacs does: `Python` would need a
 /// `Python-mode`, which Emacs does not have, so it stays plain.
+///
+/// The app's own grammars ([registerSclang]: `sclang`, #147) are
+/// registered here too, so they are there whatever calls this first.
 String? highlightLanguage(String? language) {
+  registerSclang();
   if (language == null || language.isEmpty) return null;
   final mode = orgSrcLangModes[language] ?? language;
   final id = _highlightOfMode[mode] ?? mode;

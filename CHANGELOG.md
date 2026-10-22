@@ -15,6 +15,12 @@ each entry.
 
 Closes #143.
 
+## 2026-10-22: SuperCollider source blocks in colour ([#148](https://github.com/ChristianGeng/roam-graph-mobile/pull/148))
+
+- Added: `#+begin_src sclang` blocks are coloured, as `sclang-mode` colours them in Emacs: classes, symbols, `~` variables, keywords, numbers, strings, characters and comments (also nested `/* */`).
+
+Closes #147.
+
 ## 2026-10-22: "Save as new node" in the chat: the AI makes the note ([#146](https://github.com/ChristianGeng/roam-graph-mobile/pull/146))
 
 - Changed: "Save as new node" under a chat answer lets the AI make the note: a short, fitting title in the language of the answer, Org text without chat phrases, and links to the notes it used and to the note the chat was opened from.

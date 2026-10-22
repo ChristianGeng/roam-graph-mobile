@@ -688,6 +688,8 @@ devices through Syncthing.
       is shown as written.
     - The colours follow the app's light or dark mode, through
       `material_ui`'s theme (decision 25).
+    - `sclang` (SuperCollider) has no grammar in highlight.js's core; the
+      app brings its own (decision 84).
 
 38. **Images from the notes folder are shown as Org shows them** (#46),
     `lib/node_view/note_images.dart`. `org_flutter` decides which links
@@ -2280,7 +2282,45 @@ devices through Syncthing.
       note is being prepared, an undo runs, or a failed turn waits for
       "Send again"; "New chat", Send and "Send again" wait for the extra
       request.
-84. **The layouts are in the View menu, next to the views** (#143),
+84. **SuperCollider blocks are coloured with the app's own grammar**
+    (#147), `lib/node_view/sclang_language.dart`. `#+begin_src sclang`
+    blocks were plain (decision 37): highlight.js's core has no
+    SuperCollider grammar. Emacs colours them with `sclang-mode`.
+    - **No change to other packages.** `highlighting` lets an app register
+      a language at run time (`highlight.registerLanguage(..., id:)` on the
+      global `highlight`), and `allLanguages` is a mutable map; org_flutter
+      checks `allLanguages` and colours through that global `highlight`.
+      `registerSclang()` does both, once: in `main()`, and in
+      `highlightLanguage()`, so tests and every other caller find it too.
+      Calling it again does nothing.
+    - **The grammar** follows `highlightjs-supercollider` by Brian Heim
+      (MIT licence, named in the code), changed to colour what
+      `sclang-mode` (scel, `sclang-mode.el`) colours, with its faces:
+      `var arg classvar const this super thisProcess thisFunction
+      thisFunctionDef thisMethod thisThread` are keywords
+      (`sclang-font-lock-keyword-list`, `keyword`); `nil true false inf`
+      are builtins (`sclang-font-lock-builtin-list`, `built_in`); symbols
+      (`\freq`, `'name'`) and characters (`$a`) are constants (`symbol`);
+      environment variables (`~bus`) are `variable`; classes (`SinOsc`) are
+      `type`; strings with escapes and `//` and nested `/* */` comments as
+      usual. Words that are not in these lists stay plain.
+    - **More than `sclang-mode`'s default level, as #147 asks.**
+      `sclang-mode` colours environment variables only from font-lock
+      level 2, classes from level 3 (and only the classes the running
+      interpreter knows), and numbers not at all (only `2pi`). The app
+      colours all of them, numbers too (`440`, `0.5`, `1e3`, `2pi`,
+      `0x1F`, `16rFF`, scale degrees `2s`), as the issue asks; every word
+      that starts with a capital letter counts as a class, since the app
+      has no interpreter to ask.
+    - **Classes use `type`, not `title.class`.** org_flutter's light and
+      dark themes have no colour for `title.class`; `type` is
+      `font-lock-type-face`, which `sclang-mode` uses for classes.
+    - In `-12` only `12` is a number: the minus sign may be a subtraction.
+    - **Only `sclang`.** `supercollider` and `sc` are not Emacs mode
+      names, and names are compared as Emacs does (decision 37), so they
+      stay plain. The grammar is never guessed for other text
+      (`disableAutodetect`).
+85. **The layouts are in the View menu, next to the views** (#143),
     `lib/graph_view/graph_screen.dart`. The layout (Circular,
     Force-directed) was switched in the "More" menu, what the graph shows
     (Plain, Communities, PageRank, ...) in the "View" menu; two menus for
