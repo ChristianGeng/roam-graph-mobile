@@ -30,7 +30,8 @@ The "Show" menu (the hub icon) chooses which part of the graph is drawn:
 * View
 The "View" menu (the chart icon) holds everything that changes how the
 graph looks, in two groups; a check mark shows the current choice.
-- *Layout*: *Circular*, *Force-directed* or *Radial*, where the dots go; see
+- *Layout*: *Circular*, *Force-directed*, *Radial* or *Grouped by
+  communities*, where the dots go; see
   [[id:roam-graph-help-layouts][Layouts]].
 - *View*: colours or sizes the nodes by a graph algorithm; see
   [[id:roam-graph-help-views][Graph views]].

@@ -231,6 +231,100 @@ void main() {
     });
   });
 
+  group('grouped by communities (#154)', () {
+    /// Two groups of four that all link to each other, joined by a1 to b1,
+    /// and z without links.
+    final ids = ['a1', 'a2', 'a3', 'a4', 'b1', 'b2', 'b3', 'b4', 'z'];
+    final links = [
+      for (final g in ['a', 'b'])
+        for (var i = 1; i <= 4; i++)
+          for (var j = i + 1; j <= 4; j++) '$g$i>$g$j',
+      'a1>b1',
+    ];
+    final drawn = whole(ids, links);
+    final communities = {
+      for (final id in ids) id: id.startsWith('a') ? 0 : (id == 'z' ? 2 : 1),
+    };
+
+    Rectangle<double> boxOf(GraphLayout layout, Iterable<String> group) {
+      final points = [for (final id in group) layout.positions[id]!];
+      return Rectangle.fromPoints(
+        Point(points.map((p) => p.x).reduce(min),
+            points.map((p) => p.y).reduce(min)),
+        Point(points.map((p) => p.x).reduce(max),
+            points.map((p) => p.y).reduce(max)),
+      );
+    }
+
+    test('groups: large communities first, the small ones together last', () {
+      expect(communityGroups(drawn, communities), [
+        ['a1', 'a2', 'a3', 'a4'],
+        ['b1', 'b2', 'b3', 'b4'],
+        ['z'],
+      ]);
+      // Two communities of two and one of one share an area; a node
+      // without a community goes there too.
+      final small = {
+        'a1': 0, 'a2': 0, 'a3': 0, 'a4': 0, //
+        'b1': 1, 'b2': 1, 'b3': 2, 'b4': 2,
+      };
+      expect(communityGroups(drawn, small), [
+        ['a1', 'a2', 'a3', 'a4'],
+        ['b1', 'b2', 'b3', 'b4', 'z'],
+      ]);
+    });
+
+    test('each community in its own area; the areas do not overlap', () {
+      final layout =
+          layoutGraph(drawn, LayoutKind.communities, communities: communities);
+      expectInside(drawn, layout);
+      final a = boxOf(layout, ['a1', 'a2', 'a3', 'a4']);
+      final b = boxOf(layout, ['b1', 'b2', 'b3', 'b4']);
+      final z = boxOf(layout, ['z']);
+      expect(a.intersects(b), isFalse);
+      expect(a.intersects(z), isFalse);
+      expect(b.intersects(z), isFalse);
+      expect(closest(layout), greaterThan(10));
+    });
+
+    test('the same graph gives the same layout', () {
+      final first =
+          layoutGraph(drawn, LayoutKind.communities, communities: communities);
+      final again =
+          layoutGraph(drawn, LayoutKind.communities, communities: communities);
+      expect(again.positions, first.positions);
+    });
+
+    test('one community: the force-directed layout of it', () {
+      final one = {for (final id in ids) id: 0};
+      final grouped =
+          layoutGraph(drawn, LayoutKind.communities, communities: one);
+      final force = layoutGraph(drawn, LayoutKind.force);
+      for (final id in ids) {
+        expect(grouped.positions[id]!.x,
+            closeTo(force.positions[id]!.x, 1e-6), reason: id);
+        expect(grouped.positions[id]!.y,
+            closeTo(force.positions[id]!.y, 1e-6), reason: id);
+      }
+    });
+
+    test('isolated nodes are placed, also without communities given', () {
+      final lonely = whole(['x', 'y', 'z'], []);
+      final layout = layoutGraph(lonely, LayoutKind.communities);
+      expectInside(lonely, layout);
+      expect(closest(layout), greaterThan(10));
+    });
+
+    test('without communities given, Louvain on the drawn graph', () {
+      final groups = communityGroups(drawn, drawnCommunities(drawn));
+      expect(groups.take(2).map((g) => g.toSet()).toSet(), {
+        {'a1', 'a2', 'a3', 'a4'},
+        {'b1', 'b2', 'b3', 'b4'},
+      });
+      expect(groups.last, ['z']);
+    });
+  });
+
   for (final kind in LayoutKind.values) {
     group(kind.name, () {
       test('every node of the sample files has its own place', () {

@@ -1,6 +1,6 @@
 /// Node positions for the graph view (#6): a circular layout after
-/// Graphviz's `circo`, a force-directed one, and a radial one around the
-/// centred node (#153).
+/// Graphviz's `circo`, a force-directed one, a radial one around the
+/// centred node (#153), and one grouped by communities (#154).
 ///
 /// Pure Dart (no Flutter), so it runs on another isolate and in tests.
 library;
@@ -9,6 +9,7 @@ import 'dart:collection';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'graph_algorithms.dart';
 import 'graph_scope.dart';
 
 enum LayoutKind {
@@ -20,7 +21,10 @@ enum LayoutKind {
 
   /// The centred node in the middle, the others on rings by their
   /// distance in links (#153).
-  radial('Radial');
+  radial('Radial'),
+
+  /// Each community in its own area, force-directed inside (#154).
+  communities('Grouped by communities');
 
   const LayoutKind(this.label);
 
@@ -33,6 +37,18 @@ const nodeSpacing = 90.0;
 
 /// Free space around the drawing, for the labels at the edges.
 const layoutMargin = 120.0;
+
+/// What a layout needs besides the graph: the centre of
+/// [LayoutKind.radial] and the communities of [LayoutKind.communities].
+/// The other layouts use neither.
+class LayoutOptions {
+  const LayoutOptions({this.centre, this.communities});
+
+  final String? centre;
+
+  /// Community number by node ID, as the "Communities" view has them.
+  final Map<String, int>? communities;
+}
 
 /// Where each node is. Coordinates start at [layoutMargin], so the drawing
 /// fits into [width] by [height].
@@ -50,11 +66,21 @@ class GraphLayout {
 /// [centre] is the node in the middle of [LayoutKind.radial]; the other
 /// layouts do not use it. Without it, or when it is not in [graph], the
 /// node with the most links is the centre.
-GraphLayout layoutGraph(DrawnGraph graph, LayoutKind kind, {String? centre}) {
+///
+/// [communities] are the communities of [LayoutKind.communities], by node
+/// ID; without them, Louvain is run on [graph] here.
+GraphLayout layoutGraph(
+  DrawnGraph graph,
+  LayoutKind kind, {
+  String? centre,
+  Map<String, int>? communities,
+}) {
   final positions = switch (kind) {
     LayoutKind.circo => _circo(graph),
     LayoutKind.force => _force(graph),
     LayoutKind.radial => _radial(graph, centre),
+    LayoutKind.communities =>
+      _grouped(graph, communities ?? drawnCommunities(graph)),
   };
   return _normalized(positions);
 }
@@ -259,13 +285,16 @@ List<String> _startingAt(List<String> block, String first) {
   return [...block.sublist(i), ...block.sublist(0, i)];
 }
 
-/// Places the parts next to each other in rows, largest first, so the
-/// drawing is about as wide as it is high.
-List<List<Point<double>>> _pack(List<List<Point<double>>> parts) {
+/// Places the parts next to each other in rows, in the order given, so
+/// the drawing is about as wide as it is high, with [gap] between them.
+List<List<Point<double>>> _pack(
+  List<List<Point<double>>> parts, {
+  double gap = nodeSpacing,
+}) {
   final boxes = [for (final part in parts) _bounds(part)];
   final area = boxes.fold(
     0.0,
-    (sum, box) => sum + (box.width + nodeSpacing) * (box.height + nodeSpacing),
+    (sum, box) => sum + (box.width + gap) * (box.height + gap),
   );
   final rowWidth = max(sqrt(area), boxes.isEmpty ? 0.0 : boxes.first.width);
   final result = <List<Point<double>>>[];
@@ -274,12 +303,12 @@ List<List<Point<double>>> _pack(List<List<Point<double>>> parts) {
     final box = boxes[i];
     if (x > 0 && x + box.width > rowWidth) {
       x = 0;
-      y += rowHeight + nodeSpacing;
+      y += rowHeight + gap;
       rowHeight = 0;
     }
     final dx = x - box.left, dy = y - box.top;
     result.add([for (final p in parts[i]) Point(p.x + dx, p.y + dy)]);
-    x += box.width + nodeSpacing;
+    x += box.width + gap;
     rowHeight = max(rowHeight, box.height);
   }
   return result;
@@ -445,13 +474,22 @@ Map<String, Point<double>> radialPart(
 /// together, all nodes push each other apart, and a weak pull to the centre
 /// keeps unlinked nodes and small parts near the rest. Starts from fixed
 /// random positions, so the same graph gives the same drawing.
-Map<String, Point<double>> _force(DrawnGraph graph, {int iterations = 300}) {
-  final ids = [for (final node in graph.nodes) node.id];
+Map<String, Point<double>> _force(DrawnGraph graph) => _forceOf(
+      [for (final node in graph.nodes) node.id],
+      graph.edges,
+    );
+
+/// [_force] on the nodes [ids] and the [links] between them.
+Map<String, Point<double>> _forceOf(
+  List<String> ids,
+  Iterable<DrawnEdge> links, {
+  int iterations = 300,
+}) {
   final n = ids.length;
   if (n == 0) return {};
   final index = {for (var i = 0; i < n; i++) ids[i]: i};
   final edges = <(int, int)>[
-    for (final (:source, :dest) in graph.edges)
+    for (final (:source, :dest) in links)
       if (source != dest) (index[source]!, index[dest]!),
   ];
   const k = nodeSpacing;
@@ -506,6 +544,93 @@ Map<String, Point<double>> _force(DrawnGraph graph, {int iterations = 300}) {
     }
   }
   return {for (var i = 0; i < n; i++) ids[i]: Point(x[i], y[i])};
+}
+
+/// Louvain communities of [graph] alone, for [LayoutKind.communities]
+/// when the caller has none: the graph view passes the communities of the
+/// whole graph instead, so that the areas match the "Communities" view.
+Map<String, int> drawnCommunities(DrawnGraph graph) => louvainCommunities(
+      AlgorithmGraph.of(
+        [
+          for (final node in graph.nodes)
+            (node.id, node.node?.title ?? node.label),
+        ],
+        [for (final (:source, :dest) in graph.edges) (source, dest)],
+      ),
+    );
+
+/// Communities with at most this many nodes share one area, at the end.
+const smallCommunity = 2;
+
+/// Free space between the areas of [LayoutKind.communities].
+const areaGap = 2 * nodeSpacing;
+
+/// The nodes of [graph] in their areas (#154): one group per community of
+/// more than [smallCommunity] nodes, largest first, then one group with
+/// all the small communities and the nodes without one. A node keeps the
+/// order of [graph] inside its group.
+List<List<String>> communityGroups(
+  DrawnGraph graph,
+  Map<String, int> communities,
+) {
+  final byCommunity = <int, List<String>>{};
+  final rest = <String>[];
+  for (final node in graph.nodes) {
+    final community = communities[node.id];
+    if (community == null) {
+      rest.add(node.id);
+    } else {
+      byCommunity.putIfAbsent(community, () => []).add(node.id);
+    }
+  }
+  final large = <List<String>>[];
+  final small = <String>{};
+  for (final members in byCommunity.values) {
+    if (members.length > smallCommunity) {
+      large.add(members);
+    } else {
+      small.addAll(members);
+    }
+  }
+  small.addAll(rest);
+  final groups = _sortedBySize(large);
+  if (small.isNotEmpty) {
+    groups.add([
+      for (final node in graph.nodes)
+        if (small.contains(node.id)) node.id,
+    ]);
+  }
+  return groups;
+}
+
+/// The layout grouped by communities (#154): each group of
+/// [communityGroups] laid out force-directed with the links inside it,
+/// the areas packed side by side with [areaGap] between them.
+Map<String, Point<double>> _grouped(
+  DrawnGraph graph,
+  Map<String, int> communities,
+) {
+  final groups = communityGroups(graph, communities);
+  final groupOf = <String, int>{
+    for (var g = 0; g < groups.length; g++)
+      for (final id in groups[g]) id: g,
+  };
+  final inside = List.generate(groups.length, (_) => <DrawnEdge>[]);
+  for (final edge in graph.edges) {
+    final g = groupOf[edge.source]!;
+    if (g == groupOf[edge.dest]) inside[g].add(edge);
+  }
+  final placed = <List<Point<double>>>[];
+  for (var g = 0; g < groups.length; g++) {
+    final positions = _forceOf(groups[g], inside[g]);
+    placed.add([for (final id in groups[g]) positions[id]!]);
+  }
+  final shifted = _pack(placed, gap: areaGap);
+  return {
+    for (var g = 0; g < groups.length; g++)
+      for (var i = 0; i < groups[g].length; i++)
+        groups[g][i]: shifted[g][i],
+  };
 }
 
 /// [positions] moved so that the smallest coordinates are [layoutMargin].

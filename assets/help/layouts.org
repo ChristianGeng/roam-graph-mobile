@@ -1,7 +1,7 @@
 :PROPERTIES:
 :ID:       roam-graph-help-layouts
 :END:
-#+title: Layouts: circular, force-directed and radial
+#+title: Layouts: circular, force-directed, radial, by communities
 #+STARTUP: showall
 
 A layout decides where the dots go. The links are the same in all; only
@@ -33,16 +33,27 @@ choose "Centre" in the "More" menu: the rings are drawn again around it.
 "Show in graph" from a note does the same. It is good for looking at one
 note and its neighbourhood: how far away the other notes are.
 
+* Grouped by communities
+Gives each topic of the notes its own area. The topics are the
+communities that the [[id:roam-graph-help-views][Communities]] view colours, so with both on, each
+area has one colour. Inside an area the notes are laid out
+force-directed; the areas are side by side, the largest first, with free
+space between them. Communities of one or two notes, and notes without
+links, share one area at the end. A link between two areas is a note that
+links across topics.
+
 * Which one
 - To find a note, or to compare with ~org-roam-graph~ on the laptop:
   circular.
 - To see topics and how they connect: force-directed, together with the
   [[id:roam-graph-help-views][Communities]] view.
 - To see what is near one note: radial.
+- To see the topics as places, and the notes that link them: grouped by
+  communities.
 
 * At start
 The graph opens with the force-directed layout. Settings, "Graph layout
-at start", can choose circular or radial instead, or the layout chosen
+at start", can choose any of the others instead, or the layout chosen
 last in the "View" menu ([[id:roam-graph-help-settings][Settings]]).
 
 Back to [[id:roam-graph-help-graph-view][the graph view]].

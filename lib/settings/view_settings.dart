@@ -52,6 +52,7 @@ enum StartLayout {
   force('Force-directed', 'Linked notes pull together, so clusters show'),
   circo('Circular (circo)', 'As org-roam-graph draws it'),
   radial('Radial', 'The selected note in the middle, rings by distance'),
+  communities('Grouped by communities', 'Each topic in its own area'),
   lastUsed('Last used', 'The layout chosen last in the graph\'s View menu');
 
   const StartLayout(this.label, this.description);
@@ -130,6 +131,7 @@ class ViewSettings {
         StartLayout.force => LayoutKind.force,
         StartLayout.circo => LayoutKind.circo,
         StartLayout.radial => LayoutKind.radial,
+        StartLayout.communities => LayoutKind.communities,
         StartLayout.lastUsed => lastLayout,
       };
 

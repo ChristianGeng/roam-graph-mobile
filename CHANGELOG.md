@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-22: Layout grouped by communities ([#159](https://github.com/ChristianGeng/roam-graph-mobile/pull/159))
+
+- Added: a "Grouped by communities" layout in the graph's View menu: each community (the topics the "Communities" view colours) gets its own area, laid out force-directed inside, the largest first. Small communities and notes without links share one area at the end.
+- "Graph layout at start" in Settings offers it too.
+
+Closes #154.
+
 ## 2026-10-22: Buttons for headings and list items in "Edit text" ([#158](https://github.com/ChristianGeng/roam-graph-mobile/pull/158))
 
 - Added: a row of buttons below the text in "Edit text": new heading, up or down a level, move up or down, new list item, checkbox on or off, and the next TODO state. They act on the line of the cursor or on the selected lines, as Org's commands do.
