@@ -272,7 +272,9 @@ List<OrgTodoStates> todoStatesOf(OrgDocument document) {
 
 /// Every keyword of [states], in order.
 List<String> allKeywords(List<OrgTodoStates> states) =>
-    [for (final s in states) ...s.todo, ...s.done];
+    [
+      for (final s in states) ...[...s.todo, ...s.done],
+    ];
 
 bool _isDone(List<OrgTodoStates> states, String keyword) =>
     states.any((s) => s.done.contains(keyword) ||
