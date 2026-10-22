@@ -307,6 +307,7 @@ void main() {
         'Force-directed': false,
         'Radial': false,
         'Grouped by communities': false,
+        'Hierarchical (dot)': false,
         'Plain': true,
         'Communities': false,
         'Importance: PageRank': false,
@@ -424,6 +425,45 @@ void main() {
         computeAlgorithmResults(AlgorithmGraph.fromRoam(graph)).communities);
     await tapMiddle(tester);
     expect(nodeTitle('HUB'), findsOneWidget);
+  });
+
+  testWidgets('hierarchical: chosen in the View menu (#155)', (tester) async {
+    final kinds = <LayoutKind>[];
+    await show(tester, remembered: 'hub',
+        computeLayout: (graph, kind, options) {
+      kinds.add(kind);
+      return layoutHere(graph, kind, options);
+    });
+    await tester.tap(find.byTooltip('View'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Hierarchical (dot)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hierarchical (dot)'));
+    await tester.pumpAndSettle();
+    expect(kinds, [LayoutKind.circo, LayoutKind.layered]);
+    expect(find.textContaining('took too long'), findsNothing);
+    await tapMiddle(tester);
+    expect(nodeTitle('HUB'), findsOneWidget);
+  });
+
+  testWidgets('hierarchical too slow: force-directed, and it says so (#155)',
+      (tester) async {
+    await show(tester, remembered: 'hub',
+        computeLayout: (graph, kind, options) async => layoutGraph(graph, kind,
+            centre: options.centre,
+            communities: options.communities,
+            timeLimit: Duration.zero));
+    await tester.tap(find.byTooltip('View'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Hierarchical (dot)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hierarchical (dot)'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('The hierarchical layout took too long for 8 notes; the '
+          'force-directed layout is drawn instead.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('"Centre" returns to the centre node after panning',

@@ -325,6 +325,146 @@ void main() {
     });
   });
 
+  group('hierarchical (#155)', () {
+    double y(GraphLayout layout, String id) => layout.positions[id]!.y;
+    double x(GraphLayout layout, String id) => layout.positions[id]!.x;
+
+    test('a chain is one node per layer, top to bottom', () {
+      final drawn = whole(['a', 'b', 'c', 'd'], ['a>b', 'b>c', 'c>d']);
+      final layout = layoutGraph(drawn, LayoutKind.layered);
+      expectInside(drawn, layout);
+      expect(layout.fellBack, isFalse);
+      for (final (upper, lower) in [('a', 'b'), ('b', 'c'), ('c', 'd')]) {
+        expect(y(layout, lower) - y(layout, upper), closeTo(layerSpacing, 1e-6));
+        expect(x(layout, lower), closeTo(x(layout, upper), 1e-6));
+      }
+    });
+
+    test("a tree's levels are its layers", () {
+      final drawn = whole(
+        ['r', 'a', 'b', 'a1', 'a2', 'b1'],
+        ['r>a', 'r>b', 'a>a1', 'a>a2', 'b>b1'],
+      );
+      expect(longestPathLayers(['r', 'a', 'b', 'a1', 'a2', 'b1'],
+          acyclicLinks(drawn)), {
+        'r': 0, 'a': 1, 'b': 1, 'a1': 2, 'a2': 2, 'b1': 2, //
+      });
+      final layout = layoutGraph(drawn, LayoutKind.layered);
+      expect(y(layout, 'a'), y(layout, 'b'));
+      expect(y(layout, 'a1'), y(layout, 'b1'));
+      expect(y(layout, 'a1'), greaterThan(y(layout, 'a')));
+      expect(y(layout, 'a'), greaterThan(y(layout, 'r')));
+      // The root sits between its two children, a1 and a2 below a.
+      expect(x(layout, 'r'),
+          inExclusiveRange(x(layout, 'a'), x(layout, 'b')));
+      expect(x(layout, 'a'),
+          inInclusiveRange(x(layout, 'a1'), x(layout, 'a2')));
+    });
+
+    test('without cycles, every link points down', () {
+      // Links only from a lower to a higher number: no cycles.
+      final ids = [for (var i = 0; i < 40; i++) 'n$i'];
+      final random = Random(7);
+      final links = <String>{};
+      for (var k = 0; k < 90; k++) {
+        final a = random.nextInt(40), b = random.nextInt(40);
+        if (a != b) links.add('n${min(a, b)}>n${max(a, b)}');
+      }
+      final drawn = whole(ids, links.toList());
+      final layout = layoutGraph(drawn, LayoutKind.layered);
+      expectInside(drawn, layout);
+      for (final (:source, :dest) in drawn.edges) {
+        expect(y(layout, dest), greaterThan(y(layout, source)),
+            reason: '$source>$dest');
+      }
+    });
+
+    test('a pair linking both ways counts once', () {
+      final drawn = whole(['a', 'b'], ['a>b', 'b>a']);
+      expect(acyclicLinks(drawn), [('a', 'b')]);
+    });
+
+    test('a cycle is broken and all nodes are placed', () {
+      final drawn = whole(['a', 'b', 'c', 'd'], ['a>b', 'b>c', 'c>a', 'c>d']);
+      final links = acyclicLinks(drawn);
+      // The link back to a is reversed; the others stay.
+      expect(links.toSet(), {('a', 'b'), ('b', 'c'), ('a', 'c'), ('c', 'd')});
+      final layout = layoutGraph(drawn, LayoutKind.layered);
+      expectInside(drawn, layout);
+      expect(closest(layout), greaterThan(10));
+      expect(y(layout, 'b'), greaterThan(y(layout, 'a')));
+      expect(y(layout, 'c'), greaterThan(y(layout, 'b')));
+      expect(y(layout, 'd'), greaterThan(y(layout, 'c')));
+    });
+
+    test('no two nodes of a layer overlap', () {
+      // One connected part (a chain through all nodes, and random links
+      // with cycles), so a y is one layer and not a layer of a part beside.
+      final ids = [for (var i = 0; i < 120; i++) 'n$i'];
+      final random = Random(3);
+      final drawn = whole(ids, [
+        for (var i = 1; i < 120; i++) 'n${i - 1}>n$i',
+        for (var k = 0; k < 200; k++)
+          'n${random.nextInt(120)}>n${random.nextInt(120)}',
+      ]);
+      expect(connectedParts(drawn), hasLength(1));
+      final layout = layoutGraph(drawn, LayoutKind.layered);
+      expectInside(drawn, layout);
+      final byLayer = <double, List<double>>{};
+      for (final p in layout.positions.values) {
+        byLayer.putIfAbsent(p.y, () => []).add(p.x);
+      }
+      for (final xs in byLayer.values) {
+        xs.sort();
+        for (var i = 1; i < xs.length; i++) {
+          expect(xs[i] - xs[i - 1], greaterThanOrEqualTo(nodeSpacing - 1e-6));
+        }
+      }
+    });
+
+    test('the sweeps reach the fewest crossings of small known graphs', () {
+      // Three parallel links drawn in reverse: 3 crossings, 0 at best.
+      final reversed = [('a', 'z'), ('b', 'y'), ('c', 'x')];
+      final start = [
+        ['a', 'b', 'c'],
+        ['x', 'y', 'z'],
+      ];
+      expect(layerCrossings(start, reversed), 3);
+      expect(layerCrossings(orderLayers(start, reversed)!, reversed), 0);
+      // Two nodes each linking to the same two: 1 crossing in any order.
+      final complete = [('a', 'x'), ('a', 'y'), ('b', 'x'), ('b', 'y')];
+      final two = [
+        ['a', 'b'],
+        ['x', 'y'],
+      ];
+      expect(layerCrossings(orderLayers(two, complete)!, complete), 1);
+      // Three layers, crossed twice: 0 at best.
+      final zigzag = [('a', 'd'), ('b', 'c'), ('c', 'f'), ('d', 'e')];
+      final three = [
+        ['a', 'b'],
+        ['c', 'd'],
+        ['e', 'f'],
+      ];
+      expect(layerCrossings(three, zigzag), 2);
+      expect(layerCrossings(orderLayers(three, zigzag)!, zigzag), 0);
+    });
+
+    test('spaced fit: in order, spaced, as near as possible', () {
+      expect(spacedFit([0, 200, 400], 90), [0, 200, 400]);
+      // Two nodes wanting the same place share it equally.
+      expect(spacedFit([100, 100], 90), [55, 145]);
+      expect(spacedFit([], 90), isEmpty);
+    });
+
+    test('too slow: the force-directed layout, and it says so', () {
+      final drawn = whole(['a', 'b', 'c'], ['a>b', 'b>c']);
+      final layout =
+          layoutGraph(drawn, LayoutKind.layered, timeLimit: Duration.zero);
+      expect(layout.fellBack, isTrue);
+      expect(layout.positions, layoutGraph(drawn, LayoutKind.force).positions);
+    });
+  });
+
   for (final kind in LayoutKind.values) {
     group(kind.name, () {
       test('every node of the sample files has its own place', () {

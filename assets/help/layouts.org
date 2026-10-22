@@ -1,7 +1,7 @@
 :PROPERTIES:
 :ID:       roam-graph-help-layouts
 :END:
-#+title: Layouts: circular, force-directed, radial, by communities
+#+title: Layouts: circular, force-directed, radial, grouped, hierarchical
 #+STARTUP: showall
 
 A layout decides where the dots go. The links are the same in all; only
@@ -42,6 +42,21 @@ space between them. Communities of one or two notes, and notes without
 links, share one area at the end. A link between two areas is a note that
 links across topics.
 
+* Hierarchical (dot)
+Puts the notes in layers from top to bottom, as Graphviz's ~dot~ draws:
+a link points down, from the note that links to the note it links to. A
+note sits one layer below the lowest note that links to it, so the notes
+that nothing links to are at the top. Within a layer the notes are
+ordered so that few links cross, and each note is near the middle of the
+notes it links with. Two notes that link to each other count as one
+link; where links go round in a circle, one of them is turned to point
+up. Notes that are not connected are drawn beside each other.
+
+It is good for a hub note and its sub-topics, or the part of the graph
+around one note. On the whole graph, with its many cross links, the
+layers get wide. When a graph is too large to lay out in a few seconds,
+the force-directed layout is drawn instead, and a message says so.
+
 * Which one
 - To find a note, or to compare with ~org-roam-graph~ on the laptop:
   circular.
@@ -50,6 +65,8 @@ links across topics.
 - To see what is near one note: radial.
 - To see the topics as places, and the notes that link them: grouped by
   communities.
+- To see a hub and what hangs from it, top to bottom: hierarchical,
+  with "Show" set to a part of the graph.
 
 * At start
 The graph opens with the force-directed layout. Settings, "Graph layout

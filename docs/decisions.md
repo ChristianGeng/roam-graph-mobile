@@ -2607,6 +2607,57 @@ devices through Syncthing.
       showing it again; closing restoring both an open and a folded note;
       Back closing the search first; Ctrl+F; dark mode.
 
+91. **A hierarchical (layered) layout, as Graphviz's `dot`** (#155),
+    `lib/graph/graph_layout.dart`. For a hub and its sub-topics: notes in
+    layers from top to bottom, links pointing down.
+    - **`LayoutKind.layered` ("Hierarchical (dot)"):** Sugiyama's method,
+      in four simple steps. (1) `acyclicLinks`: one link per pair of
+      notes (a pair linking both ways counts once, in the direction found
+      first), no links to the note itself, and cycles broken as `dot`
+      does by default: a depth-first search, in the order of the drawn
+      nodes, reverses each link that leads back to a note still on its
+      path. (2) `longestPathLayers`: the notes nothing links to are layer
+      0; every other note is one layer below the lowest note linking to
+      it. (3) `orderLayers`: the barycentre heuristic, six sweeps down and
+      up, keeping the order with the fewest crossings (counted between
+      neighbouring layers); the first order is the order of a depth-first
+      search from the top layer. (4) `layerXs`: four sweeps down and up,
+      each note moved to the mean x of the notes it links with, as near as
+      `nodeSpacing` allows (`spacedFit`, a least-squares fit that keeps
+      the order: pool adjacent violators).
+    - **Direction:** from the note that links (source) to the note linked
+      (dest), as org-roam stores links.
+    - **No dummy nodes:** a link over several layers is drawn straight;
+      in the barycentres it counts with the place of its other end
+      relative to the width of that end's layer. Crossings of such links
+      are not counted.
+    - **Spacing:** `layerSpacing` (1.5 `nodeSpacing`) between layers, more
+      than between the notes of a layer, as in `dot`, so the direction of
+      the links shows.
+    - **Parts:** each connected part is laid out alone and the parts are
+      packed side by side with `_pack`, as in the circular layout.
+    - **Large graphs:** none of the other layouts has a time limit; they
+      always finish (force-directed is quadratic per step, about a second
+      for 500 nodes). The layered layout is near linear in the links per
+      sweep and should finish too, but as the issue asks, it has a limit
+      (`layeredTimeLimit`, five seconds), checked between the parts and
+      after each sweep. When it is reached, `layoutGraph` returns the
+      force-directed layout with `GraphLayout.fellBack` set, and the graph
+      view says so in a message at the bottom of the screen ("The
+      hierarchical layout took too long for N notes; the force-directed
+      layout is drawn instead.").
+    - **Everywhere the other layouts are:** on the isolate, in the View
+      menu, in "Graph layout at start" and "Last used" (#71, #81), and in
+      "About the layouts".
+    - Tests (synthetic graphs only): a chain is one note per layer; a
+      tree's levels are its layers, a parent between its children; in a
+      graph without cycles every link points down; a pair linking both
+      ways counts once; a cycle broken and all notes placed; no two notes
+      of a layer closer than `nodeSpacing`; the crossings of three small
+      known graphs at their minimum after the sweeps; the spaced fit; the
+      time limit giving the force-directed layout; in the app, the View
+      menu, the message, the start setting and "Last used".
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
