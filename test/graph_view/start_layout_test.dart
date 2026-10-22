@@ -8,7 +8,8 @@ import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 import '../ai/ai_visibility_test.dart' show graphOf, notes;
-import 'graph_screen_test.dart' show MemoryNodeMemory, algorithmsHere;
+import 'graph_screen_test.dart'
+    show MemoryNodeMemory, algorithmsHere, layoutHere;
 
 /// A store whose file is read only when [finish] is called (#81).
 class SlowViewSettingsStore extends MemoryViewSettingsStore {
@@ -37,9 +38,9 @@ Future<List<LayoutKind>> openGraph(
       graph: ValueNotifier<RoamGraph>(graphOf(notes)),
       readNote: (path) async => notes[path],
       nodeMemory: MemoryNodeMemory('plan'),
-      computeLayout: (graph, kind, centre) async {
+      computeLayout: (graph, kind, options) async {
         kinds.add(kind);
-        return layoutGraph(graph, kind, centre: centre);
+        return layoutHere(graph, kind, options);
       },
       computeAlgorithms: algorithmsHere,
     ),
@@ -62,9 +63,9 @@ void main() {
         graph: ValueNotifier<RoamGraph>(graphOf(notes)),
         readNote: (path) async => notes[path],
         nodeMemory: MemoryNodeMemory('plan'),
-        computeLayout: (graph, kind, centre) async {
+        computeLayout: (graph, kind, options) async {
           kinds.add(kind);
-          return layoutGraph(graph, kind, centre: centre);
+          return layoutHere(graph, kind, options);
         },
         computeAlgorithms: algorithmsHere,
       ),
@@ -187,7 +188,7 @@ void main() {
     expect(odd.layoutAtStart, LayoutKind.force);
   });
 
-  testWidgets('Settings offers the four choices', (tester) async {
+  testWidgets('Settings offers the five choices', (tester) async {
     final store = MemoryViewSettingsStore();
     await tester.pumpWidget(MaterialApp(
       builder: (context, child) => ViewSettingsHost(store: store, child: child!),
@@ -203,8 +204,24 @@ void main() {
     final radial = find.byKey(const ValueKey('start-layout-radial'));
     await tester.scrollUntilVisible(radial, 200,
         scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(radial);
+    await tester.pump();
     await tester.tap(radial);
     await tester.pumpAndSettle();
     expect(store.settings.startLayout, StartLayout.radial);
+    final grouped = find.byKey(const ValueKey('start-layout-communities'));
+    await tester.scrollUntilVisible(grouped, 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(grouped);
+    await tester.pump();
+    await tester.tap(grouped);
+    await tester.pumpAndSettle();
+    expect(store.settings.startLayout, StartLayout.communities);
+  });
+
+  testWidgets('"Grouped by communities" at start (#154)', (tester) async {
+    final store = MemoryViewSettingsStore(
+        const ViewSettings(startLayout: StartLayout.communities));
+    expect(await openGraph(tester, store), [LayoutKind.communities]);
   });
 }

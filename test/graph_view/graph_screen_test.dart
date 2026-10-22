@@ -35,8 +35,9 @@ Future<AlgorithmResults> algorithmsHere(AlgorithmGraph graph) async =>
 
 /// The layout on this isolate: tests cannot wait for another one.
 Future<GraphLayout> layoutHere(
-        DrawnGraph graph, LayoutKind kind, String? centre) async =>
-    layoutGraph(graph, kind, centre: centre);
+        DrawnGraph graph, LayoutKind kind, LayoutOptions options) async =>
+    layoutGraph(graph, kind,
+        centre: options.centre, communities: options.communities);
 
 /// hub links to six nodes; c links to d; lonely has no links.
 final graph = graphOf(
@@ -230,9 +231,9 @@ void main() {
     final kinds = <LayoutKind>[];
     // Large enough for every node; upright, so one screen at a time.
     await show(tester, remembered: 'b', screen: const Size(1200, 1600),
-        computeLayout: (graph, kind, centre) {
+        computeLayout: (graph, kind, options) {
       kinds.add(kind);
-      return layoutHere(graph, kind, centre);
+      return layoutHere(graph, kind, options);
     });
     expect(kinds, [LayoutKind.circo]);
 
@@ -305,6 +306,7 @@ void main() {
         'Circular (circo)': true,
         'Force-directed': false,
         'Radial': false,
+        'Grouped by communities': false,
         'Plain': true,
         'Communities': false,
         'Importance: PageRank': false,
@@ -358,9 +360,9 @@ void main() {
     final calls = <(LayoutKind, String?)>[];
     // Upright, so one screen at a time, and large enough for every node.
     await show(tester, remembered: 'b', screen: const Size(1200, 1600),
-        computeLayout: (graph, kind, centre) {
-      calls.add((kind, centre));
-      return layoutHere(graph, kind, centre);
+        computeLayout: (graph, kind, options) {
+      calls.add((kind, options.centre));
+      return layoutHere(graph, kind, options);
     });
     await tester.tap(find.byTooltip('View'));
     await tester.pumpAndSettle();
@@ -401,6 +403,27 @@ void main() {
     await tester.tap(find.text('Centre'));
     await tester.pumpAndSettle();
     expect(calls, hasLength(3));
+  });
+
+  testWidgets('grouped by communities: the communities of the view (#154)',
+      (tester) async {
+    final calls = <(LayoutKind, Map<String, int>?)>[];
+    await show(tester, remembered: 'hub',
+        computeLayout: (graph, kind, options) {
+      calls.add((kind, options.communities));
+      return layoutHere(graph, kind, options);
+    });
+    await tester.tap(find.byTooltip('View'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Grouped by communities'));
+    await tester.pumpAndSettle();
+    expect(calls.map((c) => c.$1), [LayoutKind.circo, LayoutKind.communities]);
+    expect(calls.first.$2, isNull);
+    // The same communities the "Communities" view colours.
+    expect(calls.last.$2,
+        computeAlgorithmResults(AlgorithmGraph.fromRoam(graph)).communities);
+    await tapMiddle(tester);
+    expect(nodeTitle('HUB'), findsOneWidget);
   });
 
   testWidgets('"Centre" returns to the centre node after panning',
