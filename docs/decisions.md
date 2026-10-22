@@ -1142,7 +1142,8 @@ devices through Syncthing.
       with a title and text proposed as for shared text (#15, decision
       34): the first line without `#` or `**` is the title. A chat started
       from a node offers a link to it, on. Nothing is written before I
-      save there; the AI never writes a file.
+      save there; the AI never writes a file. (Changed by decision 83:
+      the AI makes the note.)
     - **Errors** show in the chat with "Send again", which sends the
       conversation from where it stopped (decision 45). Without a key or a
       model, the chat says what to enter and links to AI settings; Send
@@ -2230,6 +2231,56 @@ devices through Syncthing.
       to close it (#142). Fixing it would need an own `Socket` around
       `RawSecureSocket`; not worth it for a server that misbehaves on
       purpose, which the AI would have to choose to visit.
+
+83. **"Save as new node" in the chat: the AI makes the note** (#145),
+    `lib/ai/note_from_answer.dart`, `_saveAsNode` in
+    `lib/ai/chat_screen.dart`. Until now the button sent nothing to the
+    AI: `proposeNode` took the answer's first line as the title and the
+    rest as the text. A chat answer's first line is often "Good question!
+    Here is an overview:", so the note got a poor title and chat text.
+    When I wrote "yes, make the note" in agent mode, the AI made a good
+    note. Decided with the owner: the button does what that prompt does.
+    No note is made without the button.
+    - **Agent mode:** the button sends a fixed message as mine, shown in
+      the chat (`agentSaveRequest`): make a new note from "your last
+      answer" (an earlier answer is named by its number among the answers
+      and its first 60 characters, so two that begin alike differ) with
+      `create_node`; a short, fitting title in the language of the answer;
+      the content as Org text without chat phrases; links to the notes the
+      answer used, with the IDs the tools gave; and, when the chat was
+      opened from a note the AI may see, a link to that note. It goes
+      through the normal agent loop, so the result shows in the agent
+      summary with "Undo all" and in "Recent AI changes". The message is
+      in English, as the app's other messages to the model; the title
+      follows the answer's language.
+    - **Review and Off modes** (the AI may not write): one more request
+      to the same provider and model, without tools
+      (`ChatSession.askOnce`), asks for a JSON object `{"title",
+      "body"}` with the same rules, and "New node" (`CaptureScreen`) opens
+      filled in with it; I check and save. The link to the note the chat
+      came from stays the capture screen's switch, as before, so the AI is
+      told not to add it.
+    - **What the extra request sends:** the conversation up to that
+      answer, as plain text, and the instruction. The tool calls are left
+      out and their results go as text in a message of mine, each cut to
+      4,000 characters: a request with `tool_use` blocks needs tools
+      offered (Anthropic), and the IDs the tools gave stay in. The
+      provider's own web search results (decision 82) go the same way.
+      Images are not sent again. Nothing goes to the provider that it did not get in
+      this chat already. The request offers an empty list of tools, as
+      the AI edit screen does; its tokens count in the chat's token line. It is not added to the conversation and not shown as a
+      message, only as a short wait on the button.
+    - **Unreadable answer:** a code fence or text around the object is
+      allowed, also text with braces: the first balanced object with a
+      title counts. The capture screen writes the `:ID:`, `#+title:` and
+      `#+filetags:`, so a `#+title:` or `#+filetags:` line or a properties
+      drawer at the start of the body is dropped, and every `:ID:` line in
+      it: an ID the model gave could be another note's. With no object, no title, or a failed request, the old
+      way applies (`proposeNode`), and a snack bar says so.
+    - **One at a time:** the button is off while the chat sends, another
+      note is being prepared, an undo runs, or a failed turn waits for
+      "Send again"; "New chat", Send and "Send again" wait for the extra
+      request.
 
 ## Recommended, not decided
 
