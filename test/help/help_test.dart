@@ -111,7 +111,7 @@ void main() {
       await tester.tap(find.text('About the layouts'));
       await settleHelp(tester);
       expect(
-        title('Layouts: circular, force-directed, radial, by communities'),
+        title('Layouts: circular, force-directed, radial, grouped, hierarchical'),
         findsOneWidget,
       );
       // A help page has no search and no AI menu.
@@ -135,7 +135,7 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
       expect(
-        title('Layouts: circular, force-directed, radial, by communities'),
+        title('Layouts: circular, force-directed, radial, grouped, hierarchical'),
         findsOneWidget,
       );
     });

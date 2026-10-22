@@ -53,6 +53,8 @@ enum StartLayout {
   circo('Circular (circo)', 'As org-roam-graph draws it'),
   radial('Radial', 'The selected note in the middle, rings by distance'),
   communities('Grouped by communities', 'Each topic in its own area'),
+  layered('Hierarchical (dot)',
+      'Layers from top to bottom, links pointing down'),
   lastUsed('Last used', 'The layout chosen last in the graph\'s View menu');
 
   const StartLayout(this.label, this.description);
@@ -132,6 +134,7 @@ class ViewSettings {
         StartLayout.circo => LayoutKind.circo,
         StartLayout.radial => LayoutKind.radial,
         StartLayout.communities => LayoutKind.communities,
+        StartLayout.layered => LayoutKind.layered,
         StartLayout.lastUsed => lastLayout,
       };
 

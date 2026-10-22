@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-22: Hierarchical layout ([#161](https://github.com/ChristianGeng/roam-graph-mobile/pull/161))
+
+- Added: a "Hierarchical (dot)" layout in the graph's View menu, as Graphviz's `dot` draws: the notes in layers from top to bottom, each link pointing down from the note that links, with few links crossing. Good for a hub and its sub-topics.
+- "Graph layout at start" in Settings offers it too. On a graph too large to lay out in a few seconds, the force-directed layout is drawn instead, and a message says so.
+
+Closes #155.
+
 ## 2026-10-22: Search inside a note ([#160](https://github.com/ChristianGeng/roam-graph-mobile/pull/160))
 
 - Added: "Search in this note" in the node view's bar (Ctrl+F on the desktop) marks every match, upper and lower case alike, opens the sections they are in, and counts them; the arrows go from one to the next. "Only matching sections" folds the others away. Closing the search folds the sections as before.

@@ -392,6 +392,16 @@ class _GraphScreenState extends State<GraphScreen> {
       _drawing = _Drawing(drawn, layout);
     });
     _centreView();
+    if (layout.fellBack) {
+      // The hierarchical layout gave up on a large graph (#155).
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text('The hierarchical layout took too long for '
+              '${drawn.nodes.length} notes; the force-directed layout is '
+              'drawn instead.'),
+        ));
+    }
   }
 
   /// "Centre": the selected node to the middle. The radial layout is drawn

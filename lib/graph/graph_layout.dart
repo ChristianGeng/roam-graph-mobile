@@ -1,6 +1,7 @@
 /// Node positions for the graph view (#6): a circular layout after
 /// Graphviz's `circo`, a force-directed one, a radial one around the
-/// centred node (#153), and one grouped by communities (#154).
+/// centred node (#153), one grouped by communities (#154), and a
+/// hierarchical one after Graphviz's `dot` (#155).
 ///
 /// Pure Dart (no Flutter), so it runs on another isolate and in tests.
 library;
@@ -24,7 +25,11 @@ enum LayoutKind {
   radial('Radial'),
 
   /// Each community in its own area, force-directed inside (#154).
-  communities('Grouped by communities');
+  communities('Grouped by communities'),
+
+  /// Graphviz's `dot`: layers from top to bottom, links pointing down
+  /// (#155).
+  layered('Hierarchical (dot)');
 
   const LayoutKind(this.label);
 
@@ -53,12 +58,25 @@ class LayoutOptions {
 /// Where each node is. Coordinates start at [layoutMargin], so the drawing
 /// fits into [width] by [height].
 class GraphLayout {
-  const GraphLayout(this.positions, this.width, this.height);
+  const GraphLayout(
+    this.positions,
+    this.width,
+    this.height, {
+    this.fellBack = false,
+  });
 
   final Map<String, Point<double>> positions;
   final double width;
   final double height;
+
+  /// True when [LayoutKind.layered] took longer than its time limit and
+  /// these are the positions of [LayoutKind.force] instead (#155).
+  final bool fellBack;
 }
+
+/// How long [LayoutKind.layered] may take before the force-directed
+/// layout is drawn instead (#155).
+const layeredTimeLimit = Duration(seconds: 5);
 
 /// Lays out [graph] with [kind]. Takes about a second for 500 nodes and
 /// 2500 edges with [LayoutKind.force], so run it off the UI isolate.
@@ -69,11 +87,16 @@ class GraphLayout {
 ///
 /// [communities] are the communities of [LayoutKind.communities], by node
 /// ID; without them, Louvain is run on [graph] here.
+///
+/// [timeLimit] is the time [LayoutKind.layered] may take; when it is
+/// reached, the force-directed layout is returned with
+/// [GraphLayout.fellBack] set.
 GraphLayout layoutGraph(
   DrawnGraph graph,
   LayoutKind kind, {
   String? centre,
   Map<String, int>? communities,
+  Duration timeLimit = layeredTimeLimit,
 }) {
   final positions = switch (kind) {
     LayoutKind.circo => _circo(graph),
@@ -81,7 +104,10 @@ GraphLayout layoutGraph(
     LayoutKind.radial => _radial(graph, centre),
     LayoutKind.communities =>
       _grouped(graph, communities ?? drawnCommunities(graph)),
+    LayoutKind.layered => _layered(graph, timeLimit),
   };
+  // Only the layered layout gives up, when it takes too long.
+  if (positions == null) return _normalized(_force(graph), fellBack: true);
   return _normalized(positions);
 }
 
@@ -633,8 +659,355 @@ Map<String, Point<double>> _grouped(
   };
 }
 
+/// Distance between two layers of [LayoutKind.layered], more than between
+/// two nodes of a layer, as in `dot`, so the links' direction shows.
+const layerSpacing = 1.5 * nodeSpacing;
+
+/// A directed link of [LayoutKind.layered]: from [source], drawn above,
+/// to [dest].
+typedef LayeredLink = (String source, String dest);
+
+/// The links of [graph] for [LayoutKind.layered] (#155), without cycles:
+/// one per pair of nodes (a pair linking both ways counts once, in the
+/// direction found first), no links of a node to itself, and the cycles
+/// broken as `dot` does by default: a depth-first search from the nodes in
+/// [graph]'s order reverses each link that leads back to a node still on
+/// its path.
+List<LayeredLink> acyclicLinks(DrawnGraph graph) {
+  final seen = <(String, String)>{};
+  final out = {for (final node in graph.nodes) node.id: <String>[]};
+  for (final (:source, :dest) in graph.edges) {
+    if (source == dest) continue;
+    if (seen.contains((dest, source)) || !seen.add((source, dest))) continue;
+    out[source]!.add(dest);
+  }
+  final links = <LayeredLink>[];
+  // 0: not reached, 1: on the path, 2: done.
+  final state = <String, int>{};
+  for (final node in graph.nodes) {
+    if (state.containsKey(node.id)) continue;
+    // An explicit stack: a long chain must not overflow the call stack.
+    final frames = <(String, Iterator<String>)>[];
+    state[node.id] = 1;
+    frames.add((node.id, out[node.id]!.iterator));
+    while (frames.isNotEmpty) {
+      final (id, next) = frames.last;
+      if (!next.moveNext()) {
+        state[id] = 2;
+        frames.removeLast();
+        continue;
+      }
+      final other = next.current;
+      switch (state[other]) {
+        case null:
+          links.add((id, other));
+          state[other] = 1;
+          frames.add((other, out[other]!.iterator));
+        case 1:
+          links.add((other, id));
+        default:
+          links.add((id, other));
+      }
+    }
+  }
+  return links;
+}
+
+/// The layer of each node in [ids] by the longest path from a node
+/// without links coming in: those are layer 0, and every other node is one
+/// layer below the lowest node linking to it. [links] must have no cycles.
+Map<String, int> longestPathLayers(
+  List<String> ids,
+  List<LayeredLink> links,
+) {
+  final incoming = {for (final id in ids) id: 0};
+  final out = {for (final id in ids) id: <String>[]};
+  for (final (source, dest) in links) {
+    out[source]!.add(dest);
+    incoming[dest] = incoming[dest]! + 1;
+  }
+  final layer = <String, int>{};
+  final queue = Queue<String>();
+  for (final id in ids) {
+    if (incoming[id] == 0) {
+      layer[id] = 0;
+      queue.add(id);
+    }
+  }
+  while (queue.isNotEmpty) {
+    final id = queue.removeFirst();
+    for (final next in out[id]!) {
+      layer[next] = max(layer[next] ?? 0, layer[id]! + 1);
+      incoming[next] = incoming[next]! - 1;
+      if (incoming[next] == 0) queue.add(next);
+    }
+  }
+  return layer;
+}
+
+/// The number of crossings between the links of neighbouring layers of
+/// [layers], each layer in its order from left to right. Links that span
+/// more than one layer are not counted.
+int layerCrossings(List<List<String>> layers, List<LayeredLink> links) {
+  final layerOf = <String, int>{};
+  final position = <String, int>{};
+  for (var l = 0; l < layers.length; l++) {
+    for (var i = 0; i < layers[l].length; i++) {
+      layerOf[layers[l][i]] = l;
+      position[layers[l][i]] = i;
+    }
+  }
+  final between = List.generate(
+    max(0, layers.length - 1),
+    (_) => <(int, int)>[],
+  );
+  for (final (source, dest) in links) {
+    final l = layerOf[source];
+    if (l == null || layerOf[dest] != l + 1) continue;
+    between[l].add((position[source]!, position[dest]!));
+  }
+  var total = 0;
+  for (var l = 0; l < between.length; l++) {
+    final pairs = between[l]
+      ..sort((a, b) => a.$1 != b.$1 ? a.$1 - b.$1 : a.$2 - b.$2);
+    // Two links cross when the one starting further left ends further
+    // right: count those pairs with a Fenwick tree over the lower layer.
+    final size = layers[l + 1].length;
+    final tree = List.filled(size + 1, 0);
+    var added = 0;
+    for (final (_, dest) in pairs) {
+      // Links added so far that end right of dest.
+      var notRight = 0;
+      for (var i = dest + 1; i > 0; i -= i & -i) {
+        notRight += tree[i];
+      }
+      total += added - notRight;
+      for (var i = dest + 1; i <= size; i += i & -i) {
+        tree[i]++;
+      }
+      added++;
+    }
+  }
+  return total;
+}
+
+/// [layers] with each layer reordered by the barycentre heuristic, to
+/// reduce the crossings: sweeps down (each node by the mean place of the
+/// nodes linking to it in the layers above) and up (by the nodes it links
+/// to below), [sweeps] times each, keeping the order with the fewest
+/// [layerCrossings]. A place is taken relative to the width of its layer,
+/// so links over several layers count too. A node without links on that
+/// side keeps its place. Returns null when [timeUp] says the time is up.
+List<List<String>>? orderLayers(
+  List<List<String>> layers,
+  List<LayeredLink> links, {
+  int sweeps = 6,
+  bool Function() timeUp = _never,
+}) {
+  final above = <String, List<String>>{};
+  final below = <String, List<String>>{};
+  for (final (source, dest) in links) {
+    below.putIfAbsent(source, () => []).add(dest);
+    above.putIfAbsent(dest, () => []).add(source);
+  }
+  final current = [for (final layer in layers) [...layer]];
+  final place = <String, double>{};
+  void measure(int l) {
+    final layer = current[l];
+    for (var i = 0; i < layer.length; i++) {
+      place[layer[i]] = (i + 0.5) / layer.length;
+    }
+  }
+
+  for (var l = 0; l < current.length; l++) {
+    measure(l);
+  }
+  var best = [for (final layer in current) [...layer]];
+  var fewest = layerCrossings(current, links);
+
+  void reorder(int l, Map<String, List<String>> by) {
+    final layer = current[l];
+    final key = <String, double>{};
+    for (final id in layer) {
+      final others = by[id];
+      key[id] = others == null || others.isEmpty
+          ? place[id]!
+          : others.fold(0.0, (sum, o) => sum + place[o]!) / others.length;
+    }
+    final indexed = [for (var i = 0; i < layer.length; i++) (i, layer[i])];
+    // A stable sort, so equal barycentres keep their order.
+    indexed.sort((a, b) {
+      final byKey = key[a.$2]!.compareTo(key[b.$2]!);
+      return byKey != 0 ? byKey : a.$1.compareTo(b.$1);
+    });
+    current[l] = [for (final (_, id) in indexed) id];
+    measure(l);
+  }
+
+  void keepIfBetter() {
+    final crossings = layerCrossings(current, links);
+    if (crossings < fewest) {
+      fewest = crossings;
+      best = [for (final layer in current) [...layer]];
+    }
+  }
+
+  for (var sweep = 0; sweep < sweeps && fewest > 0; sweep++) {
+    for (var l = 1; l < current.length; l++) {
+      reorder(l, above);
+    }
+    keepIfBetter();
+    if (timeUp()) return null;
+    for (var l = current.length - 2; l >= 0; l--) {
+      reorder(l, below);
+    }
+    keepIfBetter();
+    if (timeUp()) return null;
+  }
+  return best;
+}
+
+bool _never() => false;
+
+/// The x position of each node of [layers], each layer in its order, at
+/// least [nodeSpacing] apart: a few sweeps down and up move each node to
+/// the mean x of the nodes it links to in the layers above (going down)
+/// or below (going up), as near as the spacing allows.
+Map<String, double> layerXs(
+  List<List<String>> layers,
+  List<LayeredLink> links, {
+  int sweeps = 4,
+}) {
+  final above = <String, List<String>>{};
+  final below = <String, List<String>>{};
+  for (final (source, dest) in links) {
+    below.putIfAbsent(source, () => []).add(dest);
+    above.putIfAbsent(dest, () => []).add(source);
+  }
+  final x = <String, double>{};
+  for (final layer in layers) {
+    for (var i = 0; i < layer.length; i++) {
+      x[layer[i]] = (i - (layer.length - 1) / 2) * nodeSpacing;
+    }
+  }
+  void place(List<String> layer, Map<String, List<String>> by) {
+    final wanted = [
+      for (final id in layer)
+        switch (by[id]) {
+          final others? when others.isNotEmpty =>
+            others.fold(0.0, (sum, o) => sum + x[o]!) / others.length,
+          _ => x[id]!,
+        },
+    ];
+    final fitted = spacedFit(wanted, nodeSpacing);
+    for (var i = 0; i < layer.length; i++) {
+      x[layer[i]] = fitted[i];
+    }
+  }
+
+  for (var sweep = 0; sweep < sweeps; sweep++) {
+    for (var l = 1; l < layers.length; l++) {
+      place(layers[l], above);
+    }
+    for (var l = layers.length - 2; l >= 0; l--) {
+      place(layers[l], below);
+    }
+  }
+  return x;
+}
+
+/// The positions nearest to [wanted] (least squares) that keep their order
+/// and are at least [spacing] apart. With z = wanted[i] - i * spacing, this
+/// is the closest non-decreasing sequence to z (pool adjacent violators),
+/// plus i * spacing again.
+List<double> spacedFit(List<double> wanted, double spacing) {
+  // Blocks of neighbouring positions that move together: sum and count.
+  final sums = <double>[];
+  final counts = <int>[];
+  for (var i = 0; i < wanted.length; i++) {
+    sums.add(wanted[i] - i * spacing);
+    counts.add(1);
+    while (sums.length > 1 &&
+        sums[sums.length - 2] / counts[counts.length - 2] >
+            sums.last / counts.last) {
+      final sum = sums.removeLast(), count = counts.removeLast();
+      sums[sums.length - 1] += sum;
+      counts[counts.length - 1] += count;
+    }
+  }
+  final result = <double>[];
+  for (var b = 0; b < sums.length; b++) {
+    final mean = sums[b] / counts[b];
+    for (var k = 0; k < counts[b]; k++) {
+      result.add(mean + result.length * spacing);
+    }
+  }
+  return result;
+}
+
+/// The hierarchical layout (#155), after Sugiyama's method as Graphviz's
+/// `dot` uses it, kept simple: (1) [acyclicLinks], (2)
+/// [longestPathLayers], (3) [orderLayers], (4) [layerXs]. Links over
+/// several layers are drawn straight, without dummy nodes. Each connected
+/// part is laid out alone and the parts are packed side by side. Null when
+/// it takes longer than [limit].
+Map<String, Point<double>>? _layered(DrawnGraph graph, Duration limit) {
+  final clock = Stopwatch()..start();
+  bool timeUp() => clock.elapsed >= limit;
+  final links = acyclicLinks(graph);
+  final ids = [for (final node in graph.nodes) node.id];
+  final layer = longestPathLayers(ids, links);
+  final out = <String, List<LayeredLink>>{};
+  for (final link in links) {
+    out.putIfAbsent(link.$1, () => []).add(link);
+  }
+  final parts = connectedParts(graph);
+  final placed = <List<Point<double>>>[];
+  for (final part in parts) {
+    if (timeUp()) return null;
+    final partLinks = [
+      for (final id in part) ...?out[id],
+    ];
+    final depth = part.fold(0, (deepest, id) => max(deepest, layer[id]!));
+    // The first order: as a depth-first search from the top layer finds
+    // the nodes, so the nodes linked from one node start out together.
+    final layers = List.generate(depth + 1, (_) => <String>[]);
+    final below = <String, List<String>>{};
+    for (final (source, dest) in partLinks) {
+      below.putIfAbsent(source, () => []).add(dest);
+    }
+    final seen = <String>{};
+    for (final start in part) {
+      if (layer[start] != 0 || !seen.add(start)) continue;
+      final stack = [start];
+      while (stack.isNotEmpty) {
+        final id = stack.removeLast();
+        layers[layer[id]!].add(id);
+        final next = below[id] ?? const <String>[];
+        for (final other in next.reversed) {
+          if (seen.add(other)) stack.add(other);
+        }
+      }
+    }
+    final ordered = orderLayers(layers, partLinks, timeUp: timeUp);
+    if (ordered == null) return null;
+    final x = layerXs(ordered, partLinks);
+    placed.add([
+      for (final id in part) Point(x[id]!, layer[id]! * layerSpacing),
+    ]);
+  }
+  final shifted = _pack(placed);
+  return {
+    for (var p = 0; p < parts.length; p++)
+      for (var i = 0; i < parts[p].length; i++) parts[p][i]: shifted[p][i],
+  };
+}
+
 /// [positions] moved so that the smallest coordinates are [layoutMargin].
-GraphLayout _normalized(Map<String, Point<double>> positions) {
+GraphLayout _normalized(
+  Map<String, Point<double>> positions, {
+  bool fellBack = false,
+}) {
   final box = _bounds(positions.values);
   final dx = layoutMargin - box.left, dy = layoutMargin - box.top;
   return GraphLayout(
@@ -644,5 +1017,6 @@ GraphLayout _normalized(Map<String, Point<double>> positions) {
     },
     box.width + 2 * layoutMargin,
     box.height + 2 * layoutMargin,
+    fellBack: fellBack,
   );
 }
