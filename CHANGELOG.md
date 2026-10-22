@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-22: Buttons for headings and list items in "Edit text" ([#157](https://github.com/ChristianGeng/roam-graph-mobile/pull/157))
+
+- Added: a row of buttons below the text in "Edit text": new heading, up or down a level, move up or down, new list item, checkbox on or off, and the next TODO state. They act on the line of the cursor or on the selected lines, as Org's commands do.
+- A button that would change a property drawer or the heading above one does nothing and says why. Everything is saved, as before, with the diff.
+
+Closes #151.
+
 ## 2026-10-22: Tick checkboxes and change TODO states in the note view ([#156](https://github.com/ChristianGeng/roam-graph-mobile/pull/156))
 
 - Added: tap a checkbox in a note to tick or untick it; the boxes and progress cookies above it follow. Slide a heading to the left for its next TODO state, or long-press it for the list of states (the note's `#+TODO:` keywords, or TODO and DONE).

@@ -2421,6 +2421,71 @@ devices through Syncthing.
       a diff and undone, a state chosen by long press and by slide, a
       file changed meanwhile, and a read-only folder.
 
+87. **Buttons for headings and list items in "Edit text"** (#151),
+    `lib/edit/structure_edits.dart`, `lib/edit/edit_screen.dart`. On a
+    phone, typing stars and indentation for Org's structure is slow. A
+    row of buttons below the text (so it stays above the keyboard) does
+    what Org's commands do, on the line of the cursor or the lines of a
+    selection:
+    - **New heading** (`org-insert-heading` after the subtree, C-RET):
+      after the subtree of the heading at or above the cursor, at its
+      level, before the blank lines that end the subtree; the cursor goes
+      after the stars. Without a heading above, after the text before the
+      first heading, at the highest level the text may have (below).
+    - **Up a level / Down a level** (`org-promote-subtree`,
+      `org-demote-subtree`): every heading in the selected lines, or the
+      cursor's heading, with its subtree, one star less or more. On a list
+      item (the cursor anywhere in it), the item with its sub-items:
+      down a level means below the text of the item above it at its level
+      (`- ` gives two spaces, `1. ` three); there must be one. Up a level
+      means at the indentation of the item it is under; a top item stays.
+      Items after a promoted item stay as they are, and are now its
+      sub-items, as in the text's indentation.
+    - **Move up / Move down** (M-up, M-down): the heading of the cursor's
+      line with its subtree past the heading before or after it at the
+      same level under the same parent; the list item with its sub-items
+      past its sibling. Blank lines between the two stay where they were.
+      The first or last one stays and the message says so.
+    - **New list item** (M-RET): after the current item and its
+      sub-items, with the same indentation and bullet; a numbered item
+      gets the next number and the items after it count on, as Org
+      renumbers. An item with a checkbox gives a new item with `[ ]`.
+      Outside a list it starts one with `- `: on a blank line in place,
+      else on a new line after the cursor's line; not on a heading line.
+    - **Checkbox on or off:** the item becomes `- [ ] ...`, or loses its
+      box (any state). With a selection, all items follow the first one.
+      Cookies are not counted here; the note view does that (#150).
+    - **Next TODO state:** the heading at or above the cursor, cycled as
+      in the note view (decision 86): the file's `#+TODO:` keywords, read
+      from the whole file since they may be in the head, else `TODO |
+      DONE`. No `CLOSED:` time and no cookies: the text is edited by hand
+      here, and the diff shows the change.
+    - **The highest level:** for a file node 1; for a heading node one
+      level below its own heading, so no heading leaves the node's subtree
+      (the head is not in the text at all, decision 10, rule 5). A promote
+      that would go higher does nothing and says why.
+    - **Locked parts:** after each button the same checks as the save are
+      made (decision 51): the property drawers with the line above each,
+      in order, and the `#+title:` and `#+filetags:` lines. If they would
+      change, nothing changes and a message says why. So a heading above
+      a drawer keeps its level, two headings with drawers do not swap,
+      but a heading with its drawer may move past one without. Its TODO
+      keyword may change: the save in "Edit text" now passes the note's
+      TODO keywords, as the note view's saves do (decision 86).
+    - **Saved as before:** the buttons change only the text in the editor;
+      "Review" shows the diff and only "Save" writes.
+    - The lines are read as Org reads them, simply: a heading is stars
+      and a space at the start of a line; a list item is `-`, `+`, `*`
+      (indented), `1.` or `1)` and a space; an item's lines are those
+      indented more than its bullet. Tabs count as one column. Windows
+      line ends stay.
+    - Tests (synthetic text only): each button on a heading, on a list
+      item, at the first and the last line and with a selection; promote
+      and demote with a subtree and with sub-items; move with siblings and
+      at the ends; numbered items; the TODO keywords of the file; drawers
+      and `#+title:` lines left as they are; in the app, a TODO state
+      saved with the diff, a refused demote, and a new heading.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
