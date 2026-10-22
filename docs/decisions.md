@@ -2233,7 +2233,6 @@ devices through Syncthing.
       to close it (#142). Fixing it would need an own `Socket` around
       `RawSecureSocket`; not worth it for a server that misbehaves on
       purpose, which the AI would have to choose to visit.
-
 83. **"Save as new node" in the chat: the AI makes the note** (#145),
     `lib/ai/note_from_answer.dart`, `_saveAsNode` in
     `lib/ai/chat_screen.dart`. Until now the button sent nothing to the
@@ -2283,7 +2282,6 @@ devices through Syncthing.
       note is being prepared, an undo runs, or a failed turn waits for
       "Send again"; "New chat", Send and "Send again" wait for the extra
       request.
-
 84. **SuperCollider blocks are coloured with the app's own grammar**
     (#147), `lib/node_view/sclang_language.dart`. `#+begin_src sclang`
     blocks were plain (decision 37): highlight.js's core has no
@@ -2322,8 +2320,28 @@ devices through Syncthing.
       names, and names are compared as Emacs does (decision 37), so they
       stay plain. The grammar is never guessed for other text
       (`disableAutodetect`).
+85. **The layouts are in the View menu, next to the views** (#143),
+    `lib/graph_view/graph_screen.dart`. The layout (Circular,
+    Force-directed) was switched in the "More" menu, what the graph shows
+    (Plain, Communities, PageRank, ...) in the "View" menu; two menus for
+    one question, how the graph looks. Now everything that changes how the
+    graph looks is in the View menu.
+    - **Two groups with a small heading:** "Layout" (one item per
+      `LayoutKind`) and "View" (the graph views of #7). The headings cannot
+      be chosen. In each group the current item has a check mark; before,
+      the current view was only highlighted.
+    - **At the end** "About the layouts" and "About the views", the help
+      links of #62.
+    - **Choosing a layout does what the More menu did:** it switches the
+      open graph, ends the start setting for this view (#81) and is
+      remembered for "Last used" (#71).
+    - **The More menu keeps Centre, Ask AI, Settings and Help:** actions,
+      not looks.
+    - **Nothing else changes:** the layouts, the views, "Graph layout at
+      start" in Settings and what is stored. The setting's subtitle and the
+      "Last used" description now name the View menu.
 
-85. **Checkboxes and TODO states change in the note view, saved without a
+86. **Checkboxes and TODO states change in the note view, saved without a
     diff** (#150), `lib/edit/org_toggles.dart`,
     `lib/node_view/quick_edits.dart`, `lib/node_view/node_screen.dart`.
     The owner no longer uses Orgro, so the edits Orgro has come into the

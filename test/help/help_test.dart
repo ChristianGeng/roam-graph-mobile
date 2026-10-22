@@ -99,11 +99,11 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('"About the layouts" next to the layouts; links work', (
+    testWidgets('"About the layouts" in the View menu; links work', (
       tester,
     ) async {
       await pumpGraph(tester);
-      await tester.tap(find.byTooltip('More'));
+      await tester.tap(find.byTooltip('View'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('About the layouts'));
       await settleHelp(tester);

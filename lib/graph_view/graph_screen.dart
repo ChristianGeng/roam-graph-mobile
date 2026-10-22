@@ -124,18 +124,10 @@ enum _ScopeChoice {
 }
 
 /// The actions of the graph's "More" menu.
-enum _MoreAction {
-  centre,
-  circo,
-  force,
-  askAi,
-  settings,
-  helpLayouts,
-  help;
+enum _MoreAction { centre, askAi, settings, help }
 
-  static _MoreAction layoutOf(LayoutKind kind) =>
-      kind == LayoutKind.circo ? circo : force;
-}
+/// The help links at the end of the graph's "View" menu (#62, #143).
+enum _ViewHelp { layouts, views }
 
 /// The graph views of #7: what the drawing shows about each node.
 enum _GraphView {
@@ -244,7 +236,7 @@ class _GraphScreenState extends State<GraphScreen> {
   /// Counts layout requests; only the latest may be shown.
   int _generation = 0;
 
-  /// A layout was chosen in the More menu: the start setting no longer
+  /// A layout was chosen in the View menu: the start setting no longer
   /// applies to this view (#81).
   bool _layoutChosen = false;
 
@@ -625,25 +617,37 @@ class _GraphScreenState extends State<GraphScreen> {
         );
       case _MoreAction.settings:
         SettingsScreen.open(context, graph: _graph);
-      case _MoreAction.helpLayouts:
-        openHelp(context, id: helpLayouts);
       case _MoreAction.help:
         openHelp(context);
-      case _MoreAction.circo || _MoreAction.force:
-        _layoutChosen = true;
-        final kind =
-            action == _MoreAction.circo ? LayoutKind.circo : LayoutKind.force;
-        _kind = kind;
-        _update();
-        // Remembered for "Last used" (#71), on top of the settings as
-        // loaded, so a choice made while the file is read does not save
-        // the defaults over it (#81).
-        ViewSettingsScope.current(context).then((view) {
-          if (!mounted || view.lastLayout == kind) return;
-          ViewSettingsScope.change(context, view.copyWith(lastLayout: kind))
-              .catchError((Object _) {});
-        });
     }
+  }
+
+  /// A choice in the "View" menu (#143): a layout, a view or a help page.
+  void _viewMenu(Object value) {
+    switch (value) {
+      case LayoutKind kind:
+        _chooseLayout(kind);
+      case _GraphView view:
+        _showView(view);
+      case _ViewHelp.layouts:
+        openHelp(context, id: helpLayouts);
+      case _ViewHelp.views:
+        openHelp(context, id: helpViews);
+    }
+  }
+
+  void _chooseLayout(LayoutKind kind) {
+    _layoutChosen = true;
+    _kind = kind;
+    _update();
+    // Remembered for "Last used" (#71), on top of the settings as
+    // loaded, so a choice made while the file is read does not save
+    // the defaults over it (#81).
+    ViewSettingsScope.current(context).then((view) {
+      if (!mounted || view.lastLayout == kind) return;
+      ViewSettingsScope.change(context, view.copyWith(lastLayout: kind))
+          .catchError((Object _) {});
+    });
   }
 
   void _showView(_GraphView view) => setState(() {
@@ -740,20 +744,36 @@ class _GraphScreenState extends State<GraphScreen> {
                 PopupMenuItem(value: choice, child: Text(choice.label)),
             ],
           ),
+          // Everything that changes how the graph looks (#143): the
+          // layout, then the view, each with the current one checked.
           PopupMenuButton<Object>(
             tooltip: 'View',
             icon: const Icon(Icons.insights_outlined),
-            initialValue: _view,
-            onSelected: (value) => value is _GraphView
-                ? _showView(value)
-                : openHelp(context, id: helpViews),
+            onSelected: _viewMenu,
             itemBuilder: (context) => [
-              for (final view in _GraphView.values)
-                PopupMenuItem(value: view, child: Text(view.label)),
+              const _MenuHeading('Layout'),
+              for (final kind in LayoutKind.values)
+                CheckedPopupMenuItem<Object>(
+                  value: kind,
+                  checked: kind == _kind,
+                  child: Text(kind.label),
+                ),
               const PopupMenuDivider(),
-              // The "?" of the views (#62).
-              const PopupMenuItem(
-                value: 'help',
+              const _MenuHeading('View'),
+              for (final view in _GraphView.values)
+                CheckedPopupMenuItem<Object>(
+                  value: view,
+                  checked: view == _view,
+                  child: Text(view.label),
+                ),
+              const PopupMenuDivider(),
+              // The "?" of the layouts and of the views (#62).
+              const PopupMenuItem<Object>(
+                value: _ViewHelp.layouts,
+                child: _HelpLabel('About the layouts'),
+              ),
+              const PopupMenuItem<Object>(
+                value: _ViewHelp.views,
                 child: _HelpLabel('About the views'),
               ),
             ],
@@ -765,17 +785,6 @@ class _GraphScreenState extends State<GraphScreen> {
             itemBuilder: (context) => [
               const PopupMenuItem(
                   value: _MoreAction.centre, child: Text('Centre')),
-              for (final kind in LayoutKind.values)
-                CheckedPopupMenuItem(
-                  value: _MoreAction.layoutOf(kind),
-                  checked: kind == _kind,
-                  child: Text(kind.label),
-                ),
-              // The "?" next to the layout switch (#62).
-              const PopupMenuItem(
-                value: _MoreAction.helpLayouts,
-                child: _HelpLabel('About the layouts'),
-              ),
               const PopupMenuItem(
                 value: _MoreAction.askAi,
                 child: Text('Ask AI'),
@@ -1160,4 +1169,38 @@ class _HelpLabel extends StatelessWidget {
           Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
         ],
       );
+}
+
+/// A small heading over a group of a popup menu's items (#143); it cannot
+/// be chosen.
+class _MenuHeading extends PopupMenuEntry<Object> {
+  const _MenuHeading(this.label);
+
+  final String label;
+
+  @override
+  double get height => 32;
+
+  @override
+  bool represents(Object? value) => false;
+
+  @override
+  State<_MenuHeading> createState() => _MenuHeadingState();
+}
+
+class _MenuHeadingState extends State<_MenuHeading> {
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      height: widget.height,
+      alignment: AlignmentDirectional.centerStart,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Text(
+        widget.label,
+        style: theme.textTheme.labelMedium
+            ?.copyWith(color: theme.colorScheme.primary),
+      ),
+    );
+  }
 }

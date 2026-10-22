@@ -4,8 +4,10 @@
 #+title: Graph views: communities, importance, paths
 #+STARTUP: showall
 
-The "View" menu of the graph changes what the dots show. The results are
-the ones my org-roam MCP server computes on the laptop.
+The "View" menu of the graph changes what the dots show, in its "View"
+group; the "Layout" group above it changes where they go
+([[id:roam-graph-help-layouts][Layouts]]). The results are the ones my
+org-roam MCP server computes on the laptop.
 
 * Plain
 Every node the same size and colour; only the links show.

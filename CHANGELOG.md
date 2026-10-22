@@ -15,6 +15,13 @@ each entry.
 
 Closes #150.
 
+## 2026-10-22: Graph layouts in the View menu ([#144](https://github.com/ChristianGeng/roam-graph-mobile/pull/144))
+
+- Changed: the graph's View menu has two groups, "Layout" (Circular, Force-directed) and "View" (Plain, Communities, PageRank, number of links, Shortest path), each with a check mark at the current one, then "About the layouts" and "About the views".
+- Changed: the More menu keeps only Centre, Ask AI, Settings and Help. A layout chosen in the View menu is still remembered for "Last used".
+
+Closes #143.
+
 ## 2026-10-22: SuperCollider source blocks in colour ([#148](https://github.com/ChristianGeng/roam-graph-mobile/pull/148))
 
 - Added: `#+begin_src sclang` blocks are coloured, as `sclang-mode` colours them in Emacs: classes, symbols, `~` variables, keywords, numbers, strings, characters and comments (also nested `/* */`).

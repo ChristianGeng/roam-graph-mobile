@@ -93,7 +93,7 @@ void main() {
         startLayout: StartLayout.force,
         lastLayout: LayoutKind.force));
     final kinds = await openSlow(tester, store);
-    await tester.tap(find.byTooltip('More'));
+    await tester.tap(find.byTooltip('View'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text(LayoutKind.circo.label));
@@ -135,7 +135,7 @@ void main() {
     final store = MemoryViewSettingsStore(
         const ViewSettings(startLayout: StartLayout.lastUsed));
     expect(await openGraph(tester, store), [LayoutKind.force]);
-    await tester.tap(find.byTooltip('More'));
+    await tester.tap(find.byTooltip('View'));
     await tester.pumpAndSettle();
     await tester.tap(find.text(LayoutKind.circo.label));
     await tester.pumpAndSettle();
@@ -148,7 +148,7 @@ void main() {
       (tester) async {
     final store = MemoryViewSettingsStore();
     await openGraph(tester, store);
-    await tester.tap(find.byTooltip('More'));
+    await tester.tap(find.byTooltip('View'));
     await tester.pumpAndSettle();
     await tester.tap(find.text(LayoutKind.circo.label));
     await tester.pumpAndSettle();

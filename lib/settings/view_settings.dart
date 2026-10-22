@@ -51,7 +51,7 @@ enum SectionsOnOpen {
 enum StartLayout {
   force('Force-directed', 'Linked notes pull together, so clusters show'),
   circo('Circular (circo)', 'As org-roam-graph draws it'),
-  lastUsed('Last used', 'The layout chosen last in the graph\'s More menu');
+  lastUsed('Last used', 'The layout chosen last in the graph\'s View menu');
 
   const StartLayout(this.label, this.description);
 
@@ -105,7 +105,7 @@ class ViewSettings {
   /// default.
   final StartLayout startLayout;
 
-  /// The layout chosen last in the graph's More menu, for
+  /// The layout chosen last in the graph's View menu, for
   /// [StartLayout.lastUsed].
   final LayoutKind lastLayout;
 
@@ -610,7 +610,7 @@ class SettingsScreen extends StatelessWidget {
           const Divider(),
           const ListTile(
             title: Text('Graph layout at start'),
-            subtitle: Text('The "More" menu still switches the layout '
+            subtitle: Text('The View menu still switches the layout '
                 'while the graph is open.'),
           ),
           RadioGroup<StartLayout>(

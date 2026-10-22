@@ -50,6 +50,7 @@ Future<MemoryNodeMemory> show(
   String? remembered,
   Size screen = phoneScreen,
   AlgorithmsFunction? computeAlgorithms,
+  LayoutFunction? computeLayout,
 }) async {
   // The default test screen, 800 x 600, is a tablet in landscape (#16).
   tester.view
@@ -70,7 +71,7 @@ Future<MemoryNodeMemory> show(
       // Every note has the text "Text of <id>."
       readNote: (path) async => 'Text of ${path.replaceAll('.org', '')}.',
       nodeMemory: memory,
-      computeLayout: layoutHere,
+      computeLayout: computeLayout ?? layoutHere,
       computeAlgorithms: computeAlgorithms ?? algorithmsHere,
     ),
   ));
@@ -225,22 +226,129 @@ void main() {
   });
 
   testWidgets('both layouts, each centred on the node', (tester) async {
-    await show(tester, remembered: 'b');
-    await tester.tap(find.byTooltip('More'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Force-directed'));
-    await tester.pumpAndSettle();
+    final kinds = <LayoutKind>[];
+    // Large enough for every node; upright, so one screen at a time.
+    await show(tester, remembered: 'b', screen: const Size(1200, 1600),
+        computeLayout: (graph, kind) {
+      kinds.add(kind);
+      return layoutHere(graph, kind);
+    });
+    expect(kinds, [LayoutKind.circo]);
+
+    // Where hub is in each layout, seen from b in the middle.
+    final whole = DrawnGraph.of(graph, const WholeGraph());
+    Offset hubFromB(LayoutKind kind) {
+      final layout = layoutGraph(whole, kind);
+      final b = layout.positions['b']!, hub = layout.positions['hub']!;
+      return Offset(hub.x - b.x, hub.y - b.y);
+    }
+
+    final circo = hubFromB(LayoutKind.circo),
+        force = hubFromB(LayoutKind.force);
+    // Far enough apart that a tap at one cannot reach hub in the other.
+    expect((circo - force).distance, greaterThan(3 * tapReach(1)));
+
+    Future<void> tapAt(Offset at) async {
+      await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)) + at);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> choose(String label) async {
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    await choose('Force-directed');
+    // A new drawing, not only a new check mark.
+    expect(kinds, [LayoutKind.circo, LayoutKind.force]);
     await tapMiddle(tester);
     expect(nodeTitle('B'), findsOneWidget);
-
     await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('More'));
+    await tapAt(force);
+    expect(nodeTitle('HUB'), findsOneWidget);
+    await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Circular (circo)'));
-    await tester.pumpAndSettle();
+
+    // Opening hub made it the centre node, so the circular layout, drawn
+    // again from the layouts kept, is centred on hub, and b is the other
+    // way round.
+    await choose('Circular (circo)');
     await tapMiddle(tester);
+    expect(nodeTitle('HUB'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tapAt(-circo);
     expect(nodeTitle('B'), findsOneWidget);
+  });
+
+  group('the View menu: layouts and views (#143)', () {
+    /// The checked items of the open menu, by their labels.
+    Map<String, bool> checks(WidgetTester tester) => {
+          for (final item in tester.widgetList<CheckedPopupMenuItem<Object>>(
+              find.byWidgetPredicate((w) => w is CheckedPopupMenuItem<Object>)))
+            (item.child! as Text).data!: item.checked,
+        };
+
+    testWidgets('both groups, with headings and the current item checked',
+        (tester) async {
+      await show(tester, remembered: 'hub');
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      expect(find.text('Layout'), findsOneWidget);
+      expect(find.text('View'), findsOneWidget);
+      // The tests start with the circular layout (see show).
+      expect(checks(tester), {
+        'Circular (circo)': true,
+        'Force-directed': false,
+        'Plain': true,
+        'Communities': false,
+        'Importance: PageRank': false,
+        'Importance: number of links': false,
+        'Shortest path': false,
+      });
+      expect(find.text('About the layouts'), findsOneWidget);
+      expect(find.text('About the views'), findsOneWidget);
+      // A heading is not a choice: tapping it keeps the menu open.
+      await tester.tap(find.text('Layout'));
+      await tester.pumpAndSettle();
+      expect(find.text('Force-directed'), findsOneWidget);
+      expect(checks(tester)['Circular (circo)'], isTrue);
+    });
+
+    testWidgets('the checks follow the choices', (tester) async {
+      await show(tester, remembered: 'hub');
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Force-directed'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Communities'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('View'));
+      await tester.pumpAndSettle();
+      final now = checks(tester);
+      expect(now['Force-directed'], isTrue);
+      expect(now['Circular (circo)'], isFalse);
+      expect(now['Communities'], isTrue);
+      expect(now['Plain'], isFalse);
+    });
+
+    testWidgets('the More menu has no layouts any more', (tester) async {
+      await show(tester, remembered: 'hub');
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+      for (final label in ['Centre', 'Ask AI', 'Settings', 'Help']) {
+        expect(find.text(label), findsOneWidget, reason: label);
+      }
+      for (final kind in LayoutKind.values) {
+        expect(find.text(kind.label), findsNothing, reason: kind.label);
+      }
+      expect(find.text('About the layouts'), findsNothing);
+    });
   });
 
   testWidgets('"Centre" returns to the centre node after panning',
