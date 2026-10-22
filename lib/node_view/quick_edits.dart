@@ -70,19 +70,23 @@ class TodoSlideAction extends StatelessWidget {
         color: scheme.secondaryContainer,
         child: InkWell(
           onTap: onPressed,
+          // A heading may be one short line, so icon and label sit side
+          // by side, scaled down if they do not fit.
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: scheme.onSecondaryContainer),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: scheme.onSecondaryContainer),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 18, color: scheme.onSecondaryContainer),
+                    const SizedBox(width: 4),
+                    Text(label,
+                        style: TextStyle(color: scheme.onSecondaryContainer)),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
