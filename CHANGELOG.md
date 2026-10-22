@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-22: Search inside a note ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-22: Search inside a note ([#160](https://github.com/ChristianGeng/roam-graph-mobile/pull/160))
 
 - Added: "Search in this note" in the node view's bar (Ctrl+F on the desktop) marks every match, upper and lower case alike, opens the sections they are in, and counts them; the arrows go from one to the next. "Only matching sections" folds the others away. Closing the search folds the sections as before.
 - Changed: on a narrow screen, "New node from here" and "Open in Orgro" are in a "More" menu, so the bar fits.
