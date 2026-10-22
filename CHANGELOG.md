@@ -14,6 +14,13 @@ each entry.
 
 Closes #147.
 
+## 2026-10-22: "Save as new node" in the chat: the AI makes the note ([#146](https://github.com/ChristianGeng/roam-graph-mobile/pull/146))
+
+- Changed: "Save as new node" under a chat answer lets the AI make the note: a short, fitting title in the language of the answer, Org text without chat phrases, and links to the notes it used and to the note the chat was opened from.
+- In agent mode the button sends that request as my message, and the AI makes the note itself, with "Undo all". In review and off mode the AI writes the title and text, and "New node" opens with them to check and save; if its answer cannot be read, the first line is the title, as before.
+
+Closes #145.
+
 ## 2026-10-21: Web access for the AI chat ([#139](https://github.com/ChristianGeng/roam-graph-mobile/pull/139))
 
 - Added: "Web access for the AI" in AI settings, off by default. With it on, the chat can read web pages (fetched from the phone, https only, never from the own network) and, with Anthropic, search the web; search words go to the provider.

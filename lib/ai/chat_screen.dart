@@ -27,6 +27,7 @@ import 'ai_models.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
 import 'edit_tools.dart';
+import 'note_from_answer.dart';
 import 'web_access.dart';
 
 /// Opens a node by its ID, from a link in an answer.
@@ -154,6 +155,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Undo is running for this message.
   int? _undoing;
+
+  /// The index of the answer whose note the AI is writing for "Save as new
+  /// node" in review and off mode (#145).
+  int? _preparing;
 
   @override
   void initState() {
@@ -370,10 +375,17 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _send() async {
-    final session = _session;
     final text = _input.text.trim();
-    if (session == null || text.isEmpty || _sending) return;
+    if (_session == null || text.isEmpty || _sending) return;
     _input.clear();
+    await _sendText(text);
+  }
+
+  /// Sends [text] as my message and runs the turn; also for "Save as new
+  /// node" in agent mode (#145).
+  Future<void> _sendText(String text) async {
+    final session = _session;
+    if (session == null || _sending) return;
     // The agent's changes for this message are kept under its index.
     if (_agent case final agent?) {
       _turnChanges[session.transcript.length] =
@@ -384,7 +396,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _resume() async {
     final session = _session;
-    if (session == null || _sending) return;
+    if (session == null || _sending || _preparing != null) return;
     await _run(() => session.resume(onUpdate: _changed));
   }
 
@@ -581,10 +593,82 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// An answer as a new node, through the capture screen (#11): the title
-  /// and text are proposed as for shared text (#15), I review them.
-  Future<void> _saveAsNode(NoteWriter writer, String answer) async {
-    final proposal = proposeNode(SharedText(answer));
+  /// The index of the last answer with text, which "your last answer"
+  /// names.
+  int _lastAnswer(List<ChatEntry> transcript) => transcript.lastIndexWhere(
+      (e) => e is AssistantMessage && e.text.trim().isNotEmpty);
+
+  /// The number of the answer at [index] among the answers with text,
+  /// from 1.
+  int _answerNumber(List<ChatEntry> transcript, int index) => transcript
+      .take(index + 1)
+      .where((e) => e is AssistantMessage && e.text.trim().isNotEmpty)
+      .length;
+
+  /// "Save as new node" under the answer at [index] (#145): the AI makes
+  /// the note from it.
+  ///
+  /// In agent mode, a fixed message of mine asks the agent to make it with
+  /// `create_node`, in the normal agent loop (summary, "Undo all", "Recent
+  /// AI changes"). In review and off mode, one more request without tools
+  /// asks for the title and body, which fill "New node" (#11); I review
+  /// them. If that answer cannot be read, the title and text are proposed
+  /// as for shared text (#15), as before.
+  Future<void> _saveAsNode(NoteWriter writer, int index) async {
+    final session = _session;
+    if (session == null ||
+        _sending ||
+        _preparing != null ||
+        _undoing != null ||
+        session.waiting) {
+      return;
+    }
+    final entry = session.transcript[index];
+    if (entry is! AssistantMessage) return;
+    final start = widget.startNode;
+    if (_agent != null) {
+      await _sendText(agentSaveRequest(
+        answer: entry.text,
+        isLast: index == _lastAnswer(session.transcript),
+        number: _answerNumber(session.transcript, index),
+        // A note hidden from AI is not named to it.
+        start: start != null && _startShown
+            ? (id: start.id, title: start.displayTitle)
+            : null,
+      ));
+      return;
+    }
+    setState(() => _preparing = index);
+    ({String title, String body})? note;
+    String? failed;
+    try {
+      final reply = await whileScreenOn(() => session.askOnce(
+            noteRequestEntries(session.transcript, index,
+                startLinked: start != null),
+            system: noteFromAnswerSystem,
+          ));
+      note = parseNoteJson(reply);
+    } on AiError catch (e) {
+      failed = e.message;
+    } finally {
+      if (mounted) setState(() => _preparing = null);
+    }
+    // Closed, or a new chat, meanwhile.
+    if (!mounted || !identical(session, _session)) return;
+    if (note == null) {
+      _tell(failed == null
+          ? 'The AI\'s note could not be read, so the first line of the '
+              'answer is the title.'
+          : 'The AI could not write the note ($failed), so the first line '
+              'of the answer is the title.');
+    }
+    await _openCapture(writer, note ?? proposeNode(SharedText(entry.text)));
+  }
+
+  /// "New node", filled in with [proposal]; the node the chat came from
+  /// is offered as a link.
+  Future<void> _openCapture(
+      NoteWriter writer, ({String title, String body}) proposal) async {
     final start = widget.startNode;
     final id = await CaptureScreen.open(
       context,
@@ -602,7 +686,7 @@ class _ChatScreenState extends State<ChatScreen> {
     ..showSnackBar(SnackBar(content: Text(message)));
 
   void _newChat() {
-    if (_sending) return;
+    if (_sending || _preparing != null) return;
     _start();
   }
 
@@ -665,7 +749,7 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             tooltip: 'New chat',
             icon: const Icon(Icons.add_comment_outlined),
-            onPressed: _sending ? null : _newChat,
+            onPressed: _sending || _preparing != null ? null : _newChat,
           ),
           IconButton(
             tooltip: 'AI settings',
@@ -820,8 +904,23 @@ class _ChatScreenState extends State<ChatScreen> {
                         if (writer != null && entry.toolCalls.isEmpty)
                           TextButton.icon(
                             key: ValueKey('chat-save-$i'),
-                            onPressed: () => _saveAsNode(writer, entry.text),
-                            icon: const Icon(Icons.note_add_outlined, size: 18),
+                            // One at a time, and not while the chat sends,
+                            // waits for "Send again" or undoes (#145).
+                            onPressed: _sending ||
+                                    _preparing != null ||
+                                    _undoing != null ||
+                                    (session?.waiting ?? false)
+                                ? null
+                                : () => _saveAsNode(writer, i),
+                            icon: _preparing == i
+                                ? const SizedBox.square(
+                                    key: ValueKey('chat-save-wait'),
+                                    dimension: 18,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.note_add_outlined,
+                                    size: 18),
                             label: const Text('Save as new node'),
                           ),
                       ],
@@ -957,7 +1056,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     if (session?.waiting ?? false)
                       TextButton(
-                        onPressed: _sending ? null : _resume,
+                        onPressed:
+                            _sending || _preparing != null ? null : _resume,
                         child: const Text('Send again'),
                       ),
                     TextButton.icon(
@@ -1089,6 +1189,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _session != null &&
         _setupProblem == null &&
         !_sending &&
+        _preparing == null &&
         !(_session?.waiting ?? false);
     return SafeArea(
       top: false,

@@ -896,6 +896,21 @@ class ChatSession {
     }
   }
 
+  /// One request outside the conversation, without tools (#145): sends
+  /// [entries] with [system] and returns the model's text. Nothing is
+  /// added to [transcript]; the tokens count in [usage]. Throws [AiError],
+  /// also when the answer was cut off.
+  Future<String> askOnce(List<ChatEntry> entries,
+      {required String system}) async {
+    final reply = await _request(const [], entries: entries, system: system);
+    usage += reply.usage;
+    if (reply.cut) {
+      throw AiError('The answer stopped at ${_config.maxOutputTokens} '
+          'tokens and was dropped.');
+    }
+    return reply.message.text;
+  }
+
   /// The result of [call] for the model; every call gets one, also when
   /// the tool fails, as the APIs require.
   Future<String> _runTool(ToolCall call) async {
@@ -943,7 +958,8 @@ class ChatSession {
   static bool _refusedRequest(AiError e) =>
       e.status == 400 || e.status == 415 || e.status == 422;
 
-  Future<ApiReply> _request(List<AiTool> offered) async {
+  Future<ApiReply> _request(List<AiTool> offered,
+      {List<ChatEntry>? entries, String? system}) async {
     final config = _config;
     if (config.model.trim().isEmpty) {
       throw AiError('No model is set for ${config.name}. Choose one in AI '
@@ -957,10 +973,13 @@ class ChatSession {
       throw AiError('No base URL for ${config.name}. Enter it in AI '
           'settings.');
     }
-    final request = _api.request(config, offered, transcript,
-        system: _system,
-        images: _images,
-        webSearches: web?.search == true ? webLeft : 0);
+    final request = entries != null
+        ? _api.request(config, offered, entries,
+            system: system ?? _system, images: false)
+        : _api.request(config, offered, transcript,
+            system: system ?? _system,
+            images: _images,
+            webSearches: web?.search == true ? webLeft : 0);
     if (request.url.scheme != 'https' && config.apiKey.isNotEmpty) {
       throw AiError('The app sends an API key only over HTTPS. Use an '
           'https:// base URL for ${config.name}, or remove the key for a '
