@@ -105,6 +105,9 @@ void main() {
       await pumpGraph(tester);
       await tester.tap(find.byTooltip('View'));
       await tester.pumpAndSettle();
+      // Near the end of the menu, below the screen of 800 by 600.
+      await tester.ensureVisible(find.text('About the layouts'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('About the layouts'));
       await settleHelp(tester);
       expect(
