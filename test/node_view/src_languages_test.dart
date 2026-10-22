@@ -17,6 +17,7 @@ void main() {
       ('toml', 'ini'), ('conf', 'ini'), ('C', 'c'), ('cpp', 'cpp'),
       ('C++', 'cpp'), ('sqlite', 'sql'), ('python', 'python'),
       ('json', 'json'), ('yaml', 'yaml'), ('makefile', 'makefile'),
+      ('sclang', 'sclang'),
     ]) {
       expect(highlightLanguage(language), id, reason: language);
     }
@@ -24,11 +25,12 @@ void main() {
 
   test('languages Emacs does not colour stay plain', () {
     // Emacs has no config-mode, mermaid has no highlight.js grammar, and
-    // text is plain text.
+    // text is plain text. sclang has the app's own grammar (#147), but
+    // supercollider and sc are not Emacs mode names.
     // Names are compared as written: Emacs has no Python-mode.
     for (final language in [
-      'config', 'mermaid', 'text', 'sclang', 'Python', 'dot', 'calc', '',
-      null,
+      'config', 'mermaid', 'text', 'supercollider', 'sc', 'Python', 'dot',
+      'calc', '', null,
     ]) {
       expect(highlightLanguage(language), isNull, reason: language);
     }

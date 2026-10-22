@@ -8,6 +8,7 @@ import 'folder/folder_access.dart';
 import 'folder/folder_screen.dart';
 import 'graph/graph_index.dart';
 import 'graph_view/node_memory.dart';
+import 'node_view/sclang_language.dart';
 import 'platform/desktop.dart';
 import 'settings/view_settings.dart';
 
@@ -16,6 +17,8 @@ import 'settings/view_settings.dart';
 const appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'dev');
 
 void main() {
+  // The app's own source-block grammar, before any note is shown (#147).
+  registerSclang();
   runApp(const RoamGraphApp());
 }
 
