@@ -327,6 +327,9 @@ class _GraphScreenState extends State<GraphScreen> {
     if (centre != null &&
         drawn != null &&
         centre == _scopeCentre &&
+        // The grouped layout follows the communities of the whole graph,
+        // which a change outside the drawn part can change (#154).
+        _kind != LayoutKind.communities &&
         _sameDrawing(drawn, DrawnGraph.of(graph, _choice.scope(centre)))) {
       // The same nodes, labels and edges: keep the layout and the view.
       setState(() {});

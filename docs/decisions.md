@@ -2543,7 +2543,10 @@ devices through Syncthing.
       passes the Louvain result it computes for the view (of the whole
       graph, as the view colours it), and waits for it when it is not there
       yet.
-      So the colours of the view and the areas match when both are on.
+      So the colours of the view and the areas match when both are on. A
+      new graph from the index draws the grouped layout again, also when
+      the drawn part did not change, since a change elsewhere can change
+      the communities.
       `layoutGraph` called without communities (tests, tools) runs
       Louvain on the drawn graph itself.
     - **Small communities share one area:** communities of one or two
