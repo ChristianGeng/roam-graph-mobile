@@ -97,7 +97,8 @@ StructureResult applyStructureAction(
     StructureAction.moveDown => doc.move(from.line, up: false, from, to),
     StructureAction.newItem => doc.newItem(lastLine),
     StructureAction.checkbox => doc.checkbox(from.line, lastLine, from, to),
-    StructureAction.todo => doc.todo(from.line, todoStates, topLevel, from, to),
+    StructureAction.todo =>
+      doc.todo(from.line, lastLine, todoStates, topLevel, from, to),
   };
   if (result is! StructureChanged) return result;
   // The same checks as the save, so a button never makes a text that
@@ -571,37 +572,59 @@ class _Text {
     return _result(newLines, map(a), map(b));
   }
 
-  StructureResult todo(int k, List<OrgTodoStates> states, int topLevel,
-      _Position a, _Position b) {
-    final h = headingAt(k);
-    if (h == null) {
+  /// Every heading in lines [first] to [last], each to its own next state
+  /// (as Org does with `org-loop-over-headlines-in-active-region`); without
+  /// one, the heading at or above [first].
+  StructureResult todo(int first, int last, List<OrgTodoStates> states,
+      int topLevel, _Position a, _Position b) {
+    final headings = [
+      for (var i = first; i <= last; i++)
+        if (level(i) != null) i,
+    ];
+    if (headings.isEmpty) {
+      if (headingAt(first) case final h?) headings.add(h);
+    }
+    if (headings.isEmpty) {
       return StructureRefused(topLevel == 1
           ? 'There is no heading at or above the cursor.'
           : 'There is no heading at or above the cursor. The state of the '
               "note's own heading changes in the note view.");
     }
-    final m = _headingParts.firstMatch(lines[h])!;
-    final rest = m[3]!;
-    final word = rest.split(RegExp(r'[ \t]')).first;
-    final current = allKeywords(states).contains(word) ? word : null;
-    final next = nextKeyword(states, current);
-    final String newRest;
-    if (current != null) {
-      final remainder = rest.substring(word.length);
-      newRest = next == null
-          ? remainder.replaceFirst(RegExp(r'^[ \t]+'), '')
-          : '$next$remainder';
-    } else if (next == null) {
+    if (allKeywords(states).isEmpty) {
       return const StructureRefused('This note has no TODO keywords.');
-    } else {
-      newRest = rest.isEmpty ? next : '$next $rest';
     }
-    final head = m[1]!.length + m[2]!.length;
-    final newLines = [...lines]..[h] = '${m[1]}${m[2]}$newRest';
-    final by = newRest.length - rest.length;
-    _Position map(_Position p) => p.line == h && p.column > head
-        ? (line: h, column: (p.column + by).clamp(head, newLines[h].length))
-        : p;
+    final newLines = [...lines];
+    final changes = <int, ({int at, int by})>{};
+    for (final h in headings) {
+      final m = _headingParts.firstMatch(lines[h])!;
+      final rest = m[3]!;
+      final word = rest.split(RegExp(r'[ \t]')).first;
+      final current = allKeywords(states).contains(word) ? word : null;
+      final next = nextKeyword(states, current);
+      final String newRest;
+      if (current != null) {
+        final remainder = rest.substring(word.length);
+        newRest = next == null
+            ? remainder.replaceFirst(RegExp(r'^[ \t]+'), '')
+            : '$next$remainder';
+      } else {
+        newRest = rest.isEmpty ? next! : '$next $rest';
+      }
+      newLines[h] = '${m[1]}${m[2]}$newRest';
+      changes[h] = (
+        at: m[1]!.length + m[2]!.length,
+        by: newRest.length - rest.length,
+      );
+    }
+    _Position map(_Position p) {
+      final c = changes[p.line];
+      if (c == null || p.column <= c.at) return p;
+      return (
+        line: p.line,
+        column: (p.column + c.by).clamp(c.at, newLines[p.line].length)
+      );
+    }
+
     return _result(newLines, map(a), map(b));
   }
 }

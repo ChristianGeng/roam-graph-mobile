@@ -250,6 +250,9 @@ void main() {
       expect(after(StructureAction.todo, '* |a\n'), '* |TODO a\n');
       expect(after(StructureAction.todo, '* TODO a|\n'), '* DONE a|\n');
       expect(after(StructureAction.todo, '* DONE a|\n'), '* a|\n');
+      // A selection: each heading to its own next state.
+      expect(after(StructureAction.todo, '|* a\n* TODO b\ntext|\n'),
+          '|* TODO a\n* DONE b\ntext|\n');
       // From a line below the heading.
       expect(after(StructureAction.todo, '** b\nbo|dy\n'),
           '** TODO b\nbo|dy\n');

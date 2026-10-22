@@ -2445,7 +2445,9 @@ devices through Syncthing.
       line with its subtree past the heading before or after it at the
       same level under the same parent; the list item with its sub-items
       past its sibling. Blank lines between the two stay where they were.
-      The first or last one stays and the message says so.
+      The first or last one stays and the message says so. A selection
+      moves the heading or item of its first line only, as Org's M-up and
+      M-down move one subtree.
     - **New list item** (M-RET): after the current item and its
       sub-items, with the same indentation and bullet; a numbered item
       gets the next number and the items after it count on, as Org
@@ -2455,8 +2457,10 @@ devices through Syncthing.
     - **Checkbox on or off:** the item becomes `- [ ] ...`, or loses its
       box (any state). With a selection, all items follow the first one.
       Cookies are not counted here; the note view does that (#150).
-    - **Next TODO state:** the heading at or above the cursor, cycled as
-      in the note view (decision 86): the file's `#+TODO:` keywords, read
+    - **Next TODO state:** every heading in the selected lines, each to
+      its own next state (as Org with
+      `org-loop-over-headlines-in-active-region`), or the heading at or
+      above the cursor; cycled as in the note view (decision 86): the file's `#+TODO:` keywords, read
       from the whole file since they may be in the head, else `TODO |
       DONE`. No `CLOSED:` time and no cookies: the text is edited by hand
       here, and the diff shows the change.
