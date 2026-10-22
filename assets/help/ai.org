@@ -53,8 +53,19 @@ takes the image out of the note; the image file stays in the image folder.
 AI reads the notes itself, with the tools of my org-roam MCP server:
 search, read, backlinks, paths and the
 [[id:roam-graph-help-algorithms][graph algorithms]]. The tool calls show in
-the chat; ~id:~ links in answers open the note; "Save as new node" turns an
-answer into a note after I review it.
+the chat; ~id:~ links in answers open the note.
+
+"Save as new node" under an answer lets the AI make a note of it: a short,
+fitting title in the language of the answer, the content as Org text
+without chat phrases, and links to the notes the answer used and to the
+note the chat was opened from.
+- In agent mode, the button sends that request as my message; the AI makes
+  the note itself, and it shows in the summary with "Undo all" and in
+  "Recent AI changes".
+- In review and off mode, the AI is asked once more, without tools, for the
+  title and text; "New node" opens filled in with them, and nothing is
+  saved before I save there. If its answer cannot be read, the first line
+  of the answer is the title, as for shared text.
 
 The chat needs a provider and a key, set under AI in
 [[id:roam-graph-help-settings][Settings]]. The app goes online only for the
