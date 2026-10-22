@@ -10,7 +10,9 @@ import 'add_link.dart';
 import 'diff_screen.dart';
 import 'node_text.dart';
 import 'note_editor.dart';
+import 'org_toggles.dart' show allKeywords, parseNote, todoStatesOf;
 import 'save_messages.dart';
+import 'structure_edits.dart';
 import 'unsaved_text.dart';
 
 /// "Edit text" (#37): the node's Org text, to change on the device. The
@@ -18,7 +20,9 @@ import 'unsaved_text.dart';
 /// but cannot be edited: for a heading node its heading line, planning and
 /// property drawer; for a file node its drawer and keywords such as
 /// `#+title:`. "Review" shows the diff (#38); only "Save" there writes,
-/// and only over the version the editor opened (#35).
+/// and only over the version the editor opened (#35). A row of buttons
+/// below the text changes headings and list items as Org's commands do
+/// (#151).
 class EditScreen extends StatefulWidget {
   const EditScreen({
     super.key,
@@ -141,6 +145,39 @@ class _EditScreenState extends State<EditScreen> {
 
   bool get _changed => _text.text != widget.lines.body;
 
+  /// The note's TODO keywords, from the whole file: `#+TODO:` lines may be
+  /// in the head.
+  late final _todoStates = todoStatesOf(parseNote(widget.base.text));
+
+  /// The highest level a heading may have in the text: below the node's
+  /// own heading, so that no heading leaves the node.
+  late final int _topLevel = () {
+    if (widget.lines.isFile) return 1;
+    final heading = widget.lines.lines[widget.lines.start];
+    final stars = headingLine.firstMatch(heading);
+    return (stars?.group(1)!.length ?? 0) + 1;
+  }();
+
+  /// One of the buttons of #151, on the cursor's line or the selected
+  /// lines.
+  void _structure(StructureAction action) {
+    final selection = _text.selection;
+    final result = applyStructureAction(action, _text.text,
+        start: selection.isValid ? selection.start : -1,
+        end: selection.isValid ? selection.end : -1,
+        topLevel: _topLevel,
+        todoStates: _todoStates);
+    switch (result) {
+      case StructureChanged(:final text, :final start, :final end):
+        _text.value = TextEditingValue(
+          text: text,
+          selection: TextSelection(baseOffset: start, extentOffset: end),
+        );
+      case StructureRefused(:final reason):
+        _tell(reason);
+    }
+  }
+
   /// Inserts a link to a chosen note, or to a new one, at the cursor
   /// (#135); a selection is replaced and becomes the link's description.
   Future<void> _insertLink(RoamGraph graph) async {
@@ -195,7 +232,10 @@ class _EditScreenState extends State<EditScreen> {
     setState(() => _saving = true);
     final SaveResult result;
     try {
-      result = await editor.save(widget.node.file, widget.base, after);
+      // The TODO button may change the state of a heading above a drawer
+      // (#151), as the note view may (#150).
+      result = await editor.save(widget.node.file, widget.base, after,
+          todoKeywords: allKeywords(_todoStates).toSet());
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -296,38 +336,99 @@ class _EditScreenState extends State<EditScreen> {
             ),
           ],
         ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
+        body: Column(
           children: [
-            if (head.isNotEmpty) ...[
-              Text('Stays as it is: the ID, the property drawer and the '
-                  '${widget.node.isFile ? 'title and file tags' : 'heading with its tags'}.'),
-              const SizedBox(height: 4),
-              Container(
-                key: const ValueKey('edit-head'),
-                width: double.infinity,
-                padding: const EdgeInsets.all(8),
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: Text(head, style: mono),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  if (head.isNotEmpty) ...[
+                    Text('Stays as it is: the ID, the property drawer and the '
+                        '${widget.node.isFile ? 'title and file tags' : 'heading with its tags'}.'),
+                    const SizedBox(height: 4),
+                    Container(
+                      key: const ValueKey('edit-head'),
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      child: Text(head, style: mono),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  TextField(
+                    key: const ValueKey('edit-text'),
+                    controller: _text,
+                    // Typing during a save would be lost: the save has its
+                    // text.
+                    readOnly: _saving,
+                    minLines: 10,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    style: mono,
+                    decoration:
+                        const InputDecoration(border: OutlineInputBorder()),
+                  ),
+                  if (_saving) ...[
+                    const SizedBox(height: 16),
+                    const Center(child: CircularProgressIndicator()),
+                  ],
+                ],
               ),
-              const SizedBox(height: 12),
-            ],
-            TextField(
-              key: const ValueKey('edit-text'),
-              controller: _text,
-              // Typing during a save would be lost: the save has its text.
-              readOnly: _saving,
-              minLines: 10,
-              maxLines: null,
-              keyboardType: TextInputType.multiline,
-              style: mono,
-              decoration: const InputDecoration(border: OutlineInputBorder()),
             ),
-            if (_saving) ...[
-              const SizedBox(height: 16),
-              const Center(child: CircularProgressIndicator()),
-            ],
+            _StructureButtons(onPressed: _saving ? null : _structure),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The buttons for headings and list items (#151), in a row below the
+/// text, so they stay above the keyboard.
+class _StructureButtons extends StatelessWidget {
+  const _StructureButtons({required this.onPressed});
+
+  /// Null while saving.
+  final void Function(StructureAction action)? onPressed;
+
+  static const _buttons = [
+    (StructureAction.newHeading, Icons.title, 'New heading'),
+    (StructureAction.promote, Icons.format_indent_decrease,
+        'Up a level (promote)'),
+    (StructureAction.demote, Icons.format_indent_increase,
+        'Down a level (demote)'),
+    (StructureAction.moveUp, Icons.arrow_upward, 'Move up'),
+    (StructureAction.moveDown, Icons.arrow_downward, 'Move down'),
+    (StructureAction.newItem, Icons.format_list_bulleted, 'New list item'),
+    (StructureAction.checkbox, Icons.check_box_outlined,
+        'Checkbox on or off'),
+    (StructureAction.todo, Icons.task_alt, 'Next TODO state'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final onPressed = this.onPressed;
+    // A tap here counts as a tap in the text field, so the cursor and the
+    // keyboard stay.
+    return TextFieldTapRegion(
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            key: const ValueKey('edit-structure-buttons'),
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              for (final (action, icon, label) in _buttons)
+                IconButton(
+                  tooltip: label,
+                  icon: Icon(icon),
+                  onPressed:
+                      onPressed == null ? null : () => onPressed(action),
+                ),
+            ]),
+          ),
         ),
       ),
     );

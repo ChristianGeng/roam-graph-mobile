@@ -39,6 +39,16 @@ Shows a note as formatted Org: a whole file, or a heading with its subtree.
   nothing is saved and the note is shown again.
 - *Insert link* in *Edit text* puts a link to a note you choose at the
   cursor; selected text becomes the link's description.
+- The buttons below the text in *Edit text* act on the line of the
+  cursor, or on the selected lines, as Org's commands do: *New heading*
+  (after the current subtree, at its level), *Up a level* and *Down a
+  level* (a heading with its subtree, a list item with its sub-items),
+  *Move up* and *Move down* (past the heading or item before or after it
+  at the same level), *New list item* (with the same bullet; numbers
+  count on), *Checkbox on or off*, and *Next TODO state*. A heading above
+  a property drawer keeps its level and its place among the drawers;
+  such a button does nothing and says why. Nothing is saved before
+  *Review* and *Save*.
 - Changes made in Emacs show within about 30 seconds while the app is
   open, once Syncthing has brought them.
 - *Sections* open collapsed or expanded, as set in
