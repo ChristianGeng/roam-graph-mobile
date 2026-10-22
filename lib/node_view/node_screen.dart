@@ -183,7 +183,10 @@ class _NodeScreenState extends State<NodeScreen> {
   /// The marks of the search on screen, in reading order, and the one
   /// chosen with "Next match" or "Previous match".
   final _hits = ValueNotifier<List<SearchResultKey>>(const []);
-  SearchResultKey? _selectedHit;
+
+  /// Not state of this page: a rebuild of the note would make new marks
+  /// with new keys, and the chosen one would be lost.
+  final _selectedHit = ValueNotifier<SearchResultKey?>(null);
 
   /// The folding before the search, to restore when it closes, if the
   /// note is still [text].
@@ -204,6 +207,7 @@ class _NodeScreenState extends State<NodeScreen> {
     _searchText.dispose();
     _searchFocus.dispose();
     _hits.dispose();
+    _selectedHit.dispose();
     super.dispose();
   }
 
@@ -260,8 +264,8 @@ class _NodeScreenState extends State<NodeScreen> {
       _searchText.clear();
       _searchPattern = null;
       _onlyMatching = false;
-      _selectedHit = null;
       _foldingBeforeSearch = null;
+      _selectedHit.value = null;
     }
   }
 
@@ -293,10 +297,8 @@ class _NodeScreenState extends State<NodeScreen> {
   }
 
   void _searchChanged(String query) {
-    setState(() {
-      _searchPattern = notePattern(query);
-      _selectedHit = null;
-    });
+    _selectedHit.value = null;
+    setState(() => _searchPattern = notePattern(query));
   }
 
   /// Chooses the next ([step] 1) or previous ([step] -1) match, around the
@@ -304,7 +306,7 @@ class _NodeScreenState extends State<NodeScreen> {
   void _moveHit(int step) {
     final hits = hitsInOrder(_hits.value);
     if (hits.isEmpty) return;
-    final selected = _selectedHit;
+    final selected = _selectedHit.value;
     final i = selected == null ? -1 : hits.indexOf(selected);
     final next = i < 0
         ? (step > 0 ? 0 : hits.length - 1)
@@ -312,7 +314,7 @@ class _NodeScreenState extends State<NodeScreen> {
     selected?.currentState?.selected = false;
     final hit = hits[next];
     hit.currentState?.selected = true;
-    setState(() => _selectedHit = hit);
+    _selectedHit.value = hit;
     final hitContext = hit.currentContext;
     if (hitContext != null && hitContext.mounted) {
       Scrollable.ensureVisible(hitContext,
@@ -331,9 +333,9 @@ class _NodeScreenState extends State<NodeScreen> {
       _searchText.clear();
       _searchPattern = null;
       _onlyMatching = false;
-      _selectedHit = null;
       _foldingBeforeSearch = null;
     });
+    _selectedHit.value = null;
     _hits.value = const [];
     if (before == null || before.text != shown) return;
     // After the controller has dropped the search's folding.
@@ -392,12 +394,12 @@ class _NodeScreenState extends State<NodeScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: ValueListenableBuilder<List<SearchResultKey>>(
-                    valueListenable: _hits,
-                    builder: (context, hits, _) => Text(
+                  child: ListenableBuilder(
+                    listenable: Listenable.merge([_hits, _selectedHit]),
+                    builder: (context, _) => Text(
                       _searchPattern == null
                           ? ''
-                          : hitCount(hits, _selectedHit),
+                          : hitCount(_hits.value, _selectedHit.value),
                       key: const ValueKey('note-search-count'),
                     ),
                   ),
@@ -406,7 +408,10 @@ class _NodeScreenState extends State<NodeScreen> {
                 Switch(
                   key: const ValueKey('only-matching'),
                   value: _onlyMatching,
-                  onChanged: (value) => setState(() => _onlyMatching = value),
+                  onChanged: (value) {
+                    _selectedHit.value = null;
+                    setState(() => _onlyMatching = value);
+                  },
                 ),
               ],
             ),
@@ -1011,7 +1016,7 @@ class _NodeScreenState extends State<NodeScreen> {
             ),
           if (crowded)
             PopupMenuButton<VoidCallback>(
-              tooltip: 'More',
+              tooltip: 'More for this note',
               icon: const Icon(Icons.more_vert),
               onSelected: (action) => action(),
               itemBuilder: (_) => [

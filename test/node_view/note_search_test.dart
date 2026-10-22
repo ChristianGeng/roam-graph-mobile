@@ -58,13 +58,16 @@ void main() {
       // "Top text of B.", "Part text.", "Deeper text.", "Other text".
       expect(count(tester), '4 matches');
       expect(find.text('text', findRichText: true), findsNWidgets(4));
-      await search(tester, 'nowhere');
+      await tester.enterText(
+          find.byKey(const ValueKey('note-search')), 'nowhere');
+      await tester.pumpAndSettle();
       expect(count(tester), 'No matches');
     });
 
     testWidgets('next and previous go around the ends', (tester) async {
       await open(tester, 'b');
       await search(tester, 'text');
+      expect(count(tester), '4 matches');
       await tapAndSettle(tester, find.byTooltip('Next match'));
       expect(count(tester), '1 of 4');
       for (var i = 0; i < 3; i++) {
