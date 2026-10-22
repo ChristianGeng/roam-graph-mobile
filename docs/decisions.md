@@ -2230,6 +2230,26 @@ devices through Syncthing.
       to close it (#142). Fixing it would need an own `Socket` around
       `RawSecureSocket`; not worth it for a server that misbehaves on
       purpose, which the AI would have to choose to visit.
+83. **The layouts are in the View menu, next to the views** (#143),
+    `lib/graph_view/graph_screen.dart`. The layout (Circular,
+    Force-directed) was switched in the "More" menu, what the graph shows
+    (Plain, Communities, PageRank, ...) in the "View" menu; two menus for
+    one question, how the graph looks. Now everything that changes how the
+    graph looks is in the View menu.
+    - **Two groups with a small heading:** "Layout" (one item per
+      `LayoutKind`) and "View" (the graph views of #7). The headings cannot
+      be chosen. In each group the current item has a check mark; before,
+      the current view was only highlighted.
+    - **At the end** "About the layouts" and "About the views", the help
+      links of #62.
+    - **Choosing a layout does what the More menu did:** it switches the
+      open graph, ends the start setting for this view (#81) and is
+      remembered for "Last used" (#71).
+    - **The More menu keeps Centre, Ask AI, Settings and Help:** actions,
+      not looks.
+    - **Nothing else changes:** the layouts, the views, "Graph layout at
+      start" in Settings and what is stored. The setting's subtitle and the
+      "Last used" description now name the View menu.
 
 ## Recommended, not decided
 
