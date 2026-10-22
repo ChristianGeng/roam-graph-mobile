@@ -248,7 +248,7 @@ void main() {
     // Far enough apart that a tap at one cannot reach hub in the other.
     expect((circo - force).distance, greaterThan(3 * tapReach(1)));
 
-    Future<void> tapHub(Offset at) async {
+    Future<void> tapAt(Offset at) async {
       await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)) + at);
       await tester.pumpAndSettle();
     }
@@ -267,19 +267,21 @@ void main() {
     expect(nodeTitle('B'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    await tapHub(force);
+    await tapAt(force);
     expect(nodeTitle('HUB'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
 
+    // Opening hub made it the centre node, so the circular layout, drawn
+    // again from the layouts kept, is centred on hub, and b is the other
+    // way round.
     await choose('Circular (circo)');
-    // The circular layout is drawn again (from the layouts kept).
     await tapMiddle(tester);
-    expect(nodeTitle('B'), findsOneWidget);
+    expect(nodeTitle('HUB'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    await tapHub(circo);
-    expect(nodeTitle('HUB'), findsOneWidget);
+    await tapAt(-circo);
+    expect(nodeTitle('B'), findsOneWidget);
   });
 
   group('the View menu: layouts and views (#143)', () {
