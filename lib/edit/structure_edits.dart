@@ -150,22 +150,34 @@ class _ItemLine {
 }
 
 class _Text {
-  _Text(String text)
-      : crlf = text.contains('\r\n'),
-        lines = [
-          for (final line in text.split('\n'))
-            line.endsWith('\r') ? line.substring(0, line.length - 1) : line,
-        ];
+  factory _Text(String text) {
+    final parts = text.split('\n');
+    final lines = <String>[];
+    final crlf = <bool>[];
+    for (final (i, part) in parts.indexed) {
+      // The last part has no line break after it.
+      final cr = i < parts.length - 1 && part.endsWith('\r');
+      lines.add(cr ? part.substring(0, part.length - 1) : part);
+      crlf.add(cr);
+    }
+    // A line that gets a break after it (a new last line) takes the
+    // text's usual one.
+    if (parts.length > 1) crlf[parts.length - 1] = text.contains('\r\n');
+    return _Text._(lines, crlf);
+  }
 
-  final bool crlf;
+  _Text._(this.lines, this.crlf);
+
   final List<String> lines;
 
-  String get _newline => crlf ? '\r\n' : '\n';
+  /// For each line, whether its line break is CRLF: each line keeps its
+  /// own, so a text with mixed line ends stays as it is.
+  final List<bool> crlf;
 
   _Position position(int offset) {
     var rest = offset;
     for (var i = 0; i < lines.length; i++) {
-      final length = lines[i].length + _newline.length;
+      final length = lines[i].length + (crlf[i] ? 2 : 1);
       if (rest < length || i == lines.length - 1) {
         return (line: i, column: rest.clamp(0, lines[i].length));
       }
@@ -174,24 +186,36 @@ class _Text {
     return (line: 0, column: 0);
   }
 
-  static int _offset(List<String> lines, _Position p, int newline) {
+  static int _offset(List<String> lines, List<bool> crlf, _Position p) {
     var offset = 0;
     for (var i = 0; i < p.line && i < lines.length; i++) {
-      offset += lines[i].length + newline;
+      offset += lines[i].length + (crlf[i] ? 2 : 1);
     }
     final line = p.line < lines.length ? lines[p.line] : '';
     return offset + p.column.clamp(0, line.length);
   }
 
-  StructureChanged _result(List<String> newLines, _Position a, _Position b) {
-    final n = _newline.length;
-    return StructureChanged(newLines.join(_newline), _offset(newLines, a, n),
-        _offset(newLines, b, n));
+  /// [newLines] as text. The line breaks stay by place; a line inserted
+  /// at [inserted] gets the break of the line before it.
+  StructureChanged _result(List<String> newLines, _Position a, _Position b,
+      {int? inserted}) {
+    final ends = [...crlf];
+    if (inserted != null) {
+      ends.insert(inserted, crlf[inserted > 0 ? inserted - 1 : 0]);
+    }
+    final buffer = StringBuffer();
+    for (final (i, line) in newLines.indexed) {
+      buffer.write(line);
+      if (i < newLines.length - 1) buffer.write(ends[i] ? '\r\n' : '\n');
+    }
+    return StructureChanged(buffer.toString(), _offset(newLines, ends, a),
+        _offset(newLines, ends, b));
   }
 
-  StructureChanged _cursorAtEnd(List<String> newLines, int line) {
+  StructureChanged _cursorAtEnd(List<String> newLines, int line,
+      {int? inserted}) {
     final p = (line: line, column: newLines[line].length);
-    return _result(newLines, p, p);
+    return _result(newLines, p, p, inserted: inserted);
   }
 
   // -------------------------------------------------------------------
@@ -343,7 +367,7 @@ class _Text {
     }
     // Blank lines after the subtree stay after the new heading.
     final newLines = [...lines]..insert(at, heading);
-    return _cursorAtEnd(newLines, at);
+    return _cursorAtEnd(newLines, at, inserted: at);
   }
 
   StructureResult shift(int first, int last, int delta, int topLevel,
@@ -504,7 +528,7 @@ class _Text {
         return _cursorAtEnd(newLines, k);
       }
       newLines.insert(k + 1, '- ');
-      return _cursorAtEnd(newLines, k + 1);
+      return _cursorAtEnd(newLines, k + 1, inserted: k + 1);
     }
     final current = item(i)!;
     final number = _number.firstMatch(current.bullet);
@@ -529,7 +553,7 @@ class _Text {
         newLines[j] = '${m[1]}$n${own[2]}$rest';
       }
     }
-    return _cursorAtEnd(newLines, at);
+    return _cursorAtEnd(newLines, at, inserted: at);
   }
 
   StructureResult checkbox(int first, int last, _Position a, _Position b) {

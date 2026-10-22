@@ -204,6 +204,19 @@ void main() {
     });
   });
 
+  test('mixed line ends stay where they are', () {
+    final (text, start, _) = _marks('* a\n* b\r\n|* c\n');
+    final result = applyStructureAction(StructureAction.moveUp, text,
+        start: start, end: start, todoStates: [defaultTodoStates]);
+    expect((result as StructureChanged).text, '* a\n* c\r\n* b\n');
+    expect(result.start, 4);
+    final (text2, start2, _) = _marks('* a\r\nx|\n* b\n');
+    final inserted = applyStructureAction(StructureAction.newItem, text2,
+        start: start2, end: start2, todoStates: [defaultTodoStates]);
+    expect((inserted as StructureChanged).text, '* a\r\nx\n- \n* b\n');
+    expect(inserted.start, 9);
+  });
+
   group('list items and checkboxes', () {
     test('a new item after the current one, with its bullet', () {
       expect(after(StructureAction.newItem, '- |a\n- b\n'), '- a\n- |\n- b\n');
