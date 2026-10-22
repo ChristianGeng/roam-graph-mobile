@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-22: SuperCollider source blocks in colour ([#PR](PRURL))
+
+- Added: `#+begin_src sclang` blocks are coloured, as `sclang-mode` colours them in Emacs: classes, symbols, `~` variables, keywords, numbers, strings, characters and comments (also nested `/* */`).
+
+Closes #147.
+
 ## 2026-10-21: Web access for the AI chat ([#139](https://github.com/ChristianGeng/roam-graph-mobile/pull/139))
 
 - Added: "Web access for the AI" in AI settings, off by default. With it on, the chat can read web pages (fetched from the phone, https only, never from the own network) and, with Anthropic, search the web; search words go to the provider.

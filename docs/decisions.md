@@ -688,6 +688,8 @@ devices through Syncthing.
       is shown as written.
     - The colours follow the app's light or dark mode, through
       `material_ui`'s theme (decision 25).
+    - `sclang` (SuperCollider) has no grammar in highlight.js's core; the
+      app brings its own (decision 83).
 
 38. **Images from the notes folder are shown as Org shows them** (#46),
     `lib/node_view/note_images.dart`. `org_flutter` decides which links
@@ -2230,6 +2232,35 @@ devices through Syncthing.
       to close it (#142). Fixing it would need an own `Socket` around
       `RawSecureSocket`; not worth it for a server that misbehaves on
       purpose, which the AI would have to choose to visit.
+
+83. **SuperCollider blocks are coloured with the app's own grammar**
+    (#147), `lib/node_view/sclang_language.dart`. `#+begin_src sclang`
+    blocks were plain (decision 37): highlight.js's core has no
+    SuperCollider grammar. Emacs colours them with `sclang-mode`.
+    - **No change to other packages.** `highlighting` lets an app register
+      a language at run time (`highlight.registerLanguage(..., id:)` on the
+      global `highlight`), and `allLanguages` is a mutable map; org_flutter
+      checks `allLanguages` and colours through that global `highlight`.
+      `registerSclang()` does both, once: in `main()`, and in
+      `highlightLanguage()`, so tests and every other caller find it too.
+      Calling it again does nothing.
+    - **The grammar** follows `highlightjs-supercollider` by Brian Heim
+      (MIT licence, named in the code), limited to what `sclang-mode`
+      colours: classes (`SinOsc`), symbols (`\freq`, `'name'`),
+      environment variables (`~bus`), `var arg classvar const`, the
+      pseudo-variables (`this`, `super`, `thisProcess`, …), `nil true false
+      inf`, numbers (`440`, `0.5`, `1e3`, `2pi`, `0x1F`, `16rFF`, scale
+      degrees `2s`), strings with escapes, characters (`$a`), and comments
+      `// …` and `/* … */`, which nest.
+    - **Classes use `type`, not `title.class`.** org_flutter's light and
+      dark themes have no colour for `title.class`; `type` is
+      `font-lock-type-face`, which `sclang-mode` uses for classes. Symbols
+      are `symbol`, environment variables `variable`, characters `string`.
+    - In `-12` only `12` is a number: the minus sign may be a subtraction.
+    - **Only `sclang`.** `supercollider` and `sc` are not Emacs mode
+      names, and names are compared as Emacs does (decision 37), so they
+      stay plain. The grammar is never guessed for other text
+      (`disableAutodetect`).
 
 ## Recommended, not decided
 
