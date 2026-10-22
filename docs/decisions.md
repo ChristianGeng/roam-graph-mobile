@@ -2245,17 +2245,27 @@ devices through Syncthing.
       `highlightLanguage()`, so tests and every other caller find it too.
       Calling it again does nothing.
     - **The grammar** follows `highlightjs-supercollider` by Brian Heim
-      (MIT licence, named in the code), limited to what `sclang-mode`
-      colours: classes (`SinOsc`), symbols (`\freq`, `'name'`),
-      environment variables (`~bus`), `var arg classvar const`, the
-      pseudo-variables (`this`, `super`, `thisProcess`, …), `nil true false
-      inf`, numbers (`440`, `0.5`, `1e3`, `2pi`, `0x1F`, `16rFF`, scale
-      degrees `2s`), strings with escapes, characters (`$a`), and comments
-      `// …` and `/* … */`, which nest.
+      (MIT licence, named in the code), changed to colour what
+      `sclang-mode` (scel, `sclang-mode.el`) colours, with its faces:
+      `var arg classvar const this super thisProcess thisFunction
+      thisFunctionDef thisMethod thisThread` are keywords
+      (`sclang-font-lock-keyword-list`, `keyword`); `nil true false inf`
+      are builtins (`sclang-font-lock-builtin-list`, `built_in`); symbols
+      (`\freq`, `'name'`) and characters (`$a`) are constants (`symbol`);
+      environment variables (`~bus`) are `variable`; classes (`SinOsc`) are
+      `type`; strings with escapes and `//` and nested `/* */` comments as
+      usual. Words that are not in these lists stay plain.
+    - **More than `sclang-mode`'s default level, as #147 asks.**
+      `sclang-mode` colours environment variables only from font-lock
+      level 2, classes from level 3 (and only the classes the running
+      interpreter knows), and numbers not at all (only `2pi`). The app
+      colours all of them, numbers too (`440`, `0.5`, `1e3`, `2pi`,
+      `0x1F`, `16rFF`, scale degrees `2s`), as the issue asks; every word
+      that starts with a capital letter counts as a class, since the app
+      has no interpreter to ask.
     - **Classes use `type`, not `title.class`.** org_flutter's light and
       dark themes have no colour for `title.class`; `type` is
-      `font-lock-type-face`, which `sclang-mode` uses for classes. Symbols
-      are `symbol`, environment variables `variable`, characters `string`.
+      `font-lock-type-face`, which `sclang-mode` uses for classes.
     - In `-12` only `12` is a number: the minus sign may be a subtraction.
     - **Only `sclang`.** `supercollider` and `sc` are not Emacs mode
       names, and names are compared as Emacs does (decision 37), so they

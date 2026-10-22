@@ -16,15 +16,17 @@ import 'package:highlighting/languages/all.dart';
 /// themes have a colour for:
 ///
 /// - classes, words that start with a capital letter (`SinOsc`): `type`;
-/// - symbols, `\freq` and `'name'`: `symbol`;
+/// - symbols, `\freq` and `'name'`, and characters, `$a`: `symbol`
+///   (`font-lock-constant-face`);
 /// - environment variables, `~bus`: `variable`;
-/// - `var`, `arg`, `classvar`, `const`: `keyword`;
-/// - `this`, `super`, `thisProcess`, `thisFunction` and the other
-///   pseudo-variables: `built_in`;
-/// - `nil`, `true`, `false`, `inf`: `literal`;
+/// - `var`, `arg`, `classvar`, `const`, `this`, `super`, `thisProcess`,
+///   `thisFunction`, `thisFunctionDef`, `thisMethod`, `thisThread`:
+///   `keyword`, as in `sclang-font-lock-keyword-list`;
+/// - `nil`, `true`, `false`, `inf`: `built_in`, as in
+///   `sclang-font-lock-builtin-list`;
 /// - numbers (`440`, `0.5`, `1e3`, `2pi`, `0x1F`, `16rFF`, `2s`): `number`;
 ///   in `-12` only `12`, as the minus sign may also be a subtraction;
-/// - strings with escapes and characters (`$a`, `$\n`): `string`;
+/// - strings with escapes: `string`;
 /// - comments, `// …` and `/* … */`, which nest in sclang: `comment`.
 ///
 /// highlight.js's `title.class` would be the usual class for classes, but
@@ -37,8 +39,11 @@ final sclang = Language(
   // Only for blocks marked `sclang`; never guessed for other text.
   disableAutodetect: true,
   keywords: {
-    'keyword': ['var', 'arg', 'classvar', 'const'],
-    'built_in': [
+    'keyword': [
+      'var',
+      'arg',
+      'classvar',
+      'const',
       'this',
       'super',
       'thisProcess',
@@ -46,10 +51,8 @@ final sclang = Language(
       'thisFunctionDef',
       'thisMethod',
       'thisThread',
-      'currentEnvironment',
-      'topEnvironment',
     ],
-    'literal': ['nil', 'true', 'false', 'inf'],
+    'built_in': ['nil', 'true', 'false', 'inf'],
   },
   contains: [
     Mode(scope: 'comment', begin: r'//', end: r'$', relevance: 0),
@@ -68,8 +71,8 @@ final sclang = Language(
       contains: [_escape],
       relevance: 0,
     ),
-    // A character: `$a`, `$"`, `$\n`.
-    Mode(scope: 'string', begin: r'\$\\?.', relevance: 0),
+    // A character: `$a`, `$"`, `$\n`; sclang-mode colours it as a symbol.
+    Mode(scope: 'symbol', begin: r'\$\\?.', relevance: 0),
     Mode(scope: 'variable', begin: r'~\w+', relevance: 0),
     Mode(
       scope: 'symbol',

@@ -67,14 +67,14 @@ void main() {
       ('number', '12'),
       ('string', r'"a \"quoted\" string"'),
       ('symbol', "'name'"),
-      ('string', r'$a'),
+      ('symbol', r'$a'),
       ('number', '16rFF'),
       ('number', '0x1F'),
       ('number', '1e3'),
-      ('built_in', 'this'),
-      ('literal', 'nil'),
-      ('literal', 'inf'),
-      ('literal', 'true'),
+      ('keyword', 'this'),
+      ('built_in', 'nil'),
+      ('built_in', 'inf'),
+      ('built_in', 'true'),
     ]) {
       expect(found, contains(piece), reason: '$piece');
     }
@@ -102,15 +102,28 @@ void main() {
     await open(tester, 'c',
         graph: ValueNotifier(graphOf({'c.org': note})),
         texts: const {'c.org': note});
-    final colours = <Color?>{};
-    for (final text in tester.widgetList<RichText>(find.byType(RichText))) {
-      if (!text.text.toPlainText().contains('found')) continue;
-      text.text.visitChildren((span) {
-        colours.add(span.style?.color);
-        return true;
-      });
+    // The colour of each piece of text, with the colour it inherits.
+    final colours = <String, Color?>{};
+    void visit(InlineSpan span, Color? inherited) {
+      if (span is! TextSpan) return;
+      final colour = span.style?.color ?? inherited;
+      if (span.text != null) colours.putIfAbsent(span.text!, () => colour);
+      for (final child in span.children ?? const <InlineSpan>[]) {
+        visit(child, colour);
+      }
     }
-    // The variable, the class, the numbers and the comment in colours.
-    expect(colours.length, greaterThan(2));
+
+    for (final text in tester.widgetList<RichText>(find.byType(RichText))) {
+      if (text.text.toPlainText().contains('SinOsc')) visit(text.text, null);
+    }
+    final plain = colours[' = '];
+    final kinds = ['~found', 'SinOsc', '440', '// found'];
+    for (final piece in kinds) {
+      expect(colours, contains(piece), reason: piece);
+      expect(colours[piece], isNot(plain), reason: piece);
+    }
+    // The variable, the class, the number and the comment each have their
+    // own colour.
+    expect(kinds.map((piece) => colours[piece]).toSet(), hasLength(4));
   });
 }
