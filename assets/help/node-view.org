@@ -27,6 +27,16 @@ Shows a note as formatted Org: a whole file, or a heading with its subtree.
   filters them; space, comma, colon or Enter adds what is typed, and a tag
   no note has yet shows as *New tag*. Only letters, digits and ~_@#%~ can
   be in a tag.
+- *Checkboxes*: tap a list item with a checkbox to tick or untick it, as
+  Org's C-c C-c does; ~[-]~ becomes ~[X]~. The boxes and progress cookies
+  (~[1/3]~, ~[33%]~) above it follow. It is saved at once, without the
+  diff; the message has *Undo*.
+- *TODO states*: slide a heading to the left for its next state, or
+  long-press it for the list of states: the note's ~#+TODO:~ keywords, or
+  TODO and DONE. With ~#+STARTUP: logdone~, a heading that becomes done
+  gets a ~CLOSED:~ time, and loses it when it is no longer done. Saved at
+  once, with *Undo*. If the note changed in Emacs since it was shown,
+  nothing is saved and the note is shown again.
 - *Insert link* in *Edit text* puts a link to a note you choose at the
   cursor; selected text becomes the link's description.
 - Changes made in Emacs show within about 30 seconds while the app is

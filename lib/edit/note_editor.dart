@@ -263,10 +263,16 @@ final _drawerEnd = RegExp(r'^[ \t]*:END:[ \t]*$', caseSensitive: false);
 /// top of the file. Org attaches a drawer to that line only, so a drawer
 /// moved under another heading, or text put between a heading and its
 /// drawer, gives another node its `:ID:` or none.
-List<String> propertyDrawers(String text) {
+///
+/// With [headingsLoose], a drawer's heading counts by its stars only, and a
+/// planning line between them is skipped: the heading's TODO keyword, its
+/// progress cookie and its `CLOSED:` time may change (#150), but the drawer
+/// stays under a heading of the same level, in the same place.
+List<String> propertyDrawers(String text, {bool headingsLoose = false}) {
   final drawers = <String>[];
   StringBuffer? current;
   var previous = '';
+  var previousIsHeading = false;
   for (final line in const LineSplitter().convert(text)) {
     if (current == null) {
       if (_drawerStart.hasMatch(line)) {
@@ -283,10 +289,23 @@ List<String> propertyDrawers(String text) {
         current = null;
       }
     }
-    previous = line;
+    if (!headingsLoose) {
+      previous = line;
+    } else if (_heading.firstMatch(line) case final heading?) {
+      previous = heading[1]!;
+      previousIsHeading = true;
+      continue;
+    } else if (!(previousIsHeading && _planning.hasMatch(line))) {
+      previous = line;
+    }
+    previousIsHeading = false;
   }
   return drawers;
 }
+
+final _heading = RegExp(r'^(\*+)[ \t]');
+final _planning =
+    RegExp(r'^[ \t]*(SCHEDULED|DEADLINE|CLOSED):');
 
 /// Saves edits of existing notes under decision 10's rules.
 class NoteEditor {
@@ -316,13 +335,18 @@ class NoteEditor {
   /// put back, by undo: its drawers may come back.
   /// With [aliasesMayChange], the `:ROAM_ALIASES:` lines of the drawers
   /// may change, be added or go (#97); every other drawer line stays.
+  /// With [headingsMayChange], the heading line above a drawer may change
+  /// and get or lose a planning line (#150: a TODO state, a progress
+  /// cookie, `CLOSED:`); the drawer itself stays as it is.
   Future<SaveResult> save(String path, NoteVersion base, String text,
       {String removed = '',
       String restored = '',
-      bool aliasesMayChange = false}) async {
+      bool aliasesMayChange = false,
+      bool headingsMayChange = false}) async {
     if (text == base.text) return const NothingToSave();
     List<String> drawers(String t) => [
-          for (final d in propertyDrawers(t))
+          for (final d
+              in propertyDrawers(t, headingsLoose: headingsMayChange))
             aliasesMayChange
                 ? d.split('\n').where((l) => !_aliases.hasMatch(l)).join('\n')
                 : d,
