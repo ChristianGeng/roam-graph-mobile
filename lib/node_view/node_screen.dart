@@ -559,6 +559,10 @@ class _NodeScreenState extends State<NodeScreen> {
     _quickBusy = true;
     try {
       await save();
+      // Until the note is read again and drawn, the items on screen hold
+      // the text before the save, and a tap on them would be refused.
+      await _text;
+      if (mounted) await WidgetsBinding.instance.endOfFrame;
     } finally {
       _quickBusy = false;
     }
