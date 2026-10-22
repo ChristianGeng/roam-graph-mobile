@@ -8,6 +8,15 @@ Shows a note as formatted Org: a whole file, or a heading with its subtree.
 
 - *Links*: an ~id:~ link opens the linked note on a new page; Back
   returns. Other links are shown but not opened.
+- *Search in this note* (the page icon in the bar, or Ctrl+F on the
+  desktop) marks every place the typed text is in the note, upper and
+  lower case alike, and opens the sections they are in. The bar counts
+  them; the arrows go to the next or the previous one, around the ends,
+  and Enter goes to the next. *Only matching sections* folds away the
+  sections without a match, as Org's sparse tree does. Closing the
+  search (the x, Back or Escape) removes the marks and folds the
+  sections as they were. On a narrow screen, *New node from here* and
+  *Open in Orgro* are in the *More* menu.
 - *Links* and *Backlinks*: below the text, this note's ~id:~ links, and
   every link to this note, with where in the linking note it is.
 - *Trash icons* remove a link: on a link, from this note; on a backlink,

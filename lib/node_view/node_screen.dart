@@ -31,6 +31,7 @@ import 'mermaid.dart';
 import 'src_languages.dart';
 import '../search/search_screen.dart';
 import 'note_images.dart';
+import 'note_search.dart';
 import 'web_links.dart';
 import '../platform/desktop.dart';
 
@@ -172,6 +173,25 @@ class _NodeScreenState extends State<NodeScreen> {
   /// Whether a quick edit is being saved; taps wait for it.
   var _quickBusy = false;
 
+  // Search inside the note (#152).
+  var _searching = false;
+  final _searchText = TextEditingController();
+  final _searchFocus = FocusNode();
+  RegExp? _searchPattern;
+  var _onlyMatching = false;
+
+  /// The marks of the search on screen, in reading order, and the one
+  /// chosen with "Next match" or "Previous match".
+  final _hits = ValueNotifier<List<SearchResultKey>>(const []);
+
+  /// Not state of this page: a rebuild of the note would make new marks
+  /// with new keys, and the chosen one would be lost.
+  final _selectedHit = ValueNotifier<SearchResultKey?>(null);
+
+  /// The folding before the search, to restore when it closes, if the
+  /// note is still [text].
+  ({String text, List<OrgVisibilityState> states})? _foldingBeforeSearch;
+
   RoamNode? get _node => widget.graph.value.nodes[widget.id];
 
   @override
@@ -184,6 +204,10 @@ class _NodeScreenState extends State<NodeScreen> {
   @override
   void dispose() {
     widget.graph.removeListener(_graphChanged);
+    _searchText.dispose();
+    _searchFocus.dispose();
+    _hits.dispose();
+    _selectedHit.dispose();
     super.dispose();
   }
 
@@ -234,7 +258,166 @@ class _NodeScreenState extends State<NodeScreen> {
     }
     // The side pane shows another node.
     if (old.id != widget.id || old.graph != widget.graph) _text = _read();
+    // A search belongs to the note it was made in.
+    if (old.id != widget.id && _searching) {
+      _searching = false;
+      _searchText.clear();
+      _searchPattern = null;
+      _onlyMatching = false;
+      _foldingBeforeSearch = null;
+      _selectedHit.value = null;
+    }
   }
+
+  /// The folding of each section of the note on screen, or null.
+  List<OrgVisibilityState>? _currentFolding() {
+    final orgContext = _orgContext;
+    if (orgContext == null || !orgContext.mounted) return null;
+    final controller = OrgController.of(orgContext);
+    return [
+      for (final section in sectionsOf(controller.root))
+        controller.nodeFor(section).visibility.value,
+    ];
+  }
+
+  /// Opens the search bar (#152), or puts the cursor back in it.
+  void _startSearch() {
+    if (_node == null) return;
+    if (_searching) {
+      _searchFocus.requestFocus();
+      return;
+    }
+    final shown = _shown, folding = _currentFolding();
+    setState(() {
+      _searching = true;
+      _foldingBeforeSearch = shown == null || folding == null
+          ? null
+          : (text: shown, states: folding);
+    });
+  }
+
+  void _searchChanged(String query) {
+    _selectedHit.value = null;
+    setState(() => _searchPattern = notePattern(query));
+  }
+
+  /// Chooses the next ([step] 1) or previous ([step] -1) match, around the
+  /// ends, and scrolls to it.
+  void _moveHit(int step) {
+    final hits = hitsInOrder(_hits.value);
+    if (hits.isEmpty) return;
+    final selected = _selectedHit.value;
+    final i = selected == null ? -1 : hits.indexOf(selected);
+    final next = i < 0
+        ? (step > 0 ? 0 : hits.length - 1)
+        : (i + step + hits.length) % hits.length;
+    selected?.currentState?.selected = false;
+    final hit = hits[next];
+    hit.currentState?.selected = true;
+    _selectedHit.value = hit;
+    final hitContext = hit.currentContext;
+    if (hitContext != null && hitContext.mounted) {
+      Scrollable.ensureVisible(hitContext,
+          alignment: 0.5, duration: const Duration(milliseconds: 150));
+    }
+  }
+
+  /// Closes the search: the marks go, and the sections are folded as
+  /// before it, if the note did not change meanwhile.
+  void _closeSearch() {
+    if (!_searching) return;
+    final before = _foldingBeforeSearch;
+    final shown = _shown;
+    setState(() {
+      _searching = false;
+      _searchText.clear();
+      _searchPattern = null;
+      _onlyMatching = false;
+      _foldingBeforeSearch = null;
+    });
+    _selectedHit.value = null;
+    _hits.value = const [];
+    if (before == null || before.text != shown) return;
+    // After the controller has dropped the search's folding.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final orgContext = _orgContext;
+      if (!mounted || orgContext == null || !orgContext.mounted) return;
+      final controller = OrgController.of(orgContext);
+      final sections = sectionsOf(controller.root);
+      if (sections.length != before.states.length) return;
+      for (final (i, section) in sections.indexed) {
+        controller.setVisibilityOf(section, (_) => before.states[i]);
+      }
+    });
+  }
+
+  /// The app bar while searching: the field, the matches, and "Only
+  /// matching sections".
+  PreferredSizeWidget _searchBar() => AppBar(
+        leading: IconButton(
+          tooltip: 'Close search',
+          icon: const Icon(Icons.close),
+          onPressed: _closeSearch,
+        ),
+        title: TextField(
+          key: const ValueKey('note-search'),
+          controller: _searchText,
+          focusNode: _searchFocus,
+          autofocus: true,
+          textInputAction: TextInputAction.search,
+          onChanged: _searchChanged,
+          onSubmitted: (_) {
+            _moveHit(1);
+            _searchFocus.requestFocus();
+          },
+          decoration: const InputDecoration(
+            hintText: 'Search in this note',
+            border: InputBorder.none,
+          ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Previous match',
+            icon: const Icon(Icons.keyboard_arrow_up),
+            onPressed: () => _moveHit(-1),
+          ),
+          IconButton(
+            tooltip: 'Next match',
+            icon: const Icon(Icons.keyboard_arrow_down),
+            onPressed: () => _moveHit(1),
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ListenableBuilder(
+                    listenable: Listenable.merge([_hits, _selectedHit]),
+                    builder: (context, _) => Text(
+                      _searchPattern == null
+                          ? ''
+                          : hitCount(_hits.value, _selectedHit.value),
+                      key: const ValueKey('note-search-count'),
+                    ),
+                  ),
+                ),
+                const Text('Only matching sections'),
+                Switch(
+                  key: const ValueKey('only-matching'),
+                  value: _onlyMatching,
+                  onChanged: (value) {
+                    _selectedHit.value = null;
+                    setState(() => _onlyMatching = value);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 
   void _openId(String id) {
     if (!widget.graph.value.nodes.containsKey(id)) {
@@ -669,16 +852,9 @@ class _NodeScreenState extends State<NodeScreen> {
   /// Remembers how far each section is open, to restore it when the note
   /// is read again with [text].
   void _keepFolding(String text) {
-    final orgContext = _orgContext;
-    if (orgContext == null || !orgContext.mounted) return;
-    final controller = OrgController.of(orgContext);
-    _keptFolding = (
-      text: text,
-      states: [
-        for (final section in sectionsOf(controller.root))
-          controller.nodeFor(section).visibility.value,
-      ],
-    );
+    final states = _currentFolding();
+    if (states == null) return;
+    _keptFolding = (text: text, states: states);
   }
 
   void _readAgain() {
@@ -703,8 +879,60 @@ class _NodeScreenState extends State<NodeScreen> {
   Widget build(BuildContext context) {
     final node = _node;
     final onShowInGraph = widget.onShowInGraph;
+    // Ctrl+F (Cmd+F on macOS) opens the search on the desktop (#116);
+    // Escape and Back close it.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            _startSearch,
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+            _startSearch,
+        const SingleActivator(LogicalKeyboardKey.escape): _closeSearch,
+      },
+      child: Focus(
+        autofocus: true,
+        child: PopScope(
+          canPop: !_searching,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) _closeSearch();
+          },
+          child: _scaffold(context, node, onShowInGraph),
+        ),
+      ),
+    );
+  }
+
+  Widget _scaffold(BuildContext context, RoamNode? node,
+      void Function(BuildContext, String)? onShowInGraph) =>
+      LayoutBuilder(
+        builder: (context, constraints) => _scaffoldIn(
+            context, node, onShowInGraph, constraints.maxWidth),
+      );
+
+  Widget _scaffoldIn(BuildContext context, RoamNode? node,
+      void Function(BuildContext, String)? onShowInGraph, double width) {
+    // "New node from here" and "Open in ..." go into a "More" menu when the
+    // bar is too narrow for all its buttons, as on a phone (#152 added
+    // "Search in this note").
+    final more = <(String, IconData, VoidCallback)>[
+      if (widget.writer case final writer? when node != null)
+        ('New node from here', Icons.note_add_outlined,
+            () => _capture(writer, node)),
+      if (widget.openInOrgro case final open? when node != null)
+        ('Open in $noteAppName', Icons.open_in_new,
+            () => _openInOrgro(open, node)),
+    ];
+    final buttons = [
+      node != null, // Search in this note
+      !widget.help, // Search
+      node != null && !widget.help, // AI
+      widget.writer?.editor != null && node != null && !widget.help, // Edit
+      node != null && onShowInGraph != null, // Show in graph
+    ].where((shown) => shown).length + more.length;
+    // The back button, every button, and some room for the title.
+    final crowded = more.length > 1 && width < 56 + 48 * buttons + 120;
     return Scaffold(
-      appBar: AppBar(
+      appBar: _searching ? _searchBar() : AppBar(
         automaticallyImplyLeading: widget.onOpenNode == null,
         leading: widget.onBack == null
             ? null
@@ -715,6 +943,12 @@ class _NodeScreenState extends State<NodeScreen> {
               ),
         title: Text(node?.displayTitle ?? 'Node'),
         actions: [
+          if (node != null)
+            IconButton(
+              tooltip: 'Search in this note',
+              icon: const Icon(Icons.find_in_page_outlined),
+              onPressed: _startSearch,
+            ),
           if (!widget.help)
           IconButton(
             tooltip: 'Search',
@@ -780,18 +1014,19 @@ class _NodeScreenState extends State<NodeScreen> {
                     child: Text('Earlier versions')),
               ],
             ),
-          if (widget.writer case final writer? when node != null)
-            IconButton(
-              tooltip: 'New node from here',
-              icon: const Icon(Icons.note_add_outlined),
-              onPressed: () => _capture(writer, node),
-            ),
-          if (widget.openInOrgro case final open? when node != null)
-            IconButton(
-              tooltip: 'Open in $noteAppName',
-              icon: const Icon(Icons.open_in_new),
-              onPressed: () => _openInOrgro(open, node),
-            ),
+          if (crowded)
+            PopupMenuButton<VoidCallback>(
+              tooltip: 'More for this note',
+              icon: const Icon(Icons.more_vert),
+              onSelected: (action) => action(),
+              itemBuilder: (_) => [
+                for (final (label, _, action) in more)
+                  PopupMenuItem(value: action, child: Text(label)),
+              ],
+            )
+          else
+            for (final (label, icon, action) in more)
+              IconButton(tooltip: label, icon: Icon(icon), onPressed: action),
           if (node != null && onShowInGraph != null)
             IconButton(
               tooltip: 'Show in graph',
@@ -957,12 +1192,15 @@ class _NodeScreenState extends State<NodeScreen> {
     final body = KeepFolding(
       tree: tree,
       states: folding,
-      child: Builder(builder: (context) {
-        _orgContext = context;
-        return tree is OrgSection
-            ? OrgSectionWidget(tree)
-            : OrgDocumentWidget(document, shrinkWrap: true);
-      }),
+      child: NoteSearchHits(
+        hits: _hits,
+        child: Builder(builder: (context) {
+          _orgContext = context;
+          return tree is OrgSection
+              ? OrgSectionWidget(tree)
+              : OrgDocumentWidget(document, shrinkWrap: true);
+        }),
+      ),
     );
     return OrgController(
       // A new controller for new text or a new setting, so the folding
@@ -970,6 +1208,12 @@ class _NodeScreenState extends State<NodeScreen> {
       key: ValueKey((text, state)),
       root: tree,
       settings: OrgSettings(startupFolded: state),
+      // Search inside the note (#152).
+      searchQuery: _searchPattern,
+      sparseQuery: switch (_searchPattern) {
+        final pattern? when _onlyMatching => MatchingSections(pattern, tree),
+        _ => null,
+      },
       child: OrgRootWidget(
         onLinkTap: _openLink,
         onLocalSectionLinkTap: _openSection,

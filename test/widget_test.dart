@@ -275,6 +275,20 @@ const someTexts = {
       '* Heading\n:PROPERTIES:\n:ID: h\n:END:\n',
 };
 
+/// Taps the node view's action [label]: its button in the bar, or its item
+/// in the "More for this note" menu when the bar is narrow, as in the side
+/// pane (#152).
+Future<void> tapNodeAction(WidgetTester tester, String label) async {
+  final button = find.byTooltip(label);
+  if (button.evaluate().isNotEmpty) {
+    await tester.tap(button.last);
+    return;
+  }
+  await tester.tap(find.byTooltip('More for this note').last);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label).last);
+}
+
 FakeFolderAccess withNotes({ChosenFolder? saved, ChosenFolder? picked}) =>
     FakeFolderAccess(
       saved: saved,
@@ -494,12 +508,12 @@ void main() {
     await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Open in Orgro'));
+    await tapNodeAction(tester, 'Open in Orgro');
     await tester.pumpAndSettle();
     expect(access.opened, [('roam/a.org', 'com.madlonkay.orgro')]);
 
     access.appInstalled = false;
-    await tester.tap(find.byTooltip('Open in Orgro'));
+    await tapNodeAction(tester, 'Open in Orgro');
     await tester.pump();
     expect(find.text('Orgro is not installed.'), findsOneWidget);
   });
@@ -1131,7 +1145,7 @@ void main() {
         (tester) async {
       final access = await showA(tester);
       final textOfA = access.texts['roam/a.org'];
-      await tester.tap(find.byTooltip('New node from here'));
+      await tapNodeAction(tester, 'New node from here');
       await tester.pumpAndSettle();
       expect(find.text('Link to A'), findsOneWidget);
       await tester.enterText(
@@ -1161,7 +1175,7 @@ void main() {
 
     testWidgets('the link can be left out', (tester) async {
       final access = await showA(tester);
-      await tester.tap(find.byTooltip('New node from here'));
+      await tapNodeAction(tester, 'New node from here');
       await tester.pumpAndSettle();
       await tester.tap(find.text('Link to A'));
       await tester.enterText(
