@@ -109,6 +109,128 @@ void main() {
     });
   });
 
+  group('radial (#153)', () {
+    /// A tree around r: a1 and a2 one link away, a1's children b1 to b3
+    /// and a2's child b4 two links away, c1 below b1 three away. x and y
+    /// are a part of their own; z has no links.
+    final ids = ['r', 'a1', 'a2', 'b1', 'b2', 'b3', 'b4', 'c1', 'x', 'y', 'z'];
+    final links = [
+      'r>a1', 'a2>r', 'a1>b1', 'a1>b2', 'b3>a1', 'a2>b4', 'b1>c1', 'x>y', //
+    ];
+    const depth = {
+      'r': 0, 'a1': 1, 'a2': 1, 'b1': 2, 'b2': 2, 'b3': 2, 'b4': 2, 'c1': 3,
+    };
+    final drawn = whole(ids, links);
+    final p = layoutGraph(drawn, LayoutKind.radial, centre: 'r').positions;
+    double angleOf(String id) {
+      final d = p[id]! - p['r']!;
+      return atan2(d.y, d.x);
+    }
+
+    test('the centre in the middle, every node on the ring of its distance',
+        () {
+      final radii = <int, double>{};
+      for (final MapEntry(key: id, value: d) in depth.entries) {
+        final r = p[id]!.distanceTo(p['r']!);
+        if (d == 0) {
+          expect(r, 0);
+          continue;
+        }
+        expect(r, closeTo(radii.putIfAbsent(d, () => r), 0.001), reason: id);
+      }
+      // Rings at multiples of nodeSpacing, further out by distance.
+      for (var d = 1; d <= 3; d++) {
+        final r = radii[d]!;
+        expect(r / nodeSpacing,
+            closeTo((r / nodeSpacing).roundToDouble(), 1e-6));
+        if (d > 1) expect(r, greaterThan(radii[d - 1]!));
+      }
+      // Without other parts, the centre is at the origin of radialPart.
+      final part = radialPart('r', drawn.neighbours);
+      expect(part['r'], const Point(0.0, 0.0));
+    });
+
+    test('the nodes of a ring keep nodeSpacing apart', () {
+      for (var d = 1; d <= 3; d++) {
+        final ring = [
+          for (final MapEntry(:key, :value) in depth.entries)
+            if (value == d) key,
+        ];
+        for (var i = 0; i < ring.length; i++) {
+          for (var j = i + 1; j < ring.length; j++) {
+            expect(p[ring[i]]!.distanceTo(p[ring[j]]!),
+                greaterThanOrEqualTo(nodeSpacing - 0.001),
+                reason: '${ring[i]} ${ring[j]}');
+          }
+        }
+      }
+    });
+
+    test("a parent's children are in its wedge", () {
+      // a1 has three leaves below it, a2 one: a1's wedge is 3/4 of the
+      // circle, a2's 1/4, and each sits in the middle of its wedge, so
+      // they are half a turn apart.
+      double turn(String id) => (angleOf(id) - angleOf('a1')) % (2 * pi);
+      final a2 = turn('a2');
+      expect(a2, closeTo(pi, 0.001));
+      // Seen from a1, its children are within 3/8 of a turn on either
+      // side, and b4 is in the middle of a2's wedge.
+      for (final child in ['b1', 'b2', 'b3', 'c1']) {
+        final t = turn(child);
+        final side = t > pi ? 2 * pi - t : t;
+        expect(side, lessThanOrEqualTo(3 * pi / 4 + 0.001), reason: child);
+      }
+      expect(turn('b4'), closeTo(a2, 0.001));
+      // c1, b1's only child, is at b1's angle.
+      expect(turn('c1'), closeTo(turn('b1'), 0.001));
+    });
+
+    test('parts not connected are beside the rings, not on them', () {
+      final ringIds = depth.keys;
+      final box = Rectangle.fromPoints(
+        Point(ringIds.map((id) => p[id]!.x).reduce(min),
+            ringIds.map((id) => p[id]!.y).reduce(min)),
+        Point(ringIds.map((id) => p[id]!.x).reduce(max),
+            ringIds.map((id) => p[id]!.y).reduce(max)),
+      );
+      for (final id in ['x', 'y', 'z']) {
+        expect(box.containsPoint(p[id]!), isFalse, reason: id);
+      }
+      expect(p['x']!.distanceTo(p['y']!), closeTo(nodeSpacing, 0.001));
+    });
+
+    test('without a centre, the node with the most links', () {
+      expect(radialCentre(drawn, null), 'a1');
+      expect(radialCentre(drawn, 'gone'), 'a1');
+      expect(radialCentre(drawn, 'b4'), 'b4');
+      final layout = layoutGraph(drawn, LayoutKind.radial);
+      final a1 = layout.positions['a1']!;
+      for (final id in ['r', 'b1', 'b2', 'b3']) {
+        expect(layout.positions[id]!.distanceTo(a1),
+            closeTo(layout.positions['r']!.distanceTo(a1), 0.001),
+            reason: id);
+      }
+    });
+
+    test('a graph of one node', () {
+      final single = whole(['a'], []);
+      final layout = layoutGraph(single, LayoutKind.radial, centre: 'a');
+      expectInside(single, layout);
+      expect(layout.positions['a'], const Point(layoutMargin, layoutMargin));
+    });
+
+    test('a long chain keeps its rings apart', () {
+      final chain = [for (var i = 0; i < 2000; i++) 'n$i'];
+      final layout = layoutGraph(
+        whole(chain, [for (var i = 1; i < 2000; i++) 'n${i - 1}>n$i']),
+        LayoutKind.radial,
+        centre: 'n0',
+      );
+      expect(layout.positions['n1999']!.distanceTo(layout.positions['n0']!),
+          closeTo(1999 * nodeSpacing, 0.01));
+    });
+  });
+
   for (final kind in LayoutKind.values) {
     group(kind.name, () {
       test('every node of the sample files has its own place', () {

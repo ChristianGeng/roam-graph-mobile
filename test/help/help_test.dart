@@ -107,7 +107,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('About the layouts'));
       await settleHelp(tester);
-      expect(title('Layouts: circular and force-directed'), findsOneWidget);
+      expect(title('Layouts: circular, force-directed and radial'), findsOneWidget);
       // A help page has no search and no AI menu.
       final page = find.byType(NodeScreen).last;
       expect(
@@ -128,7 +128,7 @@ void main() {
       expect(title('The graph view'), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(title('Layouts: circular and force-directed'), findsOneWidget);
+      expect(title('Layouts: circular, force-directed and radial'), findsOneWidget);
     });
 
     testWidgets('"About the views" in the View menu; Help in More', (
