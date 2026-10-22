@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-22: Buttons for headings and list items in "Edit text" ([#158](https://github.com/ChristianGeng/roam-graph-mobile/pull/158))
+
+- Added: a row of buttons below the text in "Edit text": new heading, up or down a level, move up or down, new list item, checkbox on or off, and the next TODO state. They act on the line of the cursor or on the selected lines, as Org's commands do.
+- A button that would change a property drawer or the heading above one does nothing and says why. Everything is saved, as before, with the diff.
+
+Closes #151.
+
 ## 2026-10-22: Radial layout ([#157](https://github.com/ChristianGeng/roam-graph-mobile/pull/157))
 
 - Added: a "Radial" layout in the graph's View menu: the selected note in the middle, the other notes on rings by how many links away they are, the notes reached from one note kept together. Notes not connected to it are drawn beside the rings.
