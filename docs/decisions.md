@@ -2357,9 +2357,9 @@ devices through Syncthing.
       again when the heading leaves the done states, with the line if
       nothing else was on it. Org's default is no logging; `lognotedone`
       and `org-log-into-drawer` are left out. A heading with a repeating
-      timestamp is not marked done here: Org would move its dates and log
-      the repeat in its drawer, which stays locked; Emacs or "Edit text"
-      does it.
+      active timestamp anywhere in its entry is not marked done here: Org
+      would move its dates and log the repeat in its drawer, which stays
+      locked; Emacs or "Edit text" does it.
     - **Saved at once, without the diff:** each is one small change that
       the view shows as it happens, and a diff for every tick would make
       a checklist slow to use. Everything else of decision 10 holds: the
@@ -2369,13 +2369,18 @@ devices through Syncthing.
       into the history; the graph is indexed again. A snack bar says what
       changed, with **Undo**, which puts the text back if the file is
       still what was saved. A folder with read access only asks for write
-      access, as the other edits do.
+      access, as the other edits do, also for Undo. The change is checked
+      against the very text the tapped item was shown from, and the folder
+      against the one it was read in. One change is saved at a time; a tap
+      meanwhile is answered with a message, not dropped silently. A failure
+      to keep the old version is reported as a failed save.
     - **Locked parts:** a TODO keyword, a cookie or a `CLOSED:` line
       changes the heading above a property drawer, which decision 51
-      refuses. So these saves pass `headingsMayChange`: the drawer's
-      heading is compared by its stars only, and a planning line between
-      them is skipped. The drawers themselves, their order and their
-      headings' levels stay locked.
+      refuses. So these saves pass the note's TODO keywords
+      (`todoKeywords`): the drawer's heading is compared without its
+      keyword, when it is one of them, and without its progress cookies,
+      and a planning line between them is skipped. Its stars, title and
+      tags, the drawers themselves and their order stay locked.
     - **Through `org_parser`,** as Orgro does: the note is parsed, the one
       node is replaced in the parsed document, and the document is written
       back with its markup, so the rest of the file stays byte for byte.

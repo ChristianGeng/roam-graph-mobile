@@ -492,12 +492,13 @@ class _NodeScreenState extends State<NodeScreen> {
       );
 
   /// A tap on a list item's checkbox (#150): switches it and saves.
-  Future<void> _toggleCheckbox(NoteWriter writer, RoamNode node,
-      OrgDocument shown, OrgListItem item) async {
-    final index = listItemIndex(shown, item);
+  /// [shown] is the text [document] was parsed from.
+  Future<void> _toggleCheckbox(NoteWriter writer, RoamNode node, String shown,
+      OrgDocument document, OrgListItem item) async {
+    final index = listItemIndex(document, item);
     if (index == null) return;
     String? description;
-    await _quickChange(writer, node,
+    await _quickChange(writer, node, shown,
         change: (text) => toggleCheckbox(text, index,
             describe: (d) => description = d),
         done: () => description ?? 'Changed the checkbox.');
@@ -505,127 +506,161 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// What a slide on a heading reveals (#150): its next TODO state, and
   /// the list of states.
-  List<Widget> _todoActions(NoteWriter writer, RoamNode node,
-      OrgDocument shown, OrgSection section) {
-    final index = sectionIndex(shown, section);
+  List<Widget> _todoActions(NoteWriter writer, RoamNode node, String shown,
+      OrgDocument document, OrgSection section) {
+    final index = sectionIndex(document, section);
     if (index == null) return const [];
-    final states = todoStatesOf(shown);
+    final states = todoStatesOf(document);
     final next = nextKeyword(states, section.headline.keyword?.value);
     return [
       TodoSlideAction(
         key: ValueKey('todo-next-$index'),
         icon: Icons.repeat,
         label: next ?? 'No state',
-        onPressed: () => _setTodo(writer, node, index, next),
+        onPressed: () => _setTodo(writer, node, shown, index, next),
       ),
       TodoSlideAction(
         key: ValueKey('todo-states-$index'),
         icon: Icons.list,
         label: 'States',
-        onPressed: () => _chooseTodo(writer, node, shown, section),
+        onPressed: () => _chooseTodo(writer, node, shown, document, section),
       ),
     ];
   }
 
   /// A long press on a heading (#150): the list of TODO states to choose.
-  Future<void> _chooseTodo(NoteWriter writer, RoamNode node,
-      OrgDocument shown, OrgSection section) async {
-    final index = sectionIndex(shown, section);
+  Future<void> _chooseTodo(NoteWriter writer, RoamNode node, String shown,
+      OrgDocument document, OrgSection section) async {
+    final index = sectionIndex(document, section);
     if (index == null) return;
     final chosen = await chooseTodoState(context,
-        states: todoStatesOf(shown),
+        states: todoStatesOf(document),
         current: section.headline.keyword?.value);
     if (chosen == null || !mounted) return;
-    await _setTodo(writer, node, index, chosen.keyword);
+    await _setTodo(writer, node, shown, index, chosen.keyword);
   }
 
-  Future<void> _setTodo(
-      NoteWriter writer, RoamNode node, int index, String? keyword) async {
+  Future<void> _setTodo(NoteWriter writer, RoamNode node, String shown,
+      int index, String? keyword) async {
     String? description;
-    await _quickChange(writer, node,
+    await _quickChange(writer, node, shown,
         change: (text) => setTodo(text, index, keyword,
             now: DateTime.now(), describe: (d) => description = d),
         done: () => description ?? 'Changed the TODO state.');
   }
 
-  /// Saves [change] of [node]'s file at once, without the diff (#150), as
-  /// every edit is saved otherwise (decision 10): only over the version
-  /// shown, the drawers locked, the old version kept, the graph updated.
-  /// The message offers Undo.
-  Future<void> _quickChange(
-    NoteWriter writer,
-    RoamNode node, {
-    required String Function(String text) change,
-    required String Function() done,
-  }) async {
-    final editor = writer.editor;
-    if (editor == null || _quickBusy) return;
+  /// Runs [save] unless another quick edit is being saved; then says so,
+  /// so no tap is lost without a word.
+  Future<void> _oneAtATime(Future<void> Function() save) async {
+    if (_quickBusy) {
+      _tell('The last change is still being saved; tap again in a moment.');
+      return;
+    }
     _quickBusy = true;
     try {
-      final shown = await _text;
-      final base = await editor.read(node.file);
-      if (!mounted) return;
-      if (base == null) {
-        _tell('Could not read ${node.file} as text to change.');
-        return;
-      }
-      if (base.text != shown) {
-        _readAgain();
-        _tell('${node.file} changed since the app showed it, so nothing '
-            'was changed. It is shown again now.');
-        return;
-      }
-      final String after;
-      try {
-        after = change(base.text);
-      } on NoteChangeError catch (e) {
-        _tell('${e.message} Nothing was changed.');
-        return;
-      }
-      if (after == base.text) return;
-      _keepFolding(after);
-      final result = await editor.save(node.file, base, after,
-          headingsMayChange: true);
-      if (!mounted) return;
-      if (result is NoWriteAccessToEdit) await writer.allowWriting();
-      if (!mounted) return;
-      _readAgain();
-      if (result is Saved || result is SavedNotIndexed) {
-        _tell(saveMessage(result, node.file) ?? done(),
-            undo: () => _undoQuick(writer, node.file, after, base.text));
-      } else {
-        _keptFolding = null;
-        _tell(saveMessage(result, node.file) ?? done());
-      }
+      await save();
     } finally {
       _quickBusy = false;
     }
   }
 
-  /// Undo in a quick edit's message: puts [before] back if the file is
-  /// still [after].
-  Future<void> _undoQuick(
-      NoteWriter writer, String file, String after, String before) async {
-    final editor = writer.editor;
-    if (editor == null || _quickBusy) return;
-    _quickBusy = true;
+  /// Saves [editor]'s change of [file] from [base] to [text], the TODO
+  /// keywords of [base] allowed to change above drawers; a failure to
+  /// keep the old version is a failed save.
+  Future<SaveResult> _saveQuick(
+      NoteEditor editor, String file, NoteVersion base, String text) async {
     try {
-      final current = await editor.read(file);
-      if (!mounted) return;
-      if (current == null || current.text != after) {
-        _tell('$file changed since, so the change was not undone.');
-        return;
-      }
-      _keepFolding(before);
-      final result =
-          await editor.save(file, current, before, headingsMayChange: true);
-      if (!mounted) return;
-      _readAgain();
-      _tell(saveMessage(result, file) ?? 'Undone.');
-    } finally {
-      _quickBusy = false;
+      return await editor.save(file, base, text,
+          todoKeywords: allKeywords(todoStatesOf(parseNote(base.text))).toSet());
+    } catch (e) {
+      return SaveFailed('$e');
     }
   }
+
+  /// Saves [change] of [node]'s file at once, without the diff (#150), as
+  /// every edit is saved otherwise (decision 10): only over [shown], the
+  /// text the tapped item was shown from, with the drawers locked, the old
+  /// version kept, the graph updated. The message offers Undo.
+  Future<void> _quickChange(
+    NoteWriter writer,
+    RoamNode node,
+    String shown, {
+    required String Function(String text) change,
+    required String Function() done,
+  }) =>
+      _oneAtATime(() async {
+        final editor = writer.editor;
+        if (editor == null) return;
+        // The folder the change is made in; another one chosen meanwhile
+        // (for write access) has another note under the same path.
+        final key = editor.store.historyKey(node.file);
+        final base = await editor.read(node.file);
+        if (!mounted) return;
+        if (base == null) {
+          _tell('Could not read ${node.file} as text to change.');
+          return;
+        }
+        if (base.text != shown) {
+          _readAgain();
+          _tell('${node.file} changed since the app showed it, so nothing '
+              'was changed. It is shown again now.');
+          return;
+        }
+        final String after;
+        try {
+          after = change(base.text);
+        } on NoteChangeError catch (e) {
+          _tell('${e.message} Nothing was changed.');
+          return;
+        }
+        if (after == base.text) return;
+        if (editor.store.historyKey(node.file) != key) {
+          _tell('Another folder is open now; nothing was changed.');
+          return;
+        }
+        _keepFolding(after);
+        final result = await _saveQuick(editor, node.file, base, after);
+        if (!mounted) return;
+        if (result is NoWriteAccessToEdit) await writer.allowWriting();
+        if (!mounted) return;
+        _readAgain();
+        if (result is Saved || result is SavedNotIndexed) {
+          _tell(saveMessage(result, node.file) ?? done(),
+              undo: () => _undoQuick(writer, node.file, key, after, base.text));
+        } else {
+          _keptFolding = null;
+          _tell(saveMessage(result, node.file) ?? done());
+        }
+      });
+
+  /// Undo in a quick edit's message: puts [before] back if the file, in
+  /// the folder with history [key], is still [after].
+  Future<void> _undoQuick(NoteWriter writer, String file, String key,
+          String after, String before) =>
+      _oneAtATime(() async {
+        final editor = writer.editor;
+        if (editor == null) return;
+        if (editor.store.historyKey(file) != key) {
+          _tell('Another folder is open now; the change was not undone.');
+          return;
+        }
+        final current = await editor.read(file);
+        if (!mounted) return;
+        if (current == null || current.text != after) {
+          _tell('$file changed since, so the change was not undone.');
+          return;
+        }
+        _keepFolding(before);
+        final result = await _saveQuick(editor, file, current, before);
+        if (!mounted) return;
+        if (result is NoWriteAccessToEdit) await writer.allowWriting();
+        if (!mounted) return;
+        _readAgain();
+        if (result is! Saved && result is! SavedNotIndexed) {
+          _keptFolding = null;
+        }
+        _tell(saveMessage(result, file) ?? 'Undone.');
+      });
 
   /// Remembers how far each section is open, to restore it when the note
   /// is read again with [text].
@@ -938,13 +973,15 @@ class _NodeScreenState extends State<NodeScreen> {
         // (#150).
         onListItemTap: writer == null
             ? null
-            : (item) => _toggleCheckbox(writer, node, document, item),
+            : (item) => _toggleCheckbox(writer, node, text, document, item),
         onSectionSlide: writer == null
             ? null
-            : (section) => _todoActions(writer, node, document, section),
+            : (section) =>
+                _todoActions(writer, node, text, document, section),
         onSectionLongPress: writer == null
             ? null
-            : (section) => _chooseTodo(writer, node, document, section),
+            : (section) =>
+                _chooseTodo(writer, node, text, document, section),
         loadImage: (link) =>
             loadMermaidDrawing(link) ??
             switch (files) {

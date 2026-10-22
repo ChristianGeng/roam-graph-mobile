@@ -390,14 +390,19 @@ OrgSection? _parentSection(OrgDocument document, OrgSection section) {
   return parent is OrgSection ? parent : null;
 }
 
-/// Whether [section]'s own planning line has a repeating active timestamp.
+/// Whether [section]'s own entry (its heading and text, not its
+/// sub-headings) has a repeating active timestamp: Org moves every such
+/// date when the entry is done (`org-auto-repeat-maybe`).
 bool _repeats(OrgSection section) {
-  final line = _planningLine(section);
-  if (line == null) return false;
-  return line.entries.any((e) =>
-      e.value is OrgTimestamp &&
-      (e.value as OrgTimestamp).isActive &&
-      (e.value as OrgTimestamp).repeats);
+  var found = false;
+  bool check(OrgNode node) {
+    if (node is OrgTimestamp && node.isActive && node.repeats) found = true;
+    return !found;
+  }
+
+  section.headline.visit<OrgNode>(check);
+  section.content?.visit<OrgNode>(check);
+  return found;
 }
 
 /// The planning line right below [section]'s heading: the first paragraph

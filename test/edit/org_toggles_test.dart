@@ -154,6 +154,10 @@ void main() {
           () => setTodo('* TODO Water\nSCHEDULED: <2026-10-23 Fri +1w>\n', 0,
               'DONE', now: now),
           throwsA(isA<NoteChangeError>()));
+      expect(
+          () => setTodo('* TODO Water\nEvery week: <2026-10-23 Fri +1w>\n', 0,
+              'DONE', now: now),
+          throwsA(isA<NoteChangeError>()));
     });
 
     test('the rest of the file stays byte for byte', () {
