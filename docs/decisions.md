@@ -2462,6 +2462,42 @@ devices through Syncthing.
       linked node; a graph of one node; a long chain; in the app, "Centre"
       drawing it again, and the start setting.
 
+88. **A layout grouped by communities** (#154),
+    `lib/graph/graph_layout.dart`. Shows the topics of the notes as
+    places: each community gets its own area.
+    - **`LayoutKind.communities` ("Grouped by communities"):** each
+      community of more than two notes is one area, laid out with the
+      force-directed layout on its own nodes and the links inside it. The
+      areas are packed with `_pack` in rows, the largest first, with two
+      `nodeSpacing` between them (one for the parts of the other layouts).
+    - **The communities of the "Communities" view:** the graph screen
+      passes the Louvain result it computes for the view (of the whole
+      graph, as the view colours it), and waits for it when it is not there
+      yet.
+      So the colours of the view and the areas match when both are on.
+      `layoutGraph` called without communities (tests, tools) runs
+      Louvain on the drawn graph itself.
+    - **Small communities share one area:** communities of one or two
+      notes, and notes without links, are one area at the end, laid out
+      force-directed together. Many single areas would take more room than
+      they show.
+    - **One community** gives the force-directed layout of the graph.
+    - **No forces between areas** (the issue's optional point): the
+      packing is enough to keep the areas apart, and the links between
+      areas stay visible as the long lines between them.
+    - **`LayoutOptions`:** the `LayoutFunction` now gets the centre
+      (#153) and the communities together, so a later layout can add what
+      it needs without changing every caller again.
+    - **Everywhere the other layouts are:** on the isolate, in the View
+      menu, in "Graph layout at start" and "Last used" (#71, #81), and in
+      "About the layouts".
+    - Tests (synthetic graphs only): every node in the area of its
+      community and the areas not overlapping; small communities and
+      nodes without one in the last area; the same graph, the same layout;
+      one community, the force-directed layout; isolated nodes placed;
+      Louvain on the drawn graph without communities given; in the app,
+      the view's communities passed, and the start setting.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

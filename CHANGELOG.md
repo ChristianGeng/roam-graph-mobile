@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-22: Layout grouped by communities ([#158](https://github.com/ChristianGeng/roam-graph-mobile/pull/158))
+
+- Added: a "Grouped by communities" layout in the graph's View menu: each community (the topics the "Communities" view colours) gets its own area, laid out force-directed inside, the largest first. Small communities and notes without links share one area at the end.
+- "Graph layout at start" in Settings offers it too.
+
+Closes #154.
+
 ## 2026-10-22: Radial layout ([#157](https://github.com/ChristianGeng/roam-graph-mobile/pull/157))
 
 - Added: a "Radial" layout in the graph's View menu: the selected note in the middle, the other notes on rings by how many links away they are, the notes reached from one note kept together. Notes not connected to it are drawn beside the rings.

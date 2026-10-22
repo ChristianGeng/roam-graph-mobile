@@ -19,14 +19,16 @@ import 'node_memory.dart';
 import 'two_panes.dart';
 import '../node_view/note_images.dart';
 
-/// Computes a layout; by default on another isolate. [centre] is the node
-/// in the middle of the radial layout (#153), null for the other layouts.
+/// Computes a layout; by default on another isolate. [options] has the
+/// centre of the radial layout (#153) and the communities of the layout
+/// grouped by communities (#154).
 typedef LayoutFunction = Future<GraphLayout> Function(
-    DrawnGraph graph, LayoutKind kind, String? centre);
+    DrawnGraph graph, LayoutKind kind, LayoutOptions options);
 
 Future<GraphLayout> layoutOnIsolate(
-        DrawnGraph graph, LayoutKind kind, String? centre) =>
-    Isolate.run(() => layoutGraph(graph, kind, centre: centre));
+        DrawnGraph graph, LayoutKind kind, LayoutOptions options) =>
+    Isolate.run(() => layoutGraph(graph, kind,
+        centre: options.centre, communities: options.communities));
 
 /// Computes the graph views' results (#7); by default on another isolate,
 /// so Louvain on a large graph does not stop the screen.
@@ -171,6 +173,10 @@ class _Algorithms {
   final AlgorithmGraph graph;
   AlgorithmResults? results;
   bool computing = false;
+
+  /// The computation started, for the layout grouped by communities,
+  /// which waits for it (#154).
+  Future<AlgorithmResults>? pending;
 }
 
 class _GraphScreenState extends State<GraphScreen> {
@@ -212,12 +218,24 @@ class _GraphScreenState extends State<GraphScreen> {
     final algorithms = _algorithms;
     final results = algorithms.results;
     if (results != null || algorithms.computing) return results;
+    _startAlgorithms(algorithms);
+    return null;
+  }
+
+  /// Starts computing the views' results once, and gives them when they
+  /// are there.
+  Future<AlgorithmResults> _startAlgorithms(_Algorithms algorithms) {
+    final results = algorithms.results;
+    if (results != null) return Future.value(results);
+    final pending = algorithms.pending;
+    if (pending != null) return pending;
     algorithms.computing = true;
-    widget.computeAlgorithms(algorithms.graph).then((results) {
+    return algorithms.pending =
+        widget.computeAlgorithms(algorithms.graph).then((results) {
       algorithms.results = results;
       if (mounted && identical(_algorithmsCache, algorithms)) setState(() {});
+      return results;
     });
-    return null;
   }
 
   /// The graph's width when the view was last centred; null to centre
@@ -335,7 +353,8 @@ class _GraphScreenState extends State<GraphScreen> {
     final generation = ++_generation;
     final scope = _choice.scope(centre);
     final drawn = DrawnGraph.of(_graph, scope);
-    final layoutCentre = _kind == LayoutKind.radial ? centre : null;
+    final kind = _kind;
+    final layoutCentre = kind == LayoutKind.radial ? centre : null;
     setState(() {
       _scopeCentre = centre;
       _layoutCentre = layoutCentre;
@@ -344,9 +363,18 @@ class _GraphScreenState extends State<GraphScreen> {
       _layout = null;
       _drawing = null;
     });
-    final key = (scope, _kind, layoutCentre);
-    final layout = _layouts[key] ??
-        await widget.computeLayout(drawn, _kind, layoutCentre);
+    final key = (scope, kind, layoutCentre);
+    var layout = _layouts[key];
+    if (layout == null) {
+      // The communities of the "Communities" view, of the whole graph, so
+      // the areas and the colours match (#154).
+      final communities = kind == LayoutKind.communities
+          ? (await _startAlgorithms(_algorithms)).communities
+          : null;
+      if (!mounted || generation != _generation) return;
+      layout = await widget.computeLayout(drawn, kind,
+          LayoutOptions(centre: layoutCentre, communities: communities));
+    }
     if (!mounted || generation != _generation) return;
     // One radial layout is kept, the latest: one for every centre would
     // grow with each "Centre" on a large graph.
