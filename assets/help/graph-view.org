@@ -28,13 +28,16 @@ The "Show" menu (the hub icon) chooses which part of the graph is drawn:
   selected node. A small part is faster to draw and easier to read.
 
 * View
-The "View" menu (the chart icon) colours or sizes the nodes by a graph
-algorithm; see [[id:roam-graph-help-views][Graph views]].
+The "View" menu (the chart icon) holds everything that changes how the
+graph looks, in two groups; a check mark shows the current choice.
+- *Layout*: *Circular* or *Force-directed*, where the dots go; see
+  [[id:roam-graph-help-layouts][Layouts]].
+- *View*: colours or sizes the nodes by a graph algorithm; see
+  [[id:roam-graph-help-views][Graph views]].
+- *About the layouts* and *About the views*: those help pages.
 
 * More
 - *Centre*: moves the selected node to the middle.
-- *Circular* and *Force-directed*: the layout; see
-  [[id:roam-graph-help-layouts][Layouts]].
 - *Ask AI*: see [[id:roam-graph-help-ai][AI]].
 - *Settings*: see [[id:roam-graph-help-settings][Settings]].
 - *Help*: these pages.

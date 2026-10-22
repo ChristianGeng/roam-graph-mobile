@@ -5,7 +5,8 @@
 #+STARTUP: showall
 
 A layout decides where the dots go. The links are the same in both; only
-the picture changes. Switch in the graph's "More" menu.
+the picture changes. Switch in the graph's "View" menu (the chart icon),
+under "Layout".
 
 * Circular (circo)
 Puts the nodes on circles, as Graphviz's ~circo~ does, the layout
@@ -28,6 +29,6 @@ It is good for seeing the shape of the graph: topics, bridges and loners.
 * At start
 The graph opens with the force-directed layout. Settings, "Graph layout
 at start", can choose circular instead, or the layout chosen last in the
-"More" menu ([[id:roam-graph-help-settings][Settings]]).
+"View" menu ([[id:roam-graph-help-settings][Settings]]).
 
 Back to [[id:roam-graph-help-graph-view][the graph view]].
