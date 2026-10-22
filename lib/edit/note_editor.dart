@@ -263,10 +263,17 @@ final _drawerEnd = RegExp(r'^[ \t]*:END:[ \t]*$', caseSensitive: false);
 /// top of the file. Org attaches a drawer to that line only, so a drawer
 /// moved under another heading, or text put between a heading and its
 /// drawer, gives another node its `:ID:` or none.
-List<String> propertyDrawers(String text) {
+///
+/// With [todoKeywords], a drawer's heading counts without its TODO keyword
+/// (one of [todoKeywords]) and its progress cookies, and a planning line
+/// between them is skipped: the heading's state, its cookies and its
+/// `CLOSED:` time may change (#150), but its stars, title and tags stay,
+/// and the drawer stays under it.
+List<String> propertyDrawers(String text, {Set<String>? todoKeywords}) {
   final drawers = <String>[];
   StringBuffer? current;
   var previous = '';
+  var previousIsHeading = false;
   for (final line in const LineSplitter().convert(text)) {
     if (current == null) {
       if (_drawerStart.hasMatch(line)) {
@@ -283,10 +290,35 @@ List<String> propertyDrawers(String text) {
         current = null;
       }
     }
-    previous = line;
+    if (todoKeywords == null) {
+      previous = line;
+    } else if (_heading.firstMatch(line) case final heading?) {
+      previous = _withoutStateAndCookies(heading, todoKeywords);
+      previousIsHeading = true;
+      continue;
+    } else if (!(previousIsHeading && _planning.hasMatch(line))) {
+      previous = line;
+    }
+    previousIsHeading = false;
   }
   return drawers;
 }
+
+final _heading = RegExp(r'^(\*+)[ \t]+(.*)$');
+final _cookie = RegExp(r'\[\d*(/\d*|%)\]');
+
+/// A heading line's stars and title (with its tags) without the leading
+/// keyword, when it is one of [keywords], and without progress cookies;
+/// spaces collapsed.
+String _withoutStateAndCookies(RegExpMatch heading, Set<String> keywords) {
+  var rest = heading[2]!;
+  final first = rest.split(RegExp(r'[ \t]')).first;
+  if (keywords.contains(first)) rest = rest.substring(first.length);
+  rest = rest.replaceAll(_cookie, '').trim().split(RegExp(r'[ \t]+')).join(' ');
+  return '${heading[1]} $rest';
+}
+final _planning =
+    RegExp(r'^[ \t]*(SCHEDULED|DEADLINE|CLOSED):');
 
 /// Saves edits of existing notes under decision 10's rules.
 class NoteEditor {
@@ -316,13 +348,19 @@ class NoteEditor {
   /// put back, by undo: its drawers may come back.
   /// With [aliasesMayChange], the `:ROAM_ALIASES:` lines of the drawers
   /// may change, be added or go (#97); every other drawer line stays.
+  /// With [todoKeywords], the heading line above a drawer may change its
+  /// TODO keyword among these and its progress cookies, and get or lose a
+  /// planning line (#150: `CLOSED:`); its title, tags and the drawer itself
+  /// stay as they are.
   Future<SaveResult> save(String path, NoteVersion base, String text,
       {String removed = '',
       String restored = '',
-      bool aliasesMayChange = false}) async {
+      bool aliasesMayChange = false,
+      Set<String>? todoKeywords}) async {
     if (text == base.text) return const NothingToSave();
     List<String> drawers(String t) => [
-          for (final d in propertyDrawers(t))
+          for (final d
+              in propertyDrawers(t, todoKeywords: todoKeywords))
             aliasesMayChange
                 ? d.split('\n').where((l) => !_aliases.hasMatch(l)).join('\n')
                 : d,

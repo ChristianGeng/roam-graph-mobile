@@ -2341,6 +2341,86 @@ devices through Syncthing.
       start" in Settings and what is stored. The setting's subtitle and the
       "Last used" description now name the View menu.
 
+86. **Checkboxes and TODO states change in the note view, saved without a
+    diff** (#150), `lib/edit/org_toggles.dart`,
+    `lib/node_view/quick_edits.dart`, `lib/node_view/node_screen.dart`.
+    The owner no longer uses Orgro, so the edits Orgro has come into the
+    app. Until now a checkbox or a TODO state could be changed only
+    through "Edit text".
+    - **Checkboxes:** a tap on a list item with a checkbox
+      (`org_flutter`'s `onListItemTap`) switches it as
+      `org-toggle-checkbox` does: `[ ]` and `[-]` become `[X]`, `[X]`
+      becomes `[ ]`. An item whose sub-items have boxes sets them all to
+      its new state, since Org derives such a box from its sub-items and
+      a tap would otherwise do nothing. The boxes above it (`[-]` when
+      some sub-items are ticked) and the progress cookies (`[1/3]`,
+      `[33%]`) of the items and of the heading the list is under follow,
+      each counting its direct sub-items, as with Org's default
+      `org-checkbox-hierarchical-statistics`. A heading's cookie counts
+      its TODO sub-headings instead when it has no checkboxes or its
+      `:COOKIE_DATA:` says `todo`.
+    - **TODO states:** a slide to the left on a heading
+      (`onSectionSlide`) shows its next state and "States"; a long press
+      shows the list of states. The states are the file's `#+TODO:`,
+      `#+SEQ_TODO:` and `#+TYP_TODO:` keywords, else `TODO | DONE`. The
+      next state is the next keyword of the heading's sequence, then no
+      state; from no state the first keyword, as `org-todo` cycles. The
+      note is parsed with its own keywords, so a `NEXT` heading shows
+      `NEXT` as a keyword. The cookie of the heading above, when it counts
+      TODO sub-headings, follows.
+    - **`logdone`:** only when the file says `#+STARTUP: logdone` (or
+      `org-log-done` in its local variables): a heading that becomes done
+      gets `CLOSED: [YYYY-MM-DD Day HH:MM]`, first on its planning line,
+      which is made right below the heading when there is none; it goes
+      again when the heading leaves the done states, with the line if
+      nothing else was on it. Org's default is no logging; `lognotedone`
+      and `org-log-into-drawer` are left out. A heading with a repeating
+      active timestamp anywhere in its entry is not marked done here: Org
+      would move its dates and log the repeat in its drawer, which stays
+      locked; Emacs or "Edit text" does it.
+    - **Saved at once, without the diff:** each is one small change that
+      the view shows as it happens, and a diff for every tick would make
+      a checklist slow to use. Everything else of decision 10 holds: the
+      file is read again just before the change, and if it is not the
+      text shown, nothing is saved and the note is shown again, with a
+      message; the save is only over that version; the old version goes
+      into the history; the graph is indexed again. A snack bar says what
+      changed, with **Undo**, which puts the text back if the file is
+      still what was saved. A folder with read access only asks for write
+      access, as the other edits do, also for Undo. The change is checked
+      against the very text the tapped item was shown from, and the folder
+      against the one it was read in. One change is saved at a time; a tap
+      meanwhile is answered with a message, not dropped silently. A failure
+      to keep the old version is reported as a failed save.
+    - **Locked parts:** a TODO keyword, a cookie or a `CLOSED:` line
+      changes the heading above a property drawer, which decision 51
+      refuses. So these saves pass the note's TODO keywords
+      (`todoKeywords`): the drawer's heading is compared without its
+      keyword, when it is one of them, and without its progress cookies,
+      and a planning line between them is skipped. Its stars, title and
+      tags, the drawers themselves and their order stay locked.
+    - **Through `org_parser`,** as Orgro does: the note is parsed, the one
+      node is replaced in the parsed document, and the document is written
+      back with its markup, so the rest of the file stays byte for byte.
+      A note that the parser does not write back exactly as it was is not
+      changed here, and the message points to "Edit text". The tapped
+      item or heading is found again in the file by its number among the
+      file's items or headings, since the view's document is another
+      parse; for a heading node's view, that number counts in the whole
+      file, so the change goes to the right place.
+    - **The view keeps its place:** while the note is read again, the old
+      text stays on screen, and the sections open before the change are
+      open after it.
+    - Tests (synthetic notes only): a box on and off; `[-]`; the box above
+      following its sub-items; `[n/m]` and `[%]` cookies; TODO cycling
+      with the default keywords and with `#+TODO: TODO NEXT | DONE
+      CANCELLED`; `CLOSED:` with `logdone` added and removed, also next to
+      `SCHEDULED:`, and not added without it; the parent's TODO cookie; a
+      repeating heading refused; the rest of the file unchanged; the
+      drawer check with changed headings; in the app, a tap saved without
+      a diff and undone, a state chosen by long press and by slide, a
+      file changed meanwhile, and a read-only folder.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

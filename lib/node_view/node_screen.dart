@@ -14,6 +14,9 @@ import '../edit/edit_screen.dart';
 import '../edit/history_screen.dart';
 import '../edit/image_screen.dart';
 import '../edit/meta_screen.dart';
+import '../edit/note_editor.dart';
+import '../edit/org_toggles.dart';
+import '../edit/save_messages.dart';
 import '../edit/remove_link.dart';
 import '../edit/unlink.dart';
 import '../graph/ai_share.dart';
@@ -22,6 +25,7 @@ import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
 import '../settings/view_settings.dart';
 import 'folding.dart';
+import 'quick_edits.dart';
 import 'latex.dart';
 import 'mermaid.dart';
 import 'src_languages.dart';
@@ -151,6 +155,22 @@ class NodeScreen extends StatefulWidget {
 
 class _NodeScreenState extends State<NodeScreen> {
   late Future<String?> _text;
+
+  /// The text shown last, and the node it belongs to: kept on screen while
+  /// the note is read again, so the page does not jump to the top.
+  String? _shown;
+  String? _shownId;
+
+  /// The context below the note's [OrgController], to read and keep the
+  /// folding over a quick edit (#150).
+  BuildContext? _orgContext;
+
+  /// The folding of each section before a quick edit, to restore once the
+  /// note is read again with [text], the text the edit saved.
+  ({String text, List<OrgVisibilityState> states})? _keptFolding;
+
+  /// Whether a quick edit is being saved; taps wait for it.
+  var _quickBusy = false;
 
   RoamNode? get _node => widget.graph.value.nodes[widget.id];
 
@@ -471,10 +491,212 @@ class _NodeScreenState extends State<NodeScreen> {
         openUrl: widget.openUrl,
       );
 
-  void _tell(String message) {
+  /// A tap on a list item's checkbox (#150): switches it and saves.
+  /// [shown] is the text [document] was parsed from.
+  Future<void> _toggleCheckbox(NoteWriter writer, RoamNode node, String shown,
+      OrgDocument document, OrgListItem item) async {
+    final index = listItemIndex(document, item);
+    if (index == null) return;
+    String? description;
+    await _quickChange(writer, node, shown,
+        change: (text) => toggleCheckbox(text, index,
+            describe: (d) => description = d),
+        done: () => description ?? 'Changed the checkbox.');
+  }
+
+  /// What a slide on a heading reveals (#150): its next TODO state, and
+  /// the list of states.
+  List<Widget> _todoActions(NoteWriter writer, RoamNode node, String shown,
+      OrgDocument document, OrgSection section) {
+    final index = sectionIndex(document, section);
+    if (index == null) return const [];
+    final states = todoStatesOf(document);
+    final next = nextKeyword(states, section.headline.keyword?.value);
+    return [
+      TodoSlideAction(
+        key: ValueKey('todo-next-$index'),
+        icon: Icons.repeat,
+        label: next ?? 'No state',
+        onPressed: () => _setTodo(writer, node, shown, index, next),
+      ),
+      TodoSlideAction(
+        key: ValueKey('todo-states-$index'),
+        icon: Icons.list,
+        label: 'States',
+        onPressed: () => _chooseTodo(writer, node, shown, document, section),
+      ),
+    ];
+  }
+
+  /// A long press on a heading (#150): the list of TODO states to choose.
+  Future<void> _chooseTodo(NoteWriter writer, RoamNode node, String shown,
+      OrgDocument document, OrgSection section) async {
+    final index = sectionIndex(document, section);
+    if (index == null) return;
+    final chosen = await chooseTodoState(context,
+        states: todoStatesOf(document),
+        current: section.headline.keyword?.value);
+    if (chosen == null || !mounted) return;
+    await _setTodo(writer, node, shown, index, chosen.keyword);
+  }
+
+  Future<void> _setTodo(NoteWriter writer, RoamNode node, String shown,
+      int index, String? keyword) async {
+    String? description;
+    await _quickChange(writer, node, shown,
+        change: (text) => setTodo(text, index, keyword,
+            now: DateTime.now(), describe: (d) => description = d),
+        done: () => description ?? 'Changed the TODO state.');
+  }
+
+  /// Runs [save] unless another quick edit is being saved; then says so,
+  /// so no tap is lost without a word.
+  Future<void> _oneAtATime(Future<void> Function() save) async {
+    if (_quickBusy) {
+      _tell('The last change is still being saved; tap again in a moment.');
+      return;
+    }
+    _quickBusy = true;
+    try {
+      await save();
+      // Until the note is read again and drawn, the items on screen hold
+      // the text before the save, and a tap on them would be refused.
+      await _text;
+      if (mounted) await WidgetsBinding.instance.endOfFrame;
+    } finally {
+      _quickBusy = false;
+    }
+  }
+
+  /// Saves [editor]'s change of [file] from [base] to [text], the TODO
+  /// keywords of [base] allowed to change above drawers; a failure to
+  /// keep the old version is a failed save.
+  Future<SaveResult> _saveQuick(
+      NoteEditor editor, String file, NoteVersion base, String text) async {
+    try {
+      return await editor.save(file, base, text,
+          todoKeywords: allKeywords(todoStatesOf(parseNote(base.text))).toSet());
+    } catch (e) {
+      return SaveFailed('$e');
+    }
+  }
+
+  /// Saves [change] of [node]'s file at once, without the diff (#150), as
+  /// every edit is saved otherwise (decision 10): only over [shown], the
+  /// text the tapped item was shown from, with the drawers locked, the old
+  /// version kept, the graph updated. The message offers Undo.
+  Future<void> _quickChange(
+    NoteWriter writer,
+    RoamNode node,
+    String shown, {
+    required String Function(String text) change,
+    required String Function() done,
+  }) =>
+      _oneAtATime(() async {
+        final editor = writer.editor;
+        if (editor == null) return;
+        // The folder the change is made in; another one chosen meanwhile
+        // (for write access) has another note under the same path.
+        final key = editor.store.historyKey(node.file);
+        final base = await editor.read(node.file);
+        if (!mounted) return;
+        if (base == null) {
+          _tell('Could not read ${node.file} as text to change.');
+          return;
+        }
+        if (base.text != shown) {
+          _readAgain();
+          _tell('${node.file} changed since the app showed it, so nothing '
+              'was changed. It is shown again now.');
+          return;
+        }
+        final String after;
+        try {
+          after = change(base.text);
+        } on NoteChangeError catch (e) {
+          _tell('${e.message} Nothing was changed.');
+          return;
+        }
+        if (after == base.text) return;
+        if (editor.store.historyKey(node.file) != key) {
+          _tell('Another folder is open now; nothing was changed.');
+          return;
+        }
+        _keepFolding(after);
+        final result = await _saveQuick(editor, node.file, base, after);
+        if (!mounted) return;
+        if (result is NoWriteAccessToEdit) await writer.allowWriting();
+        if (!mounted) return;
+        _readAgain();
+        if (result is Saved || result is SavedNotIndexed) {
+          _tell(saveMessage(result, node.file) ?? done(),
+              undo: () => _undoQuick(writer, node.file, key, after, base.text));
+        } else {
+          _keptFolding = null;
+          _tell(saveMessage(result, node.file) ?? done());
+        }
+      });
+
+  /// Undo in a quick edit's message: puts [before] back if the file, in
+  /// the folder with history [key], is still [after].
+  Future<void> _undoQuick(NoteWriter writer, String file, String key,
+          String after, String before) =>
+      _oneAtATime(() async {
+        final editor = writer.editor;
+        if (editor == null) return;
+        if (editor.store.historyKey(file) != key) {
+          _tell('Another folder is open now; the change was not undone.');
+          return;
+        }
+        final current = await editor.read(file);
+        if (!mounted) return;
+        if (current == null || current.text != after) {
+          _tell('$file changed since, so the change was not undone.');
+          return;
+        }
+        _keepFolding(before);
+        final result = await _saveQuick(editor, file, current, before);
+        if (!mounted) return;
+        if (result is NoWriteAccessToEdit) await writer.allowWriting();
+        if (!mounted) return;
+        _readAgain();
+        if (result is! Saved && result is! SavedNotIndexed) {
+          _keptFolding = null;
+        }
+        _tell(saveMessage(result, file) ?? 'Undone.');
+      });
+
+  /// Remembers how far each section is open, to restore it when the note
+  /// is read again with [text].
+  void _keepFolding(String text) {
+    final orgContext = _orgContext;
+    if (orgContext == null || !orgContext.mounted) return;
+    final controller = OrgController.of(orgContext);
+    _keptFolding = (
+      text: text,
+      states: [
+        for (final section in sectionsOf(controller.root))
+          controller.nodeFor(section).visibility.value,
+      ],
+    );
+  }
+
+  void _readAgain() {
+    if (!mounted) return;
+    setState(() {
+      _text = _read();
+    });
+  }
+
+  void _tell(String message, {VoidCallback? undo}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+      ..showSnackBar(SnackBar(
+        content: Text(message),
+        action: undo == null
+            ? null
+            : SnackBarAction(label: 'Undo', onPressed: undo),
+      ));
   }
 
   @override
@@ -583,10 +805,13 @@ class _NodeScreenState extends State<NodeScreen> {
           : FutureBuilder<String?>(
               future: _text,
               builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
+                if (snapshot.connectionState == ConnectionState.done) {
+                  _shown = snapshot.data;
+                  _shownId = node.id;
+                } else if (_shownId != node.id) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                return _content(context, node, snapshot.data);
+                return _content(context, node, _shown);
               },
             ),
     );
@@ -700,7 +925,7 @@ class _NodeScreenState extends State<NodeScreen> {
     // in display mode (#50); mermaid blocks without a result image drawn
     // (#49).
     final document = withMermaidDrawings(
-      withDisplayFormulas(withHighlightLanguages(OrgDocument.parse(text))),
+      withDisplayFormulas(withHighlightLanguages(parseNote(text))),
       showsImage: (location) {
         final path = linkedImagePath(node.file, location);
         return files != null &&
@@ -722,6 +947,23 @@ class _NodeScreenState extends State<NodeScreen> {
     // (#63).
     final state =
         startupState(document, ViewSettingsScope.of(context).sectionsOnOpen);
+    final writer = _editWriter;
+    // The folding before a quick edit, when this is the same note after it.
+    List<OrgVisibilityState>? folding;
+    if (_keptFolding case final kept? when kept.text == text) {
+      _keptFolding = null;
+      if (kept.states.length == sectionsOf(tree).length) folding = kept.states;
+    }
+    final body = KeepFolding(
+      tree: tree,
+      states: folding,
+      child: Builder(builder: (context) {
+        _orgContext = context;
+        return tree is OrgSection
+            ? OrgSectionWidget(tree)
+            : OrgDocumentWidget(document, shrinkWrap: true);
+      }),
+    );
     return OrgController(
       // A new controller for new text or a new setting, so the folding
       // starts again.
@@ -731,6 +973,19 @@ class _NodeScreenState extends State<NodeScreen> {
       child: OrgRootWidget(
         onLinkTap: _openLink,
         onLocalSectionLinkTap: _openSection,
+        // Ticking a checkbox and changing a TODO state, saved at once
+        // (#150).
+        onListItemTap: writer == null
+            ? null
+            : (item) => _toggleCheckbox(writer, node, text, document, item),
+        onSectionSlide: writer == null
+            ? null
+            : (section) =>
+                _todoActions(writer, node, text, document, section),
+        onSectionLongPress: writer == null
+            ? null
+            : (section) =>
+                _chooseTodo(writer, node, text, document, section),
         loadImage: (link) =>
             loadMermaidDrawing(link) ??
             switch (files) {
@@ -744,13 +999,9 @@ class _NodeScreenState extends State<NodeScreen> {
         child: tree is OrgSection
             ? Padding(
                 padding: const EdgeInsets.all(16),
-                child: OpenSection(
-                  section: tree,
-                  state: state,
-                  child: OrgSectionWidget(tree),
-                ),
+                child: OpenSection(section: tree, state: state, child: body),
               )
-            : OrgDocumentWidget(document, shrinkWrap: true),
+            : body,
       ),
     );
   }

@@ -175,6 +175,54 @@ void main() {
     expect([for (final v in await history.versions('k')) v.text], ['two']);
   });
 
+  group('headings may change above a drawer (#150)', () {
+    const heading = '#+title: A\n* TODO H [0/1]\n:PROPERTIES:\n:ID: h\n'
+        ':END:\n';
+    const keywords = {'TODO', 'DONE'};
+    setUp(() => store.files['a.org'] = heading);
+
+    test('a new keyword, cookie and CLOSED: line are saved', () async {
+      final base = (await editor.read('a.org'))!;
+      const done = '#+title: A\n* DONE H [1/1]\n'
+          'CLOSED: [2026-10-22 Thu 09:45]\n:PROPERTIES:\n:ID: h\n:END:\n';
+      expect(await editor.save('a.org', base, done), isA<LockedPartChanged>());
+      expect(await editor.save('a.org', base, done, todoKeywords: keywords),
+          isA<Saved>());
+      expect(store.files['a.org'], done);
+    });
+
+    test('the title, the tags, the drawer and its level stay locked',
+        () async {
+      final base = (await editor.read('a.org'))!;
+      expect(
+          await editor.save('a.org', base, heading.replaceFirst(': h', ': x'),
+              todoKeywords: keywords),
+          isA<LockedPartChanged>());
+      expect(
+          await editor.save('a.org', base, heading.replaceFirst('* ', '** '),
+              todoKeywords: keywords),
+          isA<LockedPartChanged>());
+      expect(
+          await editor.save('a.org', base, heading.replaceFirst(' H ', ' G '),
+              todoKeywords: keywords),
+          isA<LockedPartChanged>());
+      expect(
+          await editor.save(
+              'a.org', base, heading.replaceFirst('[0/1]', '[0/1] :tag:'),
+              todoKeywords: keywords),
+          isA<LockedPartChanged>());
+      expect(
+          await editor.save('a.org', base, heading.replaceFirst('TODO', 'NEXT'),
+              todoKeywords: keywords),
+          isA<LockedPartChanged>());
+      expect(
+          await editor.save('a.org', base,
+              heading.replaceFirst(':PROPERTIES:', 'Text.\n:PROPERTIES:'),
+              todoKeywords: keywords),
+          isA<LockedPartChanged>());
+    });
+  });
+
   group('kept versions in files', () {
     late Directory root;
     setUp(() async => root = await Directory.systemTemp.createTemp('hist'));
