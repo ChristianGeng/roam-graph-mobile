@@ -99,10 +99,17 @@ class _NoteSearchHitsState extends State<NoteSearchHits> {
     _changed();
   }
 
-  /// The controller changes its list while it builds, and adds marks
-  /// after each frame: the copy waits for the end of the frame.
+  /// Whether a copy is waiting for the end of the frame.
+  var _pending = false;
+
+  /// The controller changes its list while it builds, and adds the marks
+  /// one by one after each frame: one copy at the end of the frame, not
+  /// one per mark, since each sorts them all.
   void _changed() {
+    if (_pending) return;
+    _pending = true;
     SchedulerBinding.instance.addPostFrameCallback((_) {
+      _pending = false;
       final source = _source;
       if (!mounted || source == null) return;
       widget.hits.value = hitsInOrder(
