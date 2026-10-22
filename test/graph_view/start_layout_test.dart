@@ -37,9 +37,9 @@ Future<List<LayoutKind>> openGraph(
       graph: ValueNotifier<RoamGraph>(graphOf(notes)),
       readNote: (path) async => notes[path],
       nodeMemory: MemoryNodeMemory('plan'),
-      computeLayout: (graph, kind) async {
+      computeLayout: (graph, kind, centre) async {
         kinds.add(kind);
-        return layoutGraph(graph, kind);
+        return layoutGraph(graph, kind, centre: centre);
       },
       computeAlgorithms: algorithmsHere,
     ),
@@ -62,9 +62,9 @@ void main() {
         graph: ValueNotifier<RoamGraph>(graphOf(notes)),
         readNote: (path) async => notes[path],
         nodeMemory: MemoryNodeMemory('plan'),
-        computeLayout: (graph, kind) async {
+        computeLayout: (graph, kind, centre) async {
           kinds.add(kind);
-          return layoutGraph(graph, kind);
+          return layoutGraph(graph, kind, centre: centre);
         },
         computeAlgorithms: algorithmsHere,
       ),
@@ -144,6 +144,25 @@ void main() {
     expect(await openGraph(tester, store), [LayoutKind.circo]);
   });
 
+  testWidgets('"Radial" starts radial, and "Last used" remembers it (#153)',
+      (tester) async {
+    final store = MemoryViewSettingsStore(
+        const ViewSettings(startLayout: StartLayout.radial));
+    expect(await openGraph(tester, store), [LayoutKind.radial]);
+
+    final last = MemoryViewSettingsStore(
+        const ViewSettings(startLayout: StartLayout.lastUsed));
+    expect(await openGraph(tester, last), [LayoutKind.force]);
+    await tester.tap(find.byTooltip('View'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(LayoutKind.radial.label));
+    await tester.pumpAndSettle();
+    expect(last.settings.lastLayout, LayoutKind.radial);
+    expect(await openGraph(tester, last), [LayoutKind.radial]);
+    final back = ViewSettings.fromJson(last.settings.toJson());
+    expect(back.layoutAtStart, LayoutKind.radial);
+  });
+
   testWidgets('the menu switches only the open graph with other settings',
       (tester) async {
     final store = MemoryViewSettingsStore();
@@ -168,7 +187,7 @@ void main() {
     expect(odd.layoutAtStart, LayoutKind.force);
   });
 
-  testWidgets('Settings offers the three choices', (tester) async {
+  testWidgets('Settings offers the four choices', (tester) async {
     final store = MemoryViewSettingsStore();
     await tester.pumpWidget(MaterialApp(
       builder: (context, child) => ViewSettingsHost(store: store, child: child!),
@@ -181,5 +200,11 @@ void main() {
     await tester.tap(circo);
     await tester.pumpAndSettle();
     expect(store.settings.startLayout, StartLayout.circo);
+    final radial = find.byKey(const ValueKey('start-layout-radial'));
+    await tester.scrollUntilVisible(radial, 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(radial);
+    await tester.pumpAndSettle();
+    expect(store.settings.startLayout, StartLayout.radial);
   });
 }

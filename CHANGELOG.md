@@ -15,6 +15,13 @@ each entry.
 
 Closes #151.
 
+## 2026-10-22: Radial layout ([#157](https://github.com/ChristianGeng/roam-graph-mobile/pull/157))
+
+- Added: a "Radial" layout in the graph's View menu: the selected note in the middle, the other notes on rings by how many links away they are, the notes reached from one note kept together. Notes not connected to it are drawn beside the rings.
+- "Centre" in the More menu (and "Show in graph") draws the rings again around the selected note. "Graph layout at start" in Settings offers it too.
+
+Closes #153.
+
 ## 2026-10-22: Tick checkboxes and change TODO states in the note view ([#156](https://github.com/ChristianGeng/roam-graph-mobile/pull/156))
 
 - Added: tap a checkbox in a note to tick or untick it; the boxes and progress cookies above it follow. Slide a heading to the left for its next TODO state, or long-press it for the list of states (the note's `#+TODO:` keywords, or TODO and DONE).

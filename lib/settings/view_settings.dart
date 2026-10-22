@@ -51,6 +51,7 @@ enum SectionsOnOpen {
 enum StartLayout {
   force('Force-directed', 'Linked notes pull together, so clusters show'),
   circo('Circular (circo)', 'As org-roam-graph draws it'),
+  radial('Radial', 'The selected note in the middle, rings by distance'),
   lastUsed('Last used', 'The layout chosen last in the graph\'s View menu');
 
   const StartLayout(this.label, this.description);
@@ -128,6 +129,7 @@ class ViewSettings {
   LayoutKind get layoutAtStart => switch (startLayout) {
         StartLayout.force => LayoutKind.force,
         StartLayout.circo => LayoutKind.circo,
+        StartLayout.radial => LayoutKind.radial,
         StartLayout.lastUsed => lastLayout,
       };
 
