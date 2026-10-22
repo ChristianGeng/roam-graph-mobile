@@ -2449,8 +2449,9 @@ devices through Syncthing.
       get the centre (null for the other layouts). A tap only selects a
       node; "Centre" in the More menu, and "Show in graph" from a note,
       draw the radial layout again around the selected node when it is not
-      the middle already. The layouts kept for switching back are kept per
-      centre for the radial layout. The other layouts stay as they are.
+      the middle already. The layouts kept for switching back hold only the
+      latest radial layout, with its centre, so many "Centre"s on a large
+      graph do not fill the memory. The other layouts stay as they are.
     - **Everywhere the other layouts are:** computed on the isolate, in the
       View menu, in "Graph layout at start" (Settings) and in "Last used"
       (#71, #81); "About the layouts" explains it.

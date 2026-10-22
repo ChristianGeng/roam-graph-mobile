@@ -232,8 +232,8 @@ class _GraphScreenState extends State<GraphScreen> {
   _ViewOverlay? _overlayCache;
   Object? _overlayKey;
 
-  /// Layouts computed so far, so switching back is immediate. The radial
-  /// layout is kept for each centre it was drawn around (#153).
+  /// Layouts computed so far, so switching back is immediate. Of the
+  /// radial layouts only the latest is kept, with its centre (#153).
   final _layouts = <(GraphScope, LayoutKind, String?), GraphLayout>{};
 
   /// The node in the middle of the radial layout shown, or that is being
@@ -348,6 +348,11 @@ class _GraphScreenState extends State<GraphScreen> {
     final layout = _layouts[key] ??
         await widget.computeLayout(drawn, _kind, layoutCentre);
     if (!mounted || generation != _generation) return;
+    // One radial layout is kept, the latest: one for every centre would
+    // grow with each "Centre" on a large graph.
+    if (layoutCentre != null) {
+      _layouts.removeWhere((k, _) => k.$3 != null && k != key);
+    }
     _layouts[key] = layout;
     setState(() {
       _layout = layout;
