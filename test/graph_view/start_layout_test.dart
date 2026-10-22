@@ -188,7 +188,7 @@ void main() {
     expect(odd.layoutAtStart, LayoutKind.force);
   });
 
-  testWidgets('Settings offers the five choices', (tester) async {
+  testWidgets('Settings offers the six choices', (tester) async {
     final store = MemoryViewSettingsStore();
     await tester.pumpWidget(MaterialApp(
       builder: (context, child) => ViewSettingsHost(store: store, child: child!),
@@ -217,6 +217,20 @@ void main() {
     await tester.tap(grouped);
     await tester.pumpAndSettle();
     expect(store.settings.startLayout, StartLayout.communities);
+    final layered = find.byKey(const ValueKey('start-layout-layered'));
+    await tester.scrollUntilVisible(layered, 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(layered);
+    await tester.pump();
+    await tester.tap(layered);
+    await tester.pumpAndSettle();
+    expect(store.settings.startLayout, StartLayout.layered);
+  });
+
+  testWidgets('"Hierarchical (dot)" at start (#155)', (tester) async {
+    final store = MemoryViewSettingsStore(
+        const ViewSettings(startLayout: StartLayout.layered));
+    expect(await openGraph(tester, store), [LayoutKind.layered]);
   });
 
   testWidgets('"Grouped by communities" at start (#154)', (tester) async {

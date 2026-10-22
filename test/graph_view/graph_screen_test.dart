@@ -307,6 +307,7 @@ void main() {
         'Force-directed': false,
         'Radial': false,
         'Grouped by communities': false,
+        'Hierarchical (dot)': false,
         'Plain': true,
         'Communities': false,
         'Importance: PageRank': false,
@@ -422,6 +423,24 @@ void main() {
     // The same communities the "Communities" view colours.
     expect(calls.last.$2,
         computeAlgorithmResults(AlgorithmGraph.fromRoam(graph)).communities);
+    await tapMiddle(tester);
+    expect(nodeTitle('HUB'), findsOneWidget);
+  });
+
+  testWidgets('hierarchical: a layout that took too long says so (#155)',
+      (tester) async {
+    await show(tester, remembered: 'hub',
+        computeLayout: (graph, kind, options) async =>
+            // A time limit that has passed already.
+            layoutGraph(graph, kind,
+                layeredLimit: const Duration(microseconds: -1)));
+    await tester.tap(find.byTooltip('View'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hierarchical (dot)'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('too large for the hierarchical layout'),
+        findsOneWidget);
+    // Drawn all the same, force-directed, centred on hub.
     await tapMiddle(tester);
     expect(nodeTitle('HUB'), findsOneWidget);
   });

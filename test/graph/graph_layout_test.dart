@@ -325,6 +325,139 @@ void main() {
     });
   });
 
+  group('hierarchical (#155)', () {
+    GraphLayout layered(List<String> ids, List<String> links) =>
+        layoutGraph(whole(ids, links), LayoutKind.layered);
+
+    /// The layers by y, top first.
+    List<Set<String>> layersOf(GraphLayout layout) {
+      final byY = <double, Set<String>>{};
+      for (final MapEntry(:key, :value) in layout.positions.entries) {
+        byY.putIfAbsent(value.y, () => {}).add(key);
+      }
+      final ys = byY.keys.toList()..sort();
+      return [for (final y in ys) byY[y]!];
+    }
+
+    /// Crossings of the links between neighbouring layers.
+    int crossings(GraphLayout layout, List<String> links) {
+      final p = layout.positions;
+      final pairs = [
+        for (final link in links)
+          (p[link.split('>')[0]]!, p[link.split('>')[1]]!),
+      ];
+      var total = 0;
+      for (var a = 0; a < pairs.length; a++) {
+        for (var b = a + 1; b < pairs.length; b++) {
+          final (ua, la) = pairs[a];
+          final (ub, lb) = pairs[b];
+          if (ua.y == ub.y && la.y == lb.y &&
+              (ua.x - ub.x) * (la.x - lb.x) < 0) {
+            total++;
+          }
+        }
+      }
+      return total;
+    }
+
+    test('a chain is one node per layer', () {
+      final layout = layered(['a', 'b', 'c', 'd'], ['a>b', 'b>c', 'c>d']);
+      expect(layersOf(layout), [
+        {'a'},
+        {'b'},
+        {'c'},
+        {'d'},
+      ]);
+    });
+
+    test("a tree's levels are its layers", () {
+      final layout = layered(
+        ['r', 'c1', 'c2', 'g1', 'g2', 'g3'],
+        ['r>c1', 'r>c2', 'c1>g1', 'c1>g2', 'c2>g3'],
+      );
+      expect(layersOf(layout), [
+        {'r'},
+        {'c1', 'c2'},
+        {'g1', 'g2', 'g3'},
+      ]);
+      // Each child under its parent's side: g3 is on c2's side.
+      final p = layout.positions;
+      expect((p['g3']!.x - p['c2']!.x).abs(),
+          lessThan((p['g3']!.x - p['c1']!.x).abs()));
+    });
+
+    test('without cycles every link points down', () {
+      final links = ['a>b', 'a>c', 'b>d', 'c>d', 'a>d', 'd>e', 'b>e'];
+      final layout = layered(['a', 'b', 'c', 'd', 'e'], links);
+      for (final link in links) {
+        final [from, to] = link.split('>');
+        expect(layout.positions[from]!.y, lessThan(layout.positions[to]!.y),
+            reason: link);
+      }
+      // a to d spans two layers: the longest path decides.
+      expect(layersOf(layout).length, 4);
+    });
+
+    test('a cycle is broken and all nodes are placed', () {
+      final drawn = whole(['a', 'b', 'c'], ['a>b', 'b>c', 'c>a']);
+      final layout = layoutGraph(drawn, LayoutKind.layered);
+      expectInside(drawn, layout);
+      expect(layout.fellBack, isFalse);
+      expect(layersOf(layout), hasLength(3));
+    });
+
+    test('a pair that links both ways counts once', () {
+      final drawn = whole(['a', 'b'], ['a>b', 'b>a']);
+      expect(layeredLinks(drawn), [('a', 'b')]);
+      expect(layersOf(layoutGraph(drawn, LayoutKind.layered)), [
+        {'a'},
+        {'b'},
+      ]);
+    });
+
+    test('no two nodes of a layer overlap', () {
+      final ids = ['hub', for (var i = 0; i < 9; i++) 'n$i', 'x', 'y'];
+      final links = [
+        for (var i = 0; i < 9; i++) 'hub>n$i',
+        for (var i = 0; i < 9; i += 2) 'n$i>x',
+        'n1>y',
+      ];
+      final layout = layered(ids, links);
+      for (final layer in layersOf(layout)) {
+        final xs = [for (final id in layer) layout.positions[id]!.x]..sort();
+        for (var i = 1; i < xs.length; i++) {
+          expect(xs[i] - xs[i - 1], greaterThanOrEqualTo(nodeSpacing - 1e-6));
+        }
+      }
+    });
+
+    test('crossings of small known graphs are at the known minimum', () {
+      final ids = ['a', 'b', 'c', 'x', 'y', 'z'];
+      // Three links that can all be drawn side by side: none cross.
+      for (final links in [
+        ['a>x', 'b>y', 'c>z'],
+        ['a>z', 'b>y', 'c>x'],
+        ['c>x', 'a>y', 'b>z', 'a>z'],
+      ]) {
+        expect(crossings(layered(ids, links), links), 0, reason: '$links');
+      }
+      // Two over two, all linked: one crossing is the minimum.
+      final full = ['a>x', 'a>y', 'b>x', 'b>y'];
+      expect(crossings(layered(['a', 'b', 'x', 'y'], full), full), 1);
+    });
+
+    test('too slow: the force-directed layout, and it says so', () {
+      final drawn =
+          DrawnGraph.of(randomGraph(60, 200, 3), const WholeGraph());
+      // A limit that has passed already.
+      final layout = layoutGraph(drawn, LayoutKind.layered,
+          layeredLimit: const Duration(microseconds: -1));
+      expect(layout.fellBack, isTrue);
+      expect(layout.positions, layoutGraph(drawn, LayoutKind.force).positions);
+      expect(layoutGraph(drawn, LayoutKind.layered).fellBack, isFalse);
+    });
+  });
+
   for (final kind in LayoutKind.values) {
     group(kind.name, () {
       test('every node of the sample files has its own place', () {

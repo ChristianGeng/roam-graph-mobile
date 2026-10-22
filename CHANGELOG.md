@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-22: Hierarchical layout ([#161](https://github.com/ChristianGeng/roam-graph-mobile/pull/161))
+
+- Added: a "Hierarchical (dot)" layout in the graph's View menu, as Graphviz's `dot` draws: notes in layers from top to bottom, each note above the notes it links to, ordered so that few links cross. Good for a hub and its sub-topics.
+- A graph too large for it in a few seconds is drawn force-directed, with a message. "Graph layout at start" in Settings offers it too.
+
+Closes #155.
+
 ## 2026-10-22: Layout grouped by communities ([#159](https://github.com/ChristianGeng/roam-graph-mobile/pull/159))
 
 - Added: a "Grouped by communities" layout in the graph's View menu: each community (the topics the "Communities" view colours) gets its own area, laid out force-directed inside, the largest first. Small communities and notes without links share one area at the end.

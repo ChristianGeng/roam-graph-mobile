@@ -14,7 +14,7 @@ are never changed.
 
 * Pages
 - [[id:roam-graph-help-graph-view][The graph view]]
-- [[id:roam-graph-help-layouts][Layouts: circular, force-directed, radial, by communities]]
+- [[id:roam-graph-help-layouts][Layouts: circular, force-directed, radial, grouped, hierarchical]]
 - [[id:roam-graph-help-views][Graph views: communities, importance, paths]]
 - [[id:roam-graph-help-algorithms][The other graph algorithms]]
 - [[id:roam-graph-help-node-view][The node view]]

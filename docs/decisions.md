@@ -2570,6 +2570,45 @@ devices through Syncthing.
       Louvain on the drawn graph without communities given; in the app,
       the view's communities passed, and the start setting.
 
+90. **A hierarchical layout after Graphviz's `dot`** (#155),
+    `lib/graph/graph_layout.dart`. For hub structures: a note above the
+    notes it links to.
+    - **`LayoutKind.layered` ("Hierarchical (dot)"):** Sugiyama's method,
+      kept simple, for each connected part; the parts are packed with
+      `_pack`, as for the circular layout, so notes without links do not
+      make the first layer very wide.
+    - **Links:** source to target, as the graph's links go; a pair that
+      links both ways counts once, the way it is found first; a link to
+      itself is left out.
+    - **1. Cycles:** a depth-first search in node order turns round the
+      links that go back to a node it is still in (`dot`'s default).
+    - **2. Layers:** the longest path from a node without incoming links,
+      so every link points down, also a link over several layers.
+    - **3. Order in a layer:** the barycentre heuristic, four rounds of a
+      sweep down and a sweep up. Without dummy nodes, a neighbour's place
+      is its share of its own layer's width, so links over several layers
+      count too. The order with the fewest crossings between neighbouring
+      layers is kept.
+    - **4. x:** the nodes of a layer in their order, at least
+      `nodeSpacing` apart, each near the mean x of its neighbours, the
+      layer moved so that on average they are where they want to be; four
+      passes down and up. Layers are `1.5 * nodeSpacing` apart. Links over
+      several layers are drawn straight.
+    - **Large graphs:** after `layeredTimeLimit` (4 seconds) it gives up
+      and gives the force-directed layout, marked `fellBack`; the graph
+      screen then says so in a message and points to "Show". The other
+      layouts have no limit: they are fast enough for the graphs the app
+      is for.
+    - **Everywhere the other layouts are:** on the isolate, in the View
+      menu, in "Graph layout at start" and "Last used" (#71, #81), and in
+      "About the layouts".
+    - Tests (synthetic graphs only): a chain is one node per layer; a
+      tree's levels are its layers; without cycles every link points
+      down; a cycle is broken and all nodes are placed; a pair both ways
+      counts once; no two nodes of a layer overlap; small known graphs at
+      their minimum of crossings; past the time limit, the force-directed
+      layout and the message.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

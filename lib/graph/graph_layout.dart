@@ -1,6 +1,7 @@
 /// Node positions for the graph view (#6): a circular layout after
 /// Graphviz's `circo`, a force-directed one, a radial one around the
-/// centred node (#153), and one grouped by communities (#154).
+/// centred node (#153), one grouped by communities (#154), and a
+/// hierarchical one after Graphviz's `dot` (#155).
 ///
 /// Pure Dart (no Flutter), so it runs on another isolate and in tests.
 library;
@@ -24,7 +25,11 @@ enum LayoutKind {
   radial('Radial'),
 
   /// Each community in its own area, force-directed inside (#154).
-  communities('Grouped by communities');
+  communities('Grouped by communities'),
+
+  /// Graphviz's `dot`: layers from top to bottom, links pointing down
+  /// (#155).
+  layered('Hierarchical (dot)');
 
   const LayoutKind(this.label);
 
@@ -53,11 +58,16 @@ class LayoutOptions {
 /// Where each node is. Coordinates start at [layoutMargin], so the drawing
 /// fits into [width] by [height].
 class GraphLayout {
-  const GraphLayout(this.positions, this.width, this.height);
+  const GraphLayout(this.positions, this.width, this.height,
+      {this.fellBack = false});
 
   final Map<String, Point<double>> positions;
   final double width;
   final double height;
+
+  /// The layout asked for took too long, and this is the force-directed
+  /// layout instead (#155).
+  final bool fellBack;
 }
 
 /// Lays out [graph] with [kind]. Takes about a second for 500 nodes and
@@ -69,20 +79,30 @@ class GraphLayout {
 ///
 /// [communities] are the communities of [LayoutKind.communities], by node
 /// ID; without them, Louvain is run on [graph] here.
+///
+/// [LayoutKind.layered] gives up after [layeredLimit] and returns the
+/// force-directed layout, with [GraphLayout.fellBack] set.
 GraphLayout layoutGraph(
   DrawnGraph graph,
   LayoutKind kind, {
   String? centre,
   Map<String, int>? communities,
+  Duration layeredLimit = layeredTimeLimit,
 }) {
+  var fellBack = false;
   final positions = switch (kind) {
     LayoutKind.circo => _circo(graph),
     LayoutKind.force => _force(graph),
     LayoutKind.radial => _radial(graph, centre),
     LayoutKind.communities =>
       _grouped(graph, communities ?? drawnCommunities(graph)),
+    LayoutKind.layered => _layered(graph, layeredLimit) ??
+        (() {
+          fellBack = true;
+          return _force(graph);
+        })(),
   };
-  return _normalized(positions);
+  return _normalized(positions, fellBack: fellBack);
 }
 
 /// The connected parts of [graph], each in node order, largest first.
@@ -633,8 +653,248 @@ Map<String, Point<double>> _grouped(
   };
 }
 
+/// How long [LayoutKind.layered] may take before it gives up.
+const layeredTimeLimit = Duration(seconds: 4);
+
+/// The distance between two layers of [LayoutKind.layered].
+const layerGap = 1.5 * nodeSpacing;
+
+/// The links of [graph] as `dot` takes them (#155): source to target, a
+/// pair that links both ways once (the way it is found first), no link
+/// from a node to itself.
+List<(String, String)> layeredLinks(DrawnGraph graph) {
+  final seen = <(String, String)>{};
+  final links = <(String, String)>[];
+  for (final (:source, :dest) in graph.edges) {
+    if (source == dest || seen.contains((dest, source))) continue;
+    if (seen.add((source, dest))) links.add((source, dest));
+  }
+  return links;
+}
+
+/// The layers of the connected part [part] (#155), top first, each in its
+/// order after the crossing reduction, by Sugiyama's method as `dot` does
+/// it, kept simple:
+/// 1. cycles are broken by turning round the links that a depth-first
+///    search finds going back to a node it is still in;
+/// 2. a node's layer is the longest path to it from a node without
+///    incoming links;
+/// 3. each layer is ordered by the barycentre heuristic, in sweeps down
+///    and up; the order with the fewest crossings between neighbouring
+///    layers is kept.
+/// Null when [deadline] has passed.
+List<List<String>>? layeredOrder(
+  List<String> part,
+  List<(String, String)> links,
+  Stopwatch clock,
+  Duration deadline,
+) {
+  bool tooLate() => clock.elapsed > deadline;
+  final inPart = part.toSet();
+  final out = {for (final id in part) id: <String>[]};
+  for (final (source, dest) in links) {
+    if (inPart.contains(source)) out[source]!.add(dest);
+  }
+  // 1. A depth-first search in node order; a link to a node on the stack
+  // is turned round. An explicit stack, so long chains do not overflow.
+  final state = <String, int>{}; // 1: on the stack, 2: done.
+  final down = {for (final id in part) id: <String>{}};
+  for (final start in part) {
+    if (state.containsKey(start)) continue;
+    state[start] = 1;
+    final frames = <(String, Iterator<String>)>[(start, out[start]!.iterator)];
+    while (frames.isNotEmpty) {
+      final (id, next) = frames.last;
+      if (!next.moveNext()) {
+        state[id] = 2;
+        frames.removeLast();
+        continue;
+      }
+      final other = next.current;
+      switch (state[other]) {
+        case 1:
+          down[other]!.add(id);
+        case 2:
+          down[id]!.add(other);
+        default:
+          down[id]!.add(other);
+          state[other] = 1;
+          frames.add((other, out[other]!.iterator));
+      }
+    }
+  }
+  if (tooLate()) return null;
+  // 2. Longest path from the sources, in topological order (Kahn).
+  final up = {for (final id in part) id: <String>[]};
+  final incoming = {for (final id in part) id: 0};
+  for (final id in part) {
+    for (final other in down[id]!) {
+      up[other]!.add(id);
+      incoming[other] = incoming[other]! + 1;
+    }
+  }
+  final layer = <String, int>{};
+  final queue = Queue.of([
+    for (final id in part)
+      if (incoming[id] == 0) id,
+  ]);
+  for (final id in queue) {
+    layer[id] = 0;
+  }
+  while (queue.isNotEmpty) {
+    final id = queue.removeFirst();
+    for (final other in down[id]!) {
+      layer[other] = max(layer[other] ?? 0, layer[id]! + 1);
+      incoming[other] = incoming[other]! - 1;
+      if (incoming[other] == 0) queue.add(other);
+    }
+  }
+  final count = layer.values.fold(0, max) + 1;
+  final layers = [for (var i = 0; i < count; i++) <String>[]];
+  for (final id in part) {
+    layers[layer[id]!].add(id);
+  }
+  if (tooLate()) return null;
+  // 3. Barycentres: a node moves to the mean place of its neighbours in
+  // the layers above (going down) or below (going up), each place as a
+  // share of its layer's width, since links may span several layers.
+  final place = <String, double>{};
+  void number(List<String> nodes) {
+    for (var i = 0; i < nodes.length; i++) {
+      place[nodes[i]] = (i + 0.5) / nodes.length;
+    }
+  }
+
+  layers.forEach(number);
+  int crossings() {
+    var total = 0;
+    for (var i = 0; i + 1 < layers.length; i++) {
+      final pairs = <(double, double)>[
+        for (final id in layers[i])
+          for (final other in down[id]!)
+            if (layer[other] == i + 1) (place[id]!, place[other]!),
+      ];
+      for (var a = 0; a < pairs.length; a++) {
+        for (var b = a + 1; b < pairs.length; b++) {
+          final (ua, la) = pairs[a];
+          final (ub, lb) = pairs[b];
+          if ((ua - ub) * (la - lb) < 0) total++;
+        }
+      }
+    }
+    return total;
+  }
+
+  void sweep(Iterable<int> order, Map<String, List<String>> neighbours) {
+    for (final i in order) {
+      final bary = <String, double>{};
+      for (final id in layers[i]) {
+        final near = neighbours[id]!;
+        bary[id] = near.isEmpty
+            ? place[id]!
+            : near.fold(0.0, (sum, n) => sum + place[n]!) / near.length;
+      }
+      // A stable sort: equal barycentres keep their order.
+      final indexed = [
+        for (var j = 0; j < layers[i].length; j++) (j, layers[i][j]),
+      ]..sort((a, b) {
+          final by = bary[a.$2]!.compareTo(bary[b.$2]!);
+          return by != 0 ? by : a.$1.compareTo(b.$1);
+        });
+      layers[i] = [for (final (_, id) in indexed) id];
+      number(layers[i]);
+    }
+  }
+
+  final downOf = {for (final id in part) id: down[id]!.toList()};
+  var best = [for (final l in layers) [...l]];
+  var fewest = crossings();
+  for (var round = 0; round < 4 && fewest > 0; round++) {
+    sweep([for (var i = 1; i < layers.length; i++) i], up);
+    sweep([for (var i = layers.length - 2; i >= 0; i--) i], downOf);
+    if (tooLate()) return null;
+    final now = crossings();
+    if (now < fewest) {
+      fewest = now;
+      best = [for (final l in layers) [...l]];
+    }
+  }
+  return best;
+}
+
+/// 4. The places of the nodes of [layers]: layer i at y = i * [layerGap];
+/// in a layer, the nodes in their order, [nodeSpacing] apart at least,
+/// each near the mean x of its neighbours, in a few passes down and up.
+Map<String, Point<double>> _layeredPositions(
+  List<List<String>> layers,
+  Map<String, Set<String>> neighbours,
+) {
+  final x = <String, double>{};
+  for (final l in layers) {
+    for (var i = 0; i < l.length; i++) {
+      x[l[i]] = (i - (l.length - 1) / 2) * nodeSpacing;
+    }
+  }
+  void place(List<String> l) {
+    if (l.isEmpty) return;
+    final wanted = [
+      for (final id in l)
+        neighbours[id]!.isEmpty
+            ? x[id]!
+            : neighbours[id]!.fold(0.0, (sum, n) => sum + x[n]!) /
+                neighbours[id]!.length,
+    ];
+    // In order and nodeSpacing apart, then moved as a whole so that the
+    // nodes are on average where they want to be.
+    final placed = [...wanted];
+    for (var i = 1; i < placed.length; i++) {
+      placed[i] = max(placed[i], placed[i - 1] + nodeSpacing);
+    }
+    var shift = 0.0;
+    for (var i = 0; i < placed.length; i++) {
+      shift += wanted[i] - placed[i];
+    }
+    shift /= placed.length;
+    for (var i = 0; i < l.length; i++) {
+      x[l[i]] = placed[i] + shift;
+    }
+  }
+
+  for (var pass = 0; pass < 4; pass++) {
+    layers.skip(1).forEach(place);
+    layers.reversed.skip(1).forEach(place);
+  }
+  return {
+    for (var i = 0; i < layers.length; i++)
+      for (final id in layers[i]) id: Point(x[id]!, i * layerGap),
+  };
+}
+
+/// The hierarchical layout (#155): each connected part in layers, the
+/// parts packed with `_pack`. Null when it takes longer than [limit].
+Map<String, Point<double>>? _layered(DrawnGraph graph, Duration limit) {
+  final clock = Stopwatch()..start();
+  final links = layeredLinks(graph);
+  final placed = <List<Point<double>>>[];
+  final parts = connectedParts(graph);
+  for (final part in parts) {
+    final layers = layeredOrder(part, links, clock, limit);
+    if (layers == null) return null;
+    final positions = _layeredPositions(layers, graph.neighbours);
+    placed.add([for (final id in part) positions[id]!]);
+  }
+  final shifted = _pack(placed);
+  return {
+    for (var i = 0; i < parts.length; i++)
+      for (var j = 0; j < parts[i].length; j++) parts[i][j]: shifted[i][j],
+  };
+}
+
 /// [positions] moved so that the smallest coordinates are [layoutMargin].
-GraphLayout _normalized(Map<String, Point<double>> positions) {
+GraphLayout _normalized(
+  Map<String, Point<double>> positions, {
+  bool fellBack = false,
+}) {
   final box = _bounds(positions.values);
   final dx = layoutMargin - box.left, dy = layoutMargin - box.top;
   return GraphLayout(
@@ -644,5 +904,6 @@ GraphLayout _normalized(Map<String, Point<double>> positions) {
     },
     box.width + 2 * layoutMargin,
     box.height + 2 * layoutMargin,
+    fellBack: fellBack,
   );
 }
