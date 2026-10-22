@@ -2531,6 +2531,43 @@ devices through Syncthing.
       and `#+title:` lines left as they are; in the app, a TODO state
       saved with the diff, a refused demote, and a new heading.
 
+89. **Search inside the note shown** (#152), `lib/node_view/note_search.dart`,
+    `lib/node_view/node_screen.dart`. The app searched across notes
+    (#98), but not inside the note on screen; Orgro does, and the owner
+    no longer uses Orgro.
+    - **`org_flutter`'s own search,** as Orgro uses it: the pattern goes
+      to `OrgController.searchQuery`; `org_flutter` then marks every
+      match with the theme's highlight colour (light and dark), opens the
+      sections with a match and folds the others, and gives every mark a
+      `SearchResult` key. The keys of the marks on screen, in reading
+      order, are the matches: the bar says "3 matches", or "2 of 3" once
+      one is chosen. "Next match" and "Previous match" (and Enter) choose
+      the next one around the ends, outline it and scroll it to the
+      middle.
+    - **What is searched:** the typed text as it is (no regular
+      expressions), upper and lower case alike, in the text as the view
+      shows it.
+    - **Only matching sections:** a switch below the field gives
+      `OrgController.sparseQuery` a matcher for the sections whose own
+      text matches, as Org's sparse tree (`org-occur`): sections without
+      a match and without one below them are hidden; a top-level heading
+      stays as a folded line, as `org_flutter` and Org show it. The node
+      shown never folds away, so a heading node does not disappear.
+    - **Closing** (the x, Back, or Escape) removes the marks and puts
+      every section back to how far it was open before the search, if
+      the note did not change meanwhile. Another node in the side pane
+      ends the search.
+    - **Desktop:** Ctrl+F (Cmd+F on macOS) opens it (#116).
+    - **The bar on a phone:** with this button the node view's bar had
+      too many for a narrow screen. When the buttons do not fit, "New
+      node from here" and "Open in ..." are in a "More" menu.
+    - Nothing is written.
+    - Tests (synthetic notes only): the matches counted, in any case; no
+      match; next and previous around the ends, and Enter; a match in a
+      folded section shown; "Only matching sections" hiding a section and
+      showing it again; closing restoring both an open and a folded note;
+      Back closing the search first; Ctrl+F; dark mode.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
