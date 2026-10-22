@@ -398,9 +398,7 @@ class AnthropicApi extends ModelApi {
       {
         'model': config.model,
         'max_tokens': config.maxOutputTokens,
-        // A request without tools (#145) has no `tools`: an empty list is
-        // refused by some providers.
-        if (tools.isNotEmpty || webSearches > 0) 'tools': [
+        'tools': [
           for (final tool in tools)
             {
               'name': tool.name,
@@ -616,7 +614,7 @@ class OpenAiApi extends ModelApi {
       {
         'model': config.model,
         'max_tokens': config.maxOutputTokens,
-        if (tools.isNotEmpty) 'tools': [
+        'tools': [
           for (final tool in tools)
             {
               'type': 'function',

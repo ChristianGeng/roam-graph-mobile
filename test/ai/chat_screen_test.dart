@@ -250,7 +250,7 @@ void main() {
       // the instruction; not shown in the chat.
       expect(server.requests, hasLength(2));
       final extra = server.requests.last.body;
-      expect(extra.containsKey('tools'), isFalse);
+      expect(extra['tools'], isEmpty);
       expect(jsonEncode(extra['system']), contains('JSON object'));
       final messages = extra['messages'] as List;
       expect(jsonEncode(messages), contains('Good question!'));
@@ -312,7 +312,7 @@ void main() {
       await tester.pumpAndSettle();
 
       final extra = jsonEncode(server.requests.last.body);
-      expect(server.requests.last.body.containsKey('tools'), isFalse);
+      expect(server.requests.last.body['tools'], isEmpty);
       expect(extra, isNot(contains('tool_use')));
       expect(extra, isNot(contains('tool_result')));
       // The IDs the tools gave are in it.

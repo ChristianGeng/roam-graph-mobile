@@ -143,7 +143,7 @@ void main() {
           system: noteFromAnswerSystem);
       expect(parseNoteJson(reply), (title: 'Morels', body: 'Spring.'));
       final body = server.requests.last.body;
-      expect(body.containsKey('tools'), isFalse);
+      expect(body['tools'], isEmpty);
       expect(jsonEncode(body['system']), contains('You have no tools here'));
       // The conversation is as it was; the tokens count.
       expect(session.transcript, hasLength(2));
@@ -163,7 +163,7 @@ void main() {
           noteRequestEntries(session.transcript, 1, startLinked: false),
           system: noteFromAnswerSystem);
       final body = server.requests.last.body;
-      expect(body.containsKey('tools'), isFalse);
+      expect(body['tools'], isEmpty);
       expect(body['messages'][0],
           {'role': 'system', 'content': noteFromAnswerSystem});
     });

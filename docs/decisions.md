@@ -2265,9 +2265,8 @@ devices through Syncthing.
       4,000 characters: a request with `tool_use` blocks needs tools
       offered (Anthropic), and the IDs the tools gave stay in. Images are
       not sent again. Nothing goes to the provider that it did not get in
-      this chat already. The request has no `tools` field at all (an empty
-      list is refused by some providers); its tokens count in the chat's
-      token line. It is not added to the conversation and not shown as a
+      this chat already. The request offers an empty list of tools, as
+      the AI edit screen does; its tokens count in the chat's token line. It is not added to the conversation and not shown as a
       message, only as a short wait on the button.
     - **Unreadable answer:** a code fence or text around the object is
       allowed; a `#+title:` or `#+filetags:` line at the start of the body
