@@ -32,6 +32,25 @@ void main() {
           (title: 'Morels', body: 'A mushroom.'));
     });
 
+    test('text with braces around the object', () {
+      expect(
+          parseNoteJson('The format is {"title", "body"}; here it is: '
+              '{"title": "Morels {spring}", "body": "In {woods}."} '
+              'Hope that helps {:}'),
+          (title: 'Morels {spring}', body: 'In {woods}.'));
+    });
+
+    test('a properties drawer and :ID: lines go', () {
+      expect(
+          parseNoteJson('{"title": "Morels", "body": ":PROPERTIES:\\n'
+              ':ID: plan\\n:END:\\n#+title: Morels\\nA mushroom.\\n'
+              '* Where\\n:PROPERTIES:\\n:ID: ideas\\n:END:\\nIn woods."}'),
+          (
+            title: 'Morels',
+            body: 'A mushroom.\n* Where\n:PROPERTIES:\n:END:\nIn woods.'
+          ));
+    });
+
     test('no body is an empty body', () {
       expect(parseNoteJson('{"title": "Morels"}'),
           (title: 'Morels', body: ''));
@@ -64,11 +83,19 @@ void main() {
     test('an earlier answer is named by how it begins', () {
       final text = agentSaveRequest(
           answer: '\n  Morels grow in spring.\nMore text.', isLast: false);
-      expect(text, contains('your answer that begins "Morels grow in '
-          'spring."'));
+      expect(text, contains('your answer in this chat, the one that begins '
+          '"Morels grow in spring."'));
       expect(text, isNot(contains('opened the chat from')));
       final long = agentSaveRequest(answer: 'x' * 100, isLast: false);
       expect(long, contains('"${'x' * 60}…"'));
+    });
+
+    test('with its number, two answers that begin alike are told apart',
+        () {
+      final text =
+          agentSaveRequest(answer: 'Morels.', isLast: false, number: 2);
+      expect(text, contains('your answer number 2 in this chat, the one '
+          'that begins "Morels."'));
     });
   });
 
@@ -104,6 +131,25 @@ void main() {
       // What came after the answer is not sent.
       expect(entries.whereType<UserMessage>().map((e) => e.text),
           isNot(contains('Thanks.')));
+    });
+
+    test('the provider\'s web searches go as text too', () {
+      const search = ToolCall('s1', 'web_search', {'query': 'morels'});
+      final entries = noteRequestEntries([
+        const UserMessage('Morels?'),
+        const AssistantMessage(
+          text: 'Morels grow in spring.',
+          model: 'm',
+          searches: [
+            ToolResult(search, 'Morel season\n  https://example.org/morels'),
+          ],
+        ),
+      ], 1, startLinked: false);
+      expect(entries, hasLength(4));
+      final results = (entries[1] as UserMessage).text;
+      expect(results, contains('web searches returned'));
+      expect(results, contains('https://example.org/morels'));
+      expect((entries[2] as AssistantMessage).searches, isEmpty);
     });
 
     test('the start note is left to the app', () {

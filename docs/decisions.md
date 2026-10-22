@@ -2243,7 +2243,8 @@ devices through Syncthing.
     No note is made without the button.
     - **Agent mode:** the button sends a fixed message as mine, shown in
       the chat (`agentSaveRequest`): make a new note from "your last
-      answer" (an earlier answer is named by its first 60 characters) with
+      answer" (an earlier answer is named by its number among the answers
+      and its first 60 characters, so two that begin alike differ) with
       `create_node`; a short, fitting title in the language of the answer;
       the content as Org text without chat phrases; links to the notes the
       answer used, with the IDs the tools gave; and, when the chat was
@@ -2263,18 +2264,23 @@ devices through Syncthing.
       answer, as plain text, and the instruction. The tool calls are left
       out and their results go as text in a message of mine, each cut to
       4,000 characters: a request with `tool_use` blocks needs tools
-      offered (Anthropic), and the IDs the tools gave stay in. Images are
-      not sent again. Nothing goes to the provider that it did not get in
+      offered (Anthropic), and the IDs the tools gave stay in. The
+      provider's own web search results (decision 82) go the same way.
+      Images are not sent again. Nothing goes to the provider that it did not get in
       this chat already. The request offers an empty list of tools, as
       the AI edit screen does; its tokens count in the chat's token line. It is not added to the conversation and not shown as a
       message, only as a short wait on the button.
     - **Unreadable answer:** a code fence or text around the object is
-      allowed; a `#+title:` or `#+filetags:` line at the start of the body
-      is dropped. With no object, no title, or a failed request, the old
+      allowed, also text with braces: the first balanced object with a
+      title counts. The capture screen writes the `:ID:`, `#+title:` and
+      `#+filetags:`, so a `#+title:` or `#+filetags:` line or a properties
+      drawer at the start of the body is dropped, and every `:ID:` line in
+      it: an ID the model gave could be another note's. With no object, no title, or a failed request, the old
       way applies (`proposeNode`), and a snack bar says so.
-    - **One at a time:** the button is off while the chat sends or another
-      note is being prepared, and in agent mode while a failed turn waits
-      for "Send again"; "New chat" and Send wait for the extra request.
+    - **One at a time:** the button is off while the chat sends, another
+      note is being prepared, an undo runs, or a failed turn waits for
+      "Send again"; "New chat", Send and "Send again" wait for the extra
+      request.
 
 ## Recommended, not decided
 

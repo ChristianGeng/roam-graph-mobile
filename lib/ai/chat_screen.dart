@@ -396,7 +396,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _resume() async {
     final session = _session;
-    if (session == null || _sending) return;
+    if (session == null || _sending || _preparing != null) return;
     await _run(() => session.resume(onUpdate: _changed));
   }
 
@@ -598,6 +598,13 @@ class _ChatScreenState extends State<ChatScreen> {
   int _lastAnswer(List<ChatEntry> transcript) => transcript.lastIndexWhere(
       (e) => e is AssistantMessage && e.text.trim().isNotEmpty);
 
+  /// The number of the answer at [index] among the answers with text,
+  /// from 1.
+  int _answerNumber(List<ChatEntry> transcript, int index) => transcript
+      .take(index + 1)
+      .where((e) => e is AssistantMessage && e.text.trim().isNotEmpty)
+      .length;
+
   /// "Save as new node" under the answer at [index] (#145): the AI makes
   /// the note from it.
   ///
@@ -609,15 +616,21 @@ class _ChatScreenState extends State<ChatScreen> {
   /// as for shared text (#15), as before.
   Future<void> _saveAsNode(NoteWriter writer, int index) async {
     final session = _session;
-    if (session == null || _sending || _preparing != null) return;
+    if (session == null ||
+        _sending ||
+        _preparing != null ||
+        _undoing != null ||
+        session.waiting) {
+      return;
+    }
     final entry = session.transcript[index];
     if (entry is! AssistantMessage) return;
     final start = widget.startNode;
     if (_agent != null) {
-      if (session.waiting) return;
       await _sendText(agentSaveRequest(
         answer: entry.text,
         isLast: index == _lastAnswer(session.transcript),
+        number: _answerNumber(session.transcript, index),
         // A note hidden from AI is not named to it.
         start: start != null && _startShown
             ? (id: start.id, title: start.displayTitle)
@@ -891,12 +904,12 @@ class _ChatScreenState extends State<ChatScreen> {
                         if (writer != null && entry.toolCalls.isEmpty)
                           TextButton.icon(
                             key: ValueKey('chat-save-$i'),
-                            // One at a time, and not while the chat sends
-                            // (#145).
+                            // One at a time, and not while the chat sends,
+                            // waits for "Send again" or undoes (#145).
                             onPressed: _sending ||
                                     _preparing != null ||
-                                    (_agent != null &&
-                                        (session?.waiting ?? false))
+                                    _undoing != null ||
+                                    (session?.waiting ?? false)
                                 ? null
                                 : () => _saveAsNode(writer, i),
                             icon: _preparing == i
@@ -1043,7 +1056,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     if (session?.waiting ?? false)
                       TextButton(
-                        onPressed: _sending ? null : _resume,
+                        onPressed:
+                            _sending || _preparing != null ? null : _resume,
                         child: const Text('Send again'),
                       ),
                     TextButton.icon(
