@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -206,50 +207,286 @@ void main() {
     expect(server.requests.single.body['model'], 'claude-opus-5-5');
   });
 
-  testWidgets('an answer becomes a new node through the capture screen',
-      (tester) async {
-    final server = FakeServer([
-      anthropicReply([
-        {
-          'type': 'text',
-          'text': '# Jack and ALSA\nJACK runs on top of [[id:plan][Plan]].',
-        },
-      ]),
-    ]);
-    final written = <(String, String)>[];
-    final writer = NoteWriter(
-      create: (name, text) async {
-        written.add((name, text));
-        return Created(name);
-      },
-      allowWriting: () async {},
-    );
-    String? opened;
-    await openChat(tester, server,
-        startNode: graph.nodes['ideas'],
-        writer: writer,
-        opened: (id) => opened = id);
-    await ask(tester, 'Write a note on JACK.');
-    await tester.tap(find.text('Save as new node'));
-    await tester.pumpAndSettle();
+  group('"Save as new node" (#145)', () {
+    NoteWriter plainWriter(List<(String, String)> written) => NoteWriter(
+          create: (name, text) async {
+            written.add((name, text));
+            return Created(name);
+          },
+          allowWriting: () async {},
+        );
 
-    expect(find.byType(CaptureScreen), findsOneWidget);
-    // Nothing is written before I save.
-    expect(written, isEmpty);
-    final title = tester.widget<TextField>(
-        find.byKey(const ValueKey('capture-title')));
-    expect(title.controller!.text, 'Jack and ALSA');
-    await tester.tap(find.byTooltip('Save'));
-    await tester.pumpAndSettle();
-    final (name, text) = written.single;
-    expect(name, endsWith('-jack_and_alsa.org'));
-    expect(text, contains('#+title: Jack and ALSA'));
-    expect(text, contains('JACK runs on top of [[id:plan][Plan]].'));
-    // Linked to the note the chat came from.
-    expect(text, contains('[[id:ideas][Ideas]]'));
-    expect(opened, isNotNull);
-    expect(jsonEncode([for (final r in server.requests) r.body]),
-        isNot(contains('My diary')));
+    testWidgets('off mode: a request without tools fills "New node"',
+        (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {
+            'type': 'text',
+            'text': 'Good question! Here is an overview:\n'
+                'JACK runs on top of [[id:plan][Plan]].\n'
+                'Shall I say more?',
+          },
+        ]),
+        anthropicReply([
+          {
+            'type': 'text',
+            'text': '```json\n{"title": "JACK and ALSA", "body": '
+                '"JACK runs on top of [[id:plan][Plan]]."}\n```',
+          },
+        ]),
+      ]);
+      final written = <(String, String)>[];
+      String? opened;
+      // Without an editor the AI may not write: off mode.
+      await openChat(tester, server,
+          startNode: graph.nodes['ideas'],
+          writer: plainWriter(written),
+          opened: (id) => opened = id);
+      await ask(tester, 'Tell me about JACK.');
+      await tester.tap(find.text('Save as new node'));
+      await tester.pumpAndSettle();
+
+      // The extra request: no tools, its own system prompt, the answer and
+      // the instruction; not shown in the chat.
+      expect(server.requests, hasLength(2));
+      final extra = server.requests.last.body;
+      expect(extra.containsKey('tools'), isFalse);
+      expect(jsonEncode(extra['system']), contains('JSON object'));
+      final messages = extra['messages'] as List;
+      expect(jsonEncode(messages), contains('Good question!'));
+      expect(jsonEncode(messages.last), contains('{\\"title\\"'));
+      expect(jsonEncode(messages.last), contains('the app adds that link'));
+      expect(find.textContaining('Reply with only a JSON'), findsNothing);
+
+      expect(find.byType(CaptureScreen), findsOneWidget);
+      // Nothing is written before I save.
+      expect(written, isEmpty);
+      final title = tester.widget<TextField>(
+          find.byKey(const ValueKey('capture-title')));
+      expect(title.controller!.text, 'JACK and ALSA');
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      final (name, text) = written.single;
+      expect(name, endsWith('-jack_and_alsa.org'));
+      expect(text, contains('#+title: JACK and ALSA'));
+      expect(text, contains('JACK runs on top of [[id:plan][Plan]].'));
+      expect(text, isNot(contains('Good question')));
+      // Linked to the note the chat came from.
+      expect(text, contains('[[id:ideas][Ideas]]'));
+      expect(opened, isNotNull);
+      expect(jsonEncode([for (final r in server.requests) r.body]),
+          isNot(contains('My diary')));
+    });
+
+    testWidgets('review mode: tool results go as text, without tool calls',
+        (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {
+            'type': 'tool_use',
+            'id': 't1',
+            'name': 'org_roam_find',
+            'input': {'search': 'Plan'},
+          },
+        ], stop: 'tool_use'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Your plan: [[id:plan][Plan]].'},
+        ]),
+        anthropicReply([
+          {'type': 'text', 'text': '{"title": "My plan", "body": "See '
+              '[[id:plan][Plan]]."}'},
+        ]),
+      ]);
+      final writer = NoteWriter(
+        create: (name, text) async => Created(name),
+        allowWriting: () async {},
+        editor: NoteEditor(
+            store: MemoryNoteStore(Map.of(notes)),
+            history: MemoryEditHistory()),
+      );
+      await openChat(tester, server,
+          writer: writer,
+          settings: const AiSettings(editMode: AiEditMode.review));
+      await ask(tester, 'Where is my plan?');
+      await tester.tap(find.text('Save as new node'));
+      await tester.pumpAndSettle();
+
+      final extra = jsonEncode(server.requests.last.body);
+      expect(server.requests.last.body.containsKey('tools'), isFalse);
+      expect(extra, isNot(contains('tool_use')));
+      expect(extra, isNot(contains('tool_result')));
+      // The IDs the tools gave are in it.
+      expect(extra, contains('plan | Plan | plan.org'));
+      final title = tester.widget<TextField>(
+          find.byKey(const ValueKey('capture-title')));
+      expect(title.controller!.text, 'My plan');
+    });
+
+    testWidgets('an unreadable answer: the first line is the title, as '
+        'before', (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {
+            'type': 'text',
+            'text': '# Jack and ALSA\nJACK runs on top of [[id:plan][Plan]].',
+          },
+        ]),
+        anthropicReply([
+          {'type': 'text', 'text': 'Sorry, I cannot do that.'},
+        ]),
+      ]);
+      final written = <(String, String)>[];
+      await openChat(tester, server,
+          startNode: graph.nodes['ideas'], writer: plainWriter(written));
+      await ask(tester, 'Write a note on JACK.');
+      await tester.tap(find.text('Save as new node'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('could not be read'), findsOneWidget);
+      final title = tester.widget<TextField>(
+          find.byKey(const ValueKey('capture-title')));
+      expect(title.controller!.text, 'Jack and ALSA');
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      final (_, text) = written.single;
+      expect(text, contains('JACK runs on top of [[id:plan][Plan]].'));
+      expect(text, contains('[[id:ideas][Ideas]]'));
+    });
+
+    testWidgets('a failed request also falls back', (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Morels\nA mushroom.'},
+        ]),
+        const HttpReply(400, '{"error": {"message": "bad"}}'),
+      ]);
+      await openChat(tester, server, writer: plainWriter([]));
+      await ask(tester, 'Morels?');
+      await tester.tap(find.text('Save as new node'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('could not write the note'), findsOneWidget);
+      final title = tester.widget<TextField>(
+          find.byKey(const ValueKey('capture-title')));
+      expect(title.controller!.text, 'Morels');
+    });
+
+    testWidgets('the extra request shows as a wait on the button',
+        (tester) async {
+      final server = _GatedServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Morels\nA mushroom.'},
+        ]),
+        anthropicReply([
+          {'type': 'text', 'text': '{"title": "Morel", "body": "A mushroom."}'},
+        ]),
+      ], gateAt: 1);
+      await openChat(tester, server, writer: plainWriter([]));
+      await ask(tester, 'Morels?');
+      await tester.tap(find.text('Save as new node'));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('chat-save-wait')), findsOneWidget);
+      expect(
+          tester.widget<TextButton>(find.byKey(const ValueKey('chat-save-1')))
+              .onPressed,
+          isNull);
+      server.gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(CaptureScreen), findsOneWidget);
+    });
+
+    testWidgets('agent mode: the fixed message, then create_node',
+        (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {
+            'type': 'text',
+            'text': 'Good question! Morels are [[id:plan][Plan]]-worthy '
+                'mushrooms.',
+          },
+        ]),
+        anthropicReply([
+          {
+            'type': 'tool_use',
+            'id': 'a1',
+            'name': 'create_node',
+            'input': {
+              'title': 'Morels',
+              'text': 'Mushrooms, see [[id:plan][Plan]] and '
+                  '[[id:ideas][Ideas]].',
+            },
+          },
+        ], stop: 'tool_use'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Done.'},
+        ]),
+      ]);
+      final store = MemoryNoteStore(Map.of(notes));
+      final writer = NoteWriter(
+        create: (name, text) async {
+          store.files[name] = text;
+          return Created(name);
+        },
+        allowWriting: () async {},
+        editor: NoteEditor(store: store, history: MemoryEditHistory()),
+      );
+      final log = MemoryAgentLog();
+      await openChat(tester, server,
+          startNode: graph.nodes['ideas'], writer: writer, agentLog: log);
+      await ask(tester, 'Morels?');
+      // Only the first answer has the button now.
+      await tester.tap(find.byKey(const ValueKey('chat-save-1')));
+      await tester.pumpAndSettle();
+
+      // The message is mine, in the chat and in the request.
+      expect(find.textContaining('Make a new note from your last answer'),
+          findsOneWidget);
+      final sent = jsonEncode(server.requests[1].body['messages']);
+      expect(sent, contains('Make a new note from your last answer'));
+      expect(sent, contains('[[id:ideas][Ideas]]'));
+      // The write tools are offered: the normal agent loop.
+      expect(
+          [for (final t in server.requests[1].body['tools'] as List) t['name']],
+          contains('create_node'));
+      // No capture screen; the note is made, logged and summarised.
+      expect(find.byType(CaptureScreen), findsNothing);
+      expect(store.files.length, notes.length + 1);
+      expect(log.entries, hasLength(1));
+      expect(find.byKey(const ValueKey('agent-summary-2')), findsOneWidget);
+      expect(find.byKey(const ValueKey('agent-undo-2')), findsOneWidget);
+    });
+
+    testWidgets('agent mode: the button is disabled while the chat sends',
+        (tester) async {
+      final server = _GatedServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Morels are mushrooms.'},
+        ]),
+        anthropicReply([
+          {'type': 'text', 'text': 'Done.'},
+        ]),
+      ], gateAt: 1);
+      final writer = NoteWriter(
+        create: (name, text) async => Created(name),
+        allowWriting: () async {},
+        editor: NoteEditor(
+            store: MemoryNoteStore(Map.of(notes)),
+            history: MemoryEditHistory()),
+      );
+      await openChat(tester, server, writer: writer);
+      await ask(tester, 'Morels?');
+      await tester.tap(find.byKey(const ValueKey('chat-save-1')));
+      await tester.pump();
+      expect(
+          tester.widget<TextButton>(find.byKey(const ValueKey('chat-save-1')))
+              .onPressed,
+          isNull);
+      server.gate.complete();
+      await tester.pumpAndSettle();
+      expect(
+          tester.widget<TextButton>(find.byKey(const ValueKey('chat-save-1')))
+              .onPressed,
+          isNotNull);
+    });
   });
 
   testWidgets('a model gone from the provider\'s list is named (#113)',
@@ -733,4 +970,20 @@ void main() {
       expect(second, isNot(contains('New plan')));
     });
   });
+}
+
+/// A [FakeServer] that holds the request at [gateAt] until [gate] is
+/// completed, to see the screen while it waits.
+class _GatedServer extends FakeServer {
+  _GatedServer(super.replies, {required this.gateAt});
+
+  final int gateAt;
+  final gate = Completer<void>();
+
+  @override
+  Future<HttpReply> post(
+      Uri url, Map<String, String> headers, String body) async {
+    if (requests.length == gateAt) await gate.future;
+    return super.post(url, headers, body);
+  }
 }
