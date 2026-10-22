@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-22: Tick checkboxes and change TODO states in the note view ([#PR](PRURL))
+## 2026-10-22: Tick checkboxes and change TODO states in the note view ([#156](https://github.com/ChristianGeng/roam-graph-mobile/pull/156))
 
 - Added: tap a checkbox in a note to tick or untick it; the boxes and progress cookies above it follow. Slide a heading to the left for its next TODO state, or long-press it for the list of states (the note's `#+TODO:` keywords, or TODO and DONE).
 - Saved at once without the diff, with Undo in the message. With `#+STARTUP: logdone`, a done heading gets a `CLOSED:` time.
