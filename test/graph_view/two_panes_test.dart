@@ -220,6 +220,9 @@ void main() {
       final reset = find.byKey(const ValueKey('settings-graph-width-reset'));
       await tester.scrollUntilVisible(reset, 200,
           scrollable: find.byType(Scrollable).first);
+      // Built is not yet on the screen: the list may stop with it below.
+      await tester.ensureVisible(reset);
+      await tester.pump();
       await tester.tap(reset);
       await tester.pump();
       store.release();
