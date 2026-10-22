@@ -364,17 +364,18 @@ class _GraphScreenState extends State<GraphScreen> {
       _drawing = null;
     });
     final key = (scope, kind, layoutCentre);
-    var layout = _layouts[key];
-    if (layout == null) {
+    var computed = _layouts[key];
+    if (computed == null) {
       // The communities of the "Communities" view, of the whole graph, so
       // the areas and the colours match (#154).
       final communities = kind == LayoutKind.communities
           ? (await _startAlgorithms(_algorithms)).communities
           : null;
       if (!mounted || generation != _generation) return;
-      layout = await widget.computeLayout(drawn, kind,
+      computed = await widget.computeLayout(drawn, kind,
           LayoutOptions(centre: layoutCentre, communities: communities));
     }
+    final layout = computed;
     if (!mounted || generation != _generation) return;
     // One radial layout is kept, the latest: one for every centre would
     // grow with each "Centre" on a large graph.
