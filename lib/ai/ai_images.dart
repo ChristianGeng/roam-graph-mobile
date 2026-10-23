@@ -146,9 +146,13 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
         // DashScope's path starts at the host, not at the base URL's
         // compatible-mode/v1.
         ? baseUri.replace(path: config.imagesPath, query: null)
-        : Uri.parse(chat || mistral
+        : Uri.parse(chat
             ? '$base/chat/completions'
-            : '$base${config.imagesPath}');
+            // Mistral's image tool works through its Conversations API,
+            // not Chat Completions, which answers without an image.
+            : mistral
+                ? '$base/conversations'
+                : '$base${config.imagesPath}');
   } on FormatException {
     throw AiError('The base URL of ${provider.name} is not a valid URL.');
   }
@@ -180,12 +184,14 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
         'watermark': false,
       },
     } else if (mistral) ...{
-      'messages': [
-        {'role': 'user', 'content': prompt},
-      ],
+      'inputs': prompt,
+      'instructions': 'Use the image generation tool to make the image the '
+          'user describes. Do not answer with text only.',
       'tools': [
         {'type': 'image_generation'},
       ],
+      // Not kept on Mistral's servers as a conversation.
+      'store': false,
     } else if (chat) ...{
       'messages': [
         {'role': 'user', 'content': prompt},
@@ -278,9 +284,13 @@ Future<MadeImage> _mistralImage(
   final Uri imageUrl;
   switch (_fromMistral(json)) {
     case null:
-      throw AiError('${provider.name} sent no image. The model '
-          '"${provider.model}" may not use the image tool; try '
-          'mistral-medium-latest.');
+      final said = _mistralText(json);
+      throw AiError('${provider.name} sent no image'
+          '${said.isEmpty ? '.' : ', only text: "$said"'} The model '
+          '"${provider.model}" may not use the image tool; '
+          '${provider.model == 'mistral-medium-latest' ? 'try again, or '
+              'choose another Mistral model as the image model' : 'try '
+              'mistral-medium-latest'}.');
     case (link: final link?, fileId: _):
       final parsed = Uri.tryParse(link);
       if (parsed == null) {
@@ -318,34 +328,55 @@ Future<MadeImage> _mistralImage(
   return MadeImage(bytes, extension);
 }
 
-/// The first image in a Mistral answer: an `image_url` chunk (a link) or
-/// a `tool_file` chunk (a file ID), in `choices[].messages[]`, which
-/// Mistral sends when a tool ran, or in `choices[].message`.
-({String? link, String? fileId})? _fromMistral(Map<String, Object?> json) {
-  final choices = json['choices'];
-  if (choices is! List) return null;
-  for (final choice in choices) {
-    if (choice is! Map) continue;
-    final messages = [
-      if (choice['messages'] case final List list) ...list,
-      if (choice['message'] case final Map message) message,
+/// The entries of a Mistral answer that hold content: the Conversations
+/// API's `outputs` (`message.output` entries), and, as Chat Completions
+/// sends them, `choices[].messages[]` and `choices[].message`.
+List<Object?> _mistralMessages(Map<String, Object?> json) => [
+      if (json['outputs'] case final List outputs) ...outputs,
+      if (json['choices'] case final List choices)
+        for (final choice in choices)
+          if (choice is Map) ...[
+            if (choice['messages'] case final List list) ...list,
+            if (choice['message'] case final Map message) message,
+          ],
     ];
-    for (final message in messages) {
-      final content = message is Map ? message['content'] : null;
-      if (content is! List) continue;
+
+/// The text a Mistral answer gave instead of an image, shortened.
+String _mistralText(Map<String, Object?> json) {
+  final parts = <String>[];
+  for (final message in _mistralMessages(json)) {
+    final content = message is Map ? message['content'] : null;
+    if (content is String) parts.add(content);
+    if (content is List) {
       for (final chunk in content) {
-        if (chunk is! Map) continue;
-        if (chunk['type'] == 'image_url') {
-          final value = chunk['image_url'];
-          final link = value is Map ? value['url'] : value;
-          if (link is String && link.isNotEmpty) {
-            return (link: link, fileId: null);
-          }
+        if (chunk is Map && chunk['type'] == 'text' && chunk['text'] is String) {
+          parts.add(chunk['text'] as String);
         }
-        if (chunk['type'] == 'tool_file') {
-          if (chunk['file_id'] case final String id when id.isNotEmpty) {
-            return (link: null, fileId: id);
-          }
+      }
+    }
+  }
+  final text = parts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+  return text.length <= 200 ? text : '${text.substring(0, 199)}…';
+}
+
+/// The first image in a Mistral answer: a `tool_file` chunk (a file ID)
+/// or an `image_url` chunk (a link), in any of [_mistralMessages].
+({String? link, String? fileId})? _fromMistral(Map<String, Object?> json) {
+  for (final message in _mistralMessages(json)) {
+    final content = message is Map ? message['content'] : null;
+    if (content is! List) continue;
+    for (final chunk in content) {
+      if (chunk is! Map) continue;
+      if (chunk['type'] == 'image_url') {
+        final value = chunk['image_url'];
+        final link = value is Map ? value['url'] : value;
+        if (link is String && link.isNotEmpty) {
+          return (link: link, fileId: null);
+        }
+      }
+      if (chunk['type'] == 'tool_file') {
+        if (chunk['file_id'] case final String id when id.isNotEmpty) {
+          return (link: null, fileId: id);
         }
       }
     }

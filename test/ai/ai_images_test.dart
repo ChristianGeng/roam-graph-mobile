@@ -218,7 +218,7 @@ void main() {
             apiKey: 'm-key',
           ),
           api: ImageApi.mistral,
-          imagesPath: '/chat/completions',
+          imagesPath: '/conversations',
         );
     Map<String, Object?> chunks(List<Object?> content,
             {bool messages = true}) =>
@@ -243,29 +243,53 @@ void main() {
         };
     setUp(() => downloads = []);
 
-    test('the request: Chat Completions with the image_generation tool',
+    Map<String, Object?> outputs(List<Object?> content) => {
+          'conversation_id': 'c-1',
+          'outputs': [
+            {'type': 'tool.execution', 'name': 'image_generation'},
+            {'type': 'message.output', 'role': 'assistant', 'content': content},
+          ],
+        };
+
+    test('the request: the Conversations API with the image_generation tool',
         () async {
       await makeImage(mistral(), 'A red fox',
-          post: answer(chunks([
+          post: answer(outputs([
             {'type': 'text', 'text': 'Here it is.'},
             {
-              'type': 'image_url',
-              'image_url': {'url': 'https://files.mistral.ai/generated/a.png'},
+              'type': 'tool_file',
+              'tool': 'image_generation',
+              'file_id': 'f-1',
+              'file_name': 'image_generated_0',
+              'file_type': 'png',
             },
           ])),
           download: bytes(base64.decode(png)));
       final (url, headers, body) = sent.single;
-      expect(url.toString(), 'https://api.mistral.ai/v1/chat/completions');
+      expect(url.toString(), 'https://api.mistral.ai/v1/conversations');
       expect(headers['authorization'], 'Bearer m-key');
-      expect(body, {
-        'model': 'mistral-medium-latest',
-        'messages': [
-          {'role': 'user', 'content': 'A red fox'},
-        ],
-        'tools': [
-          {'type': 'image_generation'},
-        ],
-      });
+      expect(body['model'], 'mistral-medium-latest');
+      expect(body['inputs'], 'A red fox');
+      expect(body['tools'], [
+        {'type': 'image_generation'},
+      ]);
+      expect(body['store'], false);
+      expect(body['instructions'], contains('image generation tool'));
+      final (fileUrl, _) = downloads.single;
+      expect(fileUrl.toString(), 'https://api.mistral.ai/v1/files/f-1/content');
+    });
+
+    test('no image, only text: the text is said, and no same-model advice',
+        () async {
+      await expectLater(
+          makeImage(mistral(), 'x',
+              post: answer(outputs([
+                {'type': 'text', 'text': 'I cannot generate images.'},
+              ])),
+              download: bytes(base64.decode(png))),
+          throwsA(isA<AiError>().having((e) => e.message, 'message',
+              allOf(contains('only text: "I cannot generate images."'),
+                  isNot(contains('try mistral-medium-latest'))))));
     });
 
     test('a link in choices[].messages[] or choices[].message, downloaded',

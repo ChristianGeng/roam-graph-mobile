@@ -119,8 +119,8 @@ const providerPresets = <ProviderPreset>[
     api: ApiKind.openAi,
     baseUrl: 'https://api.mistral.ai/v1',
     defaultModel: 'mistral-large-4',
-    // Mistral's built-in image tool in Chat Completions (#126).
-    imagesPath: '/chat/completions',
+    // Mistral's built-in image tool, through its Conversations API (#126).
+    imagesPath: '/conversations',
     imageModel: 'mistral-medium-latest',
     imageApi: ImageApi.mistral,
     note: 'Best value in the EU (Mistral Large 4, in public preview). EU '
@@ -240,9 +240,10 @@ enum ImageApi {
   /// `output.choices[0].message.content[0].image`, downloaded at once.
   dashscope('DashScope (Qwen Image)'),
 
-  /// Mistral's built-in `image_generation` tool in Chat Completions
-  /// (#126): the image as a link on Mistral's file host, or as a file ID
-  /// for its Files API, downloaded at once.
+  /// Mistral's built-in `image_generation` tool, through its
+  /// Conversations API (`POST /v1/conversations`, #126): Chat Completions
+  /// answers without an image. The image comes as a file ID for the Files
+  /// API (or a link on Mistral's file host), downloaded at once.
   mistral('Mistral image tool');
 
   const ImageApi(this.label);

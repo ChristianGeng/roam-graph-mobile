@@ -2658,6 +2658,25 @@ devices through Syncthing.
       time limit giving the force-directed layout; in the app, the View
       menu, the message, the start setting and "Last used".
 
+92. **Mistral images go through the Conversations API** (#126 follow-up),
+    `lib/ai/ai_images.dart`. Decision 74 asked Mistral's image tool through
+    Chat Completions, as a Mistral cookbook showed it. In use, Mistral
+    answered there without an image ("Mistral sent no image"). Mistral's
+    documentation of the tool uses only its Agents and Conversations APIs.
+    - **The request:** `POST /v1/conversations` with `model`, `inputs` (the
+      prompt), `instructions` (use the image generation tool), `tools:
+      [{"type": "image_generation"}]` and `store: false`, so the
+      conversation is not kept on Mistral's servers.
+    - **The answer:** `outputs`, whose `message.output` entry holds a
+      `tool_file` chunk with a `file_id`, downloaded from
+      `api.mistral.ai/v1/files/<id>/content` with the key, as before. A
+      link on `files.mistral.ai`, and the Chat Completions forms, are still
+      read.
+    - **No image:** the message now quotes the text Mistral sent instead,
+      and no longer suggests the model that is already set.
+    - Not yet tried with a real key in CI; the owner tries it after the
+      release.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

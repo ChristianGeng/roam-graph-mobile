@@ -8,6 +8,11 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-23: Images with Mistral work ([#162](https://github.com/ChristianGeng/roam-graph-mobile/pull/162))
+
+- Fixed: "Create image" (and the chat's images) with Mistral said "Mistral sent no image". The app now asks Mistral's image tool the way Mistral documents it (its Conversations API), without keeping the conversation on Mistral's servers.
+- When a model still answers with text only, the message shows that text.
+
 ## 2026-10-22: Hierarchical layout ([#161](https://github.com/ChristianGeng/roam-graph-mobile/pull/161))
 
 - Added: a "Hierarchical (dot)" layout in the graph's View menu, as Graphviz's `dot` draws: the notes in layers from top to bottom, each link pointing down from the note that links, with few links crossing. Good for a hub and its sub-topics.
