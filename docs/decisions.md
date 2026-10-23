@@ -1950,7 +1950,9 @@ devices through Syncthing.
       `maxShareLength`.
     - Decision 35 stays as the record of what the export was.
 
-74. **Images with Mistral's image tool** (#126). Mistral has no Images
+74. **Images with Mistral's image tool** (#126). *Replaced by decision 92
+    for the request: Mistral is asked through its Conversations API, as
+    Chat Completions answered without an image.* Mistral has no Images
     API; its chat models make images through the built-in tool
     `image_generation` in Chat Completions (`POST /v1/chat/completions`
     with `tools: [{"type": "image_generation"}]`).

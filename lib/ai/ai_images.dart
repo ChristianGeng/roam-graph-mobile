@@ -345,7 +345,12 @@ List<Object?> _mistralMessages(Map<String, Object?> json) => [
 String _mistralText(Map<String, Object?> json) {
   final parts = <String>[];
   for (final message in _mistralMessages(json)) {
-    final content = message is Map ? message['content'] : null;
+    // Only Mistral's own answer, not a tool's message.
+    if (message is! Map ||
+        (message['role'] != null && message['role'] != 'assistant')) {
+      continue;
+    }
+    final content = message['content'];
     if (content is String) parts.add(content);
     if (content is List) {
       for (final chunk in content) {

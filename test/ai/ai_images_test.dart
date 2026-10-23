@@ -292,6 +292,18 @@ void main() {
                   isNot(contains('try mistral-medium-latest'))))));
     });
 
+    test('a tool message is not quoted as what Mistral said', () async {
+      await expectLater(
+          makeImage(mistral(), 'x',
+              post: answer(chunks([
+                {'type': 'text', 'text': 'No picture today.'},
+              ])),
+              download: bytes(base64.decode(png))),
+          throwsA(isA<AiError>().having((e) => e.message, 'message',
+              allOf(contains('"No picture today."'),
+                  isNot(contains('image_generation'))))));
+    });
+
     test('a link in choices[].messages[] or choices[].message, downloaded',
         () async {
       for (final inMessages in [true, false]) {

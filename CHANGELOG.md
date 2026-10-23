@@ -10,8 +10,8 @@ each entry.
 
 ## 2026-10-23: Images with Mistral work ([#162](https://github.com/ChristianGeng/roam-graph-mobile/pull/162))
 
-- Fixed: "Create image" (and the chat's images) with Mistral said "Mistral sent no image". The app now asks Mistral's image tool the way Mistral documents it (its Conversations API), without keeping the conversation on Mistral's servers.
-- When a model still answers with text only, the message shows that text.
+- Fixed: "Create image" (and the chat's images) with Mistral said "Mistral sent no image". The app now asks Mistral's image tool the way Mistral documents it (its Conversations API), without keeping the conversation on Mistral's servers. Follow-up to #126.
+- Changed: when a model still answers with text only, the message shows that text.
 
 ## 2026-10-22: Hierarchical layout ([#161](https://github.com/ChristianGeng/roam-graph-mobile/pull/161))
 
