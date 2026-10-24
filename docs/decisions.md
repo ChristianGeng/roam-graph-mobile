@@ -2768,6 +2768,35 @@ devices through Syncthing.
       and during undo, a save finishing after the visit, confirmations
       without actions, and timeouts with Copy still working.
 
+95. **Image prices come only from the live model lists; model advice uses
+    price classes** (#169), `lib/ai/ai_models.dart`,
+    `lib/ai/model_picker.dart` and `assets/help/models.org`.
+    - `ModelInfo.imagePrice` is dollars per output image. Vercel's
+      `pricing.image` on image models and
+      `pricing.image_dimension_quality_pricing[].cost` supply it;
+      size, quality or style choices show the lowest price with "from".
+      Operation fees such as web-grounding are not image prices.
+      OpenRouter documents `pricing.image_output` per output image;
+      its `pricing.image` is for input images and is never used as an
+      output price. Numeric strings are accepted, as the real lists use
+      them; malformed, negative and non-finite values give no price.
+    - With no image price, the image picker shows token prices as in the
+      chat picker, or "price not in the provider's list". No prices are
+      guessed or stored in presets. Small per-image prices keep their
+      decimals. The optional price order puts per-image prices first,
+      then token prices by output price, then unknown prices; ties use
+      model IDs. Different units are not compared. The default ID order,
+      search, model filters and EU-route restrictions stay as before.
+    - "Choosing a model" is linked from AI and Settings, registered in
+      the help graph, and dated. It covers questions, agent edits, the
+      image paths and EU processing from the provider notes. Suggestions
+      name only preset models or models checked in provider documentation,
+      with cheap, medium or expensive classes, never numeric prices.
+    - Tests use synthetic list answers only, including price units,
+      variable prices, missing and bad values, sorting and EU restrictions.
+      The real list excerpts belong in the pull request, not test fixtures.
+    - Actual chat and image costs remain outside this issue.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

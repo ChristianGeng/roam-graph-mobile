@@ -4,6 +4,9 @@
 #+title: AI: sharing, hidden notes and the chat
 #+STARTUP: showall
 
+For model suggestions by purpose and price class, see
+[[id:roam-graph-help-models][Choosing a model]].
+
 * Hidden from AI
 Notes with a tag such as ~:private:~ are never shown to an AI: not in a
 share, not to the chat. Headings with such a tag are left out of the notes

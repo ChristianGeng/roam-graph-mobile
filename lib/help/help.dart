@@ -17,6 +17,7 @@ const helpFiles = [
   'node-view.org',
   'capture.org',
   'ai.org',
+  'models.org',
   'conflicts.org',
   'settings.org',
 ];
