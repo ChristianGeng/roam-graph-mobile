@@ -89,7 +89,7 @@ void main() {
       expect(models.last.outputPrice, 9);
     });
 
-    test('OpenRouter uses output-image pricing, never input-image pricing', () {
+    test('OpenRouter image rates lack a unit: keep prompt/completion prices', () {
       final models = read([
         {
           'id': 'a/chat',
@@ -116,15 +116,25 @@ void main() {
           'architecture': {'output_modalities': ['text']},
           'pricing': {'image': '0.001', 'image_output': '0.027'},
         },
+        {
+          'id': 'd/painter',
+          'architecture': {'output_modalities': ['image']},
+          'pricing': {'image_output': '0.027'},
+        },
       ]);
       expect(models.first.images, isTrue);
       expect(models.first.chat, isTrue);
-      expect(models.first.imagePrice, 0.027);
+      expect(models.first.imagePrice, isNull);
       expect(models.first.imagePriceFrom, isFalse);
+      expect(models.first.inputPrice, 2);
+      expect(models.first.outputPrice, 9);
       expect(models[1].imagePrice, isNull);
       expect(models[1].inputPrice, 2);
       expect(models[1].outputPrice, 9);
+      expect(models[2].images, isFalse);
       expect(models.last.imagePrice, isNull);
+      expect(models.last.inputPrice, isNull);
+      expect(models.last.outputPrice, isNull);
     });
 
     test('a list without prices gives no price', () {
@@ -191,11 +201,7 @@ void main() {
         'pricing': {'prompt': '0.000002', 'completion': '0.000009'},
       },
       image('d/image', {}),
-      {
-        'id': 'e/chat',
-        'architecture': {'output_modalities': ['text', 'image']},
-        'pricing': {'image_output': '0.000007'},
-      },
+      image('e/image', {'image': '0.000007'}),
       image('f/image', {'image': 0}),
     ]);
     await tester.pumpWidget(MaterialApp(home: ModelPickerScreen(
@@ -210,7 +216,7 @@ void main() {
     expect(find.text("price not in the provider's list"), findsOneWidget);
     expect(find.textContaining('\$0.000007 per image'), findsOneWidget);
     expect(find.text('\$0.00 per image'), findsOneWidget);
-    expect(find.textContaining('chat model with image output'), findsNWidgets(2));
+    expect(find.textContaining('chat model with image output'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

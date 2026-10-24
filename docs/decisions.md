@@ -2776,10 +2776,13 @@ devices through Syncthing.
       `pricing.image_dimension_quality_pricing[].cost` supply it;
       size, quality or style choices show the lowest price with "from".
       Operation fees such as web-grounding are not image prices.
-      OpenRouter documents `pricing.image_output` per output image;
-      its `pricing.image` is for input images and is never used as an
-      output price. Numeric strings are accepted, as the real lists use
-      them; malformed, negative and non-finite values give no price.
+      OpenRouter's `pricing.image` and `image_output` do not identify
+      their billing unit. Its generic schema calls these per-image
+      prices, but the Gemini Flash Image model page gives per-token
+      rates. These fields are not treated as output-image prices; the
+      picker uses the list's prompt/completion token prices instead.
+      Numeric strings are accepted, as the real lists use them;
+      malformed, negative and non-finite values give no price.
     - With no image price, the image picker shows token prices as in the
       chat picker, or "price not in the provider's list". No prices are
       guessed or stored in presets. Small per-image prices keep their

@@ -95,8 +95,7 @@ class ModelInfo {
 /// read where it is known: OpenRouter's `supported_parameters` and
 /// `pricing.prompt`/`completion`, Mistral's `capabilities.function_calling`,
 /// Vercel's `pricing.input`/`output`, `pricing.image` and
-/// `image_dimension_quality_pricing`, OpenRouter's `pricing.image_output`,
-/// Vercel's `regions` and `tags`, Hugging Face's
+/// `image_dimension_quality_pricing`, `regions` and `tags`, Hugging Face's
 /// `providers[].supports_tools`, Anthropic's `display_name`. Anthropic's
 /// models all call tools.
 List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
@@ -178,12 +177,12 @@ List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
     double? imagePrice;
     var imagePriceFrom = false;
     if (images == true && pricing is Map) {
-      // Checked against both live lists and their schemas on 2026-10-24.
-      // OpenRouter's `image` is INPUT pricing; only `image_output` is
-      // documented per output image. Vercel's `image` is per output image
-      // on image-only models, not on language models.
-      imagePrice = price(pricing['image_output']);
-      if (type == 'image') imagePrice ??= price(pricing['image']);
+      // Vercel's `image` is per output image on image-only models.
+      // OpenRouter's `image` / `image_output` do not identify the billing
+      // unit: despite the generic schema, model pages show per-token
+      // rates (checked 2026-10-24). Keep prompt/completion token prices
+      // as the fallback; never label these rates as dollars per image.
+      if (type == 'image') imagePrice = price(pricing['image']);
       final variants = pricing['image_dimension_quality_pricing'];
       if (variants is List) {
         for (final variant in variants.whereType<Map<Object?, Object?>>()) {
