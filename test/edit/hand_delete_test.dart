@@ -38,7 +38,7 @@ void main() {
   setUp(() => f = DeleteFixture());
   tearDown(() => f.graph.dispose());
 
-  Widget graphPage() => ViewSettingsHost(
+  Widget graphPage({NoteOpener? opener}) => ViewSettingsHost(
     store: MemoryViewSettingsStore(
       const ViewSettings(startLayout: StartLayout.circo),
     ),
@@ -46,6 +46,7 @@ void main() {
       graph: f.graph,
       readNote: (path) async => f.store.files[path],
       writer: f.writer,
+      openInOrgro: opener,
       nodeMemory: MemoryNodeMemory('a'),
       computeLayout: layoutHere,
       computeAlgorithms: algorithmsHere,
@@ -65,7 +66,10 @@ void main() {
   testWidgets('phone note menus have distinct icons and actions', (
     tester,
   ) async {
-    await showPage(tester, graphPage());
+    await showPage(
+      tester,
+      graphPage(opener: (_, {line = 1}) async => OpenResult.opened),
+    );
     await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
     await tester.pumpAndSettle();
     expect(
