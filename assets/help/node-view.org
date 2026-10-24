@@ -53,6 +53,16 @@ Shows a note as formatted Org: a whole file, or a heading with its subtree.
   from outside. Returning to the note does not bring the steps back.
   Quick-edit confirmations close after about two seconds, without an
   action button.
+- *Delete note…*, in the ⋮ edit menu, asks before deleting. The dialog
+  names the file or subtree that will go, counts heading nodes in a file
+  and notes linking to it. *Turn the links into plain text* is the
+  default; *Leave the links* keeps dead links, as deleting in Emacs does.
+  *Cancel* writes nothing. After deletion, the previous note or graph is
+  shown. The message's *Undo* restores the deletion and link changes as
+  one step. It stays until the next action or a swipe. The action is also
+  in the graph's *Recent changes*. An undo never overwrites newer text;
+  notes left unchanged are named. Only files directly in ~roam/~ can be
+  deleted here, including notes hidden from AI.
 - *Insert link* in *Edit text* puts a link to a note you choose at the
   cursor; selected text becomes the link's description.
 - The buttons below the text in *Edit text* act on the line of the

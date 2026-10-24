@@ -6,6 +6,7 @@ import '../ai/ai_settings.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/ai_share.dart';
+import '../edit/delete_dialog.dart';
 import '../graph/node_search.dart';
 import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
@@ -153,6 +154,21 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
+  Future<void> _deleteSelected() async {
+    final writer = widget.writer;
+    if (writer == null || writer.editor == null) return;
+    final graph = widget.graph.value;
+    final nodes = [for (final id in _selected) ?graph.nodes[id]];
+    final messenger = ScaffoldMessenger.of(context);
+    final deletion = await confirmDeleteNotes(context,
+        graph: graph, nodes: nodes, writer: writer);
+    if (deletion == null || !mounted) return;
+    setState(() => _selected.clear());
+    _textQuery = '';
+    _searchText();
+    showDeleted(messenger, deletion, writer);
+  }
+
   /// Searching in the notes' text (#98) instead of titles and aliases.
   bool _inText = false;
 
@@ -253,6 +269,13 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: const Icon(Icons.share_outlined),
               ),
               onPressed: _shareSelected,
+            ),
+          if (_selected.isNotEmpty && widget.writer?.editor != null)
+            IconButton(
+              tooltip: 'Delete…',
+              icon: Icon(Icons.delete_outline,
+                  color: Theme.of(context).colorScheme.error),
+              onPressed: _deleteSelected,
             ),
           if (_query.text.isNotEmpty)
             IconButton(
@@ -409,7 +432,10 @@ class _SearchScreenState extends State<SearchScreen> {
                   title: Text(node.displayTitle),
                   subtitle:
                       Text(snippet, maxLines: 2, overflow: TextOverflow.ellipsis),
-                  onTap: () => _open(node.id),
+                  selected: _selected.contains(node.id),
+                  onLongPress: () => _toggle(node.id),
+                  onTap: () => _selected.isEmpty
+                      ? _open(node.id) : _toggle(node.id),
                 ),
             ],
           ),

@@ -381,6 +381,10 @@ class NoteEditor {
     final time = await history.keep(key, base.text, _now());
     final SaveResult result;
     try {
+      if (store.historyKey(path) != key) {
+        await history.forget(key, time);
+        return const SaveFailed('Another folder was opened; nothing was written.');
+      }
       result = await store.replace(path, base, text);
     } catch (e) {
       await history.forget(key, time);

@@ -11,6 +11,7 @@ import '../node_view/node_screen.dart';
 const helpFiles = [
   'start.org',
   'graph-view.org',
+  'search.org',
   'layouts.org',
   'views.org',
   'algorithms.org',

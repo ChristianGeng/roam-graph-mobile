@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-24: Delete notes by hand ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pulls))
+
+- Added: Delete note from the note menu, a graph node's long-press or right-click menu, and selected search results, with confirmation.
+- Added: Choose whether incoming links become plain text or stay as links. Several selected notes are deleted in one action.
+- Added: Undo a delete and its link changes together, from the message or Recent changes. Newer files stay unchanged and are named.
+
+Closes #171.
+
 ## 2026-10-24: Quick-edit Undo for the note visit ([#173](https://github.com/ChristianGeng/roam-graph-mobile/pull/173))
 
 - Changed: Undo is in the note view's bar. Each tap undoes one quick edit, newest first, for as long as you stay in the note. Leaving, opening an Edit-menu surface or an outside file change clears the steps.
