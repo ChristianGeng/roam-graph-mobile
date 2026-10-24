@@ -240,9 +240,10 @@ enum ImageApi {
   /// `output.choices[0].message.content[0].image`, downloaded at once.
   dashscope('DashScope (Qwen Image)'),
 
-  /// Mistral's built-in `image_generation` tool, through its
-  /// Conversations API (`POST /v1/conversations`, #126): Chat Completions
-  /// answers without an image. The image comes as a file ID for the Files
+  /// Mistral's built-in `image_generation` tool, through an agent that
+  /// has it (`POST /v1/agents`, made once) and its Conversations API
+  /// (`POST /v1/conversations` with `agent_id`, #126, #163): Chat
+  /// Completions answers without an image. The image comes as a file ID for the Files
   /// API (or a link on Mistral's file host), downloaded at once.
   mistral('Mistral image tool');
 

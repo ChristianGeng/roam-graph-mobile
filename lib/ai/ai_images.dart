@@ -112,6 +112,32 @@ bool isDashscopeImageUrl(Uri url) =>
 bool isMistralImageUrl(Uri url) =>
     url.scheme == 'https' && url.host == 'files.mistral.ai';
 
+/// Where the app keeps the ID of the Mistral agent it made for an image
+/// model (#163): in its AI settings, not in the notes, and not with the
+/// key. Tests replace it.
+abstract interface class ImageAgents {
+  /// The agent's ID for [model], or null when there is none yet.
+  String? read(String model);
+
+  /// Keeps [id] as the agent for [model].
+  Future<void> write(String model, String id);
+}
+
+/// [ImageAgents] kept only while the app runs.
+class MemoryImageAgents implements ImageAgents {
+  final Map<String, String> ids = {};
+
+  @override
+  String? read(String model) => ids[model];
+
+  @override
+  Future<void> write(String model, String id) async => ids[model] = id;
+}
+
+/// What the app's Mistral agent for images is told (#163).
+const mistralAgentInstructions =
+    'Use the image generation tool to make the image the user describes.';
+
 /// The error when "EU only" is on and the image model has no EU route;
 /// "Create image" then offers to make this one image outside the EU
 /// (#127).
@@ -120,10 +146,12 @@ class NoEuRouteError extends AiError {
 }
 
 /// Asks [config]'s image model for a picture of [prompt]. Throws
-/// [AiError] in plain words.
+/// [AiError] in plain words. For Mistral, [agents] keeps the ID of the
+/// agent with the image tool; without it, a new agent is made each time.
 Future<MadeImage> makeImage(ImageConfig config, String prompt,
     {HttpPost post = postWithDartIo,
-    ImageDownload download = downloadWithDartIo}) async {
+    ImageDownload download = downloadWithDartIo,
+    ImageAgents? agents}) async {
   final provider = config.provider;
   if (provider.model.trim().isEmpty) {
     throw AiError('Choose an image model for ${provider.name} in AI '
@@ -148,8 +176,8 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
         ? baseUri.replace(path: config.imagesPath, query: null)
         : Uri.parse(chat
             ? '$base/chat/completions'
-            // Mistral's image tool works through its Conversations API,
-            // not Chat Completions, which answers without an image.
+            // Mistral's image tool works through an agent in its
+            // Conversations API (#163), not Chat Completions.
             : mistral
                 ? '$base/conversations'
                 : '$base${config.imagesPath}');
@@ -165,6 +193,10 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
     if (provider.apiKey.isNotEmpty)
       'authorization': 'Bearer ${provider.apiKey}',
   };
+  if (mistral) {
+    return _mistralImage(provider, prompt, Uri.parse('$base/agents'), url,
+        headers, post, download, agents ?? MemoryImageAgents());
+  }
   final body = <String, Object?>{
     'model': provider.model,
     if (dashscope) ...{
@@ -183,15 +215,6 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
         'n': 1,
         'watermark': false,
       },
-    } else if (mistral) ...{
-      'inputs': prompt,
-      'instructions': 'Use the image generation tool to make the image the '
-          'user describes. Do not answer with text only.',
-      'tools': [
-        {'type': 'image_generation'},
-      ],
-      // Not kept on Mistral's servers as a conversation.
-      'store': false,
     } else if (chat) ...{
       'messages': [
         {'role': 'user', 'content': prompt},
@@ -248,9 +271,6 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
     }
     return MadeImage(bytes, extension);
   }
-  if (mistral) {
-    return _mistralImage(json, provider, url, headers, download);
-  }
   final encoded = chat ? _fromChat(json) : _fromImages(json);
   if (encoded == null) {
     throw AiError('${provider.name} sent no image. The model '
@@ -271,12 +291,106 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
   return MadeImage(bytes, extension);
 }
 
+/// A picture of [prompt] from Mistral's image tool (#163), as Mistral
+/// documents it: an agent with the tool (`POST /v1/agents`, made once per
+/// image model and kept in [agents]), then a conversation with its
+/// `agent_id` (`POST /v1/conversations`). An agent that Mistral no longer
+/// knows (deleted, or made with another key) is made again once.
+Future<MadeImage> _mistralImage(
+    ProviderConfig provider,
+    String prompt,
+    Uri agentsUrl,
+    Uri conversationsUrl,
+    Map<String, String> headers,
+    HttpPost post,
+    ImageDownload download,
+    ImageAgents agents) async {
+  Future<String> newAgent() async {
+    final json = await postJson(
+        provider,
+        agentsUrl,
+        headers,
+        {
+          'model': provider.model,
+          'name': 'Roam Graph images',
+          'description': 'Makes the images of "Create image" in the Roam '
+              'Graph app.',
+          'instructions': mistralAgentInstructions,
+          'tools': [
+            {'type': 'image_generation'},
+          ],
+        },
+        post);
+    final id = json['id'];
+    if (id is! String || id.isEmpty) {
+      throw AiError('${provider.name} made no agent for its image tool: '
+          'the answer has no agent ID.');
+    }
+    try {
+      await agents.write(provider.model, id);
+    } on Exception {
+      // Not kept: the next image makes a new agent.
+    }
+    return id;
+  }
+
+  Future<Map<String, Object?>> converse(String agentId) => postJson(
+      provider,
+      conversationsUrl,
+      headers,
+      {
+        'agent_id': agentId,
+        'inputs': prompt,
+        // Not kept on Mistral's servers as a conversation.
+        'store': false,
+      },
+      post);
+
+  final kept = agents.read(provider.model);
+  Map<String, Object?> json;
+  if (kept == null) {
+    json = await converse(await newAgent());
+  } else {
+    try {
+      json = await converse(kept);
+    } on AiError catch (e) {
+      if (!_missingAgent(e)) rethrow;
+      json = await converse(await newAgent());
+    }
+  }
+  return _mistralFile(json, provider, prompt, conversationsUrl, headers,
+      download);
+}
+
+/// Whether [error] says that the agent does not exist (#163): HTTP 404,
+/// or a refused request whose message says so.
+bool _missingAgent(AiError error) {
+  if (error.status == 404) return true;
+  if (error.status != 400 && error.status != 422) return false;
+  final message = error.message.toLowerCase();
+  return message.contains('agent') &&
+      const ['not found', 'not exist', "doesn't exist", 'no agent', 'unknown']
+          .any(message.contains);
+}
+
+/// Whether [text] only repeats [prompt]: the same words, apart from
+/// case, spaces, quotes and a full stop at the end.
+bool _repeats(String text, String prompt) {
+  String plain(String s) => s
+      .toLowerCase()
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll(RegExp('^[\\s"\'“”„‘’«»]+|[\\s"\'“”„‘’«».!]+\$'), '');
+  final said = plain(text);
+  return said.isNotEmpty && said == plain(prompt);
+}
+
 /// The image of a Mistral answer with its image tool (#126): a link on
 /// Mistral's file host, or a file ID for its Files API at [chatUrl]'s
 /// host, which must be Mistral's. Only these hosts get the API key.
-Future<MadeImage> _mistralImage(
+Future<MadeImage> _mistralFile(
     Map<String, Object?> json,
     ProviderConfig provider,
+    String prompt,
     Uri chatUrl,
     Map<String, String> headers,
     ImageDownload download) async {
@@ -285,12 +399,17 @@ Future<MadeImage> _mistralImage(
   switch (_fromMistral(json)) {
     case null:
       final said = _mistralText(json);
+      final advice = provider.model == 'mistral-medium-latest'
+          ? 'try again, or choose another Mistral model as the image model'
+          : 'try mistral-medium-latest';
+      // The answer only repeats the prompt: the tool did not run (#163).
+      if (_repeats(said, prompt)) {
+        throw AiError('${provider.name} did not run its image tool. The '
+            'model "${provider.model}" may not use it; $advice.');
+      }
       throw AiError('${provider.name} sent no image'
-          '${said.isEmpty ? '.' : ', only text: "$said"'} The model '
-          '"${provider.model}" may not use the image tool; '
-          '${provider.model == 'mistral-medium-latest' ? 'try again, or '
-              'choose another Mistral model as the image model' : 'try '
-              'mistral-medium-latest'}.');
+          '${said.isEmpty ? '.' : ', only text: "${_shorten(said)}"'} The '
+          'model "${provider.model}" may not use the image tool; $advice.');
     case (link: final link?, fileId: _):
       final parsed = Uri.tryParse(link);
       if (parsed == null) {
@@ -341,7 +460,11 @@ List<Object?> _mistralMessages(Map<String, Object?> json) => [
           ],
     ];
 
-/// The text a Mistral answer gave instead of an image, shortened.
+/// [text], at most 200 characters.
+String _shorten(String text) =>
+    text.length <= 200 ? text : '${text.substring(0, 199)}…';
+
+/// The text a Mistral answer gave instead of an image.
 String _mistralText(Map<String, Object?> json) {
   final parts = <String>[];
   for (final message in _mistralMessages(json)) {
@@ -360,8 +483,7 @@ String _mistralText(Map<String, Object?> json) {
       }
     }
   }
-  final text = parts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim();
-  return text.length <= 200 ? text : '${text.substring(0, 199)}…';
+  return parts.join(' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
 /// The first image in a Mistral answer: a `tool_file` chunk (a file ID)

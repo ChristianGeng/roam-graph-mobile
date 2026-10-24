@@ -207,14 +207,16 @@ void main() {
             (e) => e.message, 'message', contains('does not download'))));
   });
 
-  group('Mistral\'s image tool (#126)', () {
-    ImageConfig mistral({String baseUrl = 'https://api.mistral.ai/v1'}) =>
+  group('Mistral\'s image tool, through an agent (#126, #163)', () {
+    ImageConfig mistral(
+            {String baseUrl = 'https://api.mistral.ai/v1',
+            String model = 'mistral-medium-latest'}) =>
         ImageConfig(
           ProviderConfig(
             name: 'Mistral',
             api: ApiKind.openAi,
             baseUrl: baseUrl,
-            model: 'mistral-medium-latest',
+            model: model,
             apiKey: 'm-key',
           ),
           api: ImageApi.mistral,
@@ -236,6 +238,18 @@ void main() {
                   },
           ],
         };
+    // Mistral's API: `POST /agents` makes the agent, `POST /conversations`
+    // answers with [reply] (#163).
+    HttpPost api(Object reply, {String agentId = 'ag-1'}) =>
+        (url, headers, body) async {
+          sent.add((url, headers, jsonDecode(body) as Map<String, Object?>));
+          if (url.path.endsWith('/agents')) {
+            return HttpReply(200, jsonEncode({'id': agentId, 'object': 'agent'}));
+          }
+          return HttpReply(200, jsonEncode(reply));
+        };
+    Map<String, Object?> conversation() =>
+        sent.where((s) => s.$1.path.endsWith('/conversations')).last.$3;
     late List<(Uri, Map<String, String>)> downloads;
     ImageDownload bytes(List<int> data) => (url, {headers = const {}}) async {
           downloads.add((url, headers));
@@ -251,10 +265,11 @@ void main() {
           ],
         };
 
-    test('the request: the Conversations API with the image_generation tool',
+    test('the requests: an agent with the image tool, then a conversation',
         () async {
+      final agents = MemoryImageAgents();
       await makeImage(mistral(), 'A red fox',
-          post: answer(outputs([
+          post: api(outputs([
             {'type': 'text', 'text': 'Here it is.'},
             {
               'type': 'tool_file',
@@ -264,26 +279,163 @@ void main() {
               'file_type': 'png',
             },
           ])),
-          download: bytes(base64.decode(png)));
-      final (url, headers, body) = sent.single;
+          download: bytes(base64.decode(png)),
+          agents: agents);
+      expect(sent, hasLength(2));
+      final (agentUrl, agentHeaders, agent) = sent.first;
+      expect(agentUrl.toString(), 'https://api.mistral.ai/v1/agents');
+      expect(agentHeaders['authorization'], 'Bearer m-key');
+      expect(agent, {
+        'model': 'mistral-medium-latest',
+        'name': 'Roam Graph images',
+        'description': contains('Create image'),
+        'instructions': mistralAgentInstructions,
+        'tools': [
+          {'type': 'image_generation'},
+        ],
+      });
+      final (url, headers, body) = sent.last;
       expect(url.toString(), 'https://api.mistral.ai/v1/conversations');
       expect(headers['authorization'], 'Bearer m-key');
-      expect(body['model'], 'mistral-medium-latest');
-      expect(body['inputs'], 'A red fox');
-      expect(body['tools'], [
-        {'type': 'image_generation'},
-      ]);
-      expect(body['store'], false);
-      expect(body['instructions'], contains('image generation tool'));
-      final (fileUrl, _) = downloads.single;
+      expect(body, {'agent_id': 'ag-1', 'inputs': 'A red fox', 'store': false});
+      expect(agents.ids, {'mistral-medium-latest': 'ag-1'});
+      final (fileUrl, fileHeaders) = downloads.single;
       expect(fileUrl.toString(), 'https://api.mistral.ai/v1/files/f-1/content');
+      expect(fileHeaders, {'authorization': 'Bearer m-key'});
+    });
+
+    test('the agent is made once and used again; one per image model',
+        () async {
+      final agents = MemoryImageAgents();
+      final reply = outputs([
+        {'type': 'tool_file', 'tool': 'image_generation', 'file_id': 'f-1'},
+      ]);
+      for (final prompt in ['A red fox', 'A blue bird']) {
+        await makeImage(mistral(), prompt,
+            post: api(reply),
+            download: bytes(base64.decode(png)),
+            agents: agents);
+      }
+      expect(sent.map((s) => s.$1.path), [
+        '/v1/agents',
+        '/v1/conversations',
+        '/v1/conversations',
+      ]);
+      expect(conversation(),
+          {'agent_id': 'ag-1', 'inputs': 'A blue bird', 'store': false});
+      // Another image model in settings: a new agent for it.
+      sent.clear();
+      await makeImage(mistral(model: 'mistral-large-latest'), 'x',
+          post: api(reply, agentId: 'ag-2'),
+          download: bytes(base64.decode(png)),
+          agents: agents);
+      expect(sent.first.$3['model'], 'mistral-large-latest');
+      expect(conversation()['agent_id'], 'ag-2');
+      expect(agents.ids, {
+        'mistral-medium-latest': 'ag-1',
+        'mistral-large-latest': 'ag-2',
+      });
+    });
+
+    test('an agent Mistral no longer knows is made again, once', () async {
+      final agents = MemoryImageAgents()..ids['mistral-medium-latest'] = 'ag-old';
+      final image = outputs([
+        {'type': 'tool_file', 'tool': 'image_generation', 'file_id': 'f-1'},
+      ]);
+      for (final (status, message) in [
+        (404, 'Agent not found'),
+        (422, 'Agent ag-old does not exist'),
+      ]) {
+        sent.clear();
+        agents.ids['mistral-medium-latest'] = 'ag-old';
+        await makeImage(mistral(), 'x',
+            post: (url, headers, body) async {
+              sent.add(
+                  (url, headers, jsonDecode(body) as Map<String, Object?>));
+              final json = jsonDecode(body) as Map;
+              if (url.path.endsWith('/agents')) {
+                return HttpReply(200, jsonEncode({'id': 'ag-new'}));
+              }
+              return json['agent_id'] == 'ag-old'
+                  ? HttpReply(status, jsonEncode({'message': message}))
+                  : HttpReply(200, jsonEncode(image));
+            },
+            download: bytes(base64.decode(png)),
+            agents: agents);
+        expect(sent.map((s) => (s.$1.path, s.$3['agent_id'])), [
+          ('/v1/conversations', 'ag-old'),
+          ('/v1/agents', null),
+          ('/v1/conversations', 'ag-new'),
+        ]);
+        expect(agents.ids['mistral-medium-latest'], 'ag-new');
+      }
+
+      // Not known again after it was made: said, not made a second time.
+      sent.clear();
+      agents.ids['mistral-medium-latest'] = 'ag-old';
+      await expectLater(
+          makeImage(mistral(), 'x',
+              post: (url, headers, body) async {
+                sent.add(
+                    (url, headers, jsonDecode(body) as Map<String, Object?>));
+                if (url.path.endsWith('/agents')) {
+                  return HttpReply(200, jsonEncode({'id': 'ag-new'}));
+                }
+                return HttpReply(404, jsonEncode({'message': 'Agent not found'}));
+              },
+              download: bytes(base64.decode(png)),
+              agents: agents),
+          throwsA(isA<AiError>().having((e) => e.status, 'status', 404)));
+      expect(sent.where((s) => s.$1.path.endsWith('/agents')), hasLength(1));
+
+      // Another refusal is not taken for a missing agent.
+      sent.clear();
+      agents.ids['mistral-medium-latest'] = 'ag-old';
+      await expectLater(
+          makeImage(mistral(), 'x',
+              post: (url, headers, body) async {
+                sent.add(
+                    (url, headers, jsonDecode(body) as Map<String, Object?>));
+                return HttpReply(
+                    401, jsonEncode({'message': 'Unauthorized'}));
+              },
+              download: bytes(base64.decode(png)),
+              agents: agents),
+          throwsA(isA<AiError>().having((e) => e.status, 'status', 401)));
+      expect(sent, hasLength(1));
+      expect(agents.ids['mistral-medium-latest'], 'ag-old');
+    });
+
+    test('an answer without an agent ID: said plainly', () async {
+      await expectLater(
+          makeImage(mistral(), 'x',
+              post: (url, headers, body) async =>
+                  HttpReply(200, jsonEncode({'object': 'agent'})),
+              download: bytes(base64.decode(png))),
+          throwsA(isA<AiError>().having(
+              (e) => e.message, 'message', contains('no agent ID'))));
+    });
+
+    test('text that only repeats the prompt: the tool did not run',
+        () async {
+      for (final said in ['A red fox', ' "a red  fox." ']) {
+        await expectLater(
+            makeImage(mistral(), 'A red fox',
+                post: api(outputs([
+                  {'type': 'text', 'text': said},
+                ])),
+                download: bytes(base64.decode(png))),
+            throwsA(isA<AiError>().having((e) => e.message, 'message',
+                allOf(startsWith('Mistral did not run its image tool.'),
+                    isNot(contains('only text'))))));
+      }
     });
 
     test('no image, only text: the text is said, and no same-model advice',
         () async {
       await expectLater(
           makeImage(mistral(), 'x',
-              post: answer(outputs([
+              post: api(outputs([
                 {'type': 'text', 'text': 'I cannot generate images.'},
               ])),
               download: bytes(base64.decode(png))),
@@ -295,7 +447,7 @@ void main() {
     test('a tool message is not quoted as what Mistral said', () async {
       await expectLater(
           makeImage(mistral(), 'x',
-              post: answer(chunks([
+              post: api(chunks([
                 {'type': 'text', 'text': 'No picture today.'},
               ])),
               download: bytes(base64.decode(png))),
@@ -309,7 +461,7 @@ void main() {
       for (final inMessages in [true, false]) {
         downloads.clear();
         final image = await makeImage(mistral(), 'x',
-            post: answer(chunks([
+            post: api(chunks([
               {
                 'type': 'image_url',
                 // Also as a plain string, as Mistral's cookbook shows it.
@@ -328,7 +480,7 @@ void main() {
 
     test('a tool_file: fetched from the Files API, with the key', () async {
       final image = await makeImage(mistral(), 'x',
-          post: answer(chunks([
+          post: api(chunks([
             {
               'type': 'tool_file',
               'tool': 'image_generation',
@@ -344,7 +496,7 @@ void main() {
       // A file ID from another host than api.mistral.ai is not fetched.
       await expectLater(
           makeImage(mistral(baseUrl: 'https://proxy.example/v1'), 'x',
-              post: answer(chunks([
+              post: api(chunks([
                 {'type': 'tool_file', 'file_id': 'f-1'},
               ])),
               download: bytes(base64.decode(png))),
@@ -362,7 +514,7 @@ void main() {
       ]) {
         await expectLater(
             makeImage(mistral(), 'x',
-                post: answer(chunks([
+                post: api(chunks([
                   {'type': 'image_url', 'image_url': link},
                 ])),
                 download: bytes(base64.decode(png))),
@@ -376,7 +528,7 @@ void main() {
         () async {
       await expectLater(
           makeImage(mistral(), 'x',
-              post: answer(chunks([
+              post: api(chunks([
                 {'type': 'text', 'text': 'I cannot draw.'},
               ])),
               download: bytes(base64.decode(png))),
@@ -384,7 +536,7 @@ void main() {
               (e) => e.message, 'message', contains('Mistral sent no image'))));
       await expectLater(
           makeImage(mistral(), 'x',
-              post: answer(chunks([
+              post: api(chunks([
                 {
                   'type': 'image_url',
                   'image_url': 'https://files.mistral.ai/generated/a.png',
@@ -395,7 +547,7 @@ void main() {
               (e) => e.message, 'message', contains('no PNG, JPEG or WebP'))));
       await expectLater(
           makeImage(mistral(), 'x',
-              post: answer(chunks([
+              post: api(chunks([
                 {
                   'type': 'image_url',
                   'image_url': 'https://files.mistral.ai/generated/a.png',
