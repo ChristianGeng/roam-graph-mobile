@@ -197,6 +197,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(copied, 'https://example.com');
     expect(title('A'), findsOneWidget);
+
+    // Without pressing Copy, the action must not keep the message open.
+    await tester.tapOnText(find.textRange.ofSubstring('the web'));
+    await tester.pumpAndSettle();
+    final message = tester.widget<SnackBar>(find.byType(SnackBar));
+    expect(message.duration, externalLinkSnackBarDuration);
+    expect(message.persist, isFalse);
+    expect(find.widgetWithText(SnackBarAction, 'Copy'), findsOneWidget);
+    await tester.pump(externalLinkSnackBarDuration + const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing);
   });
 
   testWidgets('mail, phone and plain web links open; file links do not',
@@ -247,6 +258,11 @@ void main() {
     await tester.tapOnText(find.textRange.ofSubstring('mail'));
     await tester.pump();
     expect(find.text('No app can open mailto:a@example.org'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(SnackBarAction, 'Copy'), findsOneWidget);
+    await tester.pump(externalLinkSnackBarDuration + const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing);
   });
 
   testWidgets('the backlinks, as org-roam lists them, open their nodes',

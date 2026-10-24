@@ -2387,7 +2387,8 @@ devices through Syncthing.
       text shown, nothing is saved and the note is shown again, with a
       message; the save is only over that version; the old version goes
       into the history; the graph is indexed again. A snack bar says what
-      changed, with **Undo**, which puts the text back if the file is
+      changed, with **Undo** (changed by decision 94 to an icon in the
+      app bar for the note visit), which puts the text back if the file is
       still what was saved. A folder with read access only asks for write
       access, as the other edits do, also for Undo. The change is checked
       against the very text the tapped item was shown from, and the folder
@@ -2711,6 +2712,57 @@ devices through Syncthing.
     - Checked against Mistral's API reference on 2026-10-24 (agents
       create, conversations start, files download). Not yet tried with a
       real key; the owner tries it after the release.
+
+94. **Quick-edit Undo belongs to the note visit** (#170),
+    `lib/node_view/node_screen.dart`. This changes decision 86's Undo in
+    the snack bar. A timer is too short to decide whether to undo, and a
+    message that stays covers the bottom of the note.
+    - **In the app bar:** `Icons.undo`, "Undo the last change", appears
+      while there are quick edits to undo. Each tap restores one, newest
+      first. The texts before and after each step are kept for this
+      visit; restores still use `NoteEditor.save` and keep their own old
+      versions in edit history. The steps do not depend on history's
+      retained snapshots.
+    - **The visit ends:** Back, a pane ID change (also pane Back), opening
+      another note through a link, backlink, section or capture, "Show
+      in graph", or any Edit-menu surface: Edit text, Edit with AI,
+      Title/tags/aliases, Add to this node, Create image, Earlier versions.
+      Opening and cancelling an editor also ends it. Returning starts
+      with no steps. A generation check prevents saves or undos that
+      finish later from changing another visit's steps.
+    - **Every undo has a fresh base:** check the folder's history key,
+      read again, require the latest step's expected after-text, and
+      replace only with that read's hash. A changed folder, unexpected or
+      unreadable text, a missing note, or a hash mismatch clears all
+      steps and rereads the note without overwriting it. Read access only
+      still asks for write access and keeps the step for another tap.
+    - **Outside changes end the chain:** after graph notifications and
+      rereads, text that is null or differs from the newest step's
+      expected after-text clears the steps. Reads started during a quick
+      operation are ignored for this check: own saves notify before they
+      return. Reads from older visits or undo chains cannot clear newer
+      steps. Changes through `changeNote` follow the same rule. If no
+      notification comes, the fresh read and hash check still protect
+      the file when Undo is tapped.
+    - **Short messages:** existing quick-edit confirmations and successful
+      undo messages have no action, `duration: Duration(seconds: 2)` and
+      `persist: false`. Other messages keep their default duration.
+      `openExternalLink` keeps Copy and its two messages ("Opening …"
+      and "No app can open …"), with six seconds and `persist: false`.
+      The shared helper also applies in the AI chat; other screens' undo
+      flows stay as they are.
+    - **Why duration alone does not work:** CI pins Flutter 3.47.7; the
+      app imports `material_ui` 1.7.0 (decision 25). Both constructors use
+      `persist = persist ?? action != null`. The ScaffoldMessenger timer
+      returns early for `persist: true` and does not check
+      `accessibleNavigation`. Thus an action message needs explicit
+      `persist: false` to close after its duration. Flutter's
+      [3.38 release notes](https://docs.flutter.dev/release/release-notes/release-notes-3.38.0)
+      list "SnackBar with action no longer auto-dismiss".
+    - Tests use synthetic notes: TODO and checkbox undo, multiple steps,
+      navigation and pane changes, editor return, outside changes before
+      and during undo, a save finishing after the visit, confirmations
+      without actions, and timeouts with Copy still working.
 
 ## Recommended, not decided
 

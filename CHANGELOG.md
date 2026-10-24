@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-24: Quick-edit Undo for the note visit ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pulls))
+
+- Changed: Undo is in the note view's bar. Each tap undoes one quick edit, newest first, for as long as you stay in the note. Leaving, opening an Edit-menu surface or an outside file change clears the steps.
+- Fixed: quick-edit confirmations close after two seconds, without an action button.
+- Fixed: link messages with Copy close after six seconds, whether or not another app can open the link.
+
+Closes #170.
+
 ## 2026-10-24: Mistral images through an agent ([#165](https://github.com/ChristianGeng/roam-graph-mobile/pull/165))
 
 - Fixed: "Create image" with Mistral said "Mistral sent no image, only text" with the prompt, because Mistral did not run its image tool. The app now makes an agent with the image tool at Mistral the first time ("Roam Graph images", one per image model), keeps its ID in the AI settings, and asks that agent for each image.

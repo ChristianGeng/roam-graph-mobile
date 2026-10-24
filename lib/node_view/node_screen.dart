@@ -154,6 +154,14 @@ class NodeScreen extends StatefulWidget {
   State<NodeScreen> createState() => _NodeScreenState();
 }
 
+typedef _QuickUndoStep = ({
+  NoteWriter writer,
+  String file,
+  String historyKey,
+  String before,
+  String after,
+});
+
 class _NodeScreenState extends State<NodeScreen> {
   late Future<String?> _text;
 
@@ -172,6 +180,11 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// Whether a quick edit is being saved; taps wait for it.
   var _quickBusy = false;
+
+  /// Quick edits of this visit, newest last. Restores still use the
+  /// editor's fresh base and hash check, and keep their own history.
+  final _undoSteps = <_QuickUndoStep>[];
+  var _visit = 0;
 
   // Search inside the note (#152).
   var _searching = false;
@@ -218,10 +231,7 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// The file may have changed with the index: read it again.
   void _graphChanged() {
-    if (!mounted) return;
-    setState(() {
-      _text = _read();
-    });
+    _readAgain();
   }
 
   void _openLink(OrgLink link) {
@@ -257,6 +267,7 @@ class _NodeScreenState extends State<NodeScreen> {
       widget.graph.addListener(_graphChanged);
     }
     // The side pane shows another node.
+    if (old.id != widget.id) _endVisit();
     if (old.id != widget.id || old.graph != widget.graph) _text = _read();
     // A search belongs to the note it was made in.
     if (old.id != widget.id && _searching) {
@@ -420,6 +431,7 @@ class _NodeScreenState extends State<NodeScreen> {
       );
 
   void _openId(String id) {
+    _endVisit();
     if (!widget.graph.value.nodes.containsKey(id)) {
       _tell('There is no node with the ID $id.');
       return;
@@ -459,6 +471,7 @@ class _NodeScreenState extends State<NodeScreen> {
   /// Adds text at the end of [node] (#36). The index changes after the
   /// save, so the note is read again and shows the text.
   Future<void> _append(NoteWriter writer, RoamNode node) async {
+    _endVisit();
     final message = await AppendScreen.open(context, writer, node);
     if (message != null && mounted) _tell(message);
   }
@@ -466,6 +479,7 @@ class _NodeScreenState extends State<NodeScreen> {
   /// Makes an image with the AI and adds it to this note (#112). Not for a
   /// note hidden from AI.
   Future<void> _createImage(NoteWriter writer, RoamNode node) async {
+    _endVisit();
     final settings = await AiSettingsScope.current(context);
     if (!mounted) return;
     if (settings.visibility.hides(node)) {
@@ -479,6 +493,7 @@ class _NodeScreenState extends State<NodeScreen> {
   /// Changes this one note by an instruction to the AI, after a diff
   /// (#103). Not for a note hidden from AI.
   Future<void> _aiEdit(NoteWriter writer, RoamNode node) async {
+    _endVisit();
     final settings = await AiSettingsScope.current(context);
     if (!mounted) return;
     if (settings.visibility.hides(node)) {
@@ -492,9 +507,15 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// Edits the text of [node] (#37); the diff (#38) comes before saving.
   Future<void> _edit(NoteWriter writer, RoamNode node) async {
+    _endVisit();
     final message = await EditScreen.open(context, writer, node,
         graph: widget.graph.value);
     if (message != null && mounted) _tell(message);
+  }
+
+  Future<void> _history(NoteWriter writer, RoamNode node) async {
+    _endVisit();
+    await HistoryScreen.open(context, writer, node);
   }
 
   /// The writer, when this view may change notes: not for help pages.
@@ -586,6 +607,7 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// Changes the node's title, tags and aliases (#97).
   Future<void> _meta(NoteWriter writer, RoamNode node) async {
+    _endVisit();
     final message = await MetaScreen.open(context, writer, node,
         graph: widget.graph.value);
     if (message != null && mounted) _tell(message);
@@ -767,7 +789,7 @@ class _NodeScreenState extends State<NodeScreen> {
   /// Saves [change] of [node]'s file at once, without the diff (#150), as
   /// every edit is saved otherwise (decision 10): only over [shown], the
   /// text the tapped item was shown from, with the drawers locked, the old
-  /// version kept, the graph updated. The message offers Undo.
+  /// version kept, the graph updated. Undo belongs to this note visit.
   Future<void> _quickChange(
     NoteWriter writer,
     RoamNode node,
@@ -776,18 +798,22 @@ class _NodeScreenState extends State<NodeScreen> {
     required String Function() done,
   }) =>
       _oneAtATime(() async {
+        final visit = _visit, id = widget.id;
         final editor = writer.editor;
         if (editor == null) return;
         // The folder the change is made in; another one chosen meanwhile
         // (for write access) has another note under the same path.
         final key = editor.store.historyKey(node.file);
         final base = await editor.read(node.file);
-        if (!mounted) return;
+        if (!mounted || _visit != visit || widget.id != id) return;
         if (base == null) {
+          _endVisit();
+          _readAgain();
           _tell('Could not read ${node.file} as text to change.');
           return;
         }
         if (base.text != shown) {
+          _endVisit();
           _readAgain();
           _tell('${node.file} changed since the app showed it, so nothing '
               'was changed. It is shown again now.');
@@ -802,52 +828,99 @@ class _NodeScreenState extends State<NodeScreen> {
         }
         if (after == base.text) return;
         if (editor.store.historyKey(node.file) != key) {
+          _endVisit();
           _tell('Another folder is open now; nothing was changed.');
           return;
         }
         _keepFolding(after);
         final result = await _saveQuick(editor, node.file, base, after);
-        if (!mounted) return;
+        if (!mounted || _visit != visit || widget.id != id) return;
         if (result is NoWriteAccessToEdit) await writer.allowWriting();
-        if (!mounted) return;
+        if (!mounted || _visit != visit || widget.id != id) return;
         _readAgain();
         if (result is Saved || result is SavedNotIndexed) {
-          _tell(saveMessage(result, node.file) ?? done(),
-              undo: () => _undoQuick(writer, node.file, key, after, base.text));
+          setState(() {
+            // An outside change may already be shown before its read
+            // continuation runs. Only keep steps that form one chain.
+            if (_undoSteps.isNotEmpty &&
+                (_undoSteps.last.after != base.text ||
+                    _undoSteps.last.historyKey != key)) {
+              _undoSteps.clear();
+            }
+            _undoSteps.add((
+              writer: writer,
+              file: node.file,
+              historyKey: key,
+              before: base.text,
+              after: after,
+            ));
+          });
+          _tell(saveMessage(result, node.file) ?? done(), short: true);
         } else {
           _keptFolding = null;
+          if (result is ChangedMeanwhile || result is NoteGone) _endVisit();
           _tell(saveMessage(result, node.file) ?? done());
         }
       });
 
-  /// Undo in a quick edit's message: puts [before] back if the file, in
-  /// the folder with history [key], is still [after].
-  Future<void> _undoQuick(NoteWriter writer, String file, String key,
-          String after, String before) =>
+  /// Puts back the newest quick edit of this visit, only over its result.
+  Future<void> _undoQuick() =>
       _oneAtATime(() async {
-        final editor = writer.editor;
+        if (_undoSteps.isEmpty) return;
+        final visit = _visit, id = widget.id;
+        final step = _undoSteps.last;
+        final editor = step.writer.editor;
         if (editor == null) return;
-        if (editor.store.historyKey(file) != key) {
-          _tell('Another folder is open now; the change was not undone.');
+        if (editor.store.historyKey(step.file) != step.historyKey) {
+          _undoChanged(step.file);
           return;
         }
-        final current = await editor.read(file);
-        if (!mounted) return;
-        if (current == null || current.text != after) {
-          _tell('$file changed since, so the change was not undone.');
+        final current = await editor.read(step.file);
+        if (!mounted || _visit != visit || widget.id != id) return;
+        if (current == null ||
+            current.text != step.after ||
+            editor.store.historyKey(step.file) != step.historyKey) {
+          _undoChanged(step.file);
           return;
         }
-        _keepFolding(before);
-        final result = await _saveQuick(editor, file, current, before);
-        if (!mounted) return;
-        if (result is NoWriteAccessToEdit) await writer.allowWriting();
-        if (!mounted) return;
-        _readAgain();
-        if (result is! Saved && result is! SavedNotIndexed) {
+        _keepFolding(step.before);
+        final result =
+            await _saveQuick(editor, step.file, current, step.before);
+        if (!mounted || _visit != visit || widget.id != id) return;
+        if (result is NoWriteAccessToEdit) await step.writer.allowWriting();
+        if (!mounted || _visit != visit || widget.id != id) return;
+        if (result is ChangedMeanwhile || result is NoteGone) {
+          _undoChanged(step.file);
+          return;
+        }
+        if (result is Saved || result is SavedNotIndexed) {
+          setState(() => _undoSteps.removeLast());
+        } else {
           _keptFolding = null;
         }
-        _tell(saveMessage(result, file) ?? 'Undone.');
+        _readAgain();
+        _tell(saveMessage(result, step.file) ?? 'Undone.',
+            short: result is Saved || result is SavedNotIndexed);
       });
+
+  void _undoChanged(String file) {
+    _keptFolding = null;
+    _endVisit();
+    _readAgain();
+    _tell('$file or its folder changed since, so nothing was undone. '
+        'It is shown again now.');
+  }
+
+  /// Leaving this note or opening an editing surface ends its undo chain,
+  /// including any quick operation whose save has not returned yet.
+  void _endVisit() {
+    if (!mounted) return;
+    setState(() {
+      _visit++;
+      _undoSteps.clear();
+    });
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+  }
 
   /// Remembers how far each section is open, to restore it when the note
   /// is read again with [text].
@@ -859,19 +932,36 @@ class _NodeScreenState extends State<NodeScreen> {
 
   void _readAgain() {
     if (!mounted) return;
+    final busy = _quickBusy, visit = _visit, id = widget.id;
+    final newest = _undoSteps.lastOrNull;
+    final read = _read().then((text) {
+      // Own saves notify before they return. Also ignore reads for an
+      // older visit or an older undo chain, even if they finish later.
+      if (mounted &&
+          !busy &&
+          _visit == visit &&
+          widget.id == id &&
+          newest != null &&
+          _undoSteps.isNotEmpty &&
+          _undoSteps.last == newest &&
+          text != newest.after) {
+        _endVisit();
+      }
+      return text;
+    });
     setState(() {
-      _text = _read();
+      _text = read;
     });
   }
 
-  void _tell(String message, {VoidCallback? undo}) {
+  void _tell(String message, {bool short = false}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content: Text(message),
-        action: undo == null
-            ? null
-            : SnackBarAction(label: 'Undo', onPressed: undo),
+        duration:
+            short ? const Duration(seconds: 2) : const Duration(seconds: 4),
+        persist: false,
       ));
   }
 
@@ -927,6 +1017,7 @@ class _NodeScreenState extends State<NodeScreen> {
       !widget.help, // Search
       node != null && !widget.help, // AI
       widget.writer?.editor != null && node != null && !widget.help, // Edit
+      _editWriter != null && _undoSteps.isNotEmpty, // Undo
       node != null && onShowInGraph != null, // Show in graph
     ].where((shown) => shown).length + more.length;
     // The back button, every button, and some room for the title.
@@ -981,6 +1072,12 @@ class _NodeScreenState extends State<NodeScreen> {
                     value: _AiAction.share, child: Text('Share with AI')),
               ],
             ),
+          if (_editWriter != null && !widget.help && _undoSteps.isNotEmpty)
+            IconButton(
+              tooltip: 'Undo the last change',
+              icon: const Icon(Icons.undo),
+              onPressed: _undoQuick,
+            ),
           // Edits of this note (v4), in one menu.
           if (widget.writer case final writer?
               when node != null && writer.editor != null && !widget.help)
@@ -993,7 +1090,7 @@ class _NodeScreenState extends State<NodeScreen> {
                 _EditAction.meta => _meta(writer, node),
                 _EditAction.ai => _aiEdit(writer, node),
                 _EditAction.image => _createImage(writer, node),
-                _EditAction.history => HistoryScreen.open(context, writer, node),
+                _EditAction.history => _history(writer, node),
               },
               itemBuilder: (_) => [
                 const PopupMenuItem(
@@ -1031,7 +1128,10 @@ class _NodeScreenState extends State<NodeScreen> {
             IconButton(
               tooltip: 'Show in graph',
               icon: const Icon(Icons.hub_outlined),
-              onPressed: () => onShowInGraph(context, widget.id),
+              onPressed: () {
+                _endVisit();
+                onShowInGraph(context, widget.id);
+              },
             ),
         ],
       ),
