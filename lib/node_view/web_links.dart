@@ -17,6 +17,9 @@ const externalSchemes = {'http', 'https', 'mailto', 'tel'};
 /// Where Org opens `doi:` links (`org-link-doi-server-url`).
 const doiServer = 'https://doi.org/';
 
+/// Time to reach Copy before the address confirmation closes.
+const externalLinkSnackBarDuration = Duration(seconds: 6);
+
 /// The address an Org link [location] opens outside the app, or null if
 /// the app does not hand it to other apps: only [externalSchemes], and a
 /// web address must have a host. A `doi:` link opens at [doiServer], as in
@@ -69,6 +72,8 @@ Future<void> openExternalLink(
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
       content: Text(opened ? 'Opening $address' : 'No app can open $address'),
+      duration: externalLinkSnackBarDuration,
+      persist: false,
       action: SnackBarAction(
         label: 'Copy',
         onPressed: () => Clipboard.setData(ClipboardData(text: address)),
