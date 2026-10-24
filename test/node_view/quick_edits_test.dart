@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/edit/note_editor.dart';
@@ -188,6 +187,52 @@ void main() {
       expect(rich('Other text.'), findsOneWidget);
       pane.value = 't';
       await tester.pumpAndSettle();
+      expect(undo, findsNothing);
+    });
+
+    testWidgets('a pane switch with TalkBack dismisses the confirmation safely',
+        (tester) async {
+      tester.binding.platformDispatcher.accessibilityFeaturesTestValue =
+          FakeAccessibilityFeatures(accessibleNavigation: true);
+      addTearDown(tester.binding.platformDispatcher
+          .clearAccessibilityFeaturesTestValue);
+      final access = withTasks();
+      final pane = ValueNotifier('t');
+      addTearDown(pane.dispose);
+      await openTasks(tester, access, pane: pane);
+      await chooseDone(tester);
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(undo, findsOneWidget);
+
+      pane.value = 'o';
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(undo, findsNothing);
+      expect(rich('Other text.'), findsOneWidget);
+      pane.value = 't';
+      await tester.pumpAndSettle();
+      expect(undo, findsNothing);
+      expect(note(access), contains('* DONE Write letter\n'));
+    });
+
+    testWidgets('a missing link target keeps this visit and its undo steps',
+        (tester) async {
+      final access = withTasks();
+      final before = tasks.replaceFirst('Other note', 'Missing note')
+          .replaceFirst('id:o', 'id:gone');
+      access.texts = {...access.texts, 'roam/t.org': before};
+      await openTasks(tester, access);
+      await chooseDone(tester);
+      await tester.tapOnText(find.textRange.ofSubstring('Missing note'));
+      await tester.pumpAndSettle();
+      expect(find.text('There is no node with the ID gone.'), findsOneWidget);
+      expect(undo, findsOneWidget);
+      expect(rich('Write letter'), findsWidgets);
+
+      await tester.tap(undo);
+      await tester.pumpAndSettle();
+      expect(note(access), before);
       expect(undo, findsNothing);
     });
 

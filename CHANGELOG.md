@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-24: Quick-edit Undo for the note visit ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pulls))
+## 2026-10-24: Quick-edit Undo for the note visit ([#173](https://github.com/ChristianGeng/roam-graph-mobile/pull/173))
 
 - Changed: Undo is in the note view's bar. Each tap undoes one quick edit, newest first, for as long as you stay in the note. Leaving, opening an Edit-menu surface or an outside file change clears the steps.
 - Fixed: quick-edit confirmations close after two seconds, without an action button.

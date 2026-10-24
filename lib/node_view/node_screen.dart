@@ -267,7 +267,7 @@ class _NodeScreenState extends State<NodeScreen> {
       widget.graph.addListener(_graphChanged);
     }
     // The side pane shows another node.
-    if (old.id != widget.id) _endVisit();
+    if (old.id != widget.id) _endVisit(duringBuild: true);
     if (old.id != widget.id || old.graph != widget.graph) _text = _read();
     // A search belongs to the note it was made in.
     if (old.id != widget.id && _searching) {
@@ -431,11 +431,11 @@ class _NodeScreenState extends State<NodeScreen> {
       );
 
   void _openId(String id) {
-    _endVisit();
     if (!widget.graph.value.nodes.containsKey(id)) {
       _tell('There is no node with the ID $id.');
       return;
     }
+    _endVisit();
     if (widget.onOpenNode case final open?) {
       widget.nodeMemory.remember(id);
       open(context, id);
@@ -913,8 +913,18 @@ class _NodeScreenState extends State<NodeScreen> {
 
   /// Leaving this note or opening an editing surface ends its undo chain,
   /// including any quick operation whose save has not returned yet.
-  void _endVisit() {
+  void _endVisit({bool duringBuild = false}) {
     if (!mounted) return;
+    if (duringBuild) {
+      // didUpdateWidget already schedules a build. With TalkBack,
+      // hiding a snack bar synchronously rebuilds its ancestor messenger.
+      _visit++;
+      _undoSteps.clear();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      });
+      return;
+    }
     setState(() {
       _visit++;
       _undoSteps.clear();

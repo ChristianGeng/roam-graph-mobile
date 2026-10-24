@@ -2729,7 +2729,11 @@ devices through Syncthing.
       Title/tags/aliases, Add to this node, Create image, Earlier versions.
       Opening and cancelling an editor also ends it. Returning starts
       with no steps. A generation check prevents saves or undos that
-      finish later from changing another visit's steps.
+      finish later from changing another visit's steps. A link to a
+      missing node opens nothing, so it keeps the current visit's steps.
+      Pane changes clear the steps during widget update and hide the
+      confirmation after the frame, so TalkBack cannot trigger an
+      ancestor rebuild during build.
     - **Every undo has a fresh base:** check the folder's history key,
       read again, require the latest step's expected after-text, and
       replace only with that read's hash. A changed folder, unexpected or
