@@ -221,15 +221,22 @@ Future<void> showDeleted(
     if (report.left.isNotEmpty)
       'Links left unchanged in: ${report.left.join(', ')}.',
   ];
-  final snackKey = GlobalKey();
+  // A messenger can show this snack bar in both Scaffolds during a
+  // route transition. Track each built copy without sharing a GlobalKey.
+  final snackContexts = <BuildContext>{};
   var undoing = false;
   messenger.clearSnackBars();
   messenger.removeCurrentSnackBar();
   final controller = messenger.showSnackBar(
     SnackBar(
-      key: snackKey,
       persist: true,
-      content: Text([title, ...warnings].join('\n')),
+      content: Builder(
+        builder: (context) {
+          snackContexts.removeWhere((c) => !c.mounted);
+          snackContexts.add(context);
+          return Text([title, ...warnings].join('\n'));
+        },
+      ),
       action: SnackBarAction(
         label: 'Undo',
         onPressed: () async {
@@ -268,11 +275,20 @@ Future<void> showDeleted(
   // Undo and swipe gestures inside the snack bar remain available.
   void dismissOnAction(PointerEvent event) {
     if (event is! PointerDownEvent) return;
-    final box = snackKey.currentContext?.findRenderObject();
-    if (box is RenderBox &&
-        box.attached &&
-        (box.localToGlobal(Offset.zero) & box.size).contains(event.position)) {
-      return;
+    for (final context in snackContexts.where((c) => c.mounted)) {
+      var inside = false;
+      context.visitAncestorElements((element) {
+        if (element.widget is! SnackBar) return true;
+        final box = element.findRenderObject();
+        inside =
+            box is RenderBox &&
+            box.attached &&
+            (box.localToGlobal(Offset.zero) & box.size).contains(
+              event.position,
+            );
+        return false;
+      });
+      if (inside) return;
     }
     if (messenger.mounted) messenger.hideCurrentSnackBar();
   }

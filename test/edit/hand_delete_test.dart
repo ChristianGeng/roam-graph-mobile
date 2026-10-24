@@ -75,6 +75,7 @@ void main() {
       expect(find.text('2 notes link to it'), findsOneWidget);
       expect(f.store.files, deleteNotes);
       await confirm(tester);
+      expect(tester.takeException(), isNull);
       expect(find.byType(NodeScreen), findsNothing);
       expect(f.store.files.containsKey('a.org'), isFalse);
       expect(find.text("Deleted 'Alpha'"), findsOneWidget);
@@ -302,7 +303,9 @@ void main() {
             onPressed: () => confirmDeleteNotes(
               context,
               graph: many.graph.value,
-              nodes: many.graph.value.nodes.values.toList(),
+              nodes: [
+                for (var i = 0; i < 12; i++) many.graph.value.nodes['n$i']!,
+              ],
               writer: many.writer,
             ),
             child: const Text('Start'),

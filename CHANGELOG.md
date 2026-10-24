@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-24: Delete notes by hand ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pulls))
+## 2026-10-24: Delete notes by hand ([#174](https://github.com/ChristianGeng/roam-graph-mobile/pull/174))
 
 - Added: Delete note from the note menu, a graph node's long-press or right-click menu, and selected search results, with confirmation.
 - Added: Choose whether incoming links become plain text or stay as links. Several selected notes are deleted in one action.
