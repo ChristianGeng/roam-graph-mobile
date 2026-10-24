@@ -11,6 +11,7 @@ import '../edit/add_link.dart';
 import '../edit/ai_edit_screen.dart';
 import '../edit/append_screen.dart';
 import '../edit/edit_screen.dart';
+import '../edit/delete_dialog.dart';
 import '../edit/history_screen.dart';
 import '../edit/image_screen.dart';
 import '../edit/meta_screen.dart';
@@ -72,10 +73,15 @@ class NodeScreen extends StatefulWidget {
     this.shareText = shareTextOut,
     this.openUrl = openUrlOnDevice,
     this.help = false,
+    this.visitBoundary = 0,
   });
 
   final ValueListenable<RoamGraph> graph;
   final String id;
+  /// A graph editing surface ends the side pane's quick-edit visit even
+  /// when the node ID stays the same (#171).
+  final int visitBoundary;
+
   final NoteReader readNote;
 
   /// The folder's other files, for images in notes (#46); without
@@ -267,7 +273,9 @@ class _NodeScreenState extends State<NodeScreen> {
       widget.graph.addListener(_graphChanged);
     }
     // The side pane shows another node.
-    if (old.id != widget.id) _endVisit(duringBuild: true);
+    if (old.id != widget.id || old.visitBoundary != widget.visitBoundary) {
+      _endVisit(duringBuild: true);
+    }
     if (old.id != widget.id || old.graph != widget.graph) _text = _read();
     // A search belongs to the note it was made in.
     if (old.id != widget.id && _searching) {
@@ -911,6 +919,19 @@ class _NodeScreenState extends State<NodeScreen> {
         'It is shown again now.');
   }
 
+  Future<void> _deleteNote(NoteWriter writer, RoamNode node) async {
+    if (_quickBusy) return;
+    _endVisit();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final pane = widget.onOpenNode != null;
+    final deletion = await confirmDeleteNotes(context,
+        graph: widget.graph.value, nodes: [node], writer: writer);
+    if (deletion == null) return;
+    if (!pane && mounted) navigator.pop();
+    if (messenger.mounted) showDeleted(messenger, deletion, writer);
+  }
+
   /// Leaving this note or opening an editing surface ends its undo chain,
   /// including any quick operation whose save has not returned yet.
   void _endVisit({bool duringBuild = false}) {
@@ -1093,7 +1114,7 @@ class _NodeScreenState extends State<NodeScreen> {
               when node != null && writer.editor != null && !widget.help)
             PopupMenuButton<_EditAction>(
               tooltip: 'Edit',
-              icon: const Icon(Icons.edit_note_outlined),
+              icon: const Icon(Icons.more_vert),
               onSelected: (action) => switch (action) {
                 _EditAction.append => _append(writer, node),
                 _EditAction.edit => _edit(writer, node),
@@ -1101,6 +1122,7 @@ class _NodeScreenState extends State<NodeScreen> {
                 _EditAction.ai => _aiEdit(writer, node),
                 _EditAction.image => _createImage(writer, node),
                 _EditAction.history => _history(writer, node),
+                _EditAction.delete => _deleteNote(writer, node),
               },
               itemBuilder: (_) => [
                 const PopupMenuItem(
@@ -1119,12 +1141,16 @@ class _NodeScreenState extends State<NodeScreen> {
                 const PopupMenuItem(
                     value: _EditAction.history,
                     child: Text('Earlier versions')),
+                PopupMenuItem(
+                    value: _EditAction.delete,
+                    child: Text('Delete note…', style: TextStyle(
+                        color: Theme.of(context).colorScheme.error))),
               ],
             ),
           if (crowded)
             PopupMenuButton<VoidCallback>(
               tooltip: 'More for this note',
-              icon: const Icon(Icons.more_vert),
+              icon: const Icon(Icons.more_horiz),
               onSelected: (action) => action(),
               itemBuilder: (_) => [
                 for (final (label, _, action) in more)
@@ -1365,4 +1391,4 @@ class _NodeScreenState extends State<NodeScreen> {
 enum _AiAction { ask, share }
 
 /// The edits of an existing note (v4).
-enum _EditAction { append, edit, meta, ai, image, history }
+enum _EditAction { append, edit, meta, ai, image, history, delete }

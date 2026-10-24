@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:material_ui/material_ui.dart';
 
 import '../edit/note_editor.dart';
+import '../edit/agent_changes.dart';
 import '../edit/tag_field.dart';
 import '../graph/roam_graph.dart';
 import 'new_node.dart';
@@ -52,6 +53,7 @@ class NoteWriter {
     required this.allowWriting,
     this.editor,
     this.createFile,
+    this.changeLog = const FileAgentLog(),
   });
 
   /// Writes [bytes] as the new file [path], relative to `roam/`, making
@@ -69,6 +71,9 @@ class NoteWriter {
 
   /// Changes existing notes (v4, #35); null where editing is not offered.
   final NoteEditor? editor;
+
+  /// AI edits and hand deletions share the recent-change log (#171).
+  final AgentLog changeLog;
 }
 
 /// What shared text can do instead of becoming a new node (#39).

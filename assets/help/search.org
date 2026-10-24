@@ -1,0 +1,30 @@
+:PROPERTIES:
+:ID:       roam-graph-help-search
+:END:
+#+title: Search and selected notes
+#+STARTUP: showall
+
+Open *Search* with the magnifier in the graph or note view. Type a title
+or alias, or choose tags. *In the text* searches the words inside notes.
+Tap a result to open it; the graph button shows it in the graph.
+
+* Selected notes
+Long press a result to select it. While a selection is active, taps add
+or remove notes. *Share with AI* shares the selected notes, respecting
+hidden tags.
+
+*Delete…* deletes the selected notes after confirmation. The dialog lists
+up to ten names, then says how many more. Choose once whether links to
+these notes become plain text (the default) or stay as dead links. Links
+between notes that are both deleted need no changes. A file goes with
+its heading nodes, and a heading with its subtree. Only notes in files
+directly in ~roam/~ can be deleted. Notes hidden from AI may be deleted
+by hand too.
+
+One *Undo* in the message brings back the whole action, including changed
+links. The message stays until another action or a swipe. Later, use
+*Recent changes* in the graph's *More* menu. Undo leaves newer texts
+unchanged and names the notes it could not restore.
+
+See [[id:roam-graph-help-node-view][The node view]] and
+[[id:roam-graph-help-graph-view][The graph view]].

@@ -162,14 +162,14 @@ class _RecentChangesScreenState extends State<RecentChangesScreen> {
   Widget build(BuildContext context) {
     final messages = _messages;
     return Scaffold(
-      appBar: AppBar(title: const Text('Recent AI changes')),
+      appBar: AppBar(title: const Text('Recent changes')),
       body: messages == null
           ? const Center(child: CircularProgressIndicator())
           : messages.isEmpty
               ? const Center(
                   child: Padding(
                     padding: EdgeInsets.all(24),
-                    child: Text('The AI changed no notes in the last '
+                    child: Text('No notes changed in the last '
                         '$recentDays days.'),
                   ),
                 )
