@@ -134,7 +134,16 @@ class AiSettings {
     this.imageProvider = '',
     this.webAccess = false,
     this.maxWebSearches = 5,
+    this.imageAgents = const {},
   });
+
+  /// The IDs of the Mistral agents the app made for images (#163), by
+  /// [imageAgentKey]: one per provider and image model, used again.
+  final Map<String, String> imageAgents;
+
+  /// The key of [imageAgents] for the provider [preset] and [model].
+  static String imageAgentKey(String preset, String model) =>
+      '$preset $model';
 
   /// "Web access for the AI" (#137): the chat may read web pages, and
   /// search with the provider's own web search where it has one. Off by
@@ -200,6 +209,7 @@ class AiSettings {
     String? imageProvider,
     bool? webAccess,
     int? maxWebSearches,
+    Map<String, String>? imageAgents,
   }) =>
       AiSettings(
         hiddenTags: hiddenTags ?? this.hiddenTags,
@@ -214,6 +224,7 @@ class AiSettings {
         imageProvider: imageProvider ?? this.imageProvider,
         webAccess: webAccess ?? this.webAccess,
         maxWebSearches: maxWebSearches ?? this.maxWebSearches,
+        imageAgents: imageAgents ?? this.imageAgents,
       );
 
   Map<String, Object?> toJson() => {
@@ -232,6 +243,7 @@ class AiSettings {
         'imageProvider': imageProvider,
         'webAccess': webAccess,
         'maxWebSearches': maxWebSearches,
+        'imageAgents': imageAgents,
       };
 
   /// Settings from [json]; a missing or unreadable value keeps its default.
@@ -277,6 +289,12 @@ class AiSettings {
       },
       webAccess: json['webAccess'] == true,
       maxWebSearches: positive('maxWebSearches', defaults.maxWebSearches),
+      imageAgents: {
+        if (json['imageAgents'] case final Map agents)
+          for (final MapEntry(:key, :value) in agents.entries)
+            if (key is String && value is String && value.isNotEmpty)
+              key: value,
+      },
     );
   }
 }
@@ -521,6 +539,14 @@ class AiSettingsScope extends InheritedNotifier<ValueNotifier<AiSettings>> {
   static ApiKeyStore? keysOf(BuildContext context) =>
       context.getInheritedWidgetOfExactType<AiSettingsScope>()?.keys;
 
+  /// Where "Create image" keeps the IDs of the Mistral agents it makes
+  /// for the provider [preset] (#163): in these settings. Null where
+  /// there is no scope.
+  static ImageAgents? imageAgentsOf(BuildContext context, String preset) {
+    final scope = context.getInheritedWidgetOfExactType<AiSettingsScope>();
+    return scope == null ? null : _ScopeImageAgents(scope, preset);
+  }
+
   /// Saves [settings], then uses them. If saving fails, the settings in
   /// use stay as they were, and the error is thrown.
   static Future<void> change(BuildContext context, AiSettings settings) async {
@@ -529,6 +555,30 @@ class AiSettingsScope extends InheritedNotifier<ValueNotifier<AiSettings>> {
     await scope.loaded;
     await scope.store.save(settings);
     scope.notifier!.value = settings;
+  }
+}
+
+/// [ImageAgents] in the settings of [scope], for the provider [preset].
+class _ScopeImageAgents implements ImageAgents {
+  _ScopeImageAgents(this.scope, this.preset);
+
+  final AiSettingsScope scope;
+  final String preset;
+
+  @override
+  String? read(String model) => scope.notifier!.value
+      .imageAgents[AiSettings.imageAgentKey(preset, model)];
+
+  @override
+  Future<void> write(String model, String id) async {
+    await scope.loaded;
+    final now = scope.notifier!.value;
+    final changed = now.copyWith(imageAgents: {
+      ...now.imageAgents,
+      AiSettings.imageAgentKey(preset, model): id,
+    });
+    await scope.store.save(changed);
+    scope.notifier!.value = changed;
   }
 }
 

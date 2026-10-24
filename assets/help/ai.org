@@ -26,7 +26,9 @@ The provider is set under *Images with:* in AI settings: the chat's
 provider by default, or another one with its own key, image model and "EU
 only". Vercel AI Gateway, OpenRouter, Qwen, Mistral and Custom make images.
 Mistral makes them with its built-in image tool, in the EU; the app
-downloads them only from Mistral's servers.
+downloads them only from Mistral's servers. For this, the app makes an
+agent with the image tool at Mistral the first time ("Roam Graph images",
+one for each image model) and keeps its ID in the AI settings.
 
 Above "Make image" a line says which provider and model make the image,
 and whether that is in the EU, outside it, or not known. With "EU only" on,

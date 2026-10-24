@@ -388,6 +388,38 @@ void main() {
     expect(AiSettings.fromJson({'editMode': 'gone'}).editMode, AiEditMode.agent);
   });
 
+  test('Mistral image agents: kept in the settings by provider and model '
+      '(#163)', () {
+    final settings = const AiSettings().copyWith(imageAgents: {
+      AiSettings.imageAgentKey('mistral', 'mistral-medium-latest'): 'ag-1',
+    });
+    final back = AiSettings.fromJson(jsonDecode(jsonEncode(settings.toJson())));
+    expect(back.imageAgents, {'mistral mistral-medium-latest': 'ag-1'});
+    expect(const AiSettings().imageAgents, isEmpty);
+    expect(
+        AiSettings.fromJson({
+          'imageAgents': {'a': 3, 'b': '', 'c': 'ag-2'},
+        }).imageAgents,
+        {'c': 'ag-2'});
+    expect(AiSettings.fromJson({'imageAgents': 'x'}).imageAgents, isEmpty);
+  });
+
+  testWidgets('"Create image" keeps the Mistral agent in the saved settings '
+      '(#163)', (tester) async {
+    final store = MemoryAiSettingsStore();
+    ImageAgents? agents;
+    await pumpIn(tester, Builder(builder: (context) {
+      agents = AiSettingsScope.imageAgentsOf(context, 'mistral');
+      return const SizedBox();
+    }), store: store);
+    expect(agents!.read('mistral-medium-latest'), isNull);
+    await agents!.write('mistral-medium-latest', 'ag-1');
+    expect(agents!.read('mistral-medium-latest'), 'ag-1');
+    expect(agents!.read('mistral-large-latest'), isNull);
+    expect(store.settings.imageAgents,
+        {'mistral mistral-medium-latest': 'ag-1'});
+  });
+
   group('providers (#59)', () {
     test('saved provider values come back; unknown ones keep defaults', () {
       final settings = AiSettings(

@@ -165,6 +165,8 @@ class _ImageScreenState extends State<ImageScreen> {
     if (!mounted) return null;
     final keys = AiSettingsScope.keysOf(context);
     if (keys == null) return 'The AI settings are not available.';
+    final agents =
+        AiSettingsScope.imageAgentsOf(context, imagePreset(settings).id);
     // The note may be hidden from AI meanwhile: nothing is sent then.
     final editor = widget.writer.editor;
     final text = editor == null ? null : await editor.read(widget.node.file);
@@ -193,7 +195,7 @@ class _ImageScreenState extends State<ImageScreen> {
     try {
       final image = await makeImage(
           config, imagePrompt(prompt, _withTitle ? widget.node.displayTitle : null),
-          post: widget.post, download: widget.download);
+          post: widget.post, download: widget.download, agents: agents);
       if (mounted) {
         setState(() {
           _image = image;

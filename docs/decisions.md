@@ -2661,7 +2661,9 @@ devices through Syncthing.
       menu, the message, the start setting and "Last used".
 
 92. **Mistral images go through the Conversations API** (#126 follow-up),
-    `lib/ai/ai_images.dart`. Decision 74 asked Mistral's image tool through
+    `lib/ai/ai_images.dart`. *Refined by decision 93: the conversation is
+    started with an agent that has the image tool, not with `model` and
+    `tools`.* Decision 74 asked Mistral's image tool through
     Chat Completions, as a Mistral cookbook showed it. In use, Mistral
     answered there without an image ("Mistral sent no image"). Mistral's
     documentation of the tool uses only its Agents and Conversations APIs.
@@ -2678,6 +2680,37 @@ devices through Syncthing.
       and no longer suggests the model that is already set.
     - Not yet tried with a real key in CI; the owner tries it after the
       release.
+
+93. **Mistral images through an agent with the image tool** (#163),
+    `lib/ai/ai_images.dart`. With decision 92, Mistral took
+    `POST /v1/conversations` with `model` and `tools: [{"type":
+    "image_generation"}]`, but did not run the tool: the answer only
+    repeated the prompt. Mistral documents the image tool only through an
+    agent.
+    - **The agent:** on the first Mistral image for an image model, the
+      app makes an agent: `POST /v1/agents` with `model` (the image model),
+      `name` ("Roam Graph images"), `description`, `instructions` ("Use the
+      image generation tool to make the image the user describes.") and
+      `tools: [{"type": "image_generation"}]`. The answer's `id` is kept in
+      the AI settings (`imageAgents`, by provider and image model; not in
+      the notes, not with the key) and used for the next images. Another
+      image model in settings gets its own agent.
+    - **The image:** `POST /v1/conversations` with `agent_id`, `inputs`
+      (the prompt) and `store: false` (Mistral's documentation shows
+      `store=False` as an option when a conversation is started with an
+      agent). The answer is read as in decision 92: `outputs`, the
+      `message.output` entry's `tool_file` chunk, its `file_id` fetched from
+      `api.mistral.ai/v1/files/<id>/content` with the key.
+    - **An agent Mistral no longer knows** (deleted, or made with another
+      key): HTTP 404, or HTTP 400 or 422 whose message says the agent is
+      not found or does not exist. The app then makes a new agent once and
+      asks again; a second refusal is shown.
+    - **No image again:** when Mistral's text only repeats the prompt, the
+      message says "Mistral did not run its image tool"; other text is
+      quoted as before.
+    - Checked against Mistral's API reference on 2026-10-24 (agents
+      create, conversations start, files download). Not yet tried with a
+      real key; the owner tries it after the release.
 
 ## Recommended, not decided
 

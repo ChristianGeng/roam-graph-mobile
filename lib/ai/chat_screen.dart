@@ -324,6 +324,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<ImageMaker?> _imageMaker(
       AiSettings settings, ApiKeyStore? keys) async {
     if (keys == null || widget.writer?.createFile == null) return null;
+    final agents =
+        AiSettingsScope.imageAgentsOf(context, imagePreset(settings).id);
     final config = await imageConfig(settings, keys);
     if (config == null || !mounted) return null;
     final provider = config.provider;
@@ -335,7 +337,8 @@ class _ChatScreenState extends State<ChatScreen> {
         limit: const Duration(seconds: 10));
     final preset = imagePreset(settings);
     return ImageMaker(
-      make: (prompt) => makeImage(config, prompt, post: widget.post),
+      make: (prompt) =>
+          makeImage(config, prompt, post: widget.post, agents: agents),
       model: '${provider.model} at ${preset.name}, '
           '${imageRegion(preset, config)}',
       folder: view.imageFolder,
