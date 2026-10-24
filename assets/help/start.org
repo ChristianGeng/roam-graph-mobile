@@ -8,12 +8,12 @@ Roam Graph shows my org-roam notes on the phone and the tablet, without
 Emacs. Syncthing copies the notes from the laptop; the app reads the folder,
 builds the same graph org-roam builds, and draws it.
 
-The app writes only new notes
-([[id:roam-graph-help-capture][Capture and shared text]]); existing notes
-are never changed.
+The app can create, edit and delete notes. Every write checks the file
+version first, and old texts are kept so changes can be undone.
 
 * Pages
 - [[id:roam-graph-help-graph-view][The graph view]]
+- [[id:roam-graph-help-search][Search and selected notes]]
 - [[id:roam-graph-help-layouts][Layouts: circular, force-directed, radial, grouped, hierarchical]]
 - [[id:roam-graph-help-views][Graph views: communities, importance, paths]]
 - [[id:roam-graph-help-algorithms][The other graph algorithms]]

@@ -6,6 +6,9 @@ import 'package:material_ui/material_ui.dart';
 
 import '../ai/chat_screen.dart';
 import '../help/help.dart';
+import '../edit/delete_dialog.dart';
+import '../edit/edit_screen.dart';
+import '../edit/recent_changes_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/graph_algorithms.dart';
@@ -128,7 +131,9 @@ enum _ScopeChoice {
 }
 
 /// The actions of the graph's "More" menu.
-enum _MoreAction { centre, askAi, settings, help }
+enum _MoreAction { centre, askAi, recent, settings, help }
+
+enum _NodeAction { open, edit, delete }
 
 /// The help links at the end of the graph's "View" menu (#62, #143).
 enum _ViewHelp { layouts, views }
@@ -199,6 +204,7 @@ class _GraphScreenState extends State<GraphScreen> {
   /// side pane's Back. Empty until a second node is selected. The side
   /// pane always shows [_centre].
   final _history = <String>[];
+  int _paneVisitBoundary = 0;
 
   _GraphView _view = _GraphView.plain;
   _Algorithms? _algorithmsCache;
@@ -459,6 +465,51 @@ class _GraphScreenState extends State<GraphScreen> {
     _openNode(context, id);
   }
 
+  Future<void> _nodeMenu(Offset local, Offset global) async {
+    final scale = _transform.value.getMaxScaleOnAxis();
+    final id = _drawing?.nodeAt(local,
+        tapReach(scale) - _nodeRadius, _overlay().sizes);
+    final node = _graph.nodes[id];
+    if (node == null) return;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final at = overlay.globalToLocal(global);
+    final writer = widget.writer;
+    final action = await showMenu<_NodeAction>(
+      context: context,
+      position: RelativeRect.fromRect(at & Size.zero, Offset.zero & overlay.size),
+      items: [
+        const PopupMenuItem(value: _NodeAction.open, child: Text('Open')),
+        PopupMenuItem(value: _NodeAction.edit, enabled: writer?.editor != null,
+            child: const Text('Edit')),
+        PopupMenuItem(value: _NodeAction.delete, enabled: writer?.editor != null,
+            child: Text('Delete…', style: TextStyle(
+                color: Theme.of(context).colorScheme.error))),
+      ],
+    );
+    if (!mounted || !_graph.nodes.containsKey(node.id)) return;
+    switch (action) {
+      case _NodeAction.open:
+        widget.nodeMemory.remember(node.id);
+        _openNode(context, node.id);
+      case _NodeAction.edit:
+        setState(() => _paneVisitBoundary++);
+        if (writer != null) {
+          await EditScreen.open(context, writer, node, graph: _graph);
+        }
+      case _NodeAction.delete:
+        if (writer == null) return;
+        setState(() => _paneVisitBoundary++);
+        final messenger = ScaffoldMessenger.of(context);
+        final deletion = await confirmDeleteNotes(context,
+            graph: _graph, nodes: [node], writer: writer);
+        if (deletion != null && messenger.mounted) {
+          showDeleted(messenger, deletion, writer);
+        }
+      case null:
+        break;
+    }
+  }
+
   /// What the current view adds to the drawing, the same object while
   /// nothing it depends on changes.
   _ViewOverlay _overlay() {
@@ -681,6 +732,10 @@ class _GraphScreenState extends State<GraphScreen> {
             _openPage(id);
           },
         );
+      case _MoreAction.recent:
+        if (widget.writer case final writer?) {
+          RecentChangesScreen.open(context, writer: writer, log: writer.changeLog);
+        }
       case _MoreAction.settings:
         SettingsScreen.open(context, graph: _graph);
       case _MoreAction.help:
@@ -855,6 +910,9 @@ class _GraphScreenState extends State<GraphScreen> {
                 value: _MoreAction.askAi,
                 child: Text('Ask AI'),
               ),
+              if (widget.writer?.editor != null)
+                const PopupMenuItem(
+                    value: _MoreAction.recent, child: Text('Recent changes')),
               const PopupMenuItem(
                 value: _MoreAction.settings,
                 child: Text('Settings'),
@@ -902,6 +960,7 @@ class _GraphScreenState extends State<GraphScreen> {
               },
               note: NodeScreen(
                     key: const ValueKey('node-pane'),
+                    visitBoundary: _paneVisitBoundary,
                     graph: widget.graph,
                     id: paneId,
                     readNote: widget.readNote,
@@ -937,6 +996,10 @@ class _GraphScreenState extends State<GraphScreen> {
       child: GestureDetector(
         key: const ValueKey('graph-canvas'),
         onTapUp: _tap,
+        onLongPressStart: (details) =>
+            _nodeMenu(details.localPosition, details.globalPosition),
+        onSecondaryTapUp: (details) =>
+            _nodeMenu(details.localPosition, details.globalPosition),
         child: CustomPaint(
           size: Size(layout.width, layout.height),
           painter: _GraphPainter(

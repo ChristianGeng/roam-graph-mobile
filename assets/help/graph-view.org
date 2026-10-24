@@ -10,12 +10,19 @@ drawn, as in ~org-roam-graph~.
 
 - *Tap* a node to select it and open it. On a tablet held sideways the
   note opens beside the graph; otherwise on its own page.
+- *Long press* a node, or *right click* on the desktop, for *Open*, *Edit*
+  and *Delete…*. This opens a menu; it never deletes a note directly.
+  *Delete…* asks for confirmation and offers to turn incoming links into
+  text (the default), or leave them. A file goes with its heading nodes;
+  a heading goes with its subtree. The message offers *Undo* for the whole
+  action and stays until the next action or a swipe.
 - *On a tablet held sideways*, drag the divider between graph and note to
   share the width, double-tap it for 40 : 60 again, or fold the graph away
   with its arrow button. The app remembers the layout.
 - *Pinch and drag* to zoom and move. Titles show once they are large enough
   to read.
-- *Search* (the magnifier) finds notes by title, alias and tag.
+- *Search* (the magnifier) finds notes by title, alias and tag; see
+  [[id:roam-graph-help-search][Search and selected notes]].
 - *New node* (the plus button) writes a new note; see
   [[id:roam-graph-help-capture][Capture and shared text]].
 
@@ -41,5 +48,8 @@ graph looks, in two groups; a check mark shows the current choice.
 - *Centre*: moves the selected node to the middle. In the radial layout,
   the rings are drawn again around it.
 - *Ask AI*: see [[id:roam-graph-help-ai][AI]].
+- *Recent changes*: hand deletes and AI changes, with one *Undo these
+  changes* for each action, also after its message has gone. Newer texts
+  stay unchanged; notes that could not be restored are named.
 - *Settings*: see [[id:roam-graph-help-settings][Settings]].
 - *Help*: these pages.

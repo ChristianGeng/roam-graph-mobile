@@ -101,6 +101,24 @@ String withoutIdLink(String text, String dest, {int line = 0, int pos = 0}) {
   return text.replaceRange(hit.start, hit.end, hit.text);
 }
 
+/// All links to deleted IDs become their readable text. The AI keeps its
+/// original bracket-link behavior; hand deletion also handles Org's angle
+/// and plain links, which the index reads too (#171).
+String withoutIdLinks(String text, Set<String> gone,
+    {bool bracketOnly = false}) {
+  if (bracketOnly) {
+    return text.replaceAllMapped(_idLink, (m) =>
+        gone.contains(m[1]!.trim()) ? m[2] ?? m[1]! : m[0]!);
+  }
+  var after = text;
+  for (final link in _idLinks(text).reversed) {
+    if (gone.contains(link.target)) {
+      after = after.replaceRange(link.start, link.end, link.text);
+    }
+  }
+  return after;
+}
+
 final _imageLine = RegExp(
     r'^[ \t]*(?:#\+(?:caption|name|attr_[-_a-z0-9]+)\[?[^\n]*|# image prompt:[^\n]*)$',
     caseSensitive: false);

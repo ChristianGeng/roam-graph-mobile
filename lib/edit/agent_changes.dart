@@ -159,7 +159,9 @@ class AgentChanges {
       final previous = outcome[path];
       if (previous != null && previous != UndoOutcome.failed) continue;
       final key = first(path).noteKey;
-      if (key.isNotEmpty && editor.store.historyKey(path) != key) {
+      final folderKey = editor.store.historyKey(path);
+      bool sameFolder() => editor.store.historyKey(path) == folderKey;
+      if (key.isNotEmpty && folderKey != key) {
         outcome[path] = UndoOutcome.otherFolder;
         continue;
       }
@@ -171,10 +173,14 @@ class AgentChanges {
           outcome[path] = UndoOutcome.deleted;
           continue;
         }
-        if (await editor.read(path) != null || create == null) {
-          outcome[path] = await editor.read(path) != null
-              ? UndoOutcome.changedSince
-              : UndoOutcome.failed;
+        final existing = await editor.read(path);
+        if (!sameFolder()) {
+          outcome[path] = UndoOutcome.otherFolder;
+          continue;
+        }
+        if (existing != null || create == null) {
+          outcome[path] = existing != null
+              ? UndoOutcome.changedSince : UndoOutcome.failed;
           continue;
         }
         outcome[path] = switch (await create(path, original)) {
@@ -185,6 +191,10 @@ class AgentChanges {
         continue;
       }
       final now = await editor.read(path);
+      if (!sameFolder()) {
+        outcome[path] = UndoOutcome.otherFolder;
+        continue;
+      }
       if (now == null) {
         outcome[path] = UndoOutcome.failed;
         continue;
@@ -195,8 +205,11 @@ class AgentChanges {
       }
       if (original == null) {
         // The created note is kept too, as every replaced text is.
-        await editor.history
-            .keep(editor.store.historyKey(path), now.text, DateTime.now());
+        await editor.history.keep(folderKey, now.text, DateTime.now());
+        if (!sameFolder()) {
+          outcome[path] = UndoOutcome.otherFolder;
+          continue;
+        }
       }
       final restored = [
         for (final c in changes)

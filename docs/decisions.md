@@ -2768,7 +2768,48 @@ devices through Syncthing.
       and during undo, a save finishing after the visit, confirmations
       without actions, and timeouts with Copy still working.
 
-95. **Image prices come only from the live model lists; model advice uses
+95. **Notes can be deleted by hand** (#171), `lib/edit/delete_node.dart`
+    and `delete_dialog.dart`. This extends decisions 62 and 65: the same
+    deletion and undo operations now serve the AI and hand actions.
+    - **Three places:** Delete note… in the note's ⋮ edit menu; Delete…
+      after a long press or right click on a graph node; Delete… in the
+      search selection. A graph gesture opens Open, Edit and Delete…;
+      it never deletes directly. The tablet divider keeps its gestures.
+      On narrow screens, More for this note uses …, so it is distinct
+      from the ⋮ edit menu required by the issue.
+    - **Confirm first:** name the file or heading subtree, count heading
+      nodes in a file and notes linking to the removed IDs. A batch lists
+      at most ten titles and the remaining number. Cancel writes nothing.
+      File versions are read before confirmation and kept as the save or
+      delete base. Only files directly in roam/ can be deleted, also for
+      heading nodes. A changed file is refused and named.
+    - **Links become plain text by default,** as in the AI tool, because
+      this keeps the readable text without links to notes that no longer
+      exist. Leave the links is an explicit choice, matching deletion in
+      Emacs, which leaves dead links. Selected notes that both go need no
+      link changes between them. Overlapping file and heading selections
+      remove each part once. Surviving files are changed once per cleanup.
+    - **Visibility:** hand deletion may remove notes hidden from AI. The
+      AI adapter retains its visibility checks, change limit, responses
+      and log. Hidden linking notes still stay untouched for AI deletion.
+    - **One undo step per action:** the existing grouped change log keeps
+      removed files, subtrees and backlink changes together. The message
+      offers Undo and persists until another action or a swipe, since the
+      note itself is gone. The graph's Recent changes also lists hand
+      deletes, alongside AI changes. This changes that screen's title
+      from Recent AI changes, without changing the saved log format.
+    - **No overwrite:** deletion checks the captured hash; undo checks
+      the expected after-text and saves over a fresh hash, or recreates a
+      deleted file only if its name is free. Newer files stay unchanged
+      and are named. Folder identity is checked across asynchronous reads
+      and history writes too. The note view ends its quick-edit visit
+      before opening deletion, as for its other editing surfaces (#173).
+    - Tests use synthetic notes only: both link choices, exact subtree
+      removal, undo conflicts, file races, subfolders, folder changes,
+      grouped batch undo, graph menus and the note and search actions.
+      Flutter analysis, tests and platform builds remain CI-only.
+
+96. **Image prices come only from the live model lists; model advice uses
     price classes** (#169), `lib/ai/ai_models.dart`,
     `lib/ai/model_picker.dart` and `assets/help/models.org`.
     - `ModelInfo.imagePrice` is dollars per output image. Vercel's

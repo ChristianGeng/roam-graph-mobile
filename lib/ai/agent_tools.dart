@@ -11,6 +11,7 @@ import '../capture/capture_screen.dart';
 import '../capture/new_node.dart';
 import '../edit/agent_changes.dart';
 import '../edit/append.dart';
+import '../edit/delete_node.dart';
 import '../edit/node_meta.dart';
 import '../edit/node_text.dart';
 import '../edit/image_screen.dart';
@@ -684,150 +685,61 @@ class AgentWriter {
         aliasesMayChange: true);
   }
 
-  /// `delete_node` (#93): deletes the note, then turns the links to it in
-  /// the other notes the AI may see into their text.
+  /// The shared delete keeps the AI's visibility checks and limit (#171).
   Future<String> _delete(NoteEditor editor, Map<String, Object?> args) async {
     final node = _node(_string(args, 'id'));
-    // The graph before deleting: afterwards the links to the note point
-    // nowhere and may not be in it.
-    final graphBefore = visibleGraph();
-    final (base, lines) = await _read(editor, node);
-    // What would go: the whole file, or the heading with its subtree. It
-    // must hold nothing hidden from the AI: no hidden node, no heading
-    // with a hidden tag (decision 42).
-    final going = node.isFile
-        ? base.text
-        : lines.lines.sublist(lines.start, lines.end).join('\n');
-    final normal = going.replaceAll('\r\n', '\n');
-    final hiddenNow = hiddenIds();
-    final idInGoing = RegExp(r'^[ \t]*:ID:[ \t]+(\S+)[ \t]*$',
-        multiLine: true, caseSensitive: false);
-    if (idInGoing.allMatches(normal).any((m) => hiddenNow.contains(m.group(1))) ||
-        visibility.filterText(normal, const {}) != normal) {
-      throw const ToolError('that note has parts hidden from you, so it '
-          'cannot be deleted here. Tell me to delete it myself.');
+    final deleter = NodeDeleter(
+      editor: editor,
+      now: _now,
+      read: (node) async {
+        try {
+          return await _read(editor, node);
+        } on ToolError catch (e) {
+          throw DeleteError(e.message);
+        }
+      },
+      save: (node, base, after, removed) async {
+        try {
+          await _save(editor, 'delete_node', node, base, after, '',
+              removed: removed);
+        } on ToolError catch (e) {
+          throw DeleteError(e.message);
+        }
+      },
+      record: (node, before, after, removed, key) => _record('delete_node',
+          node.file, node.id, node.displayTitle, before, after, removed: removed, noteKey: key),
+      canChange: () => changes.length < limit,
+      bracketLinksOnly: true,
+      checkGoing: (going) {
+        final normal = going.replaceAll('\r\n', '\n');
+        final hiddenNow = hiddenIds();
+        final idInGoing = RegExp(r'^[ \t]*:ID:[ \t]+(\S+)[ \t]*$',
+            multiLine: true, caseSensitive: false);
+        if (idInGoing.allMatches(normal).any((m) => hiddenNow.contains(m[1])) ||
+            visibility.filterText(normal, const {}) != normal) {
+          throw const DeleteError('that note has parts hidden from you, so it '
+              'cannot be deleted here. Tell me to delete it myself.');
+        }
+      },
+    );
+    try {
+      final plan = await deleter.prepare(visibleGraph(), [node]);
+      final report = await deleter.apply(plan, stopOnError: true);
+      return [
+        node.isFile
+            ? 'Deleted the note "${node.displayTitle}" (${node.file}).'
+            : 'Deleted the heading "${node.displayTitle}" with its subtree.',
+        if (report.cleaned.isNotEmpty)
+          'Links to it in ${report.cleaned.length} '
+              '${report.cleaned.length == 1 ? 'note' : 'notes'} became their text: '
+              '${report.cleaned.join(', ')}.',
+        if (report.left.isNotEmpty)
+          'Links to it in these notes could not be changed and point nowhere '
+              'now: ${report.left.join(', ')}.',
+      ].join(' ');
+    } on DeleteError catch (e) {
+      throw ToolError(e.message);
     }
-    final String done;
-    final List<String> removedText;
-    if (node.isFile) {
-      if (node.file.contains('/')) {
-        throw ToolError('${node.file} is in a subfolder; only notes directly '
-            'in roam/ can be deleted here. Tell me to delete it myself.');
-      }
-      if (editor.store.historyKey(node.file) != _folderKey) {
-        throw const ToolError('another folder was opened in the app; nothing '
-            'was deleted. Stop here.');
-      }
-      // Kept first, as every replaced text is (decision 10, rule 3).
-      final key = editor.store.historyKey(node.file);
-      final time = await editor.history.keep(key, base.text, _now());
-      final result = await editor.store.delete(node.file, base);
-      switch (result) {
-        case Saved() || SavedNotIndexed():
-          break;
-        case ChangedMeanwhile():
-          await editor.history.forget(key, time);
-          throw ToolError('${node.file} changed since it was read; nothing '
-              'was deleted. Read the note again and retry.');
-        case NoWriteAccessToEdit():
-          await editor.history.forget(key, time);
-          throw const ToolError('the app may only read the folder. Tell me '
-              'to choose the folder again in the app to allow writing.');
-        default:
-          await editor.history.forget(key, time);
-          throw ToolError('${node.file} could not be deleted.');
-      }
-      await _record('delete_node', node.file, node.id, node.displayTitle,
-          base.text, null);
-      removedText = [base.text];
-      done = 'Deleted the note "${node.displayTitle}" (${node.file}).';
-    } else {
-      // At the end of the file, its final newline stays.
-      var end = lines.end;
-      if (end == lines.lines.length &&
-          end > lines.start &&
-          lines.lines[end - 1].isEmpty) {
-        end--;
-      }
-      final removed = lines.lines.sublist(lines.start, end);
-      final after = [
-        ...lines.lines.sublist(0, lines.start),
-        ...lines.lines.sublist(end),
-      ].join(lines.newline);
-      // Undo puts the part back with its drawer.
-      await _save(editor, 'delete_node', node, base, after, '',
-          removed: removed.join(lines.newline));
-      removedText = [removed.join('\n')];
-      done = 'Deleted the heading "${node.displayTitle}" with its subtree.';
-    }
-    // The IDs that are gone: the node and every node in what was removed.
-    final gone = {
-      node.id,
-      for (final text in removedText)
-        for (final m in RegExp(r'^[ \t]*:ID:[ \t]+(\S+)[ \t]*$',
-                multiLine: true, caseSensitive: false)
-            .allMatches(text))
-          m.group(1)!,
-    };
-    // For a heading, the rest of its own file may link to it too.
-    final (cleaned, left) = await _unlink(editor, gone, graphBefore,
-        except: node.isFile ? node.file : null);
-    return [
-      done,
-      if (cleaned.isNotEmpty)
-        'Links to it in ${cleaned.length} '
-            '${cleaned.length == 1 ? 'note' : 'notes'} became their text: '
-            '${cleaned.join(', ')}.',
-      if (left.isNotEmpty)
-        'Links to it in these notes could not be changed and point nowhere '
-            'now: ${left.join(', ')}.',
-    ].join(' ');
-  }
-
-  /// Turns the links to [gone] in the visible notes into their text, one
-  /// change per file. Returns the titles of the notes changed, and of
-  /// those left as they are (the limit reached, or the write refused).
-  Future<(List<String>, List<String>)> _unlink(
-      NoteEditor editor, Set<String> gone, RoamGraph graph,
-      {required String? except}) async {
-    final files = <String, RoamNode>{};
-    for (final link in graph.links) {
-      if (!gone.contains(link.dest)) continue;
-      final source = graph.nodes[link.source];
-      // Not from a deleted node itself, nor from the deleted file.
-      if (source == null ||
-          gone.contains(source.id) ||
-          source.file == except) {
-        continue;
-      }
-      // One change per file, under its file node if it has one.
-      final current = files[source.file];
-      if (current == null || (!current.isFile && source.isFile)) {
-        files[source.file] = source;
-      }
-    }
-    final changed = <String>[], left = <String>[];
-    final link = RegExp(r'\[\[id:([^\]\[]+?)(?:::[^\]]*)?\](?:\[([^\]]*)\])?\]');
-    for (final source in files.values) {
-      if (changes.length >= limit) {
-        left.add(source.displayTitle);
-        continue;
-      }
-      try {
-        // The note as it is now.
-        final base = (await _read(editor, source)).$1;
-        final after = base.text.replaceAllMapped(link, (m) {
-          if (!gone.contains(m.group(1)!.trim())) return m.group(0)!;
-          return m.group(2) ?? m.group(1)!;
-        });
-        if (after == base.text) continue;
-        await _save(editor, 'delete_node', source, base, after, '');
-        changed.add(source.displayTitle);
-      } on ToolError {
-        left.add(source.displayTitle);
-      }
-    }
-    return (changed, left);
   }
 
   /// [text] with the line endings of the file of [lines].
@@ -841,7 +753,8 @@ class AgentWriter {
       {String removed = '', bool aliasesMayChange = false}) async {
     // Another folder may have been chosen since the note was read: the
     // same path there is another note.
-    if (editor.store.historyKey(node.file) != _folderKey) {
+    final key = _folderKey;
+    if (editor.store.historyKey(node.file) != key) {
       throw const ToolError('another folder was opened in the app; nothing '
           'was written. Stop here.');
     }
@@ -850,7 +763,7 @@ class AgentWriter {
     switch (result) {
       case Saved() || SavedNotIndexed():
         await _record(tool, node.file, node.id, node.displayTitle, base.text,
-            after, removed: removed);
+            after, removed: removed, noteKey: key);
         return result is SavedNotIndexed
             ? '$done The graph shows it after the next scan.'
             : done;
@@ -874,13 +787,13 @@ class AgentWriter {
   }
 
   Future<void> _record(String tool, String path, String id, String title,
-      String? before, String? after, {String removed = ''}) async {
+      String? before, String? after, {String removed = '', String? noteKey}) async {
     int links(String? text) =>
         text == null ? 0 : RegExp(r'\[\[id:').allMatches(text).length;
     final change = AgentChange(
       tool: tool,
       path: path,
-      noteKey: writer.editor?.store.historyKey(path) ?? path,
+      noteKey: noteKey ?? writer.editor?.store.historyKey(path) ?? path,
       nodeId: id,
       title: title,
       before: before,

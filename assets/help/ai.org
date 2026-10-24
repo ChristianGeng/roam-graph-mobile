@@ -66,7 +66,8 @@ without chat phrases, and links to the notes the answer used and to the
 note the chat was opened from.
 - In agent mode, the button sends that request as my message; the AI makes
   the note itself, and it shows in the summary with "Undo all" and in
-  "Recent AI changes".
+  "Recent changes". Hand deletes appear there too; the graph has the
+  same history in its *More* menu.
 - In review and off mode, the AI is asked once more, without tools, for the
   title and text; "New node" opens filled in with them, and nothing is
   saved before I save there. If its answer cannot be read, the first line
