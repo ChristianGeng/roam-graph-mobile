@@ -62,6 +62,32 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('phone note menus have distinct icons and actions', (
+    tester,
+  ) async {
+    await showPage(tester, graphPage());
+    await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byTooltip('Edit'),
+        matching: find.byIcon(Icons.more_vert),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byTooltip('More for this note'),
+        matching: find.byIcon(Icons.more_horiz),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('More for this note'));
+    await tester.pumpAndSettle();
+    expect(find.text('New node from here'), findsOneWidget);
+    expect(find.text('Delete note…'), findsNothing);
+  });
+
   testWidgets(
     'note menu confirms the file, child count and backlinks, then Undo',
     (tester) async {

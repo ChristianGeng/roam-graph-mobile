@@ -1150,7 +1150,7 @@ class _NodeScreenState extends State<NodeScreen> {
           if (crowded)
             PopupMenuButton<VoidCallback>(
               tooltip: 'More for this note',
-              icon: const Icon(Icons.more_vert),
+              icon: const Icon(Icons.more_horiz),
               onSelected: (action) => action(),
               itemBuilder: (_) => [
                 for (final (label, _, action) in more)

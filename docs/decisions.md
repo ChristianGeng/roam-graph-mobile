@@ -2775,6 +2775,8 @@ devices through Syncthing.
       after a long press or right click on a graph node; Delete… in the
       search selection. A graph gesture opens Open, Edit and Delete…;
       it never deletes directly. The tablet divider keeps its gestures.
+      On narrow screens, More for this note uses …, so it is distinct
+      from the ⋮ edit menu required by the issue.
     - **Confirm first:** name the file or heading subtree, count heading
       nodes in a file and notes linking to the removed IDs. A batch lists
       at most ten titles and the remaining number. Cancel writes nothing.

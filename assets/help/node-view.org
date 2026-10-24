@@ -16,7 +16,7 @@ Shows a note as formatted Org: a whole file, or a heading with its subtree.
   sections without a match, as Org's sparse tree does. Closing the
   search (the x, Back or Escape) removes the marks and folds the
   sections as they were. On a narrow screen, *New node from here* and
-  *Open in Orgro* are in the *More* menu.
+  *Open in Orgro* are in *More for this note* (…).
 - *Links* and *Backlinks*: below the text, this note's ~id:~ links, and
   every link to this note, with where in the linking note it is.
 - *Trash icons* remove a link: on a link, from this note; on a backlink,
