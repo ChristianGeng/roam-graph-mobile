@@ -6,6 +6,7 @@ library;
 import '../edit/edit_proposal.dart';
 import '../graph/roam_graph.dart';
 import 'ai_tools.dart';
+import 'note_language.dart';
 
 const proposeEditTool = AiTool(
   'propose_edit',
@@ -57,6 +58,13 @@ EditProposal proposalFrom(Map<String, Object?> args, RoamGraph visible) {
   final text = args['text'];
   if (text is! String || text.trim().isEmpty) {
     throw const ToolError('text is missing.');
+  }
+  // A replaced text may keep a #+language: line that is in it; whether
+  // it changed is checked against the file when the proposal is applied.
+  if (mode == EditMode.append && !sameLanguageLines('', text)) {
+    throw const ToolError('the text may not hold a #+language: line: an '
+        'edit keeps the note\'s language. I set it with "Set language…" '
+        'in search.');
   }
   final reason = args['reason'];
   return EditProposal(

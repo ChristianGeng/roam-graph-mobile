@@ -377,6 +377,16 @@ void main() {
     });
   });
 
+  test('"Language of new notes": English by default, saved (#172)', () {
+    expect(const AiSettings().newNoteLanguage, 'en');
+    final settings = const AiSettings().copyWith(newNoteLanguage: 'de');
+    final back = AiSettings.fromJson(jsonDecode(jsonEncode(settings.toJson())));
+    expect(back.newNoteLanguage, 'de');
+    expect(AiSettings.fromJson(const {}).newNoteLanguage, 'en');
+    expect(AiSettings.fromJson({'newNoteLanguage': 'Deutsch'}).newNoteLanguage,
+        'en');
+  });
+
   test('how the AI may change notes: agent by default, saved (#82)', () {
     expect(const AiSettings().editMode, AiEditMode.agent);
     expect(const AiSettings().maxAgentChanges, 30);

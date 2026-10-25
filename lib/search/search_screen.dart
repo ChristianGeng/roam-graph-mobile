@@ -7,6 +7,7 @@ import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../graph/ai_share.dart';
 import '../edit/delete_dialog.dart';
+import '../edit/set_language.dart';
 import '../graph/node_search.dart';
 import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
@@ -169,6 +170,28 @@ class _SearchScreenState extends State<SearchScreen> {
     showDeleted(messenger, deletion, writer);
   }
 
+  Future<void> _setLanguageSelected() async {
+    final writer = widget.writer;
+    final editor = writer?.editor;
+    if (writer == null || editor == null) return;
+    final graph = widget.graph.value;
+    final nodes = [for (final id in _selected) ?graph.nodes[id]];
+    if (nodes.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final code = await askLanguage(context, nodes);
+    if (code == null || !mounted) return;
+    final report = await setNotesLanguage(
+      editor: editor,
+      log: writer.changeLog,
+      graph: graph,
+      nodes: nodes,
+      code: code,
+    );
+    if (!mounted) return;
+    setState(() => _selected.clear());
+    showLanguageSet(messenger, report, writer);
+  }
+
   /// Searching in the notes' text (#98) instead of titles and aliases.
   bool _inText = false;
 
@@ -269,6 +292,12 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: const Icon(Icons.share_outlined),
               ),
               onPressed: _shareSelected,
+            ),
+          if (_selected.isNotEmpty && widget.writer?.editor != null)
+            IconButton(
+              tooltip: 'Set language…',
+              icon: const Icon(Icons.translate),
+              onPressed: _setLanguageSelected,
             ),
           if (_selected.isNotEmpty && widget.writer?.editor != null)
             IconButton(
