@@ -59,8 +59,11 @@ All jobs are in `.github/workflows/build.yml`. They run in this order
 
 `build` is still the only job that loads the release key, and only on
 `main`; it also writes the release notes, which travel with the APK.
-The longest job, `build`, sets the time of a whole run: about 9 minutes
-instead of 22 when every platform waited for it.
+With the Linux packages in the cache, the longest job is `build`, and a
+whole run takes about 9 minutes (measured on #178) instead of 22 when
+every platform waited for it. With a cold cache and a slow Ubuntu mirror,
+`linux` can take longer than `build`, and the run takes as long as
+`linux`.
 
 The Linux job keeps the Ubuntu packages it installs (GTK, CMake and the
 rest, 30 MB) in the GitHub Actions cache. The Ubuntu mirror is sometimes
