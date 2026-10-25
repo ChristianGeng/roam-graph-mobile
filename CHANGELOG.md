@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-25: Mistral images work ([#177](https://github.com/ChristianGeng/roam-graph-mobile/pull/177))
+
+- Fixed: "Create image" with Mistral said that the model did not run its image tool, although Mistral had made the image. The app now finds the image where Mistral puts it.
+
 ## 2026-10-24: Image model prices and help choosing models ([#175](https://github.com/ChristianGeng/roam-graph-mobile/pull/175))
 
 - Added: image model lists show the provider's price per image, the lowest price with "from" where it varies, or token prices; missing prices are named. An optional price order puts the cheapest listed image prices first.
