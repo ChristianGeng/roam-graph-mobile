@@ -169,11 +169,15 @@ Future<NoteLanguage> decideLanguage(
       else if (link.dest == start.id && link.source != start.id)
         link.source,
   };
+  final files = [
+    for (final id in neighbours)
+      if (graph.nodes[id] case final node?) node.file,
+  ];
+  // Read at once, each file once, so a chat from a hub note starts quickly.
+  await Future.wait(files.toSet().map(of));
   final counts = <String, int>{};
-  for (final id in neighbours) {
-    final node = graph.nodes[id];
-    if (node == null) continue;
-    if (await of(node.file) case final code?) {
+  for (final file in files) {
+    if (byFile[file] case final code?) {
       counts[code] = (counts[code] ?? 0) + 1;
     }
   }

@@ -120,6 +120,24 @@ void main() {
       expect((await decide('lone', fallback: 'it')).code, 'it');
     });
 
+    test('rule 3 reads the neighbour files at once, each once', () async {
+      var open = 0, most = 0;
+      final reads = <String>[];
+      final language = await decideLanguage(graph, graph.nodes['hub'],
+          read: (path) async {
+            reads.add(path);
+            most = max(most, ++open);
+            await Future<void>.delayed(Duration.zero);
+            open--;
+            return languageNotes[path];
+          },
+          fallback: 'en');
+      expect(language.code, 'de');
+      expect(most, greaterThan(1));
+      expect(reads, unorderedEquals(
+          ['hub.org', 'd1.org', 'd2.org', 'd3.org', 'e1.org', 'none.org']));
+    });
+
     test('rule 4: without a note to start from, the default', () async {
       final language = await decide(null, fallback: 'nl');
       expect((language.code, language.rule), ('nl', 4));
