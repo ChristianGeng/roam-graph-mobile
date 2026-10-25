@@ -23,13 +23,15 @@ import 'ai_images.dart';
 import 'ai_providers.dart';
 import 'ai_tools.dart';
 import 'ai_visibility.dart';
+import 'note_language.dart';
 
 const createNodeTool = AiTool(
   'create_node',
   'Create a new note (a file node), as org-roam capture creates one on the '
-      'laptop: a new :ID:, #+title and #+filetags. Returns its ID, to link '
-      'to it. Write Org mode; link to notes as [[id:<ID>][<title>]] with '
-      'IDs the tools gave you.',
+      'laptop: a new :ID:, #+title and #+filetags, and #+language: with '
+      'the language the note is written in. Returns its ID, to link to it. '
+      'Write Org mode; link to notes as [[id:<ID>][<title>]] with IDs the '
+      'tools gave you.',
   {
     'type': 'object',
     'properties': {
@@ -39,6 +41,12 @@ const createNodeTool = AiTool(
         'type': 'array',
         'items': {'type': 'string'},
         'description': 'File tags, without colons',
+      },
+      'language': {
+        'type': 'string',
+        'description': 'The language code of the note, such as de or en, '
+            'only when my request asks for a language; otherwise the app '
+            'writes the language the system prompt names',
       },
     },
     'required': ['title'],
@@ -162,6 +170,21 @@ const setAliasesTool = AiTool(
   },
 );
 
+const setLanguageTool = AiTool(
+  'set_language',
+  'Set the #+language: of a note\'s file to a language code, such as de '
+      'or en; for a heading node, of the file it is in. Only when I ask for '
+      'it. It does not translate the text.',
+  {
+    'type': 'object',
+    'properties': {
+      'id': {'type': 'string', 'description': 'The ID of the note'},
+      'language': {'type': 'string', 'description': 'The language code'},
+    },
+    'required': ['id', 'language'],
+  },
+);
+
 const agentTools = [
   createNodeTool,
   appendToNodeTool,
@@ -171,6 +194,7 @@ const agentTools = [
   renameNodeTool,
   setTagsTool,
   setAliasesTool,
+  setLanguageTool,
 ];
 
 /// What `create_image` needs (#129): the image model of "Images with:"
@@ -261,7 +285,8 @@ final agentSystemPrompt = systemPrompt.replaceFirst(
   'When I ask you to create, change or link notes, do it yourself with the '
       'tools create_node, append_to_node, edit_node_text and add_link, as '
       'many as the task needs, and rename_node, set_tags and set_aliases '
-      'for a note\'s title, tags and aliases; they save at once, and I can '
+      'for a note\'s title, tags and aliases, and set_language for its '
+      '#+language: when I ask; they save at once, and I can '
       'undo all '
       'changes of a message afterwards. Delete notes with delete_node only '
       'when I ask you to delete them. Read a note before you change it. '
@@ -279,6 +304,7 @@ class AgentWriter {
     required this.limit,
     this.log = const FileAgentLog(),
     this.images,
+    this.language = defaultNoteLanguage,
     DateTime Function()? now,
     Random? random,
   })  : _now = now ?? DateTime.now,
@@ -286,6 +312,10 @@ class AgentWriter {
 
   /// The image model for `create_image`; null where there is none (#129).
   final ImageMaker? images;
+
+  /// The language code `create_node` writes when the request names none
+  /// (#172): decided by rules 2 to 4 when the chat starts.
+  final String language;
 
   /// The images made for the current message, by tool call, to show the
   /// model; and the block each note got, to replace with a better one.
@@ -371,6 +401,7 @@ class AgentWriter {
         'set_tags' ||
         'set_aliases' =>
           await _meta(editor, call.name, call.input),
+        'set_language' => await _setLanguage(editor, call.input),
         'create_image' => await _image(editor, call),
         _ => 'Error: unknown tool ${call.name}.',
       };
@@ -441,6 +472,16 @@ class AgentWriter {
       throw const ToolError('#+title: and #+filetags: lines go in title and '
           'tags, not in the text.');
     }
+    if (!sameLanguageLines('', text)) {
+      throw const ToolError('a #+language: line goes in language, not in '
+          'the text.');
+    }
+    final asked = _string(args, 'language', required: false);
+    final code = asked.isEmpty ? language : languageCode(asked);
+    if (code == null) {
+      throw ToolError('$asked is no language code; give one such as de or '
+          'en.');
+    }
     if (propertyDrawers(text).isNotEmpty) {
       throw const ToolError('the text may not hold property drawers or '
           ':ID:s; a new note gets its own.');
@@ -456,7 +497,8 @@ class AgentWriter {
       time = last.add(const Duration(seconds: 1));
     }
     final id = newOrgId(_random);
-    final content = nodeFileText(id: id, title: title, tags: tags, body: text);
+    final content = nodeFileText(
+        id: id, title: title, tags: tags, body: text, language: code);
     for (var attempt = 0; attempt < 5; attempt++) {
       final name = nodeFileName(time, title);
       final result = await writer.create(name, content);
@@ -485,6 +527,10 @@ class AgentWriter {
     if (!sameLockedKeywords('', addition)) {
       throw const ToolError('#+title: and #+filetags: lines cannot be added; '
           'they would change the title or tags.');
+    }
+    if (!sameLanguageLines('', addition)) {
+      throw const ToolError('a #+language: line cannot be added here; use '
+          'set_language when I ask for a language.');
     }
     final after = appendToNode(base.text, node, _withNewline(addition, lines));
     if (after == null) throw ToolError('The note ${node.id} was not found.');
@@ -685,6 +731,24 @@ class AgentWriter {
         aliasesMayChange: true);
   }
 
+  /// `set_language` (#172): adds or replaces the `#+language:` of the
+  /// node's file, nothing else.
+  Future<String> _setLanguage(
+      NoteEditor editor, Map<String, Object?> args) async {
+    final node = _node(_string(args, 'id'));
+    final asked = _string(args, 'language');
+    final code = languageCode(asked);
+    if (code == null) {
+      throw ToolError('$asked is no language code; give one such as de or '
+          'en.');
+    }
+    final (base, _) = await _read(editor, node);
+    final after = withLanguage(base.text, code);
+    final file = node.isFile ? '"${node.displayTitle}"' : node.file;
+    return _save(editor, 'set_language', node, base, after,
+        'Set the language of $file to $code.');
+  }
+
   /// The shared delete keeps the AI's visibility checks and limit (#171).
   Future<String> _delete(NoteEditor editor, Map<String, Object?> args) async {
     final node = _node(_string(args, 'id'));
@@ -757,6 +821,12 @@ class AgentWriter {
     if (editor.store.historyKey(node.file) != key) {
       throw const ToolError('another folder was opened in the app; nothing '
           'was written. Stop here.');
+    }
+    if (tool != 'set_language' &&
+        tool != 'delete_node' &&
+        !sameLanguageLines(base.text, after)) {
+      throw const ToolError('#+language: lines stay as they are; use '
+          'set_language when I ask for a language. Nothing was written.');
     }
     final result = await editor.save(node.file, base, after,
         removed: removed, aliasesMayChange: aliasesMayChange);

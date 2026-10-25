@@ -12,6 +12,7 @@ import 'ai_chat.dart';
 import 'ai_images.dart';
 import 'ai_models.dart';
 import 'model_picker.dart';
+import 'note_language.dart';
 import 'ai_providers.dart';
 import 'ai_visibility.dart';
 
@@ -135,7 +136,13 @@ class AiSettings {
     this.webAccess = false,
     this.maxWebSearches = 5,
     this.imageAgents = const {},
+    this.newNoteLanguage = defaultNoteLanguage,
   });
+
+  /// "Language of new notes" (#172): the code of the language the AI
+  /// writes new notes in when neither the request, the note they start
+  /// from nor its neighbours decide it.
+  final String newNoteLanguage;
 
   /// The IDs of the Mistral agents the app made for images (#163), by
   /// [imageAgentKey]: one per provider and image model, used again.
@@ -210,6 +217,7 @@ class AiSettings {
     bool? webAccess,
     int? maxWebSearches,
     Map<String, String>? imageAgents,
+    String? newNoteLanguage,
   }) =>
       AiSettings(
         hiddenTags: hiddenTags ?? this.hiddenTags,
@@ -225,6 +233,7 @@ class AiSettings {
         webAccess: webAccess ?? this.webAccess,
         maxWebSearches: maxWebSearches ?? this.maxWebSearches,
         imageAgents: imageAgents ?? this.imageAgents,
+        newNoteLanguage: newNoteLanguage ?? this.newNoteLanguage,
       );
 
   Map<String, Object?> toJson() => {
@@ -244,6 +253,7 @@ class AiSettings {
         'webAccess': webAccess,
         'maxWebSearches': maxWebSearches,
         'imageAgents': imageAgents,
+        'newNoteLanguage': newNoteLanguage,
       };
 
   /// Settings from [json]; a missing or unreadable value keeps its default.
@@ -294,6 +304,10 @@ class AiSettings {
           for (final MapEntry(:key, :value) in agents.entries)
             if (key is String && value is String && value.isNotEmpty)
               key: value,
+      },
+      newNoteLanguage: switch (json['newNoteLanguage']) {
+        final String code => languageCode(code) ?? defaultNoteLanguage,
+        _ => defaultNoteLanguage,
       },
     );
   }
@@ -664,6 +678,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _changes = TextEditingController();
   final _images = TextEditingController();
   final _webSearches = TextEditingController();
+  final _language = TextEditingController();
   bool _webAccess = false;
   AiEditMode _editMode = AiEditMode.agent;
   AiSettings? _loaded;
@@ -770,6 +785,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _changes.text = '${settings.maxAgentChanges}';
       _images.text = '${settings.maxImagesPerMessage}';
       _webSearches.text = '${settings.maxWebSearches}';
+      _language.text = settings.newNoteLanguage;
       _webAccess = settings.webAccess;
       _editMode = settings.editMode;
       await _draft(_provider);
@@ -812,6 +828,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _changes.dispose();
     _images.dispose();
     _webSearches.dispose();
+    _language.dispose();
     for (final d in _drafts.values) {
       d.dispose();
     }
@@ -848,6 +865,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           'The web searches per message must be at least 1.');
       return;
     }
+    final language = languageCode(_language.text);
+    if (language == null) {
+      setState(() => _problem = 'The language of new notes must be a '
+          'language code such as en or de.');
+      return;
+    }
     if (rounds == null ||
         rounds < 1 ||
         tokens == null ||
@@ -875,6 +898,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       maxImagesPerMessage: images,
       webAccess: _webAccess,
       maxWebSearches: webSearches,
+      newNoteLanguage: language,
     );
     final keys = AiSettingsScope.keysOf(context);
     try {
@@ -1300,6 +1324,31 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       ..._keyFields(preset, draft),
       ..._euFields(preset, draft, 'eu-only'),
       ..._imageProviderSection(context),
+      const SizedBox(height: 16),
+      Text('Notes', style: text.titleSmall),
+      TextField(
+        key: const ValueKey('new-note-language'),
+        controller: _language,
+        decoration: const InputDecoration(
+          labelText: 'Language of new notes',
+          helperText: 'The language code the AI writes new notes in, as '
+              '#+language:, when neither my request, the note they start '
+              'from nor its linked notes decide it.',
+          helperMaxLines: 3,
+        ),
+      ),
+      Wrap(
+        spacing: 8,
+        children: [
+          for (final MapEntry(key: code, value: name)
+              in commonLanguages.entries)
+            ActionChip(
+              key: ValueKey('new-note-language-$code'),
+              label: Text('$name ($code)'),
+              onPressed: () => setState(() => _language.text = code),
+            ),
+        ],
+      ),
       const SizedBox(height: 16),
       Text('Web', style: text.titleSmall),
       SwitchListTile(

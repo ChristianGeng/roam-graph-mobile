@@ -41,6 +41,7 @@ Future<void> openChat(
   ValueNotifier<RoamGraph>? graphNotifier,
   UrlOpener? openUrl,
   HttpGet? getModels,
+  Future<String?> Function(String path)? readNote,
 }) async {
   await tester.pumpWidget(AiSettingsHost(
     store: MemoryAiSettingsStore(settings),
@@ -48,7 +49,7 @@ Future<void> openChat(
     child: MaterialApp(
       home: ChatScreen(
         graph: graphNotifier ?? ValueNotifier(graph),
-        readNote: (path) async => notes[path],
+        readNote: readNote ?? (path) async => notes[path],
         startNode: startNode,
         writer: writer,
         openNode: (_, id) => opened?.call(id),
