@@ -366,6 +366,29 @@ void main() {
       expect(downloads.single.$1.toString(), storage);
     });
 
+    test('Markdown in text chunks; an unrelated link before the image',
+        () async {
+      await makeImage(mistral(), 'A red circle',
+          post: api({
+            'outputs': [
+              {
+                'type': 'message.output',
+                'role': 'assistant',
+                'content': [
+                  {
+                    'type': 'text',
+                    'text': 'See [the docs](https://docs.mistral.ai/x). '
+                        'Here it is: ![Red circle]($storage)',
+                  },
+                ],
+              },
+            ],
+          }),
+          download: bytes(base64.decode(png)),
+          agents: MemoryImageAgents());
+      expect(downloads.single.$1.toString(), storage);
+    });
+
     test('only Mistral storage hosts are downloaded', () {
       expect(isMistralImageUrl(Uri.parse(storage)), isTrue);
       expect(isMistralImageUrl(Uri.parse('https://files.mistral.ai/x.png')),

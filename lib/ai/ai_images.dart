@@ -546,13 +546,31 @@ String _mistralText(Map<String, Object?> json) {
     }
   }
   // Else a Markdown link in the answer's text, `![…](https://…)` or
-  // `[…](https://…)`; the host is checked afterwards.
+  // `[…](https://…)`, in string content or text chunks. The first link on
+  // an allowed host wins; else the first link, which is then refused.
+  final markdown = RegExp(r'!?\[[^\]]*\]\((https://[^)\s]+)\)');
+  String? first;
   for (final message in _mistralMessages(json)) {
     final content = message is Map ? message['content'] : null;
-    if (content is! String) continue;
-    final match = RegExp(r'!?\[[^\]]*\]\((https://[^)\s]+)\)').firstMatch(content);
-    if (match != null) return (link: match.group(1), fileId: null);
+    final texts = <String>[
+      if (content is String) content,
+      if (content is List)
+        for (final chunk in content)
+          if (chunk is Map && chunk['type'] == 'text' && chunk['text'] is String)
+            chunk['text'] as String,
+    ];
+    for (final text in texts) {
+      for (final match in markdown.allMatches(text)) {
+        final link = match.group(1)!;
+        final url = Uri.tryParse(link);
+        if (url != null && isMistralImageUrl(url)) {
+          return (link: link, fileId: null);
+        }
+        first ??= link;
+      }
+    }
   }
+  if (first != null) return (link: first, fileId: null);
   return null;
 }
 
