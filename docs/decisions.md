@@ -2841,6 +2841,38 @@ devices through Syncthing.
       The real list excerpts belong in the pull request, not test fixtures.
     - Actual chat and image costs remain outside this issue.
 
+97. **All platforms build at the same time** (#166),
+    `.github/workflows/build.yml`, `tool/apt_cached.sh` and
+    `docs/releases.md`.
+    - **A `version` job first:** it only writes the version name
+      `0.1.<run number>` and the code `<run number>` as job outputs, the
+      same values as before. `build`, `linux`, `windows` and `macos` need
+      only `version`, so the four start together; before, the desktop
+      jobs waited for `build` (8 minutes) only to read the version.
+      `release` needs all of them and `org-roam`, as before.
+    - **The release notes stay in `build`** and travel with the APK in
+      its artifact, so the `release` job gets them as before; a job of
+      their own would need a Dart setup only for that.
+    - **The release key is unchanged:** loaded only in `build`, the job
+      that signs the APK, only on `main`, never for pull requests. Every
+      action stays pinned to its SHA; the new `actions/cache` too.
+    - **The Linux job's 14 minutes were the Ubuntu mirror:** in those
+      runs the 30 MB of packages (GTK, CMake, Clang and their
+      dependencies) came at about 40 kB/s, 12 minutes; in most runs they
+      take 20 to 40 seconds. The packages stay the same, so the release
+      is built with the same tools; their .deb files are kept in the
+      GitHub Actions cache. The cache key is a hash of the files apt
+      would download, with the SHA256 of each from the signed package
+      index, so a new package version gives a new key, and the older
+      cache still serves the files that did not change.
+    - **A cached file is checked before use:** apt does not check a file
+      that is already in its download folder (tried: a changed file of
+      the right size was installed, and dpkg failed on it). So
+      `tool/apt_cached.sh` removes every cached file whose SHA256 is not
+      the index's, and apt downloads it again. A pull request's cache is
+      kept apart from `main`'s by GitHub; the check covers a bad cache
+      anyway.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-25: Releases build all platforms at the same time ([#178](https://github.com/ChristianGeng/roam-graph-mobile/pull/178))
+
+- Changed: a new release comes out sooner. Android, Linux, Windows and macOS are built at the same time, and the Linux build keeps its Ubuntu packages in a cache, so a slow Ubuntu mirror no longer delays it.
+
+Closes #166.
+
 ## 2026-10-24: Image model prices and help choosing models ([#175](https://github.com/ChristianGeng/roam-graph-mobile/pull/175))
 
 - Added: image model lists show the provider's price per image, the lowest price with "from" where it varies, or token prices; missing prices are named. An optional price order puts the cheapest listed image prices first.

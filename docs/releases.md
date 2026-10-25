@@ -44,6 +44,30 @@ runs on other branches build with the debug key, with read-only permissions,
 and publish nothing. A separate release job, the only one allowed to write,
 publishes the APK. A new release stays a draft until its APK is attached, so Obtainium never sees a release without one; re-running the job reuses the release and replaces the APK.
 
+## The build jobs
+
+All jobs are in `.github/workflows/build.yml`. They run in this order
+(decision 97):
+
+1. `version` (a few seconds) sets the version name `0.1.<run number>` and
+   the version code `<run number>`.
+2. `build` (tests and the Android APK), `linux`, `windows` and `macos`
+   need only `version`, so the four start together. `org-roam` needs
+   nothing and starts at once.
+3. `release` (only on `main`) needs all of them and publishes the four
+   files.
+
+`build` is still the only job that loads the release key, and only on
+`main`; it also writes the release notes, which travel with the APK.
+The longest job, `build`, sets the time of a whole run: about 9 minutes
+instead of 22 when every platform waited for it.
+
+The Linux job keeps the Ubuntu packages it installs (GTK, CMake and the
+rest, 30 MB) in the GitHub Actions cache. The Ubuntu mirror is sometimes
+very slow, and the download then took 12 minutes instead of 20 seconds.
+`tool/apt_cached.sh` uses a cached file only if its SHA256 is the one in
+Ubuntu's signed package index, and downloads the rest.
+
 ## Install with Obtainium
 
 1. In Obtainium, tap **Add App**.
