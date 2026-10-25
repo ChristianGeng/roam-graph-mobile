@@ -343,9 +343,24 @@ void main() {
       expect(headers, isEmpty);
     });
 
-    test('a Markdown image link in the text is enough', () async {
+    test('a Markdown link in the text is enough, with or without "!"',
+        () async {
       await makeImage(mistral(), 'A red circle',
           post: api(realAnswer(toolEntry: false)),
+          download: bytes(base64.decode(png)),
+          agents: MemoryImageAgents());
+      expect(downloads.single.$1.toString(), storage);
+      downloads.clear();
+      await makeImage(mistral(), 'A red circle',
+          post: api({
+            'outputs': [
+              {
+                'type': 'message.output',
+                'role': 'assistant',
+                'content': 'Here it is: [Red circle]($storage)',
+              },
+            ],
+          }),
           download: bytes(base64.decode(png)),
           agents: MemoryImageAgents());
       expect(downloads.single.$1.toString(), storage);
@@ -358,6 +373,11 @@ void main() {
       expect(
           isMistralImageUrl(
               Uri.parse('https://evil.blob.core.windows.net/x.png')),
+          isFalse);
+      // Anyone can name a storage account: only the one seen is allowed.
+      expect(
+          isMistralImageUrl(Uri.parse(
+              'https://mistralaiother.blob.core.windows.net/x.png')),
           isFalse);
       expect(
           isMistralImageUrl(Uri.parse(

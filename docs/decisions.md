@@ -2856,8 +2856,10 @@ devices through Syncthing.
     - The link points to Azure storage
       (`mistralaiblackforestprod.blob.core.windows.net`) with its own
       access signature, valid for one hour. Only `files.mistral.ai`
-      and hosts `mistralai….blob.core.windows.net` over HTTPS are
-      downloaded, and the API key goes only to Mistral's own hosts.
+      and that storage host over HTTPS are
+      downloaded (the exact hosts in `mistralImageHosts`: anyone can
+      name a storage account), and the API key goes only to Mistral's
+      own hosts. A Markdown link counts with or without `!`.
 
 ## Recommended, not decided
 

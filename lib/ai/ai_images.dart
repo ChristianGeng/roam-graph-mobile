@@ -107,15 +107,19 @@ Future<Uint8List> downloadWithDartIo(Uri url,
 bool isDashscopeImageUrl(Uri url) =>
     url.scheme == 'https' && url.host.endsWith('.aliyuncs.com');
 
-/// Whether [url] is where Mistral's image tool puts the images it makes,
-/// over HTTPS: Mistral's file host (#126), or the Azure storage of its
-/// Black Forest Labs images (`mistralai…blob.core.windows.net`, a link
-/// with its own access signature). Nothing else is downloaded.
+/// The hosts where Mistral's image tool puts the images it makes: its file
+/// host (#126), and the Azure storage account of its Black Forest Labs
+/// images, seen in its answers (a link with its own access signature).
+/// Only these exact hosts, since anyone can name a storage account.
+const mistralImageHosts = {
+  'files.mistral.ai',
+  'mistralaiblackforestprod.blob.core.windows.net',
+};
+
+/// Whether [url] is on one of [mistralImageHosts], over HTTPS. Nothing
+/// else is downloaded.
 bool isMistralImageUrl(Uri url) =>
-    url.scheme == 'https' &&
-    (url.host == 'files.mistral.ai' ||
-        RegExp(r'^mistralai[a-z0-9-]*\.blob\.core\.windows\.net$')
-            .hasMatch(url.host));
+    url.scheme == 'https' && mistralImageHosts.contains(url.host);
 
 /// Where the app keeps the ID of the Mistral agent it made for an image
 /// model (#163): in its AI settings, not in the notes, and not with the
@@ -498,7 +502,7 @@ String _mistralText(Map<String, Object?> json) {
 /// The first image in a Mistral answer: a `tool_file` chunk (a file ID)
 /// or an `image_url` chunk (a link), in any of [_mistralMessages]; else
 /// the link in the `tool.execution` entry's `info.result`; else a
-/// Markdown image link in the answer's text.
+/// Markdown link in the answer's text.
 ({String? link, String? fileId})? _fromMistral(Map<String, Object?> json) {
   for (final message in _mistralMessages(json)) {
     final content = message is Map ? message['content'] : null;
@@ -541,11 +545,12 @@ String _mistralText(Map<String, Object?> json) {
       }
     }
   }
-  // Else a Markdown image in the answer's text: `![…](https://…)`.
+  // Else a Markdown link in the answer's text, `![…](https://…)` or
+  // `[…](https://…)`; the host is checked afterwards.
   for (final message in _mistralMessages(json)) {
     final content = message is Map ? message['content'] : null;
     if (content is! String) continue;
-    final match = RegExp(r'!\[[^\]]*\]\((https://[^)\s]+)\)').firstMatch(content);
+    final match = RegExp(r'!?\[[^\]]*\]\((https://[^)\s]+)\)').firstMatch(content);
     if (match != null) return (link: match.group(1), fileId: null);
   }
   return null;
