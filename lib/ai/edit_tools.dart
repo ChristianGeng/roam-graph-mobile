@@ -59,7 +59,9 @@ EditProposal proposalFrom(Map<String, Object?> args, RoamGraph visible) {
   if (text is! String || text.trim().isEmpty) {
     throw const ToolError('text is missing.');
   }
-  if (!sameLanguageLines('', text)) {
+  // A replaced text may keep a #+language: line that is in it; whether
+  // it changed is checked against the file when the proposal is applied.
+  if (mode == EditMode.append && !sameLanguageLines('', text)) {
     throw const ToolError('the text may not hold a #+language: line: an '
         'edit keeps the note\'s language. I set it with "Set language…" '
         'in search.');

@@ -6,12 +6,16 @@ import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/agent_tools.dart';
 import 'package:roam_graph_mobile/ai/ai_chat.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
+import 'package:roam_graph_mobile/ai/ai_tools.dart' show ToolError;
 import 'package:roam_graph_mobile/ai/ai_visibility.dart';
+import 'package:roam_graph_mobile/ai/edit_tools.dart';
 import 'package:roam_graph_mobile/ai/note_from_answer.dart';
 import 'package:roam_graph_mobile/ai/note_language.dart';
 import 'package:roam_graph_mobile/capture/capture_screen.dart';
 import 'package:roam_graph_mobile/capture/new_node.dart';
 import 'package:roam_graph_mobile/edit/agent_changes.dart';
+import 'package:roam_graph_mobile/edit/change_set.dart';
+import 'package:roam_graph_mobile/edit/edit_proposal.dart';
 import 'package:roam_graph_mobile/edit/note_editor.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 
@@ -267,6 +271,48 @@ void main() {
           startsWith('Error: There is no note with the ID secret'));
       await agent.changes.undoAll(agent.writer.editor!);
       expect(store.files, languageNotes);
+    });
+  });
+
+  group('review mode keeps #+language: (review of #176)', () {
+    // A #+language: line below the text is part of the body.
+    final texts = {
+      'body.org': note('body', 'Body',
+          body: 'Text.\n#+language: de\nMore.\n'),
+      'plain.org': note('plain', 'Plain', body: 'Text.\n'),
+    };
+    final graph = graphOf(texts);
+
+    test('a replaced text may keep its #+language: line; an appended one '
+        'may not hold one', () {
+      final kept = proposalFrom({
+        'node_id': 'body',
+        'mode': 'replace',
+        'text': 'New text.\n#+language: de\nMore.\n',
+      }, graph);
+      expect(kept.mode, EditMode.replace);
+      expect(
+          () => proposalFrom({
+                'node_id': 'plain',
+                'mode': 'append',
+                'text': '#+language: de',
+              }, graph),
+          throwsA(isA<ToolError>()));
+    });
+
+    test('a change set refuses a replace that changes or adds the line, '
+        'and takes one that keeps it', () async {
+      final editor = NoteEditor(
+          store: MemoryNoteStore(Map.of(texts)), history: MemoryEditHistory());
+      Future<ChangeSet> build(String id, String text) => ChangeSet.build(
+          [EditProposal(nodeId: id, mode: EditMode.replace, text: text)],
+          editor: editor, visible: graph, graph: graph, maxFiles: 20);
+      final set = await build('body', 'New text.\n#+language: de\nMore.\n');
+      expect(set.entries.single.after, contains('New text.\n#+language: de'));
+      await expectLater(build('body', 'New text.\n#+language: en\n'),
+          throwsA(isA<ChangeSetError>()));
+      await expectLater(build('plain', '#+language: de\nText.\n'),
+          throwsA(isA<ChangeSetError>()));
     });
   });
 

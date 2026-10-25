@@ -586,6 +586,11 @@ class _ChatScreenState extends State<ChatScreen> {
       _tell('The heading is no longer in ${node.file}.');
       return;
     }
+    if (!sameLanguageLines(base.text, after)) {
+      _tell('The AI\'s change would add or change a #+language: line, '
+          'which stays as it is; nothing was saved.');
+      return;
+    }
     final unknown = unknownLinkIds(proposal.text, graph);
     final save = await DiffScreen.confirm(
       context,
