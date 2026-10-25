@@ -97,6 +97,7 @@ class CaptureScreen extends StatefulWidget {
     this.linkByDefault = true,
     this.initialTitle = '',
     this.initialBody = '',
+    this.language,
     this.useForExisting,
     this.graph,
   });
@@ -122,6 +123,10 @@ class CaptureScreen extends StatefulWidget {
   final String initialTitle;
   final String initialBody;
 
+  /// The `#+language:` of a note the AI wrote ("Save as node", #172); a
+  /// note written by hand gets none.
+  final String? language;
+
   /// The clock, for the file name; tests replace it.
   final DateTime Function() now;
 
@@ -133,6 +138,7 @@ class CaptureScreen extends StatefulWidget {
     bool linkByDefault = true,
     String initialTitle = '',
     String initialBody = '',
+    String? language,
     Future<void> Function(ShareUse use)? useForExisting,
     RoamGraph? graph,
   }) =>
@@ -145,6 +151,7 @@ class CaptureScreen extends StatefulWidget {
             linkByDefault: linkByDefault,
             initialTitle: initialTitle,
             initialBody: initialBody,
+            language: language,
             useForExisting: useForExisting,
             graph: graph,
           ),
@@ -211,6 +218,7 @@ class _CaptureScreenState extends State<CaptureScreen> {
       tags: _tags.tags,
       body: _body.text,
       linkTo: _link ? widget.linkTo : null,
+      language: widget.language,
     );
     final result = await widget.writer.create(fileName, text);
     if (!mounted) return;

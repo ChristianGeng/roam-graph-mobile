@@ -28,6 +28,7 @@ import 'ai_settings.dart';
 import 'ai_tools.dart';
 import 'edit_tools.dart';
 import 'note_from_answer.dart';
+import 'note_language.dart';
 import 'web_access.dart';
 
 /// Opens a node by its ID, from a link in an answer.
@@ -127,6 +128,13 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Whether the node the chat starts from may be named to the AI: not
   /// when it is hidden from AI (#57).
   bool _startShown = false;
+
+  /// The language of new notes in this chat (#172), decided when it
+  /// starts.
+  NoteLanguage? _language;
+
+  String? get _languageName =>
+      _language == null ? null : languageName(_language!.code);
 
   /// The hidden tags the tools were made with.
   Set<String>? _hiddenTags;
@@ -237,8 +245,16 @@ class _ChatScreenState extends State<ChatScreen> {
           file == null || !settings.visibility.hidesInText(start, file);
     }
     if (!mounted) return;
+    final language = await decideLanguage(
+      settings.visibility.visibleGraph(widget.graph.value),
+      startShown ? start : null,
+      read: widget.readNote,
+      fallback: settings.newNoteLanguage,
+    );
+    if (!mounted) return;
     _session?.cancel();
     setState(() {
+      _language = language;
       // A new chat: tool-call IDs can repeat across chats, so nothing of
       // the old one may be found under them.
       _proposals.clear();
@@ -277,6 +293,7 @@ class _ChatScreenState extends State<ChatScreen> {
               limit: settings.maxAgentChanges,
               log: widget.agentLog,
               images: maker,
+              language: language.code,
             )
           : null;
       _session = config == null
@@ -296,7 +313,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 AiEditMode.agent => [...aiTools, ..._agent!.tools],
               },
               system: withToday(
-                  mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt,
+                  '${mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt} '
+                  '${languagePrompt(language)}',
                   DateTime.now()),
               toolImage: _agent?.imageFor,
               web: settings.webAccess
@@ -638,6 +656,7 @@ class _ChatScreenState extends State<ChatScreen> {
         start: start != null && _startShown
             ? (id: start.id, title: start.displayTitle)
             : null,
+        language: _languageName,
       ));
       return;
     }
@@ -647,7 +666,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final reply = await whileScreenOn(() => session.askOnce(
             noteRequestEntries(session.transcript, index,
-                startLinked: start != null),
+                startLinked: start != null, language: _languageName),
             system: noteFromAnswerSystem,
           ));
       note = parseNoteJson(reply);
@@ -679,6 +698,7 @@ class _ChatScreenState extends State<ChatScreen> {
       graph: widget.graph.value,
       initialTitle: proposal.title,
       initialBody: proposal.body,
+      language: _language?.code ?? defaultNoteLanguage,
       linkTo: start == null ? null : (id: start.id, title: start.displayTitle),
     );
     if (id != null && mounted) widget.openNode?.call(context, id);

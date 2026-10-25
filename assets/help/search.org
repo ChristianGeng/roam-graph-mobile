@@ -13,6 +13,12 @@ Long press a result to select it. While a selection is active, taps add
 or remove notes. *Share with AI* shares the selected notes, respecting
 hidden tags.
 
+*Set language…* asks for a language code (such as ~de~ or ~en~) and
+adds or replaces ~#+language:~ in each selected note's file. A heading
+has no language of its own, so its file is changed; the dialog says
+which files. One *Undo* in the message restores all of them. See
+"Language of new notes" in [[id:roam-graph-help-ai][the AI help]].
+
 *Delete…* deletes the selected notes after confirmation. The dialog lists
 up to ten names, then says how many more. Choose once whether links to
 these notes become plain text (the default) or stay as dead links. Links

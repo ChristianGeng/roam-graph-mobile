@@ -2841,6 +2841,44 @@ devices through Syncthing.
       The real list excerpts belong in the pull request, not test fixtures.
     - Actual chat and image costs remain outside this issue.
 
+97. **The language of a note is Org's `#+language:`; the AI writes new
+    notes in the language of the note they start from** (#172),
+    `lib/ai/note_language.dart`, `lib/edit/set_language.dart`.
+    - **The marker:** `#+language: de`, the keyword Org export already
+      reads. No property of our own. It goes after `#+title:` in the
+      file's keyword lines. A heading node has no language of its own;
+      it takes its file's. The first such line counts, as for Org's
+      other single-value keywords.
+    - **The rule order** for a new note: 1. a language the request asks
+      for ("auf Deutsch"); 2. the `#+language:` of the note it starts
+      from (the open note, the chat's note, the note of the "Save as
+      node" answer); 3. the language most of that note's links and
+      backlinks have, when at least 2 have one and one value has more
+      than half; 4. "Language of new notes" in AI settings, English by
+      default. Rules 2 to 4 are computed in code when the chat starts,
+      from the notes the AI may see, and named in the system prompt;
+      only rule 1 is left to the model, so no word list is needed.
+    - **Where it is written:** `create_node` (optional `language`
+      argument for rule 1, else the decided language) and "Save as
+      node" (agent mode through `create_node`; review and off mode
+      through "New node"). Notes written by hand get no `#+language:`.
+    - **Edits keep the language:** the prompts of the chat, the agent
+      and "Edit with AI" say not to translate unless asked. An AI edit
+      that adds or changes a `#+language:` line is refused, like
+      `#+title:` and `#+filetags:` lines. Only `set_language` (agent,
+      when asked) and "Set language…" change it.
+    - **"Set language…"** in the search selection adds or replaces the
+      keyword in the file of each selected note, as one group in the
+      change log: one Undo restores all files. Headings change their
+      file, and the dialog says so. Notes hidden from AI can be changed
+      here; it is my own action.
+    - **No global switch** ("all notes in German"): my notes are in
+      several languages, and a switch would write new notes in the
+      wrong language next to notes in another. The note a new one
+      starts from is the better guide; the setting is only the last
+      rule.
+    - Tests use synthetic notes only.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

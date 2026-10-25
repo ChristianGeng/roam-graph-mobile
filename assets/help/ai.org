@@ -80,6 +80,25 @@ reads go to that provider. Each provider's note says where the data goes;
 some keep it in the EU. Where the provider has a stronger model, the chat
 can switch to it.
 
+** Language of new notes
+The AI writes a new note in one language and marks it with Org's
+~#+language:~ line after ~#+title:~. The language is, in this order:
+1. the one my request asks for ("auf Deutsch", "in English");
+2. the ~#+language:~ of the note the chat starts from;
+3. the language most of that note's links and backlinks have, when at
+   least 2 have one and one value has more than half;
+4. *Language of new notes* in AI settings, under "Notes" (~en~ by
+   default).
+
+Example: the chat is opened from "Pilzsuche", which has ~#+language: de~.
+The AI is told "Write new notes linked from 'Pilzsuche' in German (de)",
+and a note made with "Save as new node" gets ~#+language: de~.
+
+Edits keep a note's language: the AI does not translate unless I ask,
+and it does not add or change ~#+language:~ unless I ask. Notes written
+by hand get no ~#+language:~. To set it for existing notes, use *Set
+language…* in [[id:roam-graph-help-search][Search]].
+
 ** Web access
 With *Web access for the AI* on (AI settings, under "Web"; off by
 default), the chat can also use the web, for questions the notes do not
