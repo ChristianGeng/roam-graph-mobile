@@ -107,10 +107,19 @@ Future<Uint8List> downloadWithDartIo(Uri url,
 bool isDashscopeImageUrl(Uri url) =>
     url.scheme == 'https' && url.host.endsWith('.aliyuncs.com');
 
-/// Whether [url] is Mistral's file host, where its image tool puts the
-/// images it makes (#126), over HTTPS. Nothing else is downloaded.
+/// The hosts where Mistral's image tool puts the images it makes: its file
+/// host (#126), and the Azure storage account of its Black Forest Labs
+/// images, seen in its answers (a link with its own access signature).
+/// Only these exact hosts, since anyone can name a storage account.
+const mistralImageHosts = {
+  'files.mistral.ai',
+  'mistralaiblackforestprod.blob.core.windows.net',
+};
+
+/// Whether [url] is on one of [mistralImageHosts], over HTTPS. Nothing
+/// else is downloaded.
 bool isMistralImageUrl(Uri url) =>
-    url.scheme == 'https' && url.host == 'files.mistral.ai';
+    url.scheme == 'https' && mistralImageHosts.contains(url.host);
 
 /// Where the app keeps the ID of the Mistral agent it made for an image
 /// model (#163): in its AI settings, not in the notes, and not with the
@@ -394,7 +403,6 @@ Future<MadeImage> _mistralFile(
     Uri chatUrl,
     Map<String, String> headers,
     ImageDownload download) async {
-  final auth = {'authorization': ?headers['authorization']};
   final Uri imageUrl;
   switch (_fromMistral(json)) {
     case null:
@@ -432,6 +440,11 @@ Future<MadeImage> _mistralFile(
     default:
       throw AiError('${provider.name} sent no image.');
   }
+  // The key goes only to Mistral's own hosts, not to the storage link,
+  // which carries its own signature.
+  final auth = imageUrl.host.endsWith('mistral.ai')
+      ? {'authorization': ?headers['authorization']}
+      : const <String, String>{};
   final Uint8List bytes;
   try {
     bytes = await download(imageUrl, headers: auth);
@@ -487,7 +500,9 @@ String _mistralText(Map<String, Object?> json) {
 }
 
 /// The first image in a Mistral answer: a `tool_file` chunk (a file ID)
-/// or an `image_url` chunk (a link), in any of [_mistralMessages].
+/// or an `image_url` chunk (a link), in any of [_mistralMessages]; else
+/// the link in the `tool.execution` entry's `info.result`; else a
+/// Markdown link in the answer's text.
 ({String? link, String? fileId})? _fromMistral(Map<String, Object?> json) {
   for (final message in _mistralMessages(json)) {
     final content = message is Map ? message['content'] : null;
@@ -508,6 +523,54 @@ String _mistralText(Map<String, Object?> json) {
       }
     }
   }
+  // The tool's own entry: `info.result` is a JSON text with the link
+  // (seen in Mistral's answers, October 2026).
+  if (json['outputs'] case final List outputs) {
+    for (final entry in outputs) {
+      if (entry is! Map || entry['type'] != 'tool.execution') continue;
+      final info = entry['info'];
+      final result = info is Map ? info['result'] : null;
+      Object? decoded = result;
+      if (result is String) {
+        try {
+          decoded = jsonDecode(result);
+        } on FormatException {
+          decoded = null;
+        }
+      }
+      if (decoded is Map) {
+        if (decoded['url'] case final String link when link.isNotEmpty) {
+          return (link: link, fileId: null);
+        }
+      }
+    }
+  }
+  // Else a Markdown link in the answer's text, `![…](https://…)` or
+  // `[…](https://…)`, in string content or text chunks. The first link on
+  // an allowed host wins; else the first link, which is then refused.
+  final markdown = RegExp(r'!?\[[^\]]*\]\((https://[^)\s]+)\)');
+  String? first;
+  for (final message in _mistralMessages(json)) {
+    final content = message is Map ? message['content'] : null;
+    final texts = <String>[
+      if (content is String) content,
+      if (content is List)
+        for (final chunk in content)
+          if (chunk is Map && chunk['type'] == 'text' && chunk['text'] is String)
+            chunk['text'] as String,
+    ];
+    for (final text in texts) {
+      for (final match in markdown.allMatches(text)) {
+        final link = match.group(1)!;
+        final url = Uri.tryParse(link);
+        if (url != null && isMistralImageUrl(url)) {
+          return (link: link, fileId: null);
+        }
+        first ??= link;
+      }
+    }
+  }
+  if (first != null) return (link: first, fileId: null);
   return null;
 }
 

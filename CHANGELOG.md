@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-25: Mistral images work ([#177](https://github.com/ChristianGeng/roam-graph-mobile/pull/177))
+
+- Fixed: "Create image" with Mistral said that the model did not run its image tool, although Mistral had made the image. The app now finds the image where Mistral puts it.
+
 ## 2026-10-25: Language of AI-written notes ([#176](https://github.com/ChristianGeng/roam-graph-mobile/pull/176))
 
 - Added: notes the AI writes get `#+language:`, taken from the note they start from, its linked notes, or the new AI setting "Language of new notes" (English by default). AI edits keep a note's language.
