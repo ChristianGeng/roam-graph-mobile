@@ -17,4 +17,5 @@
   are fetched from the phone) and the most web searches for one message.
   Keys are kept in
   Android's secure storage, never in the notes. See
-  [[id:roam-graph-help-ai][AI]].
+  [[id:roam-graph-help-ai][AI]] and
+  [[id:roam-graph-help-models][Choosing a model]].

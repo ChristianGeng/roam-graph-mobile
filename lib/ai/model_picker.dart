@@ -47,6 +47,7 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
   List<ModelInfo>? _models;
   String? _error;
   bool _all = false;
+  bool _byPrice = false;
 
   @override
   void initState() {
@@ -83,6 +84,32 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
       ? value.toStringAsFixed(2)
       : value.toStringAsFixed(value < 10 ? 1 : 0);
 
+  // Keep every decimal the list supplied; small prices must not become zero.
+  String _imagePrice(double value) {
+    final text = value.toString();
+    return text.contains('e') || text.split('.').last.length > 2
+        ? text
+        : value.toStringAsFixed(2);
+  }
+
+  int _compareImagePrices(ModelInfo a, ModelInfo b) {
+    // Dollars per image and dollars per million tokens cannot be compared.
+    // Put image prices first, token prices next, and unknown prices last.
+    int group(ModelInfo m) => m.imagePrice != null
+        ? 0
+        : m.inputPrice != null && m.outputPrice != null
+        ? 1
+        : 2;
+    final category = group(a).compareTo(group(b));
+    if (category != 0) return category;
+    final cost = switch (group(a)) {
+      0 => a.imagePrice!.compareTo(b.imagePrice!),
+      1 => a.outputPrice!.compareTo(b.outputPrice!),
+      _ => 0,
+    };
+    return cost != 0 ? cost : a.id.compareTo(b.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final models = _models;
@@ -109,6 +136,7 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
         if (_all || usable(m))
           if (words.every('${m.id} ${m.name ?? ''}'.toLowerCase().contains)) m,
     ];
+    if (widget.images && _byPrice) shown.sort(_compareImagePrices);
     return Scaffold(
       appBar: AppBar(
         title: TextField(
@@ -142,6 +170,41 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                if (widget.images)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        const Text('Order: '),
+                        Expanded(
+                          child: DropdownButton<bool>(
+                            key: const ValueKey('model-order'),
+                            value: _byPrice,
+                            isExpanded: true,
+                            onChanged: (value) =>
+                                setState(() => _byPrice = value ?? false),
+                            items: const [
+                              DropdownMenuItem(
+                                value: false,
+                                child: Text('Model ID'),
+                              ),
+                              DropdownMenuItem(
+                                value: true,
+                                child: Text('Price (lowest first)'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (widget.images && _byPrice)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: Text('Per-image prices first, then token prices '
+                        'by output price; unknown prices last. '
+                        'These units cannot be compared.'),
+                  ),
                 if (hidden > 0)
                   SwitchListTile(
                     key: const ValueKey('model-all'),
@@ -194,10 +257,15 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
                               (knowsRegions && m.regions == null));
                       final details = [
                         ?m.name,
-                        if (m.inputPrice != null && m.outputPrice != null)
+                        if (widget.images && m.imagePrice != null)
+                          '${m.imagePriceFrom ? 'from ' : ''}'
+                              '\$${_imagePrice(m.imagePrice!)} per image'
+                        else if (m.inputPrice != null && m.outputPrice != null)
                           '\$${_price(m.inputPrice!)} in, '
                               '\$${_price(m.outputPrice!)} out per '
-                              'million tokens',
+                              'million tokens'
+                        else if (widget.images)
+                          "price not in the provider's list",
                         if (!widget.images) ...[
                           if (m.chat == false) 'no chat model',
                           if (m.tools == false) 'no tools',

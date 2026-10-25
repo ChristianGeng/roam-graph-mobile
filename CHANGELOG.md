@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-24: Image model prices and help choosing models ([#175](https://github.com/ChristianGeng/roam-graph-mobile/pull/175))
+
+- Added: image model lists show the provider's price per image, the lowest price with "from" where it varies, or token prices; missing prices are named. An optional price order puts the cheapest listed image prices first.
+- Added: "Choosing a model" help, linked from AI and Settings, with suggestions for questions, agent edits, images and EU processing, using price classes.
+
+Closes #169.
+
 ## 2026-10-24: Delete notes by hand ([#174](https://github.com/ChristianGeng/roam-graph-mobile/pull/174))
 
 - Added: Delete note from the note menu, a graph node's long-press or right-click menu, and selected search results, with confirmation.

@@ -48,6 +48,8 @@ class ModelInfo {
     this.images,
     this.inputPrice,
     this.outputPrice,
+    this.imagePrice,
+    this.imagePriceFrom = false,
     this.regions,
   });
 
@@ -73,6 +75,12 @@ class ModelInfo {
   final double? inputPrice;
   final double? outputPrice;
 
+  /// US dollars per output image, only where the list gives this unit.
+  final double? imagePrice;
+
+  /// The image price is a minimum across sizes, qualities or styles.
+  final bool imagePriceFrom;
+
   /// Regions the model can run in (Vercel AI Gateway's `regions`); null
   /// when the list does not say.
   final List<String>? regions;
@@ -86,7 +94,8 @@ class ModelInfo {
 /// Anthropic's use: `{"data": [{"id": …}, …]}`. What a provider adds is
 /// read where it is known: OpenRouter's `supported_parameters` and
 /// `pricing.prompt`/`completion`, Mistral's `capabilities.function_calling`,
-/// Vercel's `pricing.input`/`output`, `regions` and `tags`, Hugging Face's
+/// Vercel's `pricing.input`/`output`, `pricing.image` and
+/// `image_dimension_quality_pricing`, `regions` and `tags`, Hugging Face's
 /// `providers[].supports_tools`, Anthropic's `display_name`. Anthropic's
 /// models all call tools.
 List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
@@ -97,9 +106,20 @@ List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
       'read. Type the model instead.',
     );
   }
+  double? price(Object? value) {
+    final parsed = switch (value) {
+      num value => value.toDouble(),
+      String value => double.tryParse(value),
+      _ => null,
+    };
+    return parsed != null && parsed.isFinite && parsed >= 0 ? parsed : null;
+  }
+
   double? perMillion(Object? value) {
-    final price = value is num ? value.toDouble() : double.tryParse('$value');
-    return price == null || price < 0 ? null : price * 1e6;
+    final scaled = price(value);
+    if (scaled == null) return null;
+    final result = scaled * 1e6;
+    return result.isFinite ? result : null;
   }
 
   final models = <ModelInfo>[];
@@ -154,6 +174,38 @@ List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
     } else {
       images = imageName.hasMatch(id) ? true : null;
     }
+    double? imagePrice;
+    var imagePriceFrom = false;
+    if (images == true && pricing is Map) {
+      // Vercel's `image` is per output image on image-only models.
+      // OpenRouter's `image` / `image_output` do not identify the billing
+      // unit: despite the generic schema, model pages show per-token
+      // rates (checked 2026-10-24). Keep prompt/completion token prices
+      // as the fallback; never label these rates as dollars per image.
+      if (type == 'image') imagePrice = price(pricing['image']);
+      final variants = pricing['image_dimension_quality_pricing'];
+      if (variants is List) {
+        for (final variant in variants.whereType<Map<Object?, Object?>>()) {
+          // Operation-only entries (such as web-grounding) are extra fees,
+          // not the cost of making an image.
+          if (variant['operation'] != null) continue;
+          final size = variant['size'];
+          final quality = variant['quality'];
+          final style = variant['style'];
+          if (size is! String && quality is! String && style is! String) {
+            continue;
+          }
+          final cost = price(variant['cost']);
+          if (cost == null) continue;
+          if ((size is String && size != 'default') ||
+              quality is String ||
+              style is String) {
+            imagePriceFrom = true;
+          }
+          if (imagePrice == null || cost < imagePrice) imagePrice = cost;
+        }
+      }
+    }
     models.add(
       ModelInfo(
         id,
@@ -170,6 +222,8 @@ List<ModelInfo> readModelList(Object? json, {required ApiKind api}) {
         outputPrice: pricing is Map
             ? perMillion(pricing['output'] ?? pricing['completion'])
             : null,
+        imagePrice: imagePrice,
+        imagePriceFrom: imagePriceFrom,
         regions: regions is List ? [for (final r in regions) '$r'] : null,
       ),
     );

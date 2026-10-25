@@ -1,0 +1,132 @@
+:PROPERTIES:
+:ID:       roam-graph-help-models
+:END:
+#+title: Choosing a model
+#+STARTUP: showall
+
+Checked: 2026-10-24
+
+The model lists in the settings show the current prices where the provider sends them.
+
+"Cheap", "medium" and "expensive" are rough price classes for a purpose,
+not a quote. Long notes, many tool calls, image size and quality change
+the cost. Choose the chat and image providers separately under
+[[id:roam-graph-help-settings][Settings]].
+
+* Chat questions about the notes
+Even a question needs tool calls: the model searches and reads the notes.
+Start with one of these; use a stronger model for difficult comparisons.
+
+- *Claude on AWS Bedrock (EU):* ~eu.anthropic.claude-sonnet-5-5~ (medium),
+  for questions across several notes.
+- *Mistral:* ~mistral-large-4~ (cheap), a general choice with EU
+  processing; it is in public preview.
+- *Scaleway:* ~qwen3.6-35b-a3b~ (cheap), for straightforward questions.
+- *Vercel AI Gateway:* ~deepseek/deepseek-v4-pro~ (cheap), for general
+  questions outside the EU; ~anthropic/claude-sonnet-5.5~ (medium), for
+  harder comparisons or with "EU only" on.
+- *Anthropic:* ~claude-sonnet-5-5~ (medium), for general questions;
+  ~claude-opus-5-5~ (expensive), for difficult reasoning.
+- *DeepSeek:* ~deepseek-v4-pro~ (cheap), if processing in China is suitable.
+- *Qwen:* ~qwen3.8-max~ (medium), for general questions; the preset uses
+  Singapore.
+- *OpenRouter:* ~anthropic/claude-sonnet-5.5~ (medium), for comparisons
+  across notes; the chosen host's terms apply.
+- *Hugging Face:* ~Qwen/Qwen3-Coder-480B-A35B-Instruct~ (medium), for
+  questions that need tools; check which host serves it.
+- *Custom:* there is no fixed model or price class. Use the server's list
+  and documentation; a chat model must support tools.
+
+* Edits by the agent
+Tool calls must work reliably: the agent reads first and then calls the
+editing tools. For a large change, ask it to explain the plan first.
+
+- *Claude on AWS Bedrock (EU):* ~eu.anthropic.claude-sonnet-5-5~ (medium);
+  ~eu.anthropic.claude-opus-5-5~ (expensive) for difficult changes.
+- *Mistral:* ~mistral-large-4~ (cheap), for edits with EU processing.
+- *Scaleway:* ~qwen3.6-35b-a3b~ (cheap), documented with function calling
+  and parallel tool calls; start with a small edit.
+- *Vercel AI Gateway:* ~anthropic/claude-sonnet-5.5~ (medium), for changes
+  across notes, also with "EU only"; ~deepseek/deepseek-v4-pro~ (cheap),
+  for simpler edits outside the EU.
+- *Anthropic:* ~claude-sonnet-5-5~ (medium), a starting choice for tool
+  calls; ~claude-opus-5-5~ (expensive), for complex changes.
+- *DeepSeek:* ~deepseek-v4-pro~ (cheap), for simpler changes, processed
+  and stored in China.
+- *Qwen:* ~qwen3.8-max~ (medium), for edits through its tools.
+- *OpenRouter:* ~anthropic/claude-sonnet-5.5~ (medium); choose a route
+  that supports tools.
+- *Hugging Face:* ~Qwen/Qwen3-Coder-480B-A35B-Instruct~ (medium), for
+  agent tasks; tool support depends on the host too.
+- *Custom:* choose a model documented to call tools. Its price class
+  depends on the server; try a small change in review mode first.
+
+* Images
+The image model is separate from the chat model. For an image based on
+the notes, ask the chat in agent mode; for a picture from a description,
+use "Create image" in the note's edit menu.
+
+- *Mistral image tool:* ~mistral-medium-latest~ (medium). A good choice
+  for an illustration with EU processing. The app makes a Mistral agent
+  with the image tool and uses its Conversations API; this is not the
+  Images API.
+- *Vercel Images API:* ~openai/gpt-image-2~ (expensive), for detailed
+  illustrations and images with text. Use the "Images API" setting;
+  the preset has no EU route for it.
+- *Vercel chat with image output:* ~google/gemini-2.5-flash-image~
+  (medium), for quick illustrations. Use "Chat with image output". This
+  is the preset for images with "EU only" on.
+- *DashScope Qwen Image:* ~qwen-image-2.0~ (cheap), for straightforward
+  illustrations through Qwen's own image API. The preset uses Singapore;
+  the key must belong to that region.
+- *OpenRouter Images API:* ~openai/gpt-image-2~ (expensive), for detailed
+  images through the Images API; the selected host's terms apply.
+- *Custom:* use an image model and API documented by that server. There
+  is no fixed model or price class.
+
+The app has no image path for the Bedrock, Anthropic, DeepSeek, Scaleway
+or Hugging Face presets. An image understood as input is not image output.
+
+The image picker shows a price per image when supplied, "from" for size,
+quality or style choices, or token prices when that is all the list gives.
+Otherwise it says "price not in the provider's list". "Price (lowest
+first)" orders per-image prices first, then token prices by output price,
+and unknown prices last. A token price cannot be compared with a price
+per image; this does not tell what an actual request will cost.
+
+* EU only
+These statements follow the provider notes in the app's settings.
+
+- *Mistral:* ~mistral-large-4~ (cheap) for chat and edits,
+  ~mistral-medium-latest~ (medium) for the image tool. EU company and EU
+  processing; no training on paid use; abuse logs kept for thirty days.
+- *Scaleway:* ~qwen3.6-35b-a3b~ (cheap) for chat and edits. French
+  company, EU processing, prompts not kept by default; open models only.
+- *Claude on AWS Bedrock (EU):* ~eu.anthropic.claude-sonnet-5-5~ (medium)
+  or ~eu.anthropic.claude-opus-5-5~ (expensive). Use the EU inference
+  profiles; AWS is a US company subject to the CLOUD Act.
+- *Vercel AI Gateway:* turn "EU only" on. Use
+  ~anthropic/claude-sonnet-5.5~ (medium) for chat and edits, or
+  ~google/gemini-2.5-flash-image~ (medium) for images. Inference and stored
+  data stay in the EU for models with an EU route; others fail. Vercel
+  is a US company. ~deepseek/deepseek-v4-pro~ and
+  ~mistral/mistral-large-4~ have no EU route in the preset notes.
+
+Anthropic directly processes globally or in the US; DeepSeek processes
+and stores in China; the Qwen preset uses Singapore. OpenRouter's note
+says EU-only routing needs its Business plan; this app's preset does not
+enforce that route. Hugging Face and Custom do not guarantee a region.
+Use one of the EU options above when the notes must stay in the EU.
+
+* Sources for the suggestions
+The app's provider presets supply the default and strong model names,
+image paths and region notes. Other model names and capabilities were
+checked in these provider pages:
+
+- [[https://www.scaleway.com/en/docs/generative-apis/reference-content/supported-models/][Scaleway supported models]]
+- [[https://huggingface.co/docs/inference-providers/tasks/chat-completion][Hugging Face chat models]]
+- [[https://openrouter.ai/anthropic/claude-sonnet-5.5][OpenRouter Claude Sonnet 5.5]]
+- [[https://openrouter.ai/docs/guides/overview/multimodal/image-generation][OpenRouter image generation]]
+
+Back to [[id:roam-graph-help-ai][AI]] or
+[[id:roam-graph-help-settings][Settings]].
