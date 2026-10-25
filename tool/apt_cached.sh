@@ -33,6 +33,11 @@ list() {
     }' > "$tmp"
   local wanted
   wanted=$(wc -l < "$tmp")
+  # Everything installed already: nothing to download, and apt-cache show
+  # without packages would fail.
+  if [ "$wanted" -eq 0 ]; then
+    return 0
+  fi
   # One apt-cache call for all packages: one call each took 30 seconds.
   # shellcheck disable=SC2046
   apt-cache show --no-all-versions $(awk '{ print $1 ":" $3 "=" $2 }' "$tmp") |
