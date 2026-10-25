@@ -2860,6 +2860,7 @@ devices through Syncthing.
       downloaded (the exact hosts in `mistralImageHosts`: anyone can
       name a storage account), and the API key goes only to Mistral's
       own hosts. A Markdown link counts with or without `!`.
+
 98. **The language of a note is Org's `#+language:`; the AI writes new
     notes in the language of the note they start from** (#172),
     `lib/ai/note_language.dart`, `lib/edit/set_language.dart`.
