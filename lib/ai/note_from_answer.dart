@@ -51,24 +51,30 @@ String agentSaveRequest({
   required bool isLast,
   int? number,
   ({String id, String title})? start,
+  String? language,
 }) {
   final link = start == null
       ? ''
       : '; and a link to the note I opened the chat from, '
           '[[id:${start.id}][${_linkTitle(start.title)}]]';
   final which = _whichAnswer(answer, isLast: isLast, number: number);
+  final words = language == null
+      ? 'a short, fitting title in the language of the answer; '
+      : 'written in $language, a short, fitting title; ';
   return 'Make a new note from $which with '
-      'create_node: a short, fitting title in the language of the answer; '
+      'create_node, $words'
       'the content as Org text, without chat phrases such as greetings, '
       'questions back to me or offers of more help; links in Org syntax to '
       'the notes the answer used, with the IDs the tools gave you$link.';
 }
 
-/// The instruction at the end of the extra request.
-String noteRequestInstruction({required bool startLinked}) =>
-    'Make a new note from your last answer above. Reply with only a JSON '
+/// The instruction at the end of the extra request. [language] names the
+/// language decided for the note (#172), "German (de)".
+String noteRequestInstruction({required bool startLinked, String? language}) =>
+    'Make a new note from your last answer above${language == null ? '' : ', written in $language'}. '
+    'Reply with only a JSON '
     'object, no other text: {"title": "...", "body": "..."}. '
-    'title: a short, fitting title in the language of the answer, one '
+    'title: a short, fitting title${language == null ? ' in the language of the answer' : ''}, one '
     'line, without markup. '
     'body: the content as Org mode text, without chat phrases such as '
     'greetings, questions back to me or offers of more help, and without '
@@ -87,7 +93,7 @@ String noteRequestInstruction({required bool startLinked}) =>
 /// sent again. Nothing goes in that was not sent to the same provider in
 /// this chat already.
 List<ChatEntry> noteRequestEntries(List<ChatEntry> transcript, int answerIndex,
-    {required bool startLinked}) {
+    {required bool startLinked, String? language}) {
   final entries = <ChatEntry>[];
   for (final entry in transcript.take(answerIndex + 1)) {
     switch (entry) {
@@ -109,7 +115,8 @@ List<ChatEntry> noteRequestEntries(List<ChatEntry> transcript, int answerIndex,
         }
     }
   }
-  entries.add(UserMessage(noteRequestInstruction(startLinked: startLinked)));
+  entries.add(UserMessage(
+      noteRequestInstruction(startLinked: startLinked, language: language)));
   return entries;
 }
 

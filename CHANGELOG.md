@@ -14,6 +14,13 @@ each entry.
 
 Closes #166.
 
+## 2026-10-25: Language of AI-written notes ([#176](https://github.com/ChristianGeng/roam-graph-mobile/pull/176))
+
+- Added: notes the AI writes get `#+language:`, taken from the note they start from, its linked notes, or the new AI setting "Language of new notes" (English by default). AI edits keep a note's language.
+- Added: "Set language…" in the search selection sets `#+language:` in the selected notes' files, with one Undo.
+
+Closes #172.
+
 ## 2026-10-24: Image model prices and help choosing models ([#175](https://github.com/ChristianGeng/roam-graph-mobile/pull/175))
 
 - Added: image model lists show the provider's price per image, the lowest price with "from" where it varies, or token prices; missing prices are named. An optional price order puts the cheapest listed image prices first.

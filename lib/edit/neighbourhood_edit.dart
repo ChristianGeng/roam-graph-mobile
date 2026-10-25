@@ -224,7 +224,9 @@ const neighbourhoodChangePrompt = 'Go ahead. Write the new text of each '
     'line "* (hidden)" (with its stars) exactly as it is, in its place: it '
     'stands for a part you may not see. Keep links with the text '
     '"(hidden N)" as they are. To remove a link but keep its text, write '
-    'the link\'s description as plain text.';
+    'the link\'s description as plain text. Keep the language of each '
+    'text: do not translate it unless the instruction asks for it, and '
+    'add or change no #+language: line.';
 
 /// The first message: the instruction and the notes of [scope].
 String neighbourhoodMessage(String instruction, Neighbourhood scope) {

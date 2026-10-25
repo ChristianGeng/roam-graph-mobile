@@ -7,6 +7,7 @@ library;
 import 'dart:convert';
 
 import '../ai/ai_visibility.dart';
+import '../ai/note_language.dart';
 import '../graph/roam_graph.dart';
 import 'edit_proposal.dart';
 import 'note_editor.dart';
@@ -142,6 +143,10 @@ class ChangeSet {
       if (after == null) {
         throw ChangeSetError('The heading of "${node.displayTitle}" is no '
             'longer in ${node.file}.');
+      }
+      if (!sameLanguageLines(base.text, after)) {
+        throw ChangeSetError('The edit of "${node.displayTitle}" would add '
+            'or change a #+language: line, which stays as it is.');
       }
       entries.add(ChangeEntry(
         proposal: proposals[i],

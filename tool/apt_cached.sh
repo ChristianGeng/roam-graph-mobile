@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Installs Ubuntu packages in CI and keeps their .deb files in a folder
 # that actions/cache saves, so a slow Ubuntu mirror does not slow every
-# build (#166, decision 97).
+# build (#166, decision 99).
 #
 #   tool/apt_cached.sh list <package>...
 #       After apt-get update: prints the files apt would download now,

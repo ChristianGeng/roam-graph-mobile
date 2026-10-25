@@ -47,7 +47,7 @@ publishes the APK. A new release stays a draft until its APK is attached, so Obt
 ## The build jobs
 
 All jobs are in `.github/workflows/build.yml`. They run in this order
-(decision 97):
+(decision 99):
 
 1. `version` (a few seconds) sets the version name `0.1.<run number>` and
    the version code `<run number>`.

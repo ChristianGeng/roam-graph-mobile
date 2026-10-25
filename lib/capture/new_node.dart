@@ -88,20 +88,23 @@ String orgLinkEscape(String link) => link.replaceAllMapped(
 
 /// The text of a new node's file, as org-roam writes it: the `:ID:`
 /// property in a drawer at the top (`org-id-get-create`), then the default
-/// template's `#+title:`, then `#+filetags:` as `org-roam-tag-add` writes
-/// it, then a link to [linkTo] (#12), then [body].
+/// template's `#+title:`, then `#+language:` for a note the AI wrote
+/// (#172), then `#+filetags:` as `org-roam-tag-add` writes it, then a link
+/// to [linkTo] (#12), then [body].
 String nodeFileText({
   required String id,
   required String title,
   List<String> tags = const [],
   String body = '',
   ({String id, String title})? linkTo,
+  String? language,
 }) {
   final text = StringBuffer()
     ..writeln(':PROPERTIES:')
     ..writeln(':ID:       $id')
     ..writeln(':END:')
     ..writeln('#+title: ${oneLine(title)}');
+  if (language != null) text.writeln('#+language: $language');
   if (tags.isNotEmpty) text.writeln('#+filetags: :${tags.join(':')}:');
   final parts = [
     if (linkTo != null) orgLink(linkTo.id, linkTo.title),

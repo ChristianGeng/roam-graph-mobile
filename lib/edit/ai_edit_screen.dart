@@ -12,6 +12,7 @@ import 'package:material_ui/material_ui.dart';
 import '../ai/ai_chat.dart';
 import '../ai/ai_settings.dart';
 import '../ai/ai_tools.dart';
+import '../ai/note_language.dart';
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
 import '../platform/screen_awake.dart';
@@ -33,7 +34,9 @@ const aiEditPrompt = 'You edit one note of an org-roam notes collection. '
     'no property drawer. Keep Org syntax, keep every [[id:...]] link unless '
     'the instruction says otherwise, and keep each line "* (hidden)" (with '
     'its stars) exactly as it is, in its place: it stands for a part you '
-    'may not see. Keep links with the text "(hidden N)" as they are.';
+    'may not see. Keep links with the text "(hidden N)" as they are. '
+    'Keep the language of the text: do not translate it unless the '
+    'instruction asks for it, and add or change no #+language: line.';
 
 /// The model's answer without a code fence around it.
 String withoutFence(String answer) {
@@ -267,6 +270,11 @@ class _AiEditScreenState extends State<AiEditScreen> {
         return 'In $title, the AI changed a #+title: or #+filetags: line, '
             'which stay as they are. Nothing changed; ask again.';
       }
+      if (!sameLanguageLines(note.lines.body, rewritten)) {
+        return 'In $title, the AI changed a #+language: line, which stays '
+            'as it is; "Set language…" in search changes it. Nothing '
+            'changed; ask again.';
+      }
       final proposal = EditProposal(
         nodeId: note.node.id,
         mode: EditMode.replace,
@@ -398,6 +406,11 @@ class _AiEditScreenState extends State<AiEditScreen> {
     if (!sameLockedKeywords(lines.body, rewritten)) {
       return 'The AI changed a #+title: or #+filetags: line, which '
           'stay as they are. Nothing changed; ask again.';
+    }
+    if (!sameLanguageLines(lines.body, rewritten)) {
+      return 'The AI changed a #+language: line, which stays as it is; '
+          '"Set language…" in search changes it. Nothing changed; ask '
+          'again.';
     }
     final after = applyProposal(base.text, node,
         EditProposal(nodeId: node.id, mode: EditMode.replace, text: rewritten));
