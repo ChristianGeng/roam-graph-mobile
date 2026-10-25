@@ -1,0 +1,33 @@
+# Temporary: one real Mistral image request, to see the raw answer (#163).
+name: Probe
+on:
+  push:
+    branches: [mistral-probe]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mistral agent and conversation
+        env:
+          KEY: ${{ secrets.MISTRAL_API_KEY }}
+          OR: ${{ secrets.OPENROUTER_API_KEY }}
+          VKEY: ${{ vars.MISTRAL_API_KEY }}
+        run: |
+          note() { printf '%s' "$2" | head -c 3500 | tr '\n' ' ' | sed 's/%/%25/g' | { read -r t; echo "::notice title=$1::$t"; }; }
+          [ -n "$KEY" ] && note secret "MISTRAL_API_KEY secret is set" || note secret "MISTRAL_API_KEY secret is NOT set"
+          [ -n "$VKEY" ] && note var "MISTRAL_API_KEY is a variable, not a secret"
+          [ -n "$OR" ] && note or "OPENROUTER_API_KEY secret is set" || note or "OPENROUTER_API_KEY secret is NOT set"
+          K=${KEY:-$VKEY}
+          [ -z "$K" ] && exit 0
+          H=(-H "Authorization: Bearer $K" -H "Content-Type: application/json")
+          for model in mistral-medium-latest mistral-large-latest; do
+            a=$(curl -sS https://api.mistral.ai/v1/agents "${H[@]}" -d "{\"model\":\"$model\",\"name\":\"probe\",\"instructions\":\"Use the image generation tool to make the image the user describes.\",\"tools\":[{\"type\":\"image_generation\"}]}")
+            note "agent $model" "$a"
+            id=$(echo "$a" | jq -r '.id // empty')
+            [ -z "$id" ] && continue
+            c=$(curl -sS https://api.mistral.ai/v1/conversations "${H[@]}" -d "{\"agent_id\":\"$id\",\"inputs\":\"A red circle on a white background\",\"store\":false}")
+            note "conversation $model" "$(echo "$c" | jq -c 'del(.usage)' 2>/dev/null || echo "$c")"
+            curl -sS -X DELETE "https://api.mistral.ai/v1/agents/$id" "${H[@]}" > /dev/null || true
+          done
