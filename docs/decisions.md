@@ -2841,7 +2841,7 @@ devices through Syncthing.
       The real list excerpts belong in the pull request, not test fixtures.
     - Actual chat and image costs remain outside this issue.
 
-97. **The language of a note is Org's `#+language:`; the AI writes new
+98. **The language of a note is Org's `#+language:`; the AI writes new
     notes in the language of the note they start from** (#172),
     `lib/ai/note_language.dart`, `lib/edit/set_language.dart`.
     - **The marker:** `#+language: de`, the keyword Org export already
