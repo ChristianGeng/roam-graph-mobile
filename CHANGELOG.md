@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-25: Releases build all platforms at the same time ([#178](https://github.com/ChristianGeng/roam-graph-mobile/pull/178))
+
+- Changed: a new release comes out sooner. Android, Linux, Windows and macOS are built at the same time, and the Linux build keeps its Ubuntu packages in a cache, so a slow Ubuntu mirror no longer delays it.
+
+Closes #166.
+
 ## 2026-10-25: Mistral images work ([#177](https://github.com/ChristianGeng/roam-graph-mobile/pull/177))
 
 - Fixed: "Create image" with Mistral said that the model did not run its image tool, although Mistral had made the image. The app now finds the image where Mistral puts it.

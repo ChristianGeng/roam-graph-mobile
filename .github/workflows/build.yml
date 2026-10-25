@@ -46,10 +46,26 @@ env:
   IS_RELEASE: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
 
 jobs:
-  build:
+  version:
+    # The version, in a job of its own that takes seconds, so that build,
+    # linux, windows and macos need only this job and start together
+    # (#166, decision 99). The run number grows with every run, so each
+    # release has a higher version code and installs as an update. A
+    # re-run keeps its number.
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.name }}
+      name: ${{ steps.version.outputs.name }}
+      code: ${{ steps.version.outputs.code }}
+    steps:
+      - name: Set the version
+        id: version
+        run: |
+          echo "name=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -123,14 +139,6 @@ jobs:
             test/fixtures/org_roam_expected_tables.json "$RUNNER_TEMP/app.db" \
             test/fixtures/roam
 
-      - name: Set the version
-        id: version
-        # The run number grows with every run, so each release has a higher
-        # version code and installs as an update. A re-run keeps its number.
-        run: |
-          echo "name=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-
       - name: Write the release notes
         # The CHANGELOG.md entries added since the previous published
         # release, then the commit (tool/release_notes.dart, decision 48).
@@ -144,7 +152,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RUN: ${{ steps.version.outputs.code }}
+          RUN: ${{ needs.version.outputs.code }}
         run: |
           previous=$(gh release list --limit 100 --exclude-drafts \
             --json tagName --jq "[.[] | .tagName
@@ -198,11 +206,11 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ env.IS_RELEASE == 'true' && secrets.ANDROID_KEY_PASSWORD || '' }}
         run: |
           flutter build apk --release \
-            --build-name=${{ steps.version.outputs.name }} \
-            --build-number=${{ steps.version.outputs.code }} \
-            --dart-define=APP_VERSION=${{ steps.version.outputs.name }}
+            --build-name=${{ needs.version.outputs.name }} \
+            --build-number=${{ needs.version.outputs.code }} \
+            --dart-define=APP_VERSION=${{ needs.version.outputs.name }}
           cp build/app/outputs/flutter-apk/app-release.apk \
-            "roam-graph-${{ steps.version.outputs.name }}.apk"
+            "roam-graph-${{ needs.version.outputs.name }}.apk"
 
       - name: Remove the release key from the runner
         if: always()
@@ -222,9 +230,15 @@ jobs:
     # The desktop app for Linux (#116): the same code, built on Ubuntu, as
     # a tarball of the bundle. Branches and pull requests build it too, so
     # a change that breaks the desktop shows before it is merged.
-    needs: build
+    needs: version
     # Pinned: the package names below are those of Ubuntu 24.04.
     runs-on: ubuntu-24.04
+    env:
+      # GTK for the window, libsecret for the API keys
+      # (flutter_secure_storage).
+      LINUX_PACKAGES: >-
+        clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+        libsecret-1-dev
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -236,18 +250,34 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install the Linux build tools
-        # GTK for the window, libsecret for the API keys
-        # (flutter_secure_storage).
+      - name: List the Linux build tools
+        # The files apt would download, with their SHA256 from the signed
+        # package index; their hash is the cache key. The Ubuntu mirror is
+        # sometimes slow (30 MB in 12 minutes instead of 20 seconds), so
+        # the files are kept in the cache (#166, decision 99).
+        id: apt
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q --no-install-recommends \
-            clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
-            libsecret-1-dev
+          tool/apt_cached.sh list $LINUX_PACKAGES > "$RUNNER_TEMP/apt-files.txt"
+          echo "key=apt-ubuntu-24.04-$(sha256sum < "$RUNNER_TEMP/apt-files.txt" | cut -c1-32)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the cached Linux build tools
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.apt.outputs.key }}
+          # A cache of older versions still has most files.
+          restore-keys: apt-ubuntu-24.04-
+
+      - name: Install the Linux build tools
+        # A cached file is used only if its SHA256 is the index's.
+        run: |
+          tool/apt_cached.sh install ~/apt-debs "$RUNNER_TEMP/apt-files.txt" \
+            $LINUX_PACKAGES
 
       - name: Build the Linux app
         env:
-          VERSION: ${{ needs.build.outputs.version }}
+          VERSION: ${{ needs.version.outputs.name }}
         run: |
           flutter build linux --release \
             --build-name="$VERSION" \
@@ -276,7 +306,7 @@ jobs:
 
   windows:
     # The desktop app for Windows (#116), as a zip of the Release folder.
-    needs: build
+    needs: version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -292,7 +322,7 @@ jobs:
       - name: Build the Windows app
         shell: pwsh
         env:
-          VERSION: ${{ needs.build.outputs.version }}
+          VERSION: ${{ needs.version.outputs.name }}
         run: |
           flutter build windows --release `
             --build-name="$env:VERSION" `
@@ -317,7 +347,7 @@ jobs:
   macos:
     # The desktop app for macOS (#116), as a zip of the app. Not signed:
     # macOS asks once before it opens.
-    needs: build
+    needs: version
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -332,7 +362,7 @@ jobs:
 
       - name: Build the macOS app
         env:
-          VERSION: ${{ needs.build.outputs.version }}
+          VERSION: ${{ needs.version.outputs.name }}
         run: |
           flutter build macos --release \
             --build-name="$VERSION" \
@@ -377,7 +407,7 @@ jobs:
             test/fixtures/org_roam_expected_tables.json
 
   release:
-    needs: [build, linux, windows, macos, org-roam]
+    needs: [version, build, linux, windows, macos, org-roam]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -408,11 +438,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: v${{ needs.build.outputs.version }}
-          APK: roam-graph-${{ needs.build.outputs.version }}.apk
-          LINUX: roam-graph-${{ needs.build.outputs.version }}-linux-x64.tar.gz
-          WINDOWS: roam-graph-${{ needs.build.outputs.version }}-windows-x64.zip
-          MACOS: roam-graph-${{ needs.build.outputs.version }}-macos.zip
+          TAG: v${{ needs.version.outputs.name }}
+          APK: roam-graph-${{ needs.version.outputs.name }}.apk
+          LINUX: roam-graph-${{ needs.version.outputs.name }}-linux-x64.tar.gz
+          WINDOWS: roam-graph-${{ needs.version.outputs.name }}-windows-x64.zip
+          MACOS: roam-graph-${{ needs.version.outputs.name }}-macos.zip
         run: |
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" "$APK" "$LINUX" "$WINDOWS" "$MACOS" --clobber
