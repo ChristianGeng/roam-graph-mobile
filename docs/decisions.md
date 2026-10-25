@@ -2841,6 +2841,26 @@ devices through Syncthing.
       The real list excerpts belong in the pull request, not test fixtures.
     - Actual chat and image costs remain outside this issue.
 
+97. **Mistral's image link is read from the tool's entry** (#163 follow-up),
+    `lib/ai/ai_images.dart`.
+    - A real request through the CI (October 2026) showed that
+      Mistral's image tool works with `mistral-medium-latest` and
+      `mistral-large-latest`. The answer has no `tool_file` chunk: the
+      `tool.execution` entry's `info.result` is a JSON text with a
+      `url`, and the `message.output` text repeats it as a Markdown
+      image. The app read only chunks, found none, and said that the
+      tool did not run.
+    - The app now reads, in this order: `tool_file` and `image_url`
+      chunks, the `url` in `info.result`, a Markdown image link in the
+      text.
+    - The link points to Azure storage
+      (`mistralaiblackforestprod.blob.core.windows.net`) with its own
+      access signature, valid for one hour. Only `files.mistral.ai`
+      and that storage host over HTTPS are
+      downloaded (the exact hosts in `mistralImageHosts`: anyone can
+      name a storage account), and the API key goes only to Mistral's
+      own hosts. A Markdown link counts with or without `!`.
+
 98. **The language of a note is Org's `#+language:`; the AI writes new
     notes in the language of the note they start from** (#172),
     `lib/ai/note_language.dart`, `lib/edit/set_language.dart`.

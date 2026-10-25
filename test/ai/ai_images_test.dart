@@ -304,6 +304,131 @@ void main() {
       expect(fileHeaders, {'authorization': 'Bearer m-key'});
     });
 
+    // The answer as Mistral sent it in October 2026: the link in the tool's
+    // entry and as Markdown in the text, no tool_file chunk.
+    const storage = 'https://mistralaiblackforestprod.blob.core.windows.net/'
+        'images/blackforest/1e61/image.jpg?se=2026&sig=abc%3D';
+    Map<String, Object?> realAnswer({bool toolEntry = true}) => {
+          'object': 'conversation.response',
+          'conversation_id': 'conv-1',
+          'outputs': [
+            if (toolEntry)
+              {
+                'object': 'entry',
+                'type': 'tool.execution',
+                'name': 'image_generation',
+                'function': 'generate_image',
+                'arguments': '{"prompt": "A red circle"}',
+                'info': {'result': jsonEncode({'url': storage})},
+              },
+            {
+              'object': 'entry',
+              'type': 'message.output',
+              'role': 'assistant',
+              'content': 'Here is your image.\n\n![Red circle]($storage)',
+            },
+          ],
+          'guardrails': null,
+        };
+
+    test("Mistral's real answer: the link in the tool entry, no key sent",
+        () async {
+      final image = await makeImage(mistral(), 'A red circle',
+          post: api(realAnswer()),
+          download: bytes(base64.decode(png)),
+          agents: MemoryImageAgents());
+      expect(image.extension, 'png');
+      final (url, headers) = downloads.single;
+      expect(url.toString(), storage);
+      expect(headers, isEmpty);
+    });
+
+    test('a Markdown link in the text is enough, with or without "!"',
+        () async {
+      await makeImage(mistral(), 'A red circle',
+          post: api(realAnswer(toolEntry: false)),
+          download: bytes(base64.decode(png)),
+          agents: MemoryImageAgents());
+      expect(downloads.single.$1.toString(), storage);
+      downloads.clear();
+      await makeImage(mistral(), 'A red circle',
+          post: api({
+            'outputs': [
+              {
+                'type': 'message.output',
+                'role': 'assistant',
+                'content': 'Here it is: [Red circle]($storage)',
+              },
+            ],
+          }),
+          download: bytes(base64.decode(png)),
+          agents: MemoryImageAgents());
+      expect(downloads.single.$1.toString(), storage);
+    });
+
+    test('Markdown in text chunks; an unrelated link before the image',
+        () async {
+      await makeImage(mistral(), 'A red circle',
+          post: api({
+            'outputs': [
+              {
+                'type': 'message.output',
+                'role': 'assistant',
+                'content': [
+                  {
+                    'type': 'text',
+                    'text': 'See [the docs](https://docs.mistral.ai/x). '
+                        'Here it is: ![Red circle]($storage)',
+                  },
+                ],
+              },
+            ],
+          }),
+          download: bytes(base64.decode(png)),
+          agents: MemoryImageAgents());
+      expect(downloads.single.$1.toString(), storage);
+    });
+
+    test('a link to another storage account is refused, not downloaded',
+        () async {
+      const other = 'https://mistralaiother.blob.core.windows.net/x.png';
+      await expectLater(
+          makeImage(mistral(), 'A red circle',
+              post: api({
+                'outputs': [
+                  {
+                    'type': 'tool.execution',
+                    'name': 'image_generation',
+                    'info': {'result': jsonEncode({'url': other})},
+                  },
+                ],
+              }),
+              download: bytes(base64.decode(png)),
+              agents: MemoryImageAgents()),
+          throwsA(isA<AiError>().having(
+              (e) => e.message, 'message', contains('does not download'))));
+      expect(downloads, isEmpty);
+    });
+
+    test('only Mistral storage hosts are downloaded', () {
+      expect(isMistralImageUrl(Uri.parse(storage)), isTrue);
+      expect(isMistralImageUrl(Uri.parse('https://files.mistral.ai/x.png')),
+          isTrue);
+      expect(
+          isMistralImageUrl(
+              Uri.parse('https://evil.blob.core.windows.net/x.png')),
+          isFalse);
+      // Anyone can name a storage account: only the one seen is allowed.
+      expect(
+          isMistralImageUrl(Uri.parse(
+              'https://mistralaiother.blob.core.windows.net/x.png')),
+          isFalse);
+      expect(
+          isMistralImageUrl(Uri.parse(
+              'http://mistralaiblackforestprod.blob.core.windows.net/x')),
+          isFalse);
+    });
+
     test('the agent is made once and used again; one per image model',
         () async {
       final agents = MemoryImageAgents();
