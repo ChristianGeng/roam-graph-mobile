@@ -192,26 +192,32 @@ class _LanguageDialogState extends State<_LanguageDialog> {
   }
 }
 
+/// The text of the message after "Set language…": how many files were
+/// changed, when any, then those already so and those that failed.
+String languageMessage(LanguageReport report) {
+  final count = report.changes.files.length;
+  return [
+    if (count == 1)
+      'Set #+language: ${report.code} in 1 note.'
+    else if (count > 1)
+      'Set #+language: ${report.code} in $count notes.',
+    if (report.unchanged.isNotEmpty)
+      'Already so: ${report.unchanged.join(', ')}.',
+    ...report.failures,
+  ].join('\n');
+}
+
 /// The message after "Set language…", with Undo for all its changes.
 void showLanguageSet(
   ScaffoldMessengerState messenger,
   LanguageReport report,
   NoteWriter writer,
 ) {
-  final count = report.changes.files.length;
-  final lines = [
-    count == 1
-        ? 'Set #+language: ${report.code} in 1 note.'
-        : 'Set #+language: ${report.code} in $count notes.',
-    if (report.unchanged.isNotEmpty)
-      'Already so: ${report.unchanged.join(', ')}.',
-    ...report.failures,
-  ];
   var undoing = false;
   messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
-      content: Text(lines.join('\n')),
+      content: Text(languageMessage(report)),
       action: report.changes.isEmpty
           ? null
           : SnackBarAction(

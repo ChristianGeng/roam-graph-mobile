@@ -65,6 +65,30 @@ void main() {
     expect(again.unchanged, ['Alpha']);
   });
 
+  test('the message names a count only when files were changed (review of '
+      '#176)', () async {
+    final f = DeleteFixture(languageNotes);
+    final nodes = f.graph.value.nodes;
+    Future<LanguageReport> set(List<String> ids, String code) =>
+        setNotesLanguage(
+            editor: f.editor,
+            log: f.log,
+            graph: f.graph.value,
+            nodes: [for (final id in ids) nodes[id]!],
+            code: code);
+    expect(languageMessage(await set(['a'], 'de')),
+        'Set #+language: de in 1 note.');
+    expect(languageMessage(await set(['a', 'b'], 'en')),
+        'Set #+language: en in 1 note.\nAlready so: Beta.');
+    expect(languageMessage(await set(['a', 'b'], 'en')),
+        'Already so: Alpha, Beta.');
+    f.store.files.remove('l.org');
+    expect(languageMessage(await set(['l'], 'en')),
+        'Linking: the file cannot be read as text.');
+    expect(languageMessage(await set(['a', 'b'], 'fr')),
+        'Set #+language: fr in 2 notes.');
+  });
+
   testWidgets('"Set language…" next to "Delete…" in the search selection',
       (tester) async {
     final f = DeleteFixture(languageNotes);
