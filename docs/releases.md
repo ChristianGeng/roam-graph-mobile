@@ -1,8 +1,37 @@
 # Releases and installing with Obtainium
 
-Every push to `main` builds a signed APK on GitHub Actions
-(`.github/workflows/build.yml`) and publishes it as a GitHub release named
-`v0.1.<run number>`. Pull requests only test and build; they publish nothing.
+All builds run on GitHub Actions (`.github/workflows/build.yml`), in
+three kinds (#167, decision 100):
+
+| Build | Started by | Builds | Publishes |
+|---|---|---|---|
+| Pull request | every push to a pull request | the tests, Android, Linux, Windows, macOS | nothing |
+| Pre-release | every merge to `main` | the tests, the signed APK | a GitHub pre-release `v0.2.1-dev.<run number>`, with the APK only |
+| Full release | the owner, by hand ([below](#make-a-full-release)) | the tests and all four platforms | the latest GitHub release `v0.3.0`, with all four files |
+
+## Versions
+
+Versions follow semantic versioning: `<major>.<minor>.<patch>`.
+
+- **A full release** gets the version of the last full release, raised
+  by the step chosen when it is started: `patch` (0.2.0 → 0.2.1), `minor`
+  (0.2.0 → 0.3.0, the default) or `major` (0.2.0 → 1.0.0). A version
+  typed in (for example `1.0.0`) is taken instead; it must be higher than
+  the last full release, or the build stops at once.
+- **A pre-release** gets the next patch version with `-dev.<run number>`:
+  after `v0.2.0`, a merge in run 412 is `v0.2.1-dev.412`. Semantic
+  versioning sorts it below 0.2.1, so the next full release is always
+  newer.
+- **The old releases `v0.1.<run number>`** count as full releases before
+  0.2.0. The first full release after them is 0.2.0 (1.0.0 with
+  `major`), and until it exists the pre-releases are
+  `0.2.0-dev.<run number>`.
+- **The Android version code** is the run number, for both kinds, so each
+  build is higher than every earlier one and installs as an update.
+- `tool/release_version.dart` computes the version in the `version` job,
+  from the published releases (`gh release list`). Only the releases made
+  before that job first ran count, so a run that is run again gets the
+  same version and replaces its own release.
 
 ## What changed: the changelog
 
@@ -12,9 +41,12 @@ request that changes `lib/` or `android/` without one, unless it has the
 label `skip-changelog`.
 
 The release text is written by `tool/release_notes.dart`: the entries that
-are in `CHANGELOG.md` now but were not in the previous published release's
-copy, then "Built from <sha>". If there are none (for example when a
-release is built again), it uses the top entry. The version is not in the
+are in `CHANGELOG.md` now but were not in the previous release's copy,
+then "Built from <sha>". For a full release the previous release is the
+last full release, so its text lists everything merged since; for a
+pre-release it is the last release of either kind. If there are no new
+entries (for example when a release is built again), it uses the top
+entry. The version is not in the
 changelog, because it is only known when the release is built; the release
 text carries it. Entries written before the changelog existed name their
 version at their end.
@@ -49,13 +81,16 @@ publishes the APK. A new release stays a draft until its APK is attached, so Obt
 All jobs are in `.github/workflows/build.yml`. They run in this order
 (decision 99):
 
-1. `version` (a few seconds) sets the version name `0.1.<run number>` and
-   the version code `<run number>`.
+1. `version` (about half a minute) decides the kind of build and sets
+   the version name, the version code `<run number>` and the previous
+   release for the notes (`tool/release_version.dart`).
 2. `build` (tests and the Android APK), `linux`, `windows` and `macos`
-   need only `version`, so the four start together. `org-roam` needs
-   nothing and starts at once.
-3. `release` (only on `main`) needs all of them and publishes the four
-   files.
+   need only `version`, so the four start together. For a pre-release
+   the three desktop jobs are skipped. `org-roam` needs nothing and
+   starts at once.
+3. `release` (only on `main`) publishes: for a pre-release the APK, once
+   `build` and `org-roam` have passed; for a full release the four files,
+   once every job has passed.
 
 `build` is still the only job that loads the release key, and only on
 `main`; it also writes the release notes, which travel with the APK.
@@ -71,11 +106,42 @@ very slow, and the download then took 12 minutes instead of 20 seconds.
 `tool/apt_cached.sh` uses a cached file only if its SHA256 is the one in
 Ubuntu's signed package index, and downloads the rest.
 
+## Make a full release
+
+In the GitHub web UI:
+
+1. Open the repository's **Actions** tab and choose the workflow
+   **Build** on the left.
+2. Click **Run workflow** (on the right, above the list of runs).
+3. Leave **Use workflow from** on `main`.
+4. Check **Make a full release with all platforms**.
+5. Choose the step in **The step from the last full release**: `patch`,
+   `minor` (the default) or `major`. Or type the version in **Or the
+   version itself**, for example `1.0.0`; it is used instead of the step.
+6. Click the green **Run workflow**.
+
+From a terminal (or for Claude), the same:
+`gh workflow run build.yml --ref main -f release=true -f bump=minor`
+(or `-f version=1.0.0`).
+
+The run's `version` job shows the version it chose. It stops with an
+error if the version is not higher than the last full release, or if the
+run is not on `main`. Without the check box, a run on `main` makes a
+pre-release, as a merge does.
+
+Runs on `main` wait for each other. If a merge comes while a full release
+waits for an earlier run, GitHub cancels the waiting full release (it
+keeps only the newest waiting run): start it again.
+
 ## Install with Obtainium
 
 1. In Obtainium, tap **Add App**.
 2. App source URL: `https://github.com/ChristianGeng/roam-graph-mobile`
-3. Tap **Add**, then **Install**.
+3. Turn on **Include prereleases**, to get the APK of every merge. With
+   it off, Obtainium installs only the full releases.
+4. Tap **Add**, then **Install**.
+
+The setting can be changed later in the app's settings in Obtainium.
 
 Obtainium checks the releases for new versions and updates in one tap. The
 repo is public, so no GitHub token is needed; a token only raises GitHub's
@@ -97,8 +163,9 @@ Ubuntu 24.04. It needs GTK 3 and libsecret, which Ubuntu has.
    `roam/`.
 
 **Updates:** run `~/.local/share/roam-graph/app/install.sh --update`. It
-downloads the newest release from GitHub and installs it over the old
-one. Running `install.sh` from a newer unpacked release does the same.
+downloads the newest full release from GitHub (GitHub's "latest"
+release, never a pre-release) and installs it over the old one. Running
+`install.sh` from a newer unpacked release does the same.
 `install.sh --remove` takes the app and its menu entry away.
 
 **What stays where:** the app's own data (its database of the graph,

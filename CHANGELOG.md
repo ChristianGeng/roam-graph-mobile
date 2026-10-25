@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-25: Every merge is an Android pre-release; full releases by hand ([#179](https://github.com/ChristianGeng/roam-graph-mobile/pull/179))
+
+- Changed: a merge publishes only the APK, as a pre-release `v0.2.1-dev.<run>`. In Obtainium, turn on "Include prereleases" to keep getting every merge.
+- Changed: full releases, with Linux, Windows and macOS, are made by hand and get semantic versions, starting with `v0.2.0`. `install.sh --update` installs only full releases.
+
+Closes #167.
+
 ## 2026-10-25: Releases build all platforms at the same time ([#178](https://github.com/ChristianGeng/roam-graph-mobile/pull/178))
 
 - Changed: a new release comes out sooner. Android, Linux, Windows and macOS are built at the same time, and the Linux build keeps its Ubuntu packages in a cache, so a slow Ubuntu mirror no longer delays it.

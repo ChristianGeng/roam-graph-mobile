@@ -35,9 +35,29 @@ lock() {
   trap 'exit 130' INT TERM
 }
 
-# The number of "Roam Graph 0.1.249", for comparing versions.
+# The version in "Roam Graph 0.2.0", "Roam Graph 0.2.1-dev.412" or the
+# old "Roam Graph 0.1.249", for comparing versions.
 version_of() {
-  sed -n 's/^Roam Graph \([0-9.]*\).*/\1/p' "$1/VERSION" 2>/dev/null | head -n 1
+  sed -n 's/^Roam Graph \([0-9][0-9.]*\(-dev\.[0-9][0-9]*\)\{0,1\}\).*/\1/p' \
+    "$1/VERSION" 2>/dev/null | head -n 1
+}
+
+# True if version $1 is higher than $2, in semantic versioning's order
+# (decision 100): 0.2.1-dev.412 is lower than 0.2.1, but higher than 0.2.0.
+newer() {
+  [ "$1" != "$2" ] || return 1
+  a=${1%%-*}
+  b=${2%%-*}
+  if [ "$a" = "$b" ]; then
+    # The same X.Y.Z: the full release is the higher one.
+    case "$1" in *-*) ;; *) return 0 ;; esac
+    case "$2" in *-*) ;; *) return 1 ;; esac
+    a=${1##*.}
+    b=${2##*.}
+    [ "$a" -gt "$b" ]
+    return
+  fi
+  [ "$(printf '%s\n%s\n' "$a" "$b" | sort -V | tail -n 1)" = "$a" ]
 }
 
 install_from() {
@@ -81,7 +101,13 @@ update() {
   command -v curl >/dev/null 2>&1 || { echo "curl is needed." >&2; exit 1; }
   fetch="curl -fsSL --proto =https --connect-timeout 20 --max-time 600"
   WORK=$(mktemp -d)
+  # GitHub's latest release is the newest full release: never a draft or
+  # a pre-release (pre-releases carry only the APK, decision 100).
   $fetch "https://api.github.com/repos/$REPO/releases/latest" -o "$WORK/release.json"
+  if tr -d '\n\r' < "$WORK/release.json" | grep -Eq '"(prerelease|draft)": *true'; then
+    echo "The newest release is marked as pre-release or draft; nothing is installed." >&2
+    exit 1
+  fi
   # The Linux package of this repository's newest release, and its SHA-256
   # as GitHub gives it.
   url=$(tr ',' '\n' < "$WORK/release.json" |
@@ -126,8 +152,7 @@ update() {
       echo "Roam Graph $old is the newest release already."
       return 0
     fi
-    newest=$(printf '%s\n%s\n' "$old" "$new" | sort -V | tail -n 1)
-    if [ "$newest" = "$old" ]; then
+    if ! newer "$new" "$old"; then
       echo "The newest release ($new) is older than the installed $old;" >&2
       echo "nothing is changed." >&2
       return 0

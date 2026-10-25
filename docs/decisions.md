@@ -1222,7 +1222,8 @@ devices through Syncthing.
       with the APK in the build artifact; the release job, unchanged in
       its permissions, passes it to `gh release create` or `edit`. Entries
       are matched by heading, not by a diff, so an edit to an older entry
-      does not show as new.
+      does not show as new. Which release is the previous one, now that
+      merges are pre-releases: decision 100.
     - **The check:** a separate workflow, `changelog.yml`, on pull
       requests (also when labels change). It asks the API which files the
       pull request changes; it runs no code from the pull request and
@@ -2904,7 +2905,8 @@ devices through Syncthing.
     `docs/releases.md`.
     - **A `version` job first:** it only writes the version name
       `0.1.<run number>` and the code `<run number>` as job outputs, the
-      same values as before. `build`, `linux`, `windows` and `macos` need
+      same values as before (semantic versions since: decision 100).
+      `build`, `linux`, `windows` and `macos` need
       only `version`, so the four start together; before, the desktop
       jobs waited for `build` (8 minutes) only to read the version.
       `release` needs all of them and `org-roam`, as before.
@@ -2930,6 +2932,68 @@ devices through Syncthing.
       the index's, and apt downloads it again. A pull request's cache is
       kept apart from `main`'s by GitHub; the check covers a bad cache
       anyway.
+
+100. **A merge makes an Android pre-release; a full release is made by
+     hand, with a semantic version** (#167), `.github/workflows/build.yml`,
+     `tool/release_version.dart`, `linux/packaging/install.sh`,
+     `docs/releases.md`, `AGENTS.md`.
+     - **Three kinds of build**, chosen in the `version` job: a pull
+       request (or another branch) tests and builds Android and the
+       desktop apps and publishes nothing, as before; a merge to `main`
+       tests, builds the signed APK and publishes it alone as a GitHub
+       pre-release; a manual run on `main` with the input `release`
+       checked builds all four platforms and publishes them as the latest
+       release. Not every merge is worth a release with all platforms,
+       but every merge still reaches the phone at once for testing. A
+       manual run on `main` without `release` is a pre-release, like a
+       merge; `release` on another branch stops the run.
+     - **Semantic versions:** a full release is the last full release
+       raised by the input `bump` (`patch`, `minor` by default, `major`),
+       or the input `version`, which must be higher, else the run stops in
+       the `version` job before anything is built. A pre-release is the
+       next patch version with `-dev.<run number>` (`0.2.1-dev.412` after
+       `0.2.0`), lower than that patch version in semantic versioning's
+       order, so the next full release is newer. Tags are `v<version>`.
+       The issue's sections 1 and 2 still name the tags `v0.1.<run>`;
+       section 4, the version rules, is followed.
+     - **The old `v0.1.<run>` releases** count as full releases before
+       0.2.0: after them a full release is 0.2.0 (`patch` or `minor`) or
+       1.0.0 (`major`), a typed version must be 0.2.0 or higher, and the
+       pre-releases are `0.2.0-dev.<run>`. No new version can be 0.1.x, so
+       a `v0.1.N` tag is always an old one.
+     - **The version code stays the run number**, for both kinds, so every
+       build installs as an update over every earlier one.
+     - **The list of releases:** `gh release list --exclude-drafts --json
+       tagName,isPrerelease,createdAt`, all of them (a limit of 100 would
+       lose the last full release behind 100 pre-releases). A full release
+       is one not marked as pre-release with a tag `vX.Y.Z`, a pre-release
+       one marked as pre-release with a tag `vX.Y.Z-dev.N`; others are left
+       out. "Last" means the highest version, not the newest date.
+     - **Re-runs keep their version:** only the releases made before the
+       `version` job of the run's first attempt started count (read from
+       the Actions API, so the job may read `actions`). A re-run then gets
+       the version of the first attempt and replaces its own release, as
+       before. The run's own creation time would not do: a run that waits
+       for another run on `main` would not see that run's release. Before,
+       the tag held the run number (`< RUN`); full releases no longer do.
+     - **The release notes:** `tool/release_notes.dart` is unchanged; it
+       compares changelogs and never reads tags. The `version` job now
+       names the previous release: for a full release the last full
+       release, so its text lists every change merged since; for a
+       pre-release the last release of either kind.
+     - **Desktop updates:** GitHub's `releases/latest` is never a draft or
+       a pre-release, so `install.sh --update` gets only full releases; it
+       also refuses one marked as pre-release or draft, in case. It reads
+       `0.2.1-dev.N` from a `VERSION` file and compares in semantic
+       versioning's order (`sort -V` alone puts `0.2.1-dev.N` above
+       `0.2.1`).
+     - **Dart in the `version` job:** `dart-lang/setup-dart`, pinned to
+       its SHA, with the Dart of `FLUTTER_VERSION` (3.13.5); only `tool/`
+       is checked out. The job takes about half a minute instead of a few
+       seconds; the platform jobs still start together after it.
+     - **Obtainium** shows the pre-releases only with "Include
+       prereleases" turned on; `docs/releases.md` says so, and how to start
+       a full release in the GitHub web UI.
 
 ## Recommended, not decided
 
