@@ -389,6 +389,27 @@ void main() {
       expect(downloads.single.$1.toString(), storage);
     });
 
+    test('a link to another storage account is refused, not downloaded',
+        () async {
+      const other = 'https://mistralaiother.blob.core.windows.net/x.png';
+      await expectLater(
+          makeImage(mistral(), 'A red circle',
+              post: api({
+                'outputs': [
+                  {
+                    'type': 'tool.execution',
+                    'name': 'image_generation',
+                    'info': {'result': jsonEncode({'url': other})},
+                  },
+                ],
+              }),
+              download: bytes(base64.decode(png)),
+              agents: MemoryImageAgents()),
+          throwsA(isA<AiError>().having(
+              (e) => e.message, 'message', contains('does not download'))));
+      expect(downloads, isEmpty);
+    });
+
     test('only Mistral storage hosts are downloaded', () {
       expect(isMistralImageUrl(Uri.parse(storage)), isTrue);
       expect(isMistralImageUrl(Uri.parse('https://files.mistral.ai/x.png')),
