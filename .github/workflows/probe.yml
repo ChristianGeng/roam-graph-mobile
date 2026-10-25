@@ -1,4 +1,4 @@
-# Temporary: one real Mistral image request, to see the raw answer (#163).
+# Temporary: real image requests to see the raw answers (#163).
 name: Probe
 on:
   push:
@@ -9,26 +9,28 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Mistral agent and conversation
-        env:
-          KEY: ${{ secrets.MISTRAL_API_KEY }}
-          OR: ${{ secrets.OPENROUTER_API_KEY }}
-          VKEY: ${{ vars.MISTRAL_API_KEY }}
+      - name: Image requests
         shell: bash {0}
+        env:
+          OR: ${{ secrets.OPENROUTER_API_KEY }}
+          V1: ${{ secrets.VERCEL_AI_GATEWAY_API_KEY }}
+          V2: ${{ secrets.AI_GATEWAY_API_KEY }}
+          V3: ${{ secrets.VERCEL_API_KEY }}
+          V4: ${{ secrets.VERCEL_AI_GATEWAY_KEY }}
         run: |
-          note() { printf '%s' "$2" | head -c 3500 | tr '\n' ' ' | sed 's/%/%25/g' | { read -r t; echo "::notice title=$1::$t"; }; }
-          [ -n "$KEY" ] && note secret "MISTRAL_API_KEY secret is set" || note secret "MISTRAL_API_KEY secret is NOT set"
-          if [ -n "$VKEY" ]; then note var "MISTRAL_API_KEY is a variable, not a secret"; fi
-          [ -n "$OR" ] && note or "OPENROUTER_API_KEY secret is set" || note or "OPENROUTER_API_KEY secret is NOT set"
-          K=${KEY:-$VKEY}
-          if [ -z "$K" ]; then exit 0; fi
-          H=(-H "Authorization: Bearer $K" -H "Content-Type: application/json")
-          for model in mistral-medium-latest mistral-large-latest; do
-            a=$(curl -sS https://api.mistral.ai/v1/agents "${H[@]}" -d "{\"model\":\"$model\",\"name\":\"probe\",\"instructions\":\"Use the image generation tool to make the image the user describes.\",\"tools\":[{\"type\":\"image_generation\"}]}")
-            note "agent $model" "$a"
-            id=$(echo "$a" | jq -r '.id // empty')
-            if [ -z "$id" ]; then continue; fi
-            c=$(curl -sS https://api.mistral.ai/v1/conversations "${H[@]}" -d "{\"agent_id\":\"$id\",\"inputs\":\"A red circle on a white background\",\"store\":false}")
-            note "conversation $model" "$(echo "$c" | jq -c 'del(.usage)' 2>/dev/null || echo "$c")"
-            curl -sS -X DELETE "https://api.mistral.ai/v1/agents/$id" "${H[@]}" > /dev/null || true
-          done
+          note() { printf '%s' "$2" | sed -E 's/"(b64_json|url)":"data:[^"]{60}[^"]*"/"\1":"data:...(cut)"/g; s/"b64_json":"[^"]{40}[^"]*"/"b64_json":"...(cut)"/g' | head -c 3000 | tr '\n' ' ' | sed 's/%/%25/g' | { read -r t; echo "::notice title=$1::$t"; }; }
+          V=${V1:-${V2:-${V3:-$V4}}}
+          note keys "openrouter=${OR:+set} vercel1=${V1:+set} vercel2=${V2:+set} vercel3=${V3:+set} vercel4=${V4:+set}"
+          P='A red circle on a white background'
+          if [ -n "$V" ]; then
+            r=$(curl -sS https://ai-gateway.vercel.sh/v1/images/generations -H "Authorization: Bearer $V" -H 'Content-Type: application/json' -d "{\"model\":\"openai/gpt-image-1-mini\",\"prompt\":\"$P\",\"n\":1,\"size\":\"1024x1024\",\"quality\":\"low\"}")
+            note "vercel images gpt-image-1-mini" "$r"
+            r=$(curl -sS https://ai-gateway.vercel.sh/v1/chat/completions -H "Authorization: Bearer $V" -H 'Content-Type: application/json' -d "{\"model\":\"google/gemini-2.5-flash-image\",\"messages\":[{\"role\":\"user\",\"content\":\"$P\"}],\"modalities\":[\"image\",\"text\"]}")
+            note "vercel chat gemini-2.5-flash-image" "$r"
+          fi
+          if [ -n "$OR" ]; then
+            r=$(curl -sS https://openrouter.ai/api/v1/images -H "Authorization: Bearer $OR" -H 'Content-Type: application/json' -d "{\"model\":\"google/gemini-2.5-flash-image\",\"prompt\":\"$P\"}")
+            note "openrouter /images" "$r"
+            r=$(curl -sS https://openrouter.ai/api/v1/chat/completions -H "Authorization: Bearer $OR" -H 'Content-Type: application/json' -d "{\"model\":\"google/gemini-2.5-flash-image\",\"messages\":[{\"role\":\"user\",\"content\":\"$P\"}],\"modalities\":[\"image\",\"text\"]}")
+            note "openrouter chat gemini-2.5-flash-image" "$r"
+          fi
