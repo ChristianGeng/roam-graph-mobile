@@ -63,17 +63,22 @@ folder is the only connection.
    pull request comment that starts with `@devin`; Devin answers such
    comments from users with write access.
 4. **Merge:** with a merge commit, only when CI is green and every
-   comment is dealt with. A merge to `main` builds the release (APK,
-   Linux, Windows, macOS), which Obtainium installs; the owner is told
-   when it is out.
+   comment is dealt with. A merge to `main` builds an Android
+   pre-release (the APK only, `v0.2.1-dev.<run>`), which Obtainium
+   installs; the owner is told when it is out.
+5. **Full release:** only when the owner asks. A manual run of the Build
+   workflow on `main` with "release" checked builds all four platforms
+   (APK, Linux, Windows, macOS) and publishes the next semantic version
+   (`v0.3.0`), with the notes since the last full release. How to start
+   it: `docs/releases.md`.
 
 Things to know:
 
 - **Flutter runs only in CI**, not in the cloud sessions: CI is the test
   run. Read a failure from the check run's annotations.
 - **macOS runners are sometimes not available** on GitHub ("not acquired
-  by Runner"); the job is then cancelled. Run that job again; the release
-  waits for it.
+  by Runner"); the job is then cancelled. Run that job again; a full
+  release waits for it.
 - **Open points are issues**, so a new session finds them; nothing is
   kept only in a conversation.
 

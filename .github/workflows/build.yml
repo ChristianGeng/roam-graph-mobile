@@ -1,11 +1,16 @@
-# Tests and builds the app.
+# Tests and builds the app (#167, decision 100).
 #
 # - Pull requests, and any branch other than main: run the tests and build a
-#   debug-signed APK, to check that the change builds. Nothing is published,
-#   and the release key is never loaded.
-# - main (push, or a manual run on main): build a release APK signed with the
-#   release key and publish it as a GitHub release. Obtainium installs and
-#   updates from these releases.
+#   debug-signed APK and the desktop apps, to check that the change builds.
+#   Nothing is published, and the release key is never loaded.
+# - main (a merge, or a manual run on main): build a release APK signed with
+#   the release key and publish it alone as a GitHub pre-release
+#   v<next patch>-dev.<run number>. Obtainium installs it when "Include
+#   prereleases" is on.
+# - A full release: a manual run on main with "release" checked. It builds
+#   all four platforms and publishes them as the latest release
+#   v<major>.<minor>.<patch>, the last full release raised by "bump", or
+#   "version". Only this kind reaches install.sh --update.
 #
 # The release key comes from four repository secrets:
 #   ANDROID_KEYSTORE_BASE64   the .jks file, base64-encoded
@@ -26,6 +31,20 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: Make a full release with all platforms (only on main)
+        type: boolean
+        default: false
+      bump:
+        description: The step from the last full release
+        type: choice
+        options: [patch, minor, major]
+        default: minor
+      version:
+        description: Or the version itself, for example 1.0.0 (higher than the last full release)
+        type: string
+        default: ''
 
 # Read-only by default. Only the release job below may write.
 permissions:
@@ -47,21 +66,99 @@ env:
 
 jobs:
   version:
-    # The version, in a job of its own that takes seconds, so that build,
-    # linux, windows and macos need only this job and start together
-    # (#166, decision 99). The run number grows with every run, so each
-    # release has a higher version code and installs as an update. A
-    # re-run keeps its number.
+    # The version and the kind of build, in a job of its own, so that
+    # build, linux, windows and macos need only this job and start together
+    # (#166, decision 99). tool/release_version.dart computes the version
+    # from the published releases (#167, decision 100). The version code is
+    # the run number: it grows with every run of either kind, so each
+    # release installs as an update. A re-run keeps its number and, as only
+    # the releases made before this job first ran count, its version.
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # To read when this job first ran.
+      actions: read
     outputs:
       name: ${{ steps.version.outputs.name }}
-      code: ${{ steps.version.outputs.code }}
+      code: ${{ github.run_number }}
+      # full (a full release), prerelease (a merge to main) or test
+      # (pull requests and other branches: nothing is published).
+      kind: ${{ steps.kind.outputs.kind }}
+      # The release whose CHANGELOG.md the release notes compare with.
+      previous: ${{ steps.version.outputs.previous }}
     steps:
+      - name: Choose the kind of build
+        id: kind
+        env:
+          EVENT: ${{ github.event_name }}
+          FULL: ${{ inputs.release }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ] && [ "$FULL" = true ]; then
+            if [ "$IS_RELEASE" != true ]; then
+              echo "::error::A full release is made only from main."
+              exit 1
+            fi
+            kind=full
+          elif [ "$IS_RELEASE" = true ]; then
+            kind=prerelease
+          else
+            kind="test"
+          fi
+          if [ "$kind" != full ] && [ -n "$VERSION" ]; then
+            echo "::warning::The version $VERSION is used only for a full release (release checked)."
+          fi
+          echo "Kind: $kind"
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+          sparse-checkout: tool
+
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1.8.1
+        with:
+          # The Dart of FLUTTER_VERSION. Update the two together.
+          sdk: 3.13.5
+
       - name: Set the version
         id: version
+        # A test build gets the name a pre-release would get.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          KIND: ${{ steps.kind.outputs.kind }}
+          BUMP: ${{ inputs.bump || 'minor' }}
+          VERSION: ${{ inputs.version }}
         run: |
-          echo "name=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          gh release list --limit 10000 --exclude-drafts \
+            --json tagName,isPrerelease,createdAt > "$RUNNER_TEMP/releases.json"
+          # When this job of the run's first attempt started: the releases
+          # made since (by this run, or by a later one when an old run is
+          # run again) are left out, so every attempt gets the version of
+          # the first. A run that waited for another run on main sees that
+          # run's release.
+          started=$(gh api "repos/$GH_REPO/actions/runs/$GITHUB_RUN_ID/attempts/1/jobs" \
+            --jq '.jobs[] | select(.name == "version") | .started_at')
+          if [ -z "$started" ]; then
+            echo "::error title=Version::The start of the version job of attempt 1 is not known."
+            exit 1
+          fi
+          options=()
+          if [ "$KIND" = full ]; then
+            options=(--full --bump "$BUMP" --version "$VERSION")
+          fi
+          status=0
+          dart tool/release_version.dart "$RUNNER_TEMP/releases.json" \
+            "$GITHUB_RUN_NUMBER" "$started" "${options[@]}" \
+            > "$RUNNER_TEMP/version.txt" 2> "$RUNNER_TEMP/version.err" || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error title=Version::$(cat "$RUNNER_TEMP/version.err")"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/version.txt"
+          cat "$RUNNER_TEMP/version.txt" >> "$GITHUB_OUTPUT"
 
   build:
     needs: version
@@ -140,36 +237,33 @@ jobs:
             test/fixtures/roam
 
       - name: Write the release notes
-        # The CHANGELOG.md entries added since the previous published
-        # release, then the commit (tool/release_notes.dart, decision 48).
-        # The previous release is the newest published one built by an
-        # earlier run, so a re-run of an old run does not compare with a
-        # newer release. Its changelog is read through the API, so the
-        # shallow checkout is enough. Only a 404 means "no changelog there";
-        # any other failure stops the build, so no entry is left out.
+        # The CHANGELOG.md entries added since the previous release, then
+        # the commit (tool/release_notes.dart, decision 48). The version job
+        # chose that release: for a full release the last full release, so
+        # the notes hold every change since; for a pre-release the last
+        # release of either kind (decision 100). Its changelog is read
+        # through the API, so the shallow checkout is enough. Only a 404
+        # means "no changelog there"; any other failure stops the build, so
+        # no entry is left out.
         if: env.IS_RELEASE == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RUN: ${{ needs.version.outputs.code }}
+          PREVIOUS: ${{ needs.version.outputs.previous }}
         run: |
-          previous=$(gh release list --limit 100 --exclude-drafts \
-            --json tagName --jq "[.[] | .tagName
-              | select(test(\"^v0\\\\.1\\\\.[0-9]+$\"))
-              | select((ltrimstr(\"v0.1.\") | tonumber) < $RUN)][0] // empty")
-          echo "Previous release: ${previous:-none}"
-          if [ -n "$previous" ]; then
+          echo "Previous release: ${PREVIOUS:-none}"
+          if [ -n "$PREVIOUS" ]; then
             status=0
             gh api -H "Accept: application/vnd.github.raw" \
-              "repos/$GH_REPO/contents/CHANGELOG.md?ref=$previous" \
+              "repos/$GH_REPO/contents/CHANGELOG.md?ref=$PREVIOUS" \
               > "$RUNNER_TEMP/previous-changelog.md" \
               2> "$RUNNER_TEMP/previous-changelog.err" || status=$?
             if [ "$status" -ne 0 ]; then
               rm -f "$RUNNER_TEMP/previous-changelog.md"
               if ! grep -q 'HTTP 404' "$RUNNER_TEMP/previous-changelog.err"; then
                 cat "$RUNNER_TEMP/previous-changelog.err"
-                echo "::error::Could not read CHANGELOG.md of $previous."
+                echo "::error::Could not read CHANGELOG.md of $PREVIOUS."
                 exit 1
               fi
             fi
@@ -231,6 +325,8 @@ jobs:
     # a tarball of the bundle. Branches and pull requests build it too, so
     # a change that breaks the desktop shows before it is merged.
     needs: version
+    # Not for a pre-release, which carries the APK only (decision 100).
+    if: needs.version.outputs.kind != 'prerelease'
     # Pinned: the package names below are those of Ubuntu 24.04.
     runs-on: ubuntu-24.04
     env:
@@ -307,6 +403,8 @@ jobs:
   windows:
     # The desktop app for Windows (#116), as a zip of the Release folder.
     needs: version
+    # Not for a pre-release, which carries the APK only (decision 100).
+    if: needs.version.outputs.kind != 'prerelease'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -348,6 +446,8 @@ jobs:
     # The desktop app for macOS (#116), as a zip of the app. Not signed:
     # macOS asks once before it opens.
     needs: version
+    # Not for a pre-release, which carries the APK only (decision 100).
+    if: needs.version.outputs.kind != 'prerelease'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -408,7 +508,18 @@ jobs:
 
   release:
     needs: [version, build, linux, windows, macos, org-roam]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # A pre-release needs build and org-roam; a full release all jobs. The
+    # desktop jobs are skipped for a pre-release, and a skipped job would
+    # skip this one without !cancelled().
+    if: >-
+      !cancelled()
+      && (needs.version.outputs.kind == 'prerelease' || needs.version.outputs.kind == 'full')
+      && needs.build.result == 'success'
+      && needs.org-roam.result == 'success'
+      && (needs.version.outputs.kind == 'prerelease'
+          || (needs.linux.result == 'success'
+              && needs.windows.result == 'success'
+              && needs.macos.result == 'success'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -418,38 +529,52 @@ jobs:
           name: apk
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.version.outputs.kind == 'full'
         with:
           name: linux
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.version.outputs.kind == 'full'
         with:
           name: windows
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.version.outputs.kind == 'full'
         with:
           name: macos
 
       - name: Publish the GitHub release
-        # A new release starts as a draft with the APK attached and is
+        # A new release starts as a draft with its files attached and is
         # published only after that, so Obtainium never sees a release
         # without an APK. Safe to re-run: an existing release (draft or
-        # published) is reused, its APK and text replaced, and then
-        # published. The text comes from CHANGELOG.md (decision 48).
+        # published) is reused, its files and text replaced, and then
+        # published. The text comes from CHANGELOG.md (decision 48). A
+        # pre-release carries the APK only and is marked as pre-release,
+        # so GitHub never makes it the latest release (decision 100).
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          KIND: ${{ needs.version.outputs.kind }}
           TAG: v${{ needs.version.outputs.name }}
           APK: roam-graph-${{ needs.version.outputs.name }}.apk
           LINUX: roam-graph-${{ needs.version.outputs.name }}-linux-x64.tar.gz
           WINDOWS: roam-graph-${{ needs.version.outputs.name }}-windows-x64.zip
           MACOS: roam-graph-${{ needs.version.outputs.name }}-macos.zip
         run: |
+          files=("$APK")
+          mark=(--prerelease)
+          if [ "$KIND" = full ]; then
+            files+=("$LINUX" "$WINDOWS" "$MACOS")
+            mark=(--prerelease=false)
+          fi
           if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" "$LINUX" "$WINDOWS" "$MACOS" --clobber
-            gh release edit "$TAG" --notes-file release-notes.md
+            gh release upload "$TAG" "${files[@]}" --clobber
+            gh release edit "$TAG" "${mark[@]}" --notes-file release-notes.md
           else
-            gh release create "$TAG" "$APK" "$LINUX" "$WINDOWS" "$MACOS" \
+            gh release create "$TAG" "${files[@]}" \
               --draft \
+              "${mark[@]}" \
               --target "${{ github.sha }}" \
               --title "$TAG" \
               --notes-file release-notes.md
