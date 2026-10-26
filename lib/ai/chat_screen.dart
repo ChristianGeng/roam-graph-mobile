@@ -253,7 +253,11 @@ class _ChatScreenState extends State<ChatScreen> {
               .imageFolder;
       if (!mounted) return;
     }
-    final scheme = Theme.of(context).colorScheme;
+    // The chart is always on white: the colours of a light scheme with the
+    // theme's seed, also in the dark theme.
+    final scheme = ColorScheme.fromSeed(
+        seedColor: Theme.of(context).colorScheme.primary,
+        brightness: Brightness.light);
     final values = settings.providerSettings();
     final start = widget.startNode;
     var startShown = start != null && !settings.visibility.hides(start);
@@ -317,7 +321,6 @@ class _ChatScreenState extends State<ChatScreen> {
                 scheme.primary,
                 scheme.tertiary,
                 scheme.secondary,
-                scheme.error,
                 ...defaultChartColors,
               ],
               language: language.code,

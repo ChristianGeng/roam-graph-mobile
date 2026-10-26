@@ -34,11 +34,15 @@ class ChartSeries {
 
 /// A labelled point, for example "rate cut".
 class ChartMark {
-  const ChartMark(this.x, this.y, this.label);
+  const ChartMark(this.x, this.y, this.label, {this.series});
 
   final String x;
   final double y;
   final String label;
+
+  /// The index of the series the value came from; null when the mark gave
+  /// its own y. A bar chart puts the mark on that series' bar.
+  final int? series;
 }
 
 /// The checked arguments of `create_chart`.
@@ -181,6 +185,12 @@ class ChartSpec {
         final byDate = parseDate(a)!.compareTo(parseDate(b)!);
         return byDate != 0 ? byDate : a.compareTo(b);
       });
+      for (var i = 1; i < xs.length; i++) {
+        if (parseDate(xs[i])! == parseDate(xs[i - 1])!) {
+          throw ToolError('x "${xs[i - 1]}" and "${xs[i]}" are the same '
+              'date; write each date the same way.');
+        }
+      }
     }
 
     final marks = <ChartMark>[];
@@ -202,18 +212,22 @@ class ChartSpec {
               'points ("$x" is not).');
         }
         double? y;
+        int? from;
         if (raw['y'] is num && (raw['y'] as num).isFinite) {
           y = (raw['y'] as num).toDouble();
         } else if (raw['y'] != null) {
           throw ToolError('the y of the mark "$label" must be a number.');
         } else {
-          for (final s in series) {
-            for (final p in s.points) {
-              if (y == null && p.x == x) y = p.y;
+          for (var i = 0; i < series.length && y == null; i++) {
+            for (final p in series[i].points) {
+              if (p.x == x) {
+                y = p.y;
+                from = i;
+              }
             }
           }
         }
-        marks.add(ChartMark(x, y!, label));
+        marks.add(ChartMark(x, y!, label, series: from));
       }
     }
 
@@ -574,8 +588,13 @@ void _draw(Canvas canvas, ChartSpec spec, List<Color> colors) {
 
   // The marks: a ring on the point and its label above, kept inside.
   for (final m in spec.marks) {
+    // On a bar chart, the middle of the bar the value belongs to.
+    final band = plot.width / count;
     final x = spec.type == ChartType.bar
-        ? plot.left + (spec.xs.indexOf(m.x) + 0.5) / count * plot.width
+        ? plot.left +
+            spec.xs.indexOf(m.x) * band +
+            band * 0.1 +
+            band * 0.8 / n * ((m.series ?? 0) + 0.5)
         : xOf(m.x);
     final y = yOf(m.y);
     canvas.drawCircle(

@@ -101,6 +101,7 @@ void main() {
       ]));
       expect(spec.marks.single.y, 4);
       expect(spec.marks.single.label, 'rate cut');
+      expect(spec.marks.single.series, 0);
     });
 
     test('bad input is refused with a clear message', () {
@@ -129,6 +130,12 @@ void main() {
             {'x': '2025-01', 'y': 2},
           ])),
           contains('twice'));
+      expect(
+          refused(chartArgs(points: [
+            {'x': '2025-01', 'y': 1},
+            {'x': '2025-01-01', 'y': 2},
+          ])),
+          contains('same date'));
       expect(refused(chartArgs(type: 'pie')), contains('type must be'));
       expect(refused(chartArgs()..['title'] = ''), contains('title is missing'));
       expect(refused(chartArgs()..['source'] = {'name': 'A', 'url': 'x'}),
