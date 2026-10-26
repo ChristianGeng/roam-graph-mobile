@@ -197,8 +197,11 @@ class _ImageScreenState extends State<ImageScreen> {
     });
     final found = await imageConfig(settings, keys, kind: kind);
     if (found == null) {
+      final setting = kind == ImageKind.infographic
+          ? 'Infographics with:'
+          : 'Images with:';
       return '${preset.name} cannot make images in the app. '
-          'Choose one that does under "Images with:" in AI settings.';
+          'Choose one that does under "$setting" in AI settings.';
     }
     final config = outsideEu
         ? ImageConfig(

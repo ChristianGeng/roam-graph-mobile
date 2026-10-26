@@ -158,6 +158,27 @@ void main() {
         contains('cannot make images in the app'));
   });
 
+  testWidgets('an infographic provider without images names its setting '
+      '(#183 review)', (tester) async {
+    final (_, _, prompts) = await open(tester, 'fox',
+        settings:
+            const AiSettings(provider: 'vercel', infographicProvider: 'anthropic'));
+    await tester.tap(find.text('Infographic'));
+    await tester.pumpAndSettle();
+    expect(find.text('Anthropic cannot make images in the app.'),
+        findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('image-prompt')), 'x');
+    await tester.tap(find.byKey(const ValueKey('image-make')));
+    await tester.pumpAndSettle();
+    expect(prompts, isEmpty);
+    expect(
+        tester
+            .widget<SelectableText>(find.byKey(const ValueKey('image-error')))
+            .data,
+        contains('Choose one that does under "Infographics with:" in AI '
+            'settings.'));
+  });
+
   testWidgets('an image error can be copied with the provider\'s answer (#180)',
       (tester) async {
     final copied = <String>[];
