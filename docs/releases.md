@@ -141,7 +141,7 @@ Settings, Secrets and variables, Actions: `MISTRAL_API_KEY`,
 `VERCEL_AI_GATEWAY_API_KEY` and `OPENROUTER_API_KEY`. A case whose secret
 is missing fails with "The secret ... is not set".
 
-It runs every Monday at 06:00 UTC, by hand (Actions, **Live image test**,
+It runs every Monday at 06:00 UTC, by hand (Actions, **Live images**,
 **Run workflow**), and as part of a full release when the image code
 changed since the last full release. At a full release a failure only
 warns: the release notes start with the failed cases. A weekly or manual
