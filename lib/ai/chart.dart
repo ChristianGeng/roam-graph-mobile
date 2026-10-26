@@ -583,6 +583,13 @@ void _draw(Canvas canvas, ChartSpec spec, List<Color> colors) {
         canvas.drawCircle(
             Offset(xOf(p.x), yOf(p.y)), 7, Paint()..color = color);
       }
+    } else {
+      // A point alone between gaps has no line segment: draw it as a dot.
+      for (final r in runs) {
+        if (r.length != 1) continue;
+        canvas.drawCircle(Offset(xOf(r.single.x), yOf(r.single.y)), 7,
+            Paint()..color = color);
+      }
     }
   }
 
