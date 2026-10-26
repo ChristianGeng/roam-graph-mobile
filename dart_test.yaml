@@ -1,0 +1,5 @@
+tags:
+  # Real calls to image providers with real keys (#168). The normal test
+  # step runs with --exclude-tags live; only
+  # .github/workflows/live-images.yml runs them.
+  live: {}
