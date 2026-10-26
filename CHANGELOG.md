@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-26: Copy button for every error message ([#181](https://github.com/ChristianGeng/roam-graph-mobile/pull/181))
+## 2026-10-26: Copy button for every error message ([#182](https://github.com/ChristianGeng/roam-graph-mobile/pull/182))
 
 - Added: error messages in "Create image", the AI chat, "Edit with AI" and the change set screen have a copy icon, and the text can be selected. The copied text holds the message, the app version, the platform, the time (UTC) and, for AI errors, the provider, model, API kind and HTTP status.
 - Added: when an AI request fails, the provider's own answer is copied too, under "Answer:", cut to 2000 characters and without keys or tokens. This shows why an image failed.
