@@ -188,7 +188,7 @@ void main() {
       ),
     ));
     await tester.tap(find.text('Go'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('Could not save: disk full'), findsOneWidget);
     await tester.tap(find.text('Copy'));
     await tester.pumpAndSettle();
