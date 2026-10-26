@@ -3088,6 +3088,57 @@ devices through Syncthing.
        repeats the prompt, the message says so and gives the model advice
        as before.
 
+103. **"Infographics with:": infographics through their own image model,
+     with the data and the source in the note** (#183),
+     `lib/ai/ai_settings.dart`, `lib/ai/agent_tools.dart`,
+     `lib/edit/image_screen.dart`. Image models differ most in how they set
+     text: GPT Image and Gemini Image write labels and numbers correctly,
+     FLUX (Mistral's image tool) often does not, but is a good, EU choice
+     for illustrations. One setting for every image forced one choice.
+     - **A second setting:** `AiSettings.infographicProvider`, a preset ID
+       from `imageProviders`; empty (the default, and settings saved before
+       #183) is "Same as "Images with:"". Each provider keeps its own
+       `infographicModel` and `infographicApi` next to `imageModel` and
+       `imageApi`, so the same provider can draw illustrations with one
+       model and infographics with another; a provider without a saved
+       infographic model gets the preset's image model. Key and "EU only"
+       are the provider's, shared by both settings; when the provider of
+       "Infographics with:" is already shown above, the screen says the key
+       is set there instead of showing a second key field.
+     - **Routing:** `imagePreset(settings, kind)` and
+       `imageConfig(settings, keys, kind:)`; `ImageKind.illustration` is
+       the default, so every earlier caller is unchanged. In the chat,
+       `ImageMaker.infographics` is the second `ImageModel`; null when
+       "Infographics with:" is empty or makes no images, and then
+       infographics use the illustration model.
+     - **`create_image` gets `kind`** (`illustration`, the default, or
+       `infographic`) and, for an infographic, `data` (`columns`, `rows`,
+       `source` with `name` and `url`, `retrieved` as `YYYY-MM-DD`). The
+       description names both models and asks for a layout brief without
+       links or running text. An infographic prompt with `http`, `https`
+       or `www.` is refused, the link belongs in `data.source.url`
+       (`https://`, `http://` or `id:<ID>` of a note the AI may see).
+       Table cells are one line, `|` becomes `/`; at most 12 columns and
+       60 rows.
+     - **The data in the note:** below the image link, after one empty
+       line, an Org table aligned as Org aligns it, then
+       `Source: [[url][name]], retrieved <date>`. It is part of the same
+       block as the image, so a replacing image replaces the table too, and
+       "Undo all changes of this message" takes it out with the image.
+     - **The check:** the tool result asks the chat model to compare every
+       number and label with `data`, and, if one is wrong, to make the
+       image once more with a corrected brief (it replaces the first). The
+       limit "Most images the agent may make for one message" still
+       counts; with the default of 1 the result says the limit is reached
+       and asks for a report of what is wrong. A third infographic for the
+       same note in one message is refused. The app itself does not read
+       the picture: only the chat model sees it (#129).
+     - **"Create image"** has a segmented choice "Illustration" /
+       "Infographic" above "Make image"; the line below names the provider,
+       model and region of the chosen setting. The manual screen writes no
+       table: it has no data.
+     - **Not here:** exact charts drawn by the app from the data (#184).
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

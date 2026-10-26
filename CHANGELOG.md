@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-26: Infographics through their own image model ([#186](https://github.com/ChristianGeng/roam-graph-mobile/pull/186))
+
+- Added: "Infographics with:" in AI settings chooses the provider and image model for pictures with text and numbers; empty uses "Images with:".
+- Added: in the chat, an infographic gets its data as an Org table and a line "Source: [[url][name]], retrieved <date>" below the image in the note; the AI checks the picture against it.
+- Added: "Create image" has a choice "Illustration" / "Infographic", and the line above "Make image" names the model of the chosen setting.
+
+Closes #183.
+
 ## 2026-10-26: Mistral images with data and sources ([#185](https://github.com/ChristianGeng/roam-graph-mobile/pull/185))
 
 - Fixed: "Create image" with Mistral said "Mistral sent an image link to www.ecb.eu, which the app does not download" when Mistral answered with text and a source link instead of an image. The app now asks Mistral once more to use its image tool.
