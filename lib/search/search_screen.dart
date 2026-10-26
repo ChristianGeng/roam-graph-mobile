@@ -14,6 +14,7 @@ import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
 import '../node_view/node_screen.dart';
 import '../node_view/note_images.dart';
+import '../platform/error_text.dart';
 
 /// Finds a node by title, alias and tag (#9), as you type. A result opens
 /// the node view (#8); its second action shows the node in the graph (#6).
@@ -141,17 +142,18 @@ class _SearchScreenState extends State<SearchScreen> {
                   'and were left out.')));
     }
     if (text.length > maxShareLength) {
-      messenger.showSnackBar(SnackBar(
-          content: Text('These ${nodes.length} notes are too large to share '
-              'at once (${text.length ~/ 1000} KB). Select fewer.')));
+      showErrorSnackBar(
+          messenger,
+          'These ${nodes.length} notes are too large to share '
+          'at once (${text.length ~/ 1000} KB). Select fewer.');
       return;
     }
     try {
       await widget.shareText(text,
           subject: nodes.length == 1 ? nodes.single.displayTitle : null);
     } on PlatformException catch (e) {
-      messenger.showSnackBar(SnackBar(
-          content: Text('Could not share the notes: ${e.message ?? e.code}')));
+      showErrorSnackBar(
+          messenger, 'Could not share the notes: ${e.message ?? e.code}');
     }
   }
 

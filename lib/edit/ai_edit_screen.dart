@@ -15,6 +15,7 @@ import '../ai/ai_tools.dart';
 import '../ai/note_language.dart';
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
+import '../platform/error_text.dart';
 import '../platform/screen_awake.dart';
 import 'agent_changes.dart';
 import 'change_set.dart';
@@ -85,6 +86,10 @@ class _AiEditScreenState extends State<AiEditScreen> {
   final _instruction = TextEditingController();
   bool _working = false;
   String? _error;
+
+  /// More about [_error] to copy with it (#180): the request and the
+  /// provider's answer.
+  ErrorReport? _detail;
   ChatSession? _session;
 
   /// Whether the notes around this one are in the scope (#122); null until
@@ -131,6 +136,7 @@ class _AiEditScreenState extends State<AiEditScreen> {
     setState(() {
       _working = true;
       _error = null;
+      _detail = null;
     });
     try {
       final error = await whileScreenOn(() => _hasNeighbours &&
@@ -141,6 +147,12 @@ class _AiEditScreenState extends State<AiEditScreen> {
     } finally {
       if (mounted) setState(() => _working = false);
     }
+  }
+
+  /// Keeps what to copy with [e] and returns its message.
+  String _failed(AiError e) {
+    _detail = e.report();
+    return e.message;
   }
 
   /// The provider to ask, or what is missing.
@@ -191,7 +203,7 @@ class _AiEditScreenState extends State<AiEditScreen> {
     try {
       await session.send(neighbourhoodMessage(instruction, scope));
     } on AiError catch (e) {
-      return e.message;
+      return _failed(e);
     }
     if (!mounted || _session != session) return null;
     final answer = session.transcript.whereType<AssistantMessage>().lastOrNull;
@@ -224,6 +236,7 @@ class _AiEditScreenState extends State<AiEditScreen> {
     setState(() {
       _working = true;
       _error = null;
+      _detail = null;
     });
     try {
       final error = await whileScreenOn(_change);
@@ -244,7 +257,7 @@ class _AiEditScreenState extends State<AiEditScreen> {
     try {
       await session.send(neighbourhoodChangePrompt);
     } on AiError catch (e) {
-      return e.message;
+      return _failed(e);
     }
     if (!mounted || _session != session) return null;
     final answer = session.transcript.whereType<AssistantMessage>().lastOrNull;
@@ -391,7 +404,7 @@ class _AiEditScreenState extends State<AiEditScreen> {
       await session.send('Instruction: $instruction\n\n'
           'The note "${node.displayTitle}":\n\n${hidden.text}');
     } on AiError catch (e) {
-      return e.message;
+      return _failed(e);
     }
     if (!mounted) return null;
     final answer = session.transcript.whereType<AssistantMessage>().lastOrNull;
@@ -511,10 +524,10 @@ class _AiEditScreenState extends State<AiEditScreen> {
           if (_error case final error?)
             Padding(
               padding: const EdgeInsets.only(top: 16),
-              child: Text(
-                error,
-                key: const ValueKey('ai-edit-error'),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              child: ErrorText(
+                _detail?.message == error ? _detail! : ErrorReport(error),
+                textKey: const ValueKey('ai-edit-error'),
+                copyKey: const ValueKey('ai-edit-error-copy'),
               ),
             ),
         ],

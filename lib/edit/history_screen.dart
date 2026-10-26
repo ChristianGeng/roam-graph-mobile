@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
+import '../platform/error_text.dart';
 import 'diff_screen.dart';
 import 'note_editor.dart';
 import 'save_messages.dart';
@@ -42,11 +43,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Future<List<KeptVersion>> _load() async =>
       await widget.writer.editor?.versions(widget.node.file) ?? const [];
 
-  void _tell(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
+  /// An [error] has a "Copy" action (#180).
+  void _tell(String message, {bool error = false}) =>
+      showMessage(ScaffoldMessenger.of(context), message, error: error);
 
   Future<void> _restore(KeptVersion version) async {
     final editor = widget.writer.editor;
@@ -54,13 +53,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (editor == null) return;
     if (editor.store.historyKey(file) != _noteKey) {
       _tell('Another folder is open now. These versions belong to the '
-          'note in the folder opened before; nothing was restored.');
+          'note in the folder opened before; nothing was restored.',
+          error: true);
       return;
     }
     final current = await editor.read(file);
     if (!mounted) return;
     if (current == null) {
-      _tell('Could not read $file.');
+      _tell('Could not read $file.', error: true);
       return;
     }
     final restore = await DiffScreen.confirm(
@@ -75,7 +75,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     // The folder may have changed while the diff was open.
     if (editor.store.historyKey(file) != _noteKey) {
       _tell('Another folder is open now. These versions belong to the '
-          'note in the folder opened before; nothing was restored.');
+          'note in the folder opened before; nothing was restored.',
+          error: true);
       return;
     }
     final result = await editor.save(file, current, version.text);
@@ -88,7 +89,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _versions = _load();
       });
     } else if (message != null) {
-      _tell(message);
+      _tell(message, error: true);
       if (result is NoWriteAccessToEdit) await widget.writer.allowWriting();
     }
   }

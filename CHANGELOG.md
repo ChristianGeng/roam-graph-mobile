@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-26: Copy button for every error message ([#181](https://github.com/ChristianGeng/roam-graph-mobile/pull/181))
+
+- Added: error messages in "Create image", the AI chat, "Edit with AI" and the change set screen have a copy icon, and the text can be selected. The copied text holds the message, the app version, the platform, the time (UTC) and, for AI errors, the provider, model, API kind and HTTP status.
+- Added: when an AI request fails, the provider's own answer is copied too, under "Answer:", cut to 2000 characters and without keys or tokens. This shows why an image failed.
+- Changed: snack bars that report an error have a "Copy" action and stay until dismissed.
+
+Closes #180.
+
 ## 2026-10-25: Every merge is an Android pre-release; full releases by hand ([#179](https://github.com/ChristianGeng/roam-graph-mobile/pull/179))
 
 - Changed: a merge publishes only the APK, as a pre-release `v0.2.1-dev.<run>`. In Obtainium, turn on "Include prereleases" to keep getting every merge.

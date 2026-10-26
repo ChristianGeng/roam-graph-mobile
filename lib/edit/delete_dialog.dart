@@ -8,6 +8,7 @@ import 'package:flutter/services.dart'
 
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
+import '../platform/error_text.dart';
 import 'agent_changes.dart';
 import 'delete_node.dart';
 
@@ -64,8 +65,7 @@ Future<HandDeletion?> confirmDeleteNotes(
     plan = await deleter.prepare(graph, nodes);
   } on DeleteError catch (e) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message)));
+      showErrorSnackBar(ScaffoldMessenger.of(context), e.message);
     }
     return null;
   }

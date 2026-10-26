@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
+import '../platform/error_text.dart';
 import 'diff_screen.dart';
 import 'node_meta.dart';
 import 'note_editor.dart';
@@ -49,9 +50,8 @@ class MetaScreen extends StatefulWidget {
     final base = await editor.read(node.file);
     final meta = base == null ? null : readMeta(base.text, node);
     if (base == null || meta == null) {
-      messenger.showSnackBar(SnackBar(
-          content: Text('${node.displayTitle} could not be read from '
-              '${node.file}.')));
+      showErrorSnackBar(messenger,
+          '${node.displayTitle} could not be read from ${node.file}.');
       return null;
     }
     if (!navigator.mounted) return null;
@@ -100,11 +100,9 @@ class _MetaScreenState extends State<MetaScreen> {
     super.dispose();
   }
 
-  void _tell(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
+  /// An [error] has a "Copy" action (#180).
+  void _tell(String message, {bool error = false}) =>
+      showMessage(ScaffoldMessenger.of(context), message, error: error);
 
   Future<void> _review() async {
     final editor = widget.writer.editor;
@@ -124,7 +122,7 @@ class _MetaScreenState extends State<MetaScreen> {
         ),
       );
     } on MetaError catch (e) {
-      _tell(e.message);
+      _tell(e.message, error: true);
       return;
     }
     final save = await DiffScreen.confirm(
@@ -136,7 +134,7 @@ class _MetaScreenState extends State<MetaScreen> {
     if (!save || !mounted) return;
     // The folder may have changed meanwhile.
     if (editor.store.historyKey(widget.node.file) != widget.noteKey) {
-      _tell('Another folder is open now; nothing was saved.');
+      _tell('Another folder is open now; nothing was saved.', error: true);
       return;
     }
     setState(() => _saving = true);
@@ -153,7 +151,7 @@ class _MetaScreenState extends State<MetaScreen> {
       Navigator.of(context).pop(message ?? 'Saved ${_title.text.trim()}.');
       return;
     }
-    if (message != null) _tell(message);
+    if (message != null) _tell(message, error: true);
     if (result is NoWriteAccessToEdit) await widget.writer.allowWriting();
   }
 

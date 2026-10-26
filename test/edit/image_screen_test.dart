@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_chat.dart';
@@ -152,8 +153,49 @@ void main() {
         find.byKey(const ValueKey('image-where')),
         findsOneWidget);
     expect(
-        tester.widget<Text>(find.byKey(const ValueKey('image-error'))).data,
+        tester
+            .widget<SelectableText>(find.byKey(const ValueKey('image-error')))
+            .data,
         contains('cannot make images in the app'));
+  });
+
+  testWidgets('an image error can be copied with the provider\'s answer (#180)',
+      (tester) async {
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied.add((call.arguments as Map)['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    await open(tester, 'fox',
+        post: (url, headers, body) async => HttpReply(
+            400,
+            jsonEncode({
+              'error': {'message': 'The prompt was refused.'},
+              'debug': 'Authorization: Bearer sk-live-abcdef123456',
+              'echo': 'v-key',
+            })));
+    await tester.enterText(find.byKey(const ValueKey('image-prompt')), 'x');
+    await tester.tap(find.byKey(const ValueKey('image-make')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('The prompt was refused.'), findsWidgets);
+
+    await tester.tap(find.byKey(const ValueKey('image-error-copy')));
+    await tester.pumpAndSettle();
+    final text = copied.single;
+    expect(text, contains('Vercel AI Gateway'));
+    expect(text, contains('Provider: Vercel AI Gateway'));
+    expect(text, contains('\nAPI: '));
+    expect(text, contains('HTTP status: 400'));
+    expect(text, contains('\nAnswer:\n'));
+    expect(text, contains('"The prompt was refused."'));
+    expect(text, isNot(contains('sk-live')));
+    expect(text, isNot(contains('v-key')));
+    expect(find.text('Copied'), findsOneWidget);
   });
 
   final openScreen = open;

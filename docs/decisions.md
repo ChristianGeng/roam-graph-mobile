@@ -2995,6 +2995,42 @@ devices through Syncthing.
        prereleases" turned on; `docs/releases.md` says so, and how to start
        a full release in the GitHub web UI.
 
+101. **Every error message has a copy button; the copied text names the
+     app, the request and the provider's answer** (#180),
+     `lib/platform/error_text.dart`, `lib/ai/ai_chat.dart`,
+     `lib/ai/ai_images.dart`.
+     - **One widget:** `ErrorText` shows a message in the error colour,
+       selectable, with a copy icon (tooltip "Copy error"). A tap copies the
+       text and shows "Copied". Selecting text by hand is awkward on
+       Android, so the icon is the main way. Used for the errors under
+       "Create image" and "Edit with AI", the chat's error card, and the
+       notes of the change set screen.
+     - **Snack bars:** an error in a snack bar is shown with
+       `showErrorSnackBar`, which adds a "Copy" action. A snack bar with an
+       action stays until dismissed in this Flutter version (#170), which
+       is right for an error. Messages that only report a result (saved,
+       undone, copied) stay as they were.
+     - **What is copied:** the message, an empty line, then one line each
+       for the app version (`APP_VERSION`), the platform, for AI errors the
+       provider, model, API kind and HTTP status (only those that are
+       known), and the time in UTC. The provider's answer follows under
+       "Answer:". Never copied: an API key, a note's text, or a file path
+       that is not part of the message.
+     - **The provider's answer:** `AiError` has the fields `provider`,
+       `model`, `api` and `answer`. `postJson` fills them for every failed
+       request; the image code adds the answer when a provider answers
+       without an image. The answer is cleaned first and cut to 2000
+       characters after, so a key cannot survive by being cut in two.
+     - **Redaction:** `redactSecrets` removes `Bearer …` values, `sk-…`
+       keys, `"api_key": "…"` and similar JSON members, `x-key:`,
+       `x-api-key:` and `authorization:` headers, `?key=…` parameters,
+       `AIza…` keys, the API key of the request itself, and any other run of
+       40 or more letters and digits that has both. The copied message
+       goes through it too. It errs on the side of removing too much.
+     - **Not done:** the other snack bars (for example "Opening …",
+       conflict copies, the language report) are not errors of a kind that
+       needs pasting. The pull request lists the places that were changed.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

@@ -19,6 +19,7 @@ import '../ai/ai_settings.dart';
 import '../graph/graph_layout.dart';
 import '../graph/roam_graph.dart';
 import '../platform/desktop.dart';
+import '../platform/error_text.dart';
 
 /// How far a note's sections are open when the note opens: the values
 /// Org's `#+STARTUP:` keyword has for this.
@@ -481,8 +482,8 @@ class SettingsScreen extends StatelessWidget {
           context, settings.copyWith(sectionsOnOpen: value));
     } on Exception catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not save the setting: $e')));
+        showErrorSnackBar(ScaffoldMessenger.of(context),
+            'Could not save the setting: $e');
       }
     }
   }
@@ -580,8 +581,8 @@ class SettingsScreen extends StatelessWidget {
       await ViewSettingsScope.change(context, settings);
     } on Exception catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not save the setting: $e')));
+        showErrorSnackBar(ScaffoldMessenger.of(context),
+            'Could not save the setting: $e');
       }
     }
   }
