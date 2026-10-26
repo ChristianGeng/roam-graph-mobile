@@ -126,10 +126,12 @@ bool isMistralImageUrl(Uri url) =>
 /// model (#163): in its AI settings, not in the notes, and not with the
 /// key. Tests replace it.
 abstract interface class ImageAgents {
-  /// The agent's ID for [model], or null when there is none yet.
+  /// What is kept for [model]: since #181 the agent's version and ID,
+  /// `v<mistralAgentVersion>:<agent ID>`; an ID alone from before. Null
+  /// when there is none yet.
   String? read(String model);
 
-  /// Keeps [id] as the agent for [model].
+  /// Keeps [id] (with the version, as [read] gives it) for [model].
   Future<void> write(String model, String id);
 }
 
@@ -144,9 +146,23 @@ class MemoryImageAgents implements ImageAgents {
   Future<void> write(String model, String id) async => ids[model] = id;
 }
 
-/// What the app's Mistral agent for images is told (#163).
+/// What the app's Mistral agent for images is told (#163). Since #181 it
+/// also says to draw a prompt full of data, sources or links: with a
+/// prompt like that, the agent sometimes answered with text and links
+/// instead of calling its tool.
 const mistralAgentInstructions =
-    'Use the image generation tool to make the image the user describes.';
+    'Use the image generation tool to make the image the user describes. '
+    'Do this also when the request contains data, sources or links. Do not '
+    'answer with text or links instead of an image.';
+
+/// The version of the app's Mistral agent: raised when the agent is made
+/// differently, so agents kept from before are made again once (#181).
+/// [ImageAgents] keeps it before the ID, as `v2:<agent ID>`.
+const mistralAgentVersion = 2;
+
+/// What the app asks when Mistral's agent answered without an image
+/// (#181).
+const mistralRetryInput = 'Use the image generation tool now.';
 
 /// The error when "EU only" is on and the image model has no EU route;
 /// "Create image" then offers to make this one image outside the EU
@@ -312,7 +328,9 @@ String _answerOf(Object? json, ProviderConfig provider) =>
 /// documents it: an agent with the tool (`POST /v1/agents`, made once per
 /// image model and kept in [agents]), then a conversation with its
 /// `agent_id` (`POST /v1/conversations`). An agent that Mistral no longer
-/// knows (deleted, or made with another key) is made again once.
+/// knows (deleted, or made with another key) is made again once; so is an
+/// agent kept without the current [mistralAgentVersion] (#181). When the
+/// answer has no image, the app asks once more (#181).
 Future<MadeImage> _mistralImage(
     ProviderConfig provider,
     String prompt,
@@ -322,6 +340,9 @@ Future<MadeImage> _mistralImage(
     HttpPost post,
     ImageDownload download,
     ImageAgents agents) async {
+  // The version before the ID: an agent kept without it was made with
+  // older instructions.
+  const keptPrefix = 'v$mistralAgentVersion:';
   Future<String> newAgent() async {
     final json = await postJson(
         provider,
@@ -344,36 +365,58 @@ Future<MadeImage> _mistralImage(
           'the answer has no agent ID.');
     }
     try {
-      await agents.write(provider.model, id);
+      await agents.write(provider.model, '$keptPrefix$id');
     } on Exception {
       // Not kept: the next image makes a new agent.
     }
     return id;
   }
 
-  Future<Map<String, Object?>> converse(String agentId) => postJson(
-      provider,
-      conversationsUrl,
-      headers,
-      {
-        'agent_id': agentId,
-        'inputs': prompt,
-        // Not kept on Mistral's servers as a conversation.
-        'store': false,
-      },
-      post);
+  Future<Map<String, Object?>> converse(String agentId, Object inputs) =>
+      postJson(
+          provider,
+          conversationsUrl,
+          headers,
+          {
+            'agent_id': agentId,
+            'inputs': inputs,
+            // Not kept on Mistral's servers as a conversation.
+            'store': false,
+          },
+          post);
 
   final kept = agents.read(provider.model);
+  final keptId = kept != null && kept.startsWith(keptPrefix)
+      ? kept.substring(keptPrefix.length)
+      : null;
+  String agentId;
   Map<String, Object?> json;
-  if (kept == null) {
-    json = await converse(await newAgent());
+  if (keptId == null || keptId.isEmpty) {
+    // None yet, or one kept from before #181: a new agent replaces it.
+    agentId = await newAgent();
+    json = await converse(agentId, prompt);
   } else {
+    agentId = keptId;
     try {
-      json = await converse(kept);
+      json = await converse(agentId, prompt);
     } on AiError catch (e) {
       if (!_missingAgent(e)) rethrow;
-      json = await converse(await newAgent());
+      agentId = await newAgent();
+      json = await converse(agentId, prompt);
     }
+  }
+  if (_fromMistral(json) == null) {
+    // The tool did not run (#181): ask once more, with the conversation
+    // so far. A conversation with `store: false` cannot be continued
+    // (`POST /v1/conversations/<id>` answers 404), so its entries are
+    // sent again in a new one.
+    final said = _mistralText(json);
+    json = await converse(agentId, [
+      {'type': 'message.input', 'role': 'user', 'content': prompt},
+      if (said.isNotEmpty)
+        {'type': 'message.output', 'role': 'assistant', 'content': said},
+      {'type': 'message.input', 'role': 'user', 'content': mistralRetryInput},
+    ]);
   }
   return _mistralFile(json, provider, prompt, conversationsUrl, headers,
       download);
@@ -414,20 +457,7 @@ Future<MadeImage> _mistralFile(
   final Uri imageUrl;
   switch (_fromMistral(json)) {
     case null:
-      final said = _mistralText(json);
-      final advice = provider.model == 'mistral-medium-latest'
-          ? 'try again, or choose another Mistral model as the image model'
-          : 'try mistral-medium-latest';
-      // The answer only repeats the prompt: the tool did not run (#163).
-      if (_repeats(said, prompt)) {
-        throw AiError('${provider.name} did not run its image tool. The '
-            'model "${provider.model}" may not use it; $advice.',
-            answer: _answerOf(json, provider));
-      }
-      throw AiError('${provider.name} sent no image'
-          '${said.isEmpty ? '.' : ', only text: "${_shorten(said)}"'} The '
-          'model "${provider.model}" may not use the image tool; $advice.',
-          answer: _answerOf(json, provider));
+      throw _noMistralImage(json, provider, prompt);
     case (link: final link?, fileId: _):
       final parsed = Uri.tryParse(link);
       if (parsed == null) {
@@ -471,6 +501,41 @@ Future<MadeImage> _mistralFile(
   return MadeImage(bytes, extension);
 }
 
+/// The error when a Mistral answer has no image (#181): "Mistral did not
+/// make an image", with the start of its text. Links in the text are cut
+/// out, so no host is named: a link there is not an image.
+AiError _noMistralImage(
+    Map<String, Object?> json, ProviderConfig provider, String prompt) {
+  final said = _withoutLinks(_mistralText(json));
+  final advice = provider.model == 'mistral-medium-latest'
+      ? 'try again, or choose another Mistral model as the image model'
+      : 'try mistral-medium-latest';
+  if (said.isEmpty || _repeats(said, prompt)) {
+    // No text, or only the prompt again: the tool did not run (#163).
+    return AiError(
+        '${provider.name} did not make an image. '
+        '${said.isEmpty ? 'It sent no text either.' : 'Its answer only '
+            'repeats the prompt.'} The model "${provider.model}" may not use '
+        'the image tool; $advice.',
+        answer: _answerOf(json, provider));
+  }
+  // Text instead of an image, for example about the sources of a prompt
+  // full of data (#181).
+  return AiError('${provider.name} did not make an image. Its answer '
+      'begins: "${_shorten(said)}". Try again, or describe only the '
+      'picture, without data or links.',
+      answer: _answerOf(json, provider));
+}
+
+/// [text] without links: a Markdown link becomes its label, and a bare
+/// link becomes "(link)".
+String _withoutLinks(String text) => text
+    .replaceAllMapped(
+        RegExp(r'!?\[([^\]]*)\]\([^)\s]*\)'), (m) => m.group(1)!.trim())
+    .replaceAll(RegExp(r'\b(?:https?://|www\.)\S+'), '(link)')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
 /// The entries of a Mistral answer that hold content: the Conversations
 /// API's `outputs` (`message.output` entries), and, as Chat Completions
 /// sends them, `choices[].messages[]` and `choices[].message`.
@@ -513,7 +578,7 @@ String _mistralText(Map<String, Object?> json) {
 /// The first image in a Mistral answer: a `tool_file` chunk (a file ID)
 /// or an `image_url` chunk (a link), in any of [_mistralMessages]; else
 /// the link in the `tool.execution` entry's `info.result`; else a
-/// Markdown link in the answer's text.
+/// Markdown link on one of [mistralImageHosts] in the answer's text.
 ({String? link, String? fileId})? _fromMistral(Map<String, Object?> json) {
   for (final message in _mistralMessages(json)) {
     final content = message is Map ? message['content'] : null;
@@ -557,10 +622,10 @@ String _mistralText(Map<String, Object?> json) {
     }
   }
   // Else a Markdown link in the answer's text, `![…](https://…)` or
-  // `[…](https://…)`, in string content or text chunks. The first link on
-  // an allowed host wins; else the first link, which is then refused.
+  // `[…](https://…)`, in string content or text chunks: only a link on
+  // an allowed host (#181). A link elsewhere, such as a source the text
+  // names, is not an image.
   final markdown = RegExp(r'!?\[[^\]]*\]\((https://[^)\s]+)\)');
-  String? first;
   for (final message in _mistralMessages(json)) {
     final content = message is Map ? message['content'] : null;
     final texts = <String>[
@@ -577,11 +642,9 @@ String _mistralText(Map<String, Object?> json) {
         if (url != null && isMistralImageUrl(url)) {
           return (link: link, fileId: null);
         }
-        first ??= link;
       }
     }
   }
-  if (first != null) return (link: first, fileId: null);
   return null;
 }
 

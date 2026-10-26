@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-26: Mistral images with data and sources ([#N](https://github.com/ChristianGeng/roam-graph-mobile/pull/N))
+
+- Fixed: "Create image" with Mistral said "Mistral sent an image link to www.ecb.eu, which the app does not download" when Mistral answered with text and a source link instead of an image. The app now asks Mistral once more to use its image tool.
+- Changed: when there is still no image, the message says "Mistral did not make an image" and shows the start of Mistral's text. The app's Mistral image agent is made again once, with clearer instructions.
+
+Closes #181.
+
 ## 2026-10-26: Copy button for every error message ([#182](https://github.com/ChristianGeng/roam-graph-mobile/pull/182))
 
 - Added: error messages in "Create image", the AI chat, "Edit with AI" and the change set screen have a copy icon, and the text can be selected. The copied text holds the message, the app version, the platform, the time (UTC) and, for AI errors, the provider, model, API kind and HTTP status.
