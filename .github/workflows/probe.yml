@@ -1,0 +1,65 @@
+# Temporary: Mistral tool choice and follow-up checks (#181). Not for main.
+name: Probe 181
+on:
+  push:
+    branches: [probe-181]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Mistral tool choice
+        env:
+          KEY: ${{ secrets.MISTRAL_API_KEY }}
+        shell: bash {0}
+        run: |
+          clean() { tr '\n\r' '  ' | sed -E 's#(https://[^?"\\ )]+)\?[^"\\ )]*#\1?SIG#g' | head -c 3000 | sed 's/%/%25/g'; }
+          note() { t=$(printf '%s' "$2" | clean); echo "::notice title=$1::$t"; }
+          if [ -z "$KEY" ]; then note key "no key"; exit 0; fi
+          H=(-H "Authorization: Bearer $KEY" -H "Content-Type: application/json")
+          M=https://api.mistral.ai/v1
+          INS='Use the image generation tool to make the image the user describes.'
+          PROMPT='Create an infographic about the key interest rate of the fictional Example Central Bank in the last five years. Data (year-end): 2020: 0.00 %, 2021: 0.00 %, 2022: 2.50 %, 2023: 4.50 %, 2024: 3.15 %, 2025: 2.15 %. Show a line chart with a labelled point for each year, the title "Example Central Bank key rate 2020-2025", and a short note that rates rose sharply in 2022 because of inflation. Clean style, blue tones, white background. Sources: [ECB key interest rates](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/key_ecb_interest_rates/html/index.en.html), https://www.bundesbank.de/en/statistics/money-and-capital-markets/interest-rates-and-yields.'
+          summary='{conversation_id, types:[.outputs[]?.type], tool:[.outputs[]?|select(.type=="tool.execution")|{name,function,arguments:((.arguments//"")|tostring|.[0:150]),result:((.info.result//"")|tostring|.[0:200])}], text:[.outputs[]?|select(.type=="message.output")|.content|(if type=="string" then . else tostring end)|.[0:500]], error:(.message // .detail // .error // null)}'
+          mkagent() { curl -sS $M/agents "${H[@]}" -d "$(jq -nc --arg ins "$INS" --argjson ca "$1" '{model:"mistral-medium-latest",name:"probe-181",instructions:$ins,tools:[{type:"image_generation"}]} + (if $ca == null then {} else {completion_args:$ca} end)')"; }
+          ids=()
+          # a) create with tool_choice any, then required.
+          for tc in any required; do
+            a=$(mkagent "{\"tool_choice\":\"$tc\"}")
+            note "a create tool_choice=$tc" "$(echo "$a" | jq -c '{id, version, model, completion_args, tools, error:(.message // .detail // null)}' 2>/dev/null || echo "$a")"
+            id=$(echo "$a" | jq -r '.id // empty'); [ -n "$id" ] && ids+=("$id")
+            [ "$tc" = any ] && ANY=$id
+          done
+          a=$(mkagent null); AUTO=$(echo "$a" | jq -r '.id // empty'); ids+=("$AUTO")
+          note "a create default" "$(echo "$a" | jq -c '{id, version, completion_args}')"
+          converse() { curl -sS $M/conversations "${H[@]}" -d "$(jq -nc --arg id "$1" --arg p "$PROMPT" --argjson extra "$2" '{agent_id:$id,inputs:$p} + $extra')"; }
+          # b) long prompt, auto vs any, three times each.
+          for i in 1 2 3; do
+            note "b auto run $i" "$(converse "$AUTO" '{"store":false}' | jq -c "$summary")"
+            [ -n "$ANY" ] && note "b any run $i" "$(converse "$ANY" '{"store":false}' | jq -c "$summary")"
+          done
+          # e) per-conversation completion_args with an agent.
+          note "e auto agent + completion_args any" "$(converse "$AUTO" '{"store":false,"completion_args":{"tool_choice":"any"}}' | jq -c "$summary")"
+          # d) follow-up: store false, then store true.
+          for st in false true; do
+            c=$(converse "$AUTO" "{\"store\":$st}")
+            note "d first store=$st" "$(echo "$c" | jq -c "$summary")"
+            cid=$(echo "$c" | jq -r '.conversation_id // empty')
+            [ -z "$cid" ] && continue
+            f=$(curl -sS -w '\nHTTP %{http_code}' $M/conversations/$cid "${H[@]}" -d "{\"inputs\":\"Use the image generation tool now.\",\"store\":$st}")
+            code=$(echo "$f" | tail -1); body=$(echo "$f" | sed '$d')
+            note "d follow-up store=$st $code" "$(echo "$body" | jq -c "$summary" 2>/dev/null || echo "$body")"
+            note "d follow-up raw keys store=$st" "$(echo "$body" | jq -c '{object, keys:keys, outputs:[.outputs[]?|del(.content)|del(.info)|del(.arguments)]}' 2>/dev/null)"
+            [ "$st" = true ] && curl -sS -X DELETE $M/conversations/$cid "${H[@]}" -o /dev/null -w 'deleted conv %{http_code}\n'
+          done
+          # c) update an existing agent.
+          p=$(curl -sS -w '\nHTTP %{http_code}' -X PATCH $M/agents/$AUTO "${H[@]}" -d '{"completion_args":{"tool_choice":"any"}}')
+          note "c PATCH $(echo "$p" | tail -1)" "$(echo "$p" | sed '$d' | jq -c '{id, version, completion_args, tools, instructions, error:(.message // .detail // null)}' 2>/dev/null)"
+          g=$(curl -sS $M/agents/$AUTO "${H[@]}")
+          note "c GET after PATCH" "$(echo "$g" | jq -c '{id, version, completion_args, tools}')"
+          note "c auto agent after PATCH run" "$(converse "$AUTO" '{"store":false}' | jq -c "$summary")"
+          for id in "${ids[@]}"; do
+            [ -n "$id" ] && note "delete $id" "$(curl -sS -X DELETE $M/agents/$id "${H[@]}" -o /dev/null -w '%{http_code}')"
+          done
