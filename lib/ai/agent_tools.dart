@@ -224,11 +224,16 @@ class ImageMaker {
     this.maxPrompt = 4000,
     this.limit = 1,
     this.infographics,
+    this.noIllustrations,
   });
 
   /// The image model of "Infographics with:" (#183); null when it is the
   /// same as for illustrations.
   final ImageModel? infographics;
+
+  /// Why "Images with:" can make no illustration now, with only
+  /// "Infographics with:" set up (#183); null when it can.
+  final String? noIllustrations;
 
   /// The image model for [kind].
   ImageModel forKind(ImageKind kind) =>
@@ -266,10 +271,15 @@ AiTool createImageTool(ImageMaker maker) {
   return AiTool(
     'create_image',
     'Make an image with an image model and add it to a note, below its '
-        'text, with a caption. kind "illustration" (the default) is drawn '
-        'by ${illustration.name}, at most ${illustration.maxPrompt} '
-        'characters of prompt; kind "infographic" by ${infographic.name}, '
-        'at most ${infographic.maxPrompt}. Use "infographic" for anything '
+        'text, with a caption. ${switch (maker.noIllustrations) {
+          final why? => 'kind "illustration" cannot be made now: $why. '
+              'kind "infographic" is drawn by ${infographic.name}, at most '
+              '${infographic.maxPrompt} characters of prompt.',
+          null => 'kind "illustration" (the default) is drawn by '
+              '${illustration.name}, at most ${illustration.maxPrompt} '
+              'characters of prompt; kind "infographic" by '
+              '${infographic.name}, at most ${infographic.maxPrompt}.',
+        }} Use "infographic" for anything '
         'with numbers, labels or text. Only the prompt goes to the image '
         'model, never the notes, and it knows nothing after its training: '
         'do the research first, with the other tools, then put every fact, '
@@ -814,6 +824,12 @@ class AgentWriter {
       _ => throw const ToolError(
           'kind must be "illustration" or "infographic".'),
     };
+    if (kind == ImageKind.illustration) {
+      if (maker.noIllustrations case final why?) {
+        throw ToolError('an illustration cannot be made now: $why. Only '
+            'kind "infographic" can be made.');
+      }
+    }
     final model = maker.forKind(kind);
     final prompt = _string(args, 'prompt').trim();
     final caption = oneLine(_string(args, 'caption', required: false));

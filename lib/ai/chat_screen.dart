@@ -25,6 +25,7 @@ import 'agent_tools.dart';
 import 'ai_chat.dart';
 import 'ai_images.dart';
 import 'ai_models.dart';
+import 'ai_providers.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
 import 'edit_tools.dart';
@@ -341,22 +342,19 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// The image model of "Images with:" for the agent's `create_image`
-  /// (#129), or null where none is set up: then the tool is not offered.
+  /// The image models of "Images with:" and "Infographics with:" for the
+  /// agent's `create_image` (#129, #183), or null where neither is set
+  /// up: then the tool is not offered.
   Future<ImageMaker?> _imageMaker(
       AiSettings settings, ApiKeyStore? keys) async {
     if (keys == null || widget.writer?.createFile == null) return null;
-    final agents =
-        AiSettingsScope.imageAgentsOf(context, imagePreset(settings).id);
+    final preset = imagePreset(settings);
+    final agents = AiSettingsScope.imageAgentsOf(context, preset.id);
     final config = await imageConfig(settings, keys);
-    if (config == null || !mounted) return null;
-    final provider = config.provider;
-    if (provider.model.trim().isEmpty ||
-        (provider.keyRequired && provider.apiKey.isEmpty)) {
-      return null;
-    }
-    // "Infographics with:" (#183), where it is not "Images with:". A
-    // missing key or model is said when an infographic is asked for.
+    if (!mounted) return null;
+    final noIllustrations = _cannotDraw(preset, config);
+    // "Infographics with:" (#183), where it is not "Images with:"; the
+    // tool is offered when either of the two can draw.
     ImageModel? infographics;
     if (settings.infographicProvider.isNotEmpty) {
       final preset = imagePreset(settings, ImageKind.infographic);
@@ -364,7 +362,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final config =
           await imageConfig(settings, keys, kind: ImageKind.infographic);
       if (!mounted) return null;
-      if (config != null) {
+      if (config != null && _cannotDraw(preset, config) == null) {
         infographics = ImageModel(
           make: (prompt) =>
               makeImage(config, prompt, post: widget.post, agents: agents),
@@ -374,20 +372,36 @@ class _ChatScreenState extends State<ChatScreen> {
         );
       }
     }
-    if (!mounted) return null;
+    if (noIllustrations != null && infographics == null) return null;
     final view = await ViewSettingsScope.current(context,
         limit: const Duration(seconds: 10));
-    final preset = imagePreset(settings);
     return ImageMaker(
-      make: (prompt) =>
-          makeImage(config, prompt, post: widget.post, agents: agents),
-      model: '${provider.model} at ${preset.name}, '
-          '${imageRegion(preset, config)}',
+      make: (prompt) => config == null
+          ? Future.error(AiError(noIllustrations!))
+          : makeImage(config, prompt, post: widget.post, agents: agents),
+      model: config == null || noIllustrations != null
+          ? 'none'
+          : '${config.provider.model} at ${preset.name}, '
+              '${imageRegion(preset, config)}',
       folder: view.imageFolder,
-      maxPrompt: maxImagePrompt(config.api),
+      maxPrompt: config == null ? 4000 : maxImagePrompt(config.api),
       limit: settings.maxImagesPerMessage,
       infographics: infographics,
+      noIllustrations: noIllustrations,
     );
+  }
+
+  /// Why [preset] cannot draw with [config]; null when it can.
+  String? _cannotDraw(ProviderPreset preset, ImageConfig? config) {
+    if (config == null) return '${preset.name} makes no images in the app';
+    final provider = config.provider;
+    if (provider.model.trim().isEmpty) {
+      return 'no image model is chosen for ${preset.name}';
+    }
+    if (provider.keyRequired && provider.apiKey.isEmpty) {
+      return 'the API key for ${preset.name} is missing';
+    }
+    return null;
   }
 
   /// Checks the chat's model against the provider's list as it is now,

@@ -3111,6 +3111,10 @@ devices through Syncthing.
        `ImageMaker.infographics` is the second `ImageModel`; null when
        "Infographics with:" is empty or makes no images, and then
        infographics use the illustration model.
+       `create_image` is offered when either model can draw; when only
+       "Infographics with:" can (for example, the chat is Anthropic and
+       "Images with:" is "Same as the chat"), `ImageMaker.noIllustrations`
+       says why, and an illustration is refused with that reason.
      - **`create_image` gets `kind`** (`illustration`, the default, or
        `infographic`) and, for an infographic, `data` (`columns`, `rows`,
        `source` with `name` and `url`, `retrieved` as `YYYY-MM-DD`). The

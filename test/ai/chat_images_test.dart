@@ -379,6 +379,42 @@ void main() {
       expect(store.files['open.org'], start['open.org']);
     });
 
+    test('only "Infographics with:" set up: the tool is there, an '
+        'illustration is refused (#183 review)', () async {
+      final base = make(limit: 5);
+      final agent = AgentWriter(
+        writer: base.writer,
+        visibleGraph: base.visibleGraph,
+        hiddenIds: base.hiddenIds,
+        visibility: private,
+        folder: () => 'content://tree/org',
+        limit: 30,
+        log: MemoryAgentLog(),
+        now: () => time,
+        random: Random(1),
+        images: ImageMaker(
+          make: (prompt) async => fail('no illustration model'),
+          model: 'none',
+          folder: 'images',
+          limit: 5,
+          infographics: base.images!.infographics,
+          noIllustrations: 'Anthropic makes no images in the app',
+        ),
+      );
+      agent.startMessage();
+      final description = agent.tools.last.description;
+      expect(description, contains('kind "illustration" cannot be made now: '
+          'Anthropic makes no images in the app.'));
+      expect(description, contains('kind "infographic" is drawn by '
+          'openai/gpt-image-2'));
+      expect(await agent.run(call({})),
+          startsWith('Error: an illustration cannot be made now: Anthropic '
+              'makes no images in the app. Only kind "infographic"'));
+      expect(await agent.run(call({'kind': 'infographic', 'data': data})),
+          contains('Made by openai/gpt-image-2'));
+      expect(drawnBy, ['vercel']);
+    });
+
     test('the tool description has the brief rules and "no links"', () {
       final tool = make().tools.last;
       final text = tool.description;
