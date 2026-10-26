@@ -3141,7 +3141,48 @@ devices through Syncthing.
        "Infographic" above "Make image"; the line below names the provider,
        model and region of the chosen setting. The manual screen writes no
        table: it has no data.
-     - **Not here:** exact charts drawn by the app from the data (#184).
+     - **Not here:** exact charts drawn by the app from the data: see
+       decision 104.
+
+104. **`create_chart`: exact charts drawn by the app from data** (#184),
+     `lib/ai/chart.dart`, `lib/ai/agent_tools.dart`,
+     `lib/ai/chat_screen.dart`. An image model can paint a wrong number,
+     even an infographic model (decision 103). For data such as interest
+     rates, prices or time series the app now draws the chart itself, so
+     every value is the one the AI gave.
+     - **Drawing:** `dart:ui` directly (`PictureRecorder`, `Canvas`,
+       `TextPainter`), no chart package. It needs no visible widget tree,
+       adds no dependency to keep up to date, and a line, bar or area chart
+       with a title, axis labels, a legend, marks and a footer is a few
+       hundred lines. The picture is 1600x1000 pixels, a PNG, on white;
+       the series use the theme's colours, then a fixed list.
+     - **The arguments:** `id`, `type` (`line`, `bar`, `area`), `title`,
+       `x_label`, `y_label`, `series` (`{name, points: [{x, y}]}`, at most
+       6 series and 60 points), `source` (`name`, `url`), `retrieved`,
+       `caption`, and `marks` (`{x, label}`, at most 8). `x` is a date
+       (`YYYY-MM-DD` or `YYYY-MM`) or a category, never both; `y` must be a
+       JSON number. A text `y`, no points, a mixed `x`, a repeated `x` in
+       one series, a bad source link or date are refused with a message the
+       AI can act on, and nothing is written or counted.
+     - **The axes:** bars and areas start at zero; a line fits its values.
+       Ticks are 1, 2 or 5 times a power of ten. Dates on a line or area
+       sit by time; on bars and for categories, evenly. A missing value in
+       one series breaks its line.
+     - **In the note:** the same form as `create_image`: `#+caption:`,
+       `[[file:…]]` in the image folder, one empty line, then the data as
+       an Org table and `Source: [[url][name]], retrieved <date>`, built
+       by the code of decision 103 (`InfographicData`). A second chart for
+       the same note in one message replaces the first. It is one change
+       in the list of the message, so "Undo all" takes it out; the file
+       stays.
+     - **When it is offered:** in agent mode, where the app can write files
+       into the image folder. It needs no image model and no key. The limit
+       per message is "Most images the agent may make for one message".
+     - **The check:** the PNG goes back to the chat model like a made
+       image; the result asks it to compare title, labels, units and marks
+       with its data.
+     - **Choice of tool:** `create_chart` for exact data, `create_image`
+       with kind "infographic" for a designed picture.
 
 ## Recommended, not decided
 

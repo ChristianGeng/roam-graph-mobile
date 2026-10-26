@@ -28,6 +28,7 @@ import 'ai_models.dart';
 import 'ai_providers.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
+import 'chart.dart' show defaultChartColors;
 import 'edit_tools.dart';
 import 'note_from_answer.dart';
 import 'note_language.dart';
@@ -241,6 +242,18 @@ class _ChatScreenState extends State<ChatScreen> {
         ? await _imageMaker(settings, keys)
         : null;
     if (!mounted) return;
+    // Charts need no image model, only the image folder (#184).
+    String? chartFolder;
+    if (widget.writer?.editor != null &&
+        settings.editMode == AiEditMode.agent &&
+        widget.writer?.createFile != null) {
+      chartFolder = maker?.folder ??
+          (await ViewSettingsScope.current(context,
+                  limit: const Duration(seconds: 10)))
+              .imageFolder;
+      if (!mounted) return;
+    }
+    final scheme = Theme.of(context).colorScheme;
     final values = settings.providerSettings();
     final start = widget.startNode;
     var startShown = start != null && !settings.visibility.hides(start);
@@ -298,6 +311,15 @@ class _ChatScreenState extends State<ChatScreen> {
               limit: settings.maxAgentChanges,
               log: widget.agentLog,
               images: maker,
+              chartFolder: chartFolder,
+              chartLimit: settings.maxImagesPerMessage,
+              chartColors: [
+                scheme.primary,
+                scheme.tertiary,
+                scheme.secondary,
+                scheme.error,
+                ...defaultChartColors,
+              ],
               language: language.code,
             )
           : null;

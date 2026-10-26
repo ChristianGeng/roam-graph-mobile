@@ -73,6 +73,23 @@ may make for one message* in AI settings. A second image for the same note
 in one message replaces the first. "Undo all changes of this message"
 takes the image out of the note; the image file stays in the image folder.
 
+** Charts in the chat
+For exact numbers, such as interest rates, prices or a time series, ask in
+agent mode for a chart: "Chart the key interest rate since 2022 in this
+note". The AI does the research, then the app itself draws a line, bar or
+area chart from the values: free, offline, with no image model, and every
+value is the one given. The chart has a title, axis labels with units, a
+legend for more than one series, a few marked points and a line "Source:
+name, retrieved date". Below it the note gets the values as an Org table and
+the source line with its link.
+
+Use a chart when the numbers must be right. Ask for an infographic (see
+above) when you want a designed picture; an image model can paint a wrong
+number. The AI makes at most as many charts for one message as
+*Most images the agent may make for one message* allows, and a second chart for the same note in one message replaces the
+first. "Undo all changes of this message" takes it out of the note; the
+image file stays.
+
 * The AI chat
 *Ask AI* (the graph's "More" menu, or a note's AI menu) opens a chat. The
 AI reads the notes itself, with the tools of my org-roam MCP server:

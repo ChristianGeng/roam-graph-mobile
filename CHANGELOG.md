@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-26: Exact charts drawn by the app ([#187](https://github.com/ChristianGeng/roam-graph-mobile/pull/187))
+
+- Added: in the chat, the AI can draw a line, bar or area chart from exact data with the new tool `create_chart`. The app draws it itself, offline and without an image model, so every value is right.
+- Added: the chart goes into the note with a caption, the data as an Org table and the source line; "Undo all changes of this message" takes it out. The AI is shown the chart and checks it.
+
+Closes #184.
+
 ## 2026-10-26: Infographics through their own image model ([#186](https://github.com/ChristianGeng/roam-graph-mobile/pull/186))
 
 - Added: "Infographics with:" in AI settings chooses the provider and image model for pictures with text and numbers; empty uses "Images with:".

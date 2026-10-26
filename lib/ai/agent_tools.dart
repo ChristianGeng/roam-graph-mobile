@@ -6,6 +6,8 @@
 library;
 
 import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' show Color;
 
 import '../capture/capture_screen.dart';
 import '../capture/new_node.dart';
@@ -19,6 +21,7 @@ import '../edit/note_editor.dart';
 import '../edit/see_also.dart';
 import '../graph/roam_graph.dart';
 import 'ai_chat.dart';
+import 'chart.dart';
 import 'ai_images.dart';
 import 'ai_providers.dart';
 import 'ai_tools.dart';
@@ -364,6 +367,124 @@ AiTool createImageTool(ImageMaker maker) {
   );
 }
 
+/// `create_chart` (#184): the app draws a chart from exact values, so
+/// no image model is asked.
+const createChartTool = AiTool(
+  'create_chart',
+  'Draw a chart from exact data and add it to a note, below its text, with '
+      'a caption, the data as a table and the source. The app draws it '
+      'itself, offline: every value in the picture is the one you give. Use '
+      'it for exact data such as interest rates, prices or time series, '
+      'where an image model might paint a wrong number. Do the research '
+      'first, with the other tools; the values must come from a source you '
+      'name. Choose the form that shows the point most clearly: "line" for '
+      'change over time, "bar" for comparisons, "area" for a total over '
+      'time. x is a date (YYYY-MM-DD or YYYY-MM) or a category, not both; '
+      'y is a number. Use create_image with kind "infographic" when a '
+      'designed picture is wanted. You are shown the chart if you can see '
+      'images: check it against your data. If something is wrong and the '
+      'limit allows, make it again for the same note: the new chart '
+      'replaces the one of this message.',
+  {
+    'type': 'object',
+    'properties': {
+      'id': {
+        'type': 'string',
+        'description': 'The ID of the note the chart is for',
+      },
+      'type': {
+        'type': 'string',
+        'enum': ['line', 'bar', 'area'],
+        'description': 'line for change over time, bar for comparisons, '
+            'area for a total over time',
+      },
+      'title': {'type': 'string', 'description': 'The title of the chart'},
+      'x_label': {
+        'type': 'string',
+        'description': 'The label of the x axis, with its unit',
+      },
+      'y_label': {
+        'type': 'string',
+        'description': 'The label of the y axis, with its unit',
+      },
+      'series': {
+        'type': 'array',
+        'description': 'One or more series (at most 6)',
+        'items': {
+          'type': 'object',
+          'properties': {
+            'name': {'type': 'string'},
+            'points': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'x': {
+                    'type': 'string',
+                    'description': 'A date (YYYY-MM-DD or YYYY-MM) or a '
+                        'category',
+                  },
+                  'y': {'type': 'number'},
+                },
+                'required': ['x', 'y'],
+              },
+            },
+          },
+          'required': ['name', 'points'],
+        },
+      },
+      'source': {
+        'type': 'object',
+        'properties': {
+          'name': {'type': 'string'},
+          'url': {
+            'type': 'string',
+            'description': 'https://..., or id:<ID> for a note',
+          },
+        },
+        'required': ['name', 'url'],
+      },
+      'retrieved': {
+        'type': 'string',
+        'description': 'The date the data was read, YYYY-MM-DD',
+      },
+      'caption': {
+        'type': 'string',
+        'description': 'A short caption for the note, one line, in the '
+            'language of the note',
+      },
+      'marks': {
+        'type': 'array',
+        'description': 'A few labelled points, for example "rate cut"',
+        'items': {
+          'type': 'object',
+          'properties': {
+            'x': {
+              'type': 'string',
+              'description': 'One of the x values of the series',
+            },
+            'label': {'type': 'string'},
+            'y': {
+              'type': 'number',
+              'description': 'Only if the value is not in a series',
+            },
+          },
+          'required': ['x', 'label'],
+        },
+      },
+    },
+    'required': [
+      'id',
+      'type',
+      'title',
+      'series',
+      'source',
+      'retrieved',
+      'caption',
+    ],
+  },
+);
+
 /// The values an infographic shows (#183), written into the note below
 /// its image, so they can be checked and updated later.
 class InfographicData {
@@ -395,7 +516,7 @@ class InfographicData {
           'source (name and url) and retrieved.');
     }
     String cell(Object? value) => switch (value) {
-          final String text => _cell(text),
+          final String text => tableCell(text),
           final num number => '$number',
           null => '',
           _ => throw const ToolError('data values must be text or numbers.'),
@@ -432,7 +553,7 @@ class InfographicData {
     }
     final source = json['source'];
     final name = source is Map && source['name'] is String
-        ? _cell(source['name'] as String)
+        ? tableCell(source['name'] as String)
         : '';
     final url = source is Map && source['url'] is String
         ? (source['url'] as String).trim()
@@ -460,7 +581,7 @@ class InfographicData {
   }
 
   /// One table cell: one line, without the column bar.
-  static String _cell(String text) => oneLine(text).replaceAll('|', '/');
+  static String tableCell(String text) => oneLine(text).replaceAll('|', '/');
 
   /// The Org table, aligned as Org aligns it, and the source line.
   String get org {
@@ -518,6 +639,9 @@ class AgentWriter {
     required this.limit,
     this.log = const FileAgentLog(),
     this.images,
+    this.chartFolder,
+    this.chartLimit = 1,
+    this.chartColors = defaultChartColors,
     this.language = defaultNoteLanguage,
     DateTime Function()? now,
     Random? random,
@@ -526,6 +650,17 @@ class AgentWriter {
 
   /// The image model for `create_image`; null where there is none (#129).
   final ImageMaker? images;
+
+  /// The image folder for `create_chart` (#184), relative to `roam/`; null
+  /// where charts cannot be saved: then the tool is not offered. It needs
+  /// no image model.
+  final String? chartFolder;
+
+  /// The most charts for one message: the same number as for images.
+  final int chartLimit;
+
+  /// The series' colours, from the theme.
+  final List<Color> chartColors;
 
   /// The language code `create_node` writes when the request names none
   /// (#172): decided by rules 2 to 4 when the chat starts.
@@ -536,6 +671,7 @@ class AgentWriter {
   final _imagesByCall = <String, ToolImage>{};
   final _imageBlocks = <String, String>{};
   int _imageCount = 0;
+  int _chartCount = 0;
 
   /// The infographics made for each note in the current message (#183):
   /// a second one corrects the first; there is no third.
@@ -545,9 +681,12 @@ class AgentWriter {
   ToolImage? imageFor(ToolCall call) => _imagesByCall[call.id];
 
   /// The tools this writer offers: [agentTools], and `create_image` where
-  /// there is an image model.
-  List<AiTool> get tools =>
-      [...agentTools, if (images case final maker?) createImageTool(maker)];
+  /// there is an image model, and `create_chart` where charts can be saved.
+  List<AiTool> get tools => [
+        ...agentTools,
+        if (images case final maker?) createImageTool(maker),
+        if (chartFolder != null && writer.createFile != null) createChartTool,
+      ];
 
   final NoteWriter writer;
 
@@ -585,6 +724,7 @@ class AgentWriter {
     _imagesByCall.clear();
     _imageBlocks.clear();
     _imageCount = 0;
+    _chartCount = 0;
     _infographicTries.clear();
     return changes = AgentChanges(
       messageId: '${time.microsecondsSinceEpoch.toRadixString(36)}-'
@@ -622,6 +762,7 @@ class AgentWriter {
           await _meta(editor, call.name, call.input),
         'set_language' => await _setLanguage(editor, call.input),
         'create_image' => await _image(editor, call),
+        'create_chart' => await _chart(editor, call),
         _ => 'Error: unknown tool ${call.name}.',
       };
     } on ToolError catch (e) {
@@ -936,6 +1077,91 @@ class AgentWriter {
         'this note, with kind "infographic", the same data and a corrected '
         'brief; it replaces this one. After that, tell me what is still '
         'wrong instead of trying again.';
+  }
+
+  /// `create_chart` (#184): the app draws the values it is given; the PNG
+  /// goes into the image folder and, with the caption, the data table and
+  /// the source line, below the note's text. A second chart for the same
+  /// note in one message replaces the first.
+  Future<String> _chart(NoteEditor editor, ToolCall call) async {
+    final folder = chartFolder;
+    final createFile = writer.createFile;
+    if (folder == null || createFile == null) {
+      throw const ToolError('charts cannot be saved here.');
+    }
+    final args = call.input;
+    final node = _node(_string(args, 'id'));
+    final spec = ChartSpec.from(args);
+    if (spec.data.sourceUrl.startsWith('id:')) {
+      _checkLinks('[[${spec.data.sourceUrl}]]');
+    }
+    if (_chartCount >= chartLimit) {
+      throw ToolError('the limit of $chartLimit '
+          '${chartLimit == 1 ? 'chart' : 'charts'} for one message is '
+          'reached. Tell me what is wrong with the chart instead; I can ask '
+          'for another in the next message.');
+    }
+    // The note must be one the AI may see, before anything is drawn.
+    await _read(editor, node);
+    final Uint8List bytes;
+    try {
+      bytes = await renderChart(spec, colors: chartColors);
+    } on ToolError {
+      rethrow;
+    } on Object catch (e) {
+      throw ToolError('the chart could not be drawn: $e');
+    }
+    _chartCount++;
+    var time = _now();
+    String? path;
+    for (var attempt = 0; attempt < 5 && path == null; attempt++) {
+      final candidate = imagePath(folder, time, node.displayTitle, 'png');
+      switch (await createFile(candidate, bytes)) {
+        case Created() || WrittenNotIndexed():
+          path = candidate;
+        case FileExists():
+          time = time.add(const Duration(seconds: 1));
+        case NoWriteAccess():
+          throw const ToolError('the app may only read the folder. Tell me '
+              'to choose the folder again in the app to allow writing.');
+        case CreateFailed(:final message):
+          throw ToolError('the chart could not be written: $message');
+      }
+    }
+    if (path == null) throw const ToolError('no free file name for the chart.');
+    final caption = spec.caption.isEmpty ? spec.title : spec.caption;
+    final block = '${imageAddition(caption, relativeLink(node.file, path))}'
+        '\n${spec.data.org}\n';
+    final (base, lines) = await _read(editor, node);
+    final key = '${node.id}#chart';
+    final earlier = _imageBlocks[key];
+    final body = lines.body;
+    final String after;
+    final String done;
+    final old = earlier == null ? null : _withNewline(earlier.trimRight(), lines);
+    if (old != null && old.allMatches(body).length == 1) {
+      after = lines.withBody(
+          body.replaceFirst(old, _withNewline(block.trimRight(), lines)));
+      done = 'Replaced the chart of this message in "${node.displayTitle}"';
+    } else {
+      after = lines.withAddition(_withNewline(block, lines));
+      done = 'Added the chart to "${node.displayTitle}"';
+    }
+    final result = await _save(editor, 'create_chart', node, base, after,
+        '$done, as roam/$path, with the caption "$caption".');
+    _imageBlocks[key] = block;
+    _imagesByCall[call.id] = ToolImage(bytes, 'image/png');
+    final check = 'Drawn by the app from your values. The data table and '
+        'the source line are in the note below the chart. Check the chart '
+        'against your data: title, axis labels, units and marks.';
+    if (_chartCount >= chartLimit) {
+      return '$result $check If something is wrong, tell me what is wrong: '
+          'the limit of $chartLimit '
+          '${chartLimit == 1 ? 'chart' : 'charts'} for this message is '
+          'reached.';
+    }
+    return '$result $check If something is wrong, make the chart once more '
+        'for this note with corrected values; it replaces this one.';
   }
 
   /// `rename_node`, `set_tags` and `set_aliases` (#97): the node's head,
