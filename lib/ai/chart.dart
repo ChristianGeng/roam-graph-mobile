@@ -594,7 +594,9 @@ void _draw(Canvas canvas, ChartSpec spec, List<Color> colors) {
         ? plot.left +
             spec.xs.indexOf(m.x) * band +
             band * 0.1 +
-            band * 0.8 / n * ((m.series ?? 0) + 0.5)
+            (m.series case final from?
+                ? band * 0.8 / n * (from + 0.5)
+                : band * 0.4)
         : xOf(m.x);
     final y = yOf(m.y);
     canvas.drawCircle(
