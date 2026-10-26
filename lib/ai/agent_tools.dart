@@ -432,7 +432,7 @@ class InfographicData {
     }
     final source = json['source'];
     final name = source is Map && source['name'] is String
-        ? _cell(source['name'] as String).replaceAll(RegExp(r'[\[\]]'), '')
+        ? _cell(source['name'] as String)
         : '';
     final url = source is Map && source['url'] is String
         ? (source['url'] as String).trim()
@@ -478,7 +478,8 @@ class InfographicData {
       line(columns),
       '|${[for (final w in widths) '-' * (w + 2)].join('+')}|',
       for (final row in rows) line(row),
-      'Source: [[$sourceUrl][$sourceName]], retrieved $retrieved',
+      'Source: [[$sourceUrl][${orgLinkDescription(sourceName)}]], '
+          'retrieved $retrieved',
     ].join('\n');
   }
 }

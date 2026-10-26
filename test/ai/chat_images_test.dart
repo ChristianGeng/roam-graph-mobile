@@ -305,6 +305,23 @@ void main() {
       expect(store.files['open.org'], start['open.org']);
     });
 
+    test('brackets in the source name are kept, escaped as Org does '
+        '(#183 review)', () async {
+      final agent = make();
+      agent.startMessage();
+      await agent.run(call({
+        'kind': 'infographic',
+        'data': {
+          ...data,
+          'source': {'name': 'Log [Q1]]', 'url': 'https://example.org/log'},
+        },
+      }));
+      expect(
+          store.files['open.org'],
+          endsWith('Source: [[https://example.org/log][Log [Q1]\u200B]\u200B]], '
+              'retrieved 2026-10-17\n'));
+    });
+
     test('the result asks for a check, once more at most', () async {
       final agent = make(limit: 5);
       agent.startMessage();

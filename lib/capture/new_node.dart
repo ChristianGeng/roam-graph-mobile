@@ -72,12 +72,15 @@ String oneLine(String text) => text.replaceAll(RegExp(r'\s*\n\s*'), ' ').trim();
 /// - The description cannot end the link early: if it ends with `]`, a
 ///   zero-width space follows; then each pair `]]`, from the left and not
 ///   overlapping, gets a zero-width space between its brackets.
-String orgLink(String id, String description) {
+String orgLink(String id, String description) =>
+    '[[${orgLinkEscape('id:$id')}][${orgLinkDescription(description)}]]';
+
+/// [description] made safe for a link, as in [orgLink].
+String orgLinkDescription(String description) {
   const space = '\u200B';
   var text = oneLine(description);
   if (text.endsWith(']')) text = '$text$space';
-  text = text.replaceAll(']]', ']$space]');
-  return '[[${orgLinkEscape('id:$id')}][$text]]';
+  return text.replaceAll(']]', ']$space]');
 }
 
 /// [link] escaped as Org's `org-link-escape` does it.
