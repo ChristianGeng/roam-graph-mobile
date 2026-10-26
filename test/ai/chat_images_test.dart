@@ -191,6 +191,268 @@ void main() {
     });
   });
 
+  group('create_image kind "infographic" (#183)', () {
+    late MemoryNoteStore store;
+    late Map<String, Uint8List> images;
+    late List<String> drawnBy;
+
+    AgentWriter make({int limit = 2, bool ownInfographics = true}) {
+      store = MemoryNoteStore(Map.of(start));
+      images = {};
+      drawnBy = [];
+      return AgentWriter(
+        writer: NoteWriter(
+          create: (name, text) async => Created(name),
+          allowWriting: () async {},
+          editor: NoteEditor(store: store, history: MemoryEditHistory()),
+          createFile: (path, bytes) async {
+            if (images.containsKey(path)) return const FileExists();
+            images[path] = bytes;
+            return Created(path);
+          },
+        ),
+        visibleGraph: () => private.visibleGraph(graphOf(store.files)),
+        hiddenIds: () => private.hiddenIds(graphOf(store.files)),
+        visibility: private,
+        folder: () => 'content://tree/org',
+        limit: 30,
+        log: MemoryAgentLog(),
+        now: () => time,
+        random: Random(1),
+        images: ImageMaker(
+          make: (prompt) async {
+            drawnBy.add('mistral');
+            return MadeImage(png, 'png');
+          },
+          model: 'mistral-medium-latest at Mistral, in the EU',
+          folder: 'images',
+          limit: limit,
+          infographics: ownInfographics
+              ? ImageModel(
+                  make: (prompt) async {
+                    drawnBy.add('vercel');
+                    return MadeImage(png, 'png');
+                  },
+                  name: 'openai/gpt-image-2 at Vercel AI Gateway, outside '
+                      'the EU',
+                  maxPrompt: 50,
+                )
+              : null,
+        ),
+      );
+    }
+
+    const data = {
+      'columns': ['Year', 'Hours'],
+      'rows': [
+        ['2021', 40],
+        ['2022', '55'],
+      ],
+      'source': {'name': 'Training log', 'url': 'https://example.org/log'},
+      'retrieved': '2026-10-17',
+    };
+
+    ToolCall call(Map<String, Object?> extra, {String callId = 'c1'}) =>
+        ToolCall(callId, 'create_image', {
+          'id': 'open',
+          'prompt': 'Bar chart, 2021 40 h',
+          'caption': 'Hours per year',
+          ...extra,
+        });
+
+    test('infographic, illustration and no kind go to their own models',
+        () async {
+      final agent = make(limit: 5);
+      agent.startMessage();
+      final result =
+          await agent.run(call({'kind': 'infographic', 'data': data}));
+      expect(result, contains('Made by openai/gpt-image-2 at Vercel'));
+      await agent.run(call({'kind': 'illustration'}, callId: 'c2'));
+      await agent.run(call({}, callId: 'c3'));
+      expect(drawnBy, ['vercel', 'mistral', 'mistral']);
+      expect(await agent.run(call({'kind': 'chart'}, callId: 'c4')),
+          startsWith('Error: kind must be'));
+    });
+
+    test('without "Infographics with:": the illustration model', () async {
+      final agent = make(ownInfographics: false);
+      agent.startMessage();
+      expect(await agent.run(call({'kind': 'infographic', 'data': data})),
+          contains('Made by mistral-medium-latest'));
+      expect(drawnBy, ['mistral']);
+    });
+
+    test('the Org table and the source line go below the image; undo '
+        'removes them with it', () async {
+      final agent = make();
+      agent.startMessage();
+      await agent.run(call({'kind': 'infographic', 'data': data}));
+      final path = imagePath('images', time, 'Open', 'png');
+      expect(
+          store.files['open.org'],
+          '${start['open.org']}'
+          '# image prompt: Bar chart, 2021 40 h\n'
+          '#+caption: Hours per year\n'
+          '[[file:$path]]\n'
+          '\n'
+          '| Year | Hours |\n'
+          '|------+-------|\n'
+          '| 2021 | 40    |\n'
+          '| 2022 | 55    |\n'
+          'Source: [[https://example.org/log][Training log]], retrieved '
+          '2026-10-17\n');
+      await agent.changes.undoAll(agent.writer.editor!);
+      expect(store.files['open.org'], start['open.org']);
+    });
+
+    test('brackets in the source name are kept, escaped as Org does '
+        '(#183 review)', () async {
+      final agent = make();
+      agent.startMessage();
+      await agent.run(call({
+        'kind': 'infographic',
+        'data': {
+          ...data,
+          'source': {'name': 'Log [Q1]]', 'url': 'https://example.org/log'},
+        },
+      }));
+      expect(
+          store.files['open.org'],
+          endsWith('Source: [[https://example.org/log][Log [Q1]\u200B]\u200B]], '
+              'retrieved 2026-10-17\n'));
+    });
+
+    test('the result asks for a check, once more at most', () async {
+      final agent = make(limit: 5);
+      agent.startMessage();
+      final first =
+          await agent.run(call({'kind': 'infographic', 'data': data}));
+      expect(first, contains('Compare every number and label'));
+      expect(first, contains('make the image once more'));
+      final second = await agent.run(
+          call({'kind': 'infographic', 'data': data}, callId: 'c2'));
+      expect(second, contains('Replaced the image of this message'));
+      expect(second, contains('do not make it again'));
+      // The second table replaced the first.
+      expect(RegExp(r'Source:').allMatches(store.files['open.org']!),
+          hasLength(1));
+      expect(
+          await agent.run(
+              call({'kind': 'infographic', 'data': data}, callId: 'c3')),
+          contains('made twice'));
+      expect(drawnBy, ['vercel', 'vercel']);
+    });
+
+    test('with one image per message, the result says the limit', () async {
+      final agent = make(limit: 1);
+      agent.startMessage();
+      expect(await agent.run(call({'kind': 'infographic', 'data': data})),
+          contains('limit of 1 image for this message is reached'));
+    });
+
+    test('data is needed and checked; links stay out of the prompt',
+        () async {
+      final agent = make(limit: 5);
+      agent.startMessage();
+      Future<String> run(Map<String, Object?> extra) =>
+          agent.run(call({'kind': 'infographic', ...extra}));
+      expect(await run({}), contains('needs data'));
+      expect(await run({'data': {...data, 'rows': []}}),
+          contains('data.rows is missing'));
+      expect(
+          await run({
+            'data': {
+              ...data,
+              'rows': [
+                ['1', '2', '3'],
+              ],
+            },
+          }),
+          contains('more values'));
+      expect(
+          await run({
+            'data': {
+              ...data,
+              'source': {'name': 'X', 'url': 'javascript:alert(1)'},
+            },
+          }),
+          contains('must be an https:// link'));
+      expect(await run({'data': {...data, 'retrieved': 'yesterday'}}),
+          contains('YYYY-MM-DD'));
+      expect(
+          await run({
+            'data': {
+              ...data,
+              'source': {'name': 'X', 'url': 'id:diary'},
+            },
+          }),
+          contains('no notes you may see'));
+      expect(
+          await run({'data': data, 'prompt': 'Chart, source www.ecb.eu'}),
+          contains('the prompt has a link'));
+      expect(await run({'data': data, 'prompt': 'x' * 51}),
+          contains('at most 50'));
+      expect(drawnBy, isEmpty);
+      expect(store.files['open.org'], start['open.org']);
+    });
+
+    test('only "Infographics with:" set up: the tool is there, an '
+        'illustration is refused (#183 review)', () async {
+      final base = make(limit: 5);
+      final agent = AgentWriter(
+        writer: base.writer,
+        visibleGraph: base.visibleGraph,
+        hiddenIds: base.hiddenIds,
+        visibility: private,
+        folder: () => 'content://tree/org',
+        limit: 30,
+        log: MemoryAgentLog(),
+        now: () => time,
+        random: Random(1),
+        images: ImageMaker(
+          make: (prompt) async => fail('no illustration model'),
+          model: 'none',
+          folder: 'images',
+          limit: 5,
+          infographics: base.images!.infographics,
+          noIllustrations: 'Anthropic makes no images in the app',
+        ),
+      );
+      agent.startMessage();
+      final description = agent.tools.last.description;
+      expect(description, contains('kind "illustration" cannot be made now: '
+          'Anthropic makes no images in the app.'));
+      expect(description, contains('kind "infographic" is drawn by '
+          'openai/gpt-image-2'));
+      expect(await agent.run(call({})),
+          startsWith('Error: an illustration cannot be made now: Anthropic '
+              'makes no images in the app. Only kind "infographic"'));
+      expect(await agent.run(call({'kind': 'infographic', 'data': data})),
+          contains('Made by openai/gpt-image-2'));
+      expect(drawnBy, ['vercel']);
+    });
+
+    test('the tool description has the brief rules and "no links"', () {
+      final tool = make().tools.last;
+      final text = tool.description;
+      expect(text, contains('kind "infographic" by openai/gpt-image-2'));
+      expect(text, contains('kind "illustration" (the default) is drawn by '
+          'mistral-medium-latest'));
+      expect(text, contains('Use "infographic" for anything with numbers, '
+          'labels or text'));
+      expect(text, contains('do the research first'));
+      expect(text, contains('layout brief: the title, the exact values with '
+          'units and dates, the chart form, the labels, the colours, and a '
+          'source line naming the source and the date the data was read'));
+      expect(text, contains('No links and no running text in the prompt'));
+      final properties = (tool.parameters['properties'] as Map);
+      expect((properties['kind'] as Map)['enum'],
+          ['illustration', 'infographic']);
+      expect((properties['data'] as Map)['required'],
+          ['columns', 'rows', 'source', 'retrieved']);
+    });
+  });
+
   test("today's date goes into the system prompt", () {
     expect(withToday('Prompt.', DateTime(2026, 3, 4)),
         'Prompt. Today is 2026-03-04.');

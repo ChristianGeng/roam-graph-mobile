@@ -39,6 +39,16 @@ Vercel uses Gemini 2.5 Flash Image, the one image model there with an EU
 route. When a model has no EU route, *Make this one outside the EU* makes
 this one image without the EU option; "EU only" stays on.
 
+** Infographics
+*Infographics with:* in AI settings is the provider and image model for
+pictures with text and numbers: charts, tables, timelines. It has its own
+key, image model and "EU only", like "Images with:". Empty ("Same as
+"Images with:"") uses the provider and image model of "Images with:". GPT
+Image and Gemini Image set text well; FLUX (Mistral) does not.
+
+In "Create image", choose *Illustration* or *Infographic* above "Make
+image": the line below names the provider and model of that setting.
+
 ** Images in the chat
 For an image about the contents of the notes, such as an infographic, ask
 in the chat, in agent mode: "Make an infographic of my training over the
@@ -47,6 +57,16 @@ image prompt with the facts in it, and adds the image with a caption to
 the note, below its text, with the prompt as a comment (~# image
 prompt: …~). The image shows in the chat; the AI is shown it too, if its
 model can see images, and checks it. The chat knows today's date.
+
+For an infographic the AI uses the model of "Infographics with:". Its
+prompt is a layout brief: the title, the exact values with units and
+dates, the chart form, the labels, the colours and a source line, without
+links. Below the image the note gets the values as an Org table and a line
+~Source: [[url][name]], retrieved <date>~, so the numbers can be checked
+and updated later. The AI compares every number and label in the picture
+with the table; if one is wrong and the image limit allows, it makes the
+image once more, which replaces the first, and then says what is still
+wrong instead of trying again.
 
 By default the AI makes one image per message; set *Most images the agent
 may make for one message* in AI settings. A second image for the same note

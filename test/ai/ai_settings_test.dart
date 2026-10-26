@@ -772,4 +772,144 @@ void main() {
       expect(jsonEncode(store.settings.toJson()), isNot(contains('mi-key')));
     });
   });
+
+  group('"Infographics with:" (#183)', () {
+    test('saved and read back; before #183 or unknown: as "Images with:"',
+        () {
+      expect(const AiSettings().infographicProvider, '');
+      expect(AiSettings.fromJson({'imageProvider': 'mistral'})
+          .infographicProvider, '');
+      final read = AiSettings.fromJson(const AiSettings(
+              provider: 'anthropic',
+              imageProvider: 'mistral',
+              infographicProvider: 'vercel')
+          .toJson());
+      expect(read.imageProvider, 'mistral');
+      expect(read.infographicProvider, 'vercel');
+      for (final bad in ['anthropic', 'nope', 3]) {
+        expect(AiSettings.fromJson({'infographicProvider': bad})
+            .infographicProvider, '', reason: '$bad');
+      }
+      // The infographic model of a provider: its own, saved; before #183
+      // the preset's image model.
+      final vercel = presetById('vercel');
+      final saved = ProviderSettings.fromJson(
+          {
+            ...ProviderSettings.of(vercel).toJson(),
+            'imageModel': 'bfl/flux-2-pro',
+            'infographicModel': 'google/gemini-2.5-flash-image',
+            'infographicApi': 'chat',
+          },
+          vercel);
+      expect(saved.imageModel, 'bfl/flux-2-pro');
+      expect(saved.infographicModel, 'google/gemini-2.5-flash-image');
+      expect(saved.infographicApi, ImageApi.chat);
+      final old = ProviderSettings.fromJson(
+          {'imageModel': 'bfl/flux-2-pro'}, vercel);
+      expect(old.infographicModel, vercel.imageModel);
+      expect(old.infographicApi, vercel.imageApi);
+    });
+
+    test('an infographic uses its provider, key and model; an illustration '
+        'and the chat are unchanged', () async {
+      final keys = MemoryKeyStore()
+        ..keys.addAll({'anthropic': 'a-key', 'mistral': 'm-key',
+          'vercel': 'v-key'});
+      final settings = AiSettings(
+        provider: 'anthropic',
+        imageProvider: 'mistral',
+        infographicProvider: 'vercel',
+        providers: {
+          'vercel': ProviderSettings.fromJson({
+            'imageModel': 'bfl/flux-2-pro',
+            'infographicModel': 'google/gemini-3-pro-image',
+            'infographicApi': 'chat',
+          }, presetById('vercel')),
+        },
+      );
+      expect(imagePreset(settings).id, 'mistral');
+      expect(imagePreset(settings, ImageKind.illustration).id, 'mistral');
+      expect(imagePreset(settings, ImageKind.infographic).id, 'vercel');
+      final image = (await imageConfig(settings, keys))!;
+      expect(image.provider.apiKey, 'm-key');
+      expect(image.provider.model, 'mistral-medium-latest');
+      final info =
+          (await imageConfig(settings, keys, kind: ImageKind.infographic))!;
+      expect(info.provider.name, 'Vercel AI Gateway');
+      expect(info.provider.apiKey, 'v-key');
+      expect(info.provider.model, 'google/gemini-3-pro-image');
+      expect(info.api, ImageApi.chat);
+      expect((await providerConfig(settings, keys)).apiKey, 'a-key');
+      // Empty: an infographic as an illustration, with "Images with:".
+      final same = settings.copyWith(infographicProvider: '');
+      expect(imagePreset(same, ImageKind.infographic).id, 'mistral');
+      expect(
+          (await imageConfig(same, keys, kind: ImageKind.infographic))!
+              .provider
+              .model,
+          'mistral-medium-latest');
+      // The same provider under both: each its own model, one key.
+      final both = AiSettings(
+        provider: 'anthropic',
+        imageProvider: 'vercel',
+        infographicProvider: 'vercel',
+        providers: settings.providers,
+      );
+      expect((await imageConfig(both, keys))!.provider.model,
+          'bfl/flux-2-pro');
+      final bothInfo =
+          (await imageConfig(both, keys, kind: ImageKind.infographic))!;
+      expect(bothInfo.provider.model, 'google/gemini-3-pro-image');
+      expect(bothInfo.provider.apiKey, 'v-key');
+    });
+
+    testWidgets('chosen in AI settings, with its own key and model; '
+        '"Images with:" stays', (tester) async {
+      final store = MemoryAiSettingsStore(
+          const AiSettings(provider: 'anthropic', imageProvider: 'mistral'));
+      final keys = MemoryKeyStore();
+      await pumpIn(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => AiSettingsScreen.open(context),
+            child: const Text('open'),
+          ),
+        ),
+        store: store,
+        keys: keys,
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      final choice = find.byKey(const ValueKey('infographic-provider-'));
+      await scrollTo(tester, choice);
+      expect(find.text('Same as "Images with:" (Mistral)'), findsOneWidget);
+      expect(
+          find.text('For pictures with text and numbers. GPT Image and '
+              'Gemini Image set text well; FLUX (Mistral) does not.'),
+          findsOneWidget);
+      await tester.tap(choice);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Vercel AI Gateway').last);
+      await tester.pumpAndSettle();
+      final model = find.byKey(const ValueKey('infographic-model-vercel'));
+      await scrollTo(tester, model);
+      expect(tester.widget<TextField>(model).controller!.text,
+          'openai/gpt-image-2');
+      await tester.enterText(model, 'google/gemini-3-pro-image');
+      final key = find.byKey(const ValueKey('api-key-vercel'));
+      await scrollTo(tester, key);
+      await tester.enterText(key, 've-key');
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(store.settings.provider, 'anthropic');
+      expect(store.settings.imageProvider, 'mistral');
+      expect(store.settings.infographicProvider, 'vercel');
+      final vercel = store.settings.providerSettings('vercel');
+      expect(vercel.infographicModel, 'google/gemini-3-pro-image');
+      expect(vercel.imageModel, 'openai/gpt-image-2');
+      expect(keys.keys, {'vercel': 've-key'});
+      expect(jsonEncode(store.settings.toJson()), isNot(contains('ve-key')));
+    });
+  });
 }

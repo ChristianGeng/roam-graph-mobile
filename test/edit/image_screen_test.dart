@@ -158,6 +158,27 @@ void main() {
         contains('cannot make images in the app'));
   });
 
+  testWidgets('an infographic provider without images names its setting '
+      '(#183 review)', (tester) async {
+    final (_, _, prompts) = await open(tester, 'fox',
+        settings:
+            const AiSettings(provider: 'vercel', infographicProvider: 'anthropic'));
+    await tester.tap(find.text('Infographic'));
+    await tester.pumpAndSettle();
+    expect(find.text('Anthropic cannot make images in the app.'),
+        findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('image-prompt')), 'x');
+    await tester.tap(find.byKey(const ValueKey('image-make')));
+    await tester.pumpAndSettle();
+    expect(prompts, isEmpty);
+    expect(
+        tester
+            .widget<SelectableText>(find.byKey(const ValueKey('image-error')))
+            .data,
+        contains('Choose one that does under "Infographics with:" in AI '
+            'settings.'));
+  });
+
   testWidgets('an image error can be copied with the provider\'s answer (#180)',
       (tester) async {
     final copied = <String>[];
@@ -229,6 +250,53 @@ void main() {
         settings: const AiSettings(provider: 'anthropic', imageProvider: 'qwen'));
     expect(where(tester),
         'Made by Qwen (Alibaba Cloud) with qwen-image-2.0, outside the EU.');
+  });
+
+  testWidgets('Illustration or Infographic: the line and the model change '
+      '(#183)', (tester) async {
+    final urls = <String>[];
+    final bodies = <Map<String, Object?>>[];
+    final (store, _, _) = await openScreen(tester, 'fox',
+        provider: 'vercel',
+        settings: AiSettings(
+          provider: 'anthropic',
+          imageProvider: 'mistral',
+          infographicProvider: 'vercel',
+          providers: {
+            'vercel': ProviderSettings.fromJson(
+                {'infographicModel': 'google/gemini-3-pro-image',
+                  'infographicApi': 'images'},
+                presetById('vercel')),
+          },
+        ),
+        post: (url, headers, body) async {
+          urls.add(url.toString());
+          bodies.add(jsonDecode(body) as Map<String, Object?>);
+          return HttpReply(
+              200,
+              jsonEncode({
+                'data': [
+                  {'b64_json': png},
+                ],
+              }));
+        });
+    expect(where(tester),
+        'Made by Mistral with mistral-medium-latest, in the EU.');
+    await tester.tap(find.text('Infographic'));
+    await tester.pumpAndSettle();
+    expect(where(tester),
+        'Made by Vercel AI Gateway with google/gemini-3-pro-image, '
+        'outside the EU.');
+    await tester.enterText(find.byType(TextField).first, 'Bar chart');
+    await tester.tap(find.text('Make image'));
+    await tester.pumpAndSettle();
+    expect(urls.single, startsWith('https://ai-gateway.vercel.sh/v1'));
+    expect(bodies.single['model'], 'google/gemini-3-pro-image');
+    await tester.tap(find.text('Illustration'));
+    await tester.pumpAndSettle();
+    expect(where(tester),
+        'Made by Mistral with mistral-medium-latest, in the EU.');
+    expect(store.files, notes);
   });
 
   testWidgets('"Make this one outside the EU": once, the setting stays on',

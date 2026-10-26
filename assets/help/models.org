@@ -66,6 +66,14 @@ The image model is separate from the chat model. For an image based on
 the notes, ask the chat in agent mode; for a picture from a description,
 use "Create image" in the note's edit menu.
 
+An infographic (text, numbers, labels) can use another provider and model
+than an illustration: set *Infographics with:* in AI settings. The same
+model picker, with its prices, chooses both. GPT Image
+(~openai/gpt-image-2~) and Gemini Image (~google/gemini-2.5-flash-image~)
+set text well; FLUX and Mistral's image tool, which uses FLUX, do not. A
+good pair: Mistral for illustrations, Vercel with ~openai/gpt-image-2~ for
+infographics.
+
 - *Mistral image tool:* ~mistral-medium-latest~ (medium). A good choice
   for an illustration with EU processing. The app makes a Mistral agent
   with the image tool and uses its Conversations API; this is not the
