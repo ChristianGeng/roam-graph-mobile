@@ -590,13 +590,12 @@ void _draw(Canvas canvas, ChartSpec spec, List<Color> colors) {
   for (final m in spec.marks) {
     // On a bar chart, the middle of the bar the value belongs to.
     final band = plot.width / count;
+    final from = m.series;
     final x = spec.type == ChartType.bar
         ? plot.left +
             spec.xs.indexOf(m.x) * band +
             band * 0.1 +
-            (m.series case final from?
-                ? band * 0.8 / n * (from + 0.5)
-                : band * 0.4)
+            (from == null ? band * 0.4 : band * 0.8 / n * (from + 0.5))
         : xOf(m.x);
     final y = yOf(m.y);
     canvas.drawCircle(
