@@ -13,6 +13,7 @@ import '../ai/ai_settings.dart';
 import '../capture/capture_screen.dart';
 import '../capture/new_node.dart';
 import '../graph/roam_graph.dart';
+import '../platform/error_text.dart';
 import '../platform/screen_awake.dart';
 import '../settings/view_settings.dart';
 import 'node_text.dart';
@@ -97,6 +98,10 @@ class _ImageScreenState extends State<ImageScreen> {
   /// this note" works (#112).
   bool _withTitle = true;
   String? _error;
+
+  /// More about [_error] to copy with it (#180): the request and the
+  /// provider's answer.
+  ErrorReport? _detail;
   MadeImage? _image;
 
   /// The description [_image] was made from.
@@ -146,6 +151,7 @@ class _ImageScreenState extends State<ImageScreen> {
     setState(() {
       _working = true;
       _error = null;
+      _detail = null;
       _offerOutsideEu = false;
     });
     try {
@@ -205,10 +211,19 @@ class _ImageScreenState extends State<ImageScreen> {
       return null;
     } on NoEuRouteError catch (e) {
       if (mounted) setState(() => _offerOutsideEu = true);
-      return e.message;
+      return _failed(e, config);
     } on AiError catch (e) {
-      return e.message;
+      return _failed(e, config);
     }
+  }
+
+  /// Keeps what to copy with [e] and returns its message.
+  String _failed(AiError e, ImageConfig config) {
+    _detail = e.report(
+        provider: config.provider.name,
+        model: config.provider.model,
+        api: config.api.name);
+    return e.message;
   }
 
   /// Writes the image into the image folder, then adds its link to the
@@ -335,10 +350,10 @@ class _ImageScreenState extends State<ImageScreen> {
           if (_error case final error?)
             Padding(
               padding: const EdgeInsets.only(top: 16),
-              child: Text(
-                error,
-                key: const ValueKey('image-error'),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              child: ErrorText(
+                _detail?.message == error ? _detail! : ErrorReport(error),
+                textKey: const ValueKey('image-error'),
+                copyKey: const ValueKey('image-error-copy'),
               ),
             ),
           if (_offerOutsideEu && !_working)

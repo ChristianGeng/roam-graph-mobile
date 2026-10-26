@@ -18,6 +18,7 @@ import '../edit/save_messages.dart';
 import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
 import '../node_view/web_links.dart';
+import '../platform/error_text.dart';
 import '../platform/screen_awake.dart';
 import '../settings/view_settings.dart';
 import 'agent_tools.dart';
@@ -120,6 +121,9 @@ class _ChatScreenState extends State<ChatScreen> {
   String _strongModel = '';
   bool _sending = false;
   String? _error;
+
+  /// More about [_error] to copy with it (#180).
+  ErrorReport? _errorDetail;
   String? _setupProblem;
 
   /// Set when the chosen model is not in the provider's list now (#113).
@@ -425,11 +429,13 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _sending = true;
       _error = null;
+      _errorDetail = null;
     });
     try {
       await whileScreenOn(work);
     } on AiError catch (e) {
       _error = e.message;
+      _errorDetail = e.report();
     } finally {
       if (mounted) setState(() => _sending = false);
       _toEnd();
@@ -549,7 +555,7 @@ class _ChatScreenState extends State<ChatScreen> {
           visibility: settings.visibility,
         );
       } on ChangeSetError catch (e) {
-        if (mounted) _tell(e.message);
+        if (mounted) _tell(e.message, error: true);
         return;
       }
       _sets[callId] = set;
@@ -568,27 +574,28 @@ class _ChatScreenState extends State<ChatScreen> {
     final graph = widget.graph.value;
     final node = graph.nodes[proposal.nodeId];
     if (node == null) {
-      _tell('The note is no longer in the graph.');
+      _tell('The note is no longer in the graph.', error: true);
       return;
     }
     final base = await editor.read(node.file);
     if (!mounted) return;
     if (base == null) {
-      _tell('Could not read ${node.file}.');
+      _tell('Could not read ${node.file}.', error: true);
       return;
     }
     if (AiSettingsScope.of(context).visibility.hidesInText(node, base.text)) {
-      _tell('${node.file} is hidden from AI now; nothing was saved.');
+      _tell('${node.file} is hidden from AI now; nothing was saved.', error: true);
       return;
     }
     final after = applyProposal(base.text, node, proposal);
     if (after == null) {
-      _tell('The heading is no longer in ${node.file}.');
+      _tell('The heading is no longer in ${node.file}.', error: true);
       return;
     }
     if (!sameLanguageLines(base.text, after)) {
       _tell('The AI\'s change would add or change a #+language: line, '
-          'which stays as it is; nothing was saved.');
+          'which stays as it is; nothing was saved.',
+          error: true);
       return;
     }
     final unknown = unknownLinkIds(proposal.text, graph);
@@ -613,7 +620,8 @@ class _ChatScreenState extends State<ChatScreen> {
         _proposalStatus[callId] = 'Saved.';
       }
     });
-    _tell(message ?? 'Saved ${node.displayTitle}.');
+    _tell(message ?? 'Saved ${node.displayTitle}.',
+        error: message != null && result is! SavedNotIndexed);
     if (message != null && result is NoWriteAccessToEdit) {
       await widget.writer?.allowWriting();
     }
@@ -668,6 +676,7 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _preparing = index);
     ({String title, String body})? note;
     String? failed;
+    ErrorReport? failedDetail;
     try {
       final reply = await whileScreenOn(() => session.askOnce(
             noteRequestEntries(session.transcript, index,
@@ -677,6 +686,7 @@ class _ChatScreenState extends State<ChatScreen> {
       note = parseNoteJson(reply);
     } on AiError catch (e) {
       failed = e.message;
+      failedDetail = e.report();
     } finally {
       if (mounted) setState(() => _preparing = null);
     }
@@ -687,7 +697,12 @@ class _ChatScreenState extends State<ChatScreen> {
           ? 'The AI\'s note could not be read, so the first line of the '
               'answer is the title.'
           : 'The AI could not write the note ($failed), so the first line '
-              'of the answer is the title.');
+              'of the answer is the title.',
+          error: failed != null,
+          // The copied text says what the snack bar says.
+          report: failedDetail?.withMessage(
+              'The AI could not write the note ($failed), so the first '
+              'line of the answer is the title.'));
     }
     await _openCapture(writer, note ?? proposeNode(SharedText(entry.text)));
   }
@@ -709,9 +724,17 @@ class _ChatScreenState extends State<ChatScreen> {
     if (id != null && mounted) widget.openNode?.call(context, id);
   }
 
-  void _tell(String message) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+  /// An [error] has a "Copy" action (#180); [report] says more.
+  void _tell(String message, {bool error = false, ErrorReport? report}) {
+    final messenger = ScaffoldMessenger.of(context);
+    if (error) {
+      showErrorSnackBar(messenger, message, report: report);
+      return;
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   void _newChat() {
     if (_sending || _preparing != null) return;
@@ -1078,24 +1101,24 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SelectableText(error,
-                    style: TextStyle(color: colors.onErrorContainer)),
-                Row(
-                  children: [
-                    if (session?.waiting ?? false)
+                ErrorText(
+                  _errorDetail?.message == error
+                      ? _errorDetail!
+                      : ErrorReport(error),
+                  textKey: const ValueKey('chat-error-text'),
+                  copyKey: const ValueKey('chat-error-copy'),
+                  color: colors.onErrorContainer,
+                ),
+                if (session?.waiting ?? false)
+                  Row(
+                    children: [
                       TextButton(
                         onPressed:
                             _sending || _preparing != null ? null : _resume,
                         child: const Text('Send again'),
                       ),
-                    TextButton.icon(
-                      key: const ValueKey('chat-error-copy'),
-                      onPressed: () => copyText(context, error),
-                      icon: const Icon(Icons.copy_outlined, size: 18),
-                      label: const Text('Copy'),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
           ),

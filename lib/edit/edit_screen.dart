@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import '../capture/capture_screen.dart';
 import '../capture/new_node.dart';
 import '../graph/roam_graph.dart';
+import '../platform/error_text.dart';
 import 'add_link.dart';
 import 'diff_screen.dart';
 import 'node_text.dart';
@@ -71,16 +72,17 @@ class EditScreen extends StatefulWidget {
       final noteKey = editor.store.historyKey(node.file);
       final base = await editor.read(node.file);
       if (base == null) {
-        messenger.showSnackBar(SnackBar(
-            content: Text('Could not read ${node.file} as text to edit.')));
+        showErrorSnackBar(
+            messenger, 'Could not read ${node.file} as text to edit.');
         return null;
       }
       final lines = NodeLines.find(base.text, node);
       if (lines == null) {
-        messenger.showSnackBar(SnackBar(
-            content: Text('${node.displayTitle} is no longer in '
-                '${node.file} with its :ID:; the file changed since the app '
-                'read it.')));
+        showErrorSnackBar(
+            messenger,
+            '${node.displayTitle} is no longer in '
+            '${node.file} with its :ID:; the file changed since the app '
+            'read it.');
         return null;
       }
       if (!navigator.mounted) return null;
@@ -129,11 +131,9 @@ class _EditScreenState extends State<EditScreen> {
     super.dispose();
   }
 
-  void _tell(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
+  /// An [error] has a "Copy" action (#180).
+  void _tell(String message, {bool error = false}) =>
+      showMessage(ScaffoldMessenger.of(context), message, error: error);
 
   /// Closes the page, also with unsaved changes, once [PopScope] knows.
   /// [result] is the message for a save, [_startAgain], or null.
@@ -174,7 +174,7 @@ class _EditScreenState extends State<EditScreen> {
           selection: TextSelection(baseOffset: start, extentOffset: end),
         );
       case StructureRefused(:final reason):
-        _tell(reason);
+        _tell(reason, error: true);
     }
   }
 
@@ -205,14 +205,16 @@ class _EditScreenState extends State<EditScreen> {
     if (editor == null) return;
     if (editor.store.historyKey(widget.node.file) != widget.noteKey) {
       _tell('Another folder is open now. Open the node there again to edit '
-          'it; nothing was saved.');
+          'it; nothing was saved.',
+          error: true);
       return;
     }
     // `#+title:` and `#+filetags:` count anywhere in the file, so their
     // lines in the text stay as they are too (rule 5).
     if (!sameLockedKeywords(widget.lines.body, _text.text)) {
       _tell('Lines with #+title: or #+filetags: stay as they are: they set '
-          "the note's title and tags. Nothing was saved.");
+          "the note's title and tags. Nothing was saved.",
+          error: true);
       return;
     }
     final after = widget.lines.withBody(_text.text);
@@ -226,7 +228,8 @@ class _EditScreenState extends State<EditScreen> {
     // The folder may have changed while the diff was open.
     if (editor.store.historyKey(widget.node.file) != widget.noteKey) {
       _tell('Another folder is open now. Open the node there again to edit '
-          'it; nothing was saved.');
+          'it; nothing was saved.',
+          error: true);
       return;
     }
     setState(() => _saving = true);
@@ -254,7 +257,7 @@ class _EditScreenState extends State<EditScreen> {
       await _leave(message);
       return;
     }
-    if (message != null) _tell(message);
+    if (message != null) _tell(message, error: true);
     if (result is NoWriteAccessToEdit) await widget.writer.allowWriting();
   }
 

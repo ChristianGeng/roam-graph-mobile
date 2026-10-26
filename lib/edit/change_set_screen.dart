@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
+import '../platform/error_text.dart';
 import 'change_set.dart';
 import 'diff_screen.dart';
 import 'edit_proposal.dart';
@@ -60,8 +61,14 @@ class _ChangeSetScreenState extends State<ChangeSetScreen> {
       e.state == EntryState.refused ||
       e.state == EntryState.undone);
 
-  void _tell(String message) {
-    ScaffoldMessenger.of(context)
+  /// An [error] has a "Copy" action (#180).
+  void _tell(String message, {bool error = false}) {
+    final messenger = ScaffoldMessenger.of(context);
+    if (error) {
+      showErrorSnackBar(messenger, message);
+      return;
+    }
+    messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
   }
@@ -152,7 +159,8 @@ class _ChangeSetScreenState extends State<ChangeSetScreen> {
         _set.entries.where((e) => e.state == EntryState.refused).length;
     final rejected =
         _set.entries.where((e) => e.state == EntryState.rejected).length;
-    _tell('$saved saved, $refused refused, $rejected rejected.');
+    _tell('$saved saved, $refused refused, $rejected rejected.',
+        error: refused > 0);
   }
 
   Future<void> _undo() async {
@@ -172,7 +180,8 @@ class _ChangeSetScreenState extends State<ChangeSetScreen> {
         : 'Undone, except: ${[
             for (final MapEntry(:key, :value) in problems.entries)
               '$key ($value)'
-          ].join(', ')}.');
+          ].join(', ')}.',
+        error: problems.isNotEmpty);
   }
 
   String _stateText(ChangeEntry entry) => switch (entry.state) {
@@ -247,9 +256,7 @@ class _ChangeSetScreenState extends State<ChangeSetScreen> {
                     ),
                     for (final note in _notes(entry).skip(
                         entry.proposal.reason.isEmpty ? 0 : 1))
-                      Text(note,
-                          style: TextStyle(
-                              color: Theme.of(context).colorScheme.error)),
+                      ErrorText.message(note),
                     if (!_decided)
                       Wrap(
                         spacing: 8,

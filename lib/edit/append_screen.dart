@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
+import '../platform/error_text.dart';
 import 'append.dart';
 import 'note_editor.dart';
 import 'unsaved_text.dart';
@@ -65,11 +66,9 @@ class _AppendScreenState extends State<AppendScreen> {
     super.dispose();
   }
 
-  void _tell(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
+  /// An [error] has a "Copy" action (#180).
+  void _tell(String message, {bool error = false}) =>
+      showMessage(ScaffoldMessenger.of(context), message, error: error);
 
   Future<void> _save() async {
     final editor = widget.writer.editor;
@@ -77,7 +76,8 @@ class _AppendScreenState extends State<AppendScreen> {
     if (editor == null || _text.text.trim().isEmpty) return;
     if (editor.store.historyKey(node.file) != _noteKey) {
       _tell('Another folder is open now. Open the node there again to add '
-          'to it; your text is still here.');
+          'to it; your text is still here.',
+          error: true);
       return;
     }
     setState(() => _saving = true);
@@ -85,14 +85,15 @@ class _AppendScreenState extends State<AppendScreen> {
       final base = await editor.read(node.file);
       if (!mounted) return;
       if (base == null) {
-        _tell('Could not read ${node.file}.');
+        _tell('Could not read ${node.file}.', error: true);
         return;
       }
       final text = appendToNode(base.text, node, _text.text);
       if (text == null) {
         _tell('${node.displayTitle} is no longer in ${node.file} with its '
             ':ID:; the file changed since the app read it. Your text is '
-            'still here.');
+            'still here.',
+            error: true);
         return;
       }
       final result = await editor.save(node.file, base, text);
@@ -105,18 +106,21 @@ class _AppendScreenState extends State<AppendScreen> {
               'graph shows it after the next scan ($message).');
         case ChangedMeanwhile():
           _tell('${node.file} changed while saving. Your text is still '
-              'here: save again to add it to the new version.');
+              'here: save again to add it to the new version.',
+              error: true);
         case NoteGone():
-          _tell('${node.file} is no longer in the folder.');
+          _tell('${node.file} is no longer in the folder.', error: true);
         case LockedPartChanged():
           _tell('The text must not hold a property drawer: the :ID: and '
-              'the drawers stay as they are.');
+              'the drawers stay as they are.',
+              error: true);
         case NoWriteAccessToEdit():
           _tell('The app may only read the folder. Choose it again to '
-              'allow writing.');
+              'allow writing.',
+              error: true);
           await widget.writer.allowWriting();
         case SaveFailed(:final message):
-          _tell('Could not save: $message');
+          _tell('Could not save: $message', error: true);
       }
     } finally {
       if (mounted) setState(() => _saving = false);

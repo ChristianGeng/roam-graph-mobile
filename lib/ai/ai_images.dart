@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../platform/error_text.dart';
 import 'ai_chat.dart';
 import 'ai_providers.dart';
 
@@ -260,7 +261,8 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
     final link = _fromDashscope(json);
     if (link == null) {
       throw AiError('${provider.name} sent no image. The model '
-          '"${provider.model}" may not make images.');
+          '"${provider.model}" may not make images.',
+          answer: _answerOf(json, provider));
     }
     final Uri imageUrl;
     try {
@@ -284,7 +286,8 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
   if (encoded == null) {
     throw AiError('${provider.name} sent no image. The model '
         '"${provider.model}" may not make images, or not this way: check '
-        '"How the image model is asked" in AI settings.');
+        '"How the image model is asked" in AI settings.',
+        answer: _answerOf(json, provider));
   }
   final Uint8List bytes;
   try {
@@ -299,6 +302,11 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
   }
   return MadeImage(bytes, extension);
 }
+
+/// The provider's answer [json] as text for an error, without keys and cut
+/// short (#180).
+String _answerOf(Object? json, ProviderConfig provider) =>
+    cleanAnswer(jsonEncode(json), secrets: [provider.apiKey]);
 
 /// A picture of [prompt] from Mistral's image tool (#163), as Mistral
 /// documents it: an agent with the tool (`POST /v1/agents`, made once per
@@ -413,11 +421,13 @@ Future<MadeImage> _mistralFile(
       // The answer only repeats the prompt: the tool did not run (#163).
       if (_repeats(said, prompt)) {
         throw AiError('${provider.name} did not run its image tool. The '
-            'model "${provider.model}" may not use it; $advice.');
+            'model "${provider.model}" may not use it; $advice.',
+            answer: _answerOf(json, provider));
       }
       throw AiError('${provider.name} sent no image'
           '${said.isEmpty ? '.' : ', only text: "${_shorten(said)}"'} The '
-          'model "${provider.model}" may not use the image tool; $advice.');
+          'model "${provider.model}" may not use the image tool; $advice.',
+          answer: _answerOf(json, provider));
     case (link: final link?, fileId: _):
       final parsed = Uri.tryParse(link);
       if (parsed == null) {
@@ -438,7 +448,8 @@ Future<MadeImage> _mistralFile(
       imageUrl = Uri.https('api.mistral.ai',
           '/v1/files/${Uri.encodeComponent(fileId)}/content');
     default:
-      throw AiError('${provider.name} sent no image.');
+      throw AiError('${provider.name} sent no image.',
+          answer: _answerOf(json, provider));
   }
   // The key goes only to Mistral's own hosts, not to the storage link,
   // which carries its own signature.

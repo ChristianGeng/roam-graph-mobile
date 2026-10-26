@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
 
+import '../platform/error_text.dart';
 import '../settings/view_settings.dart';
 
 /// The graph and the note side by side on a tablet in landscape (#16, #69),
@@ -65,9 +66,8 @@ class _TwoPanesState extends State<TwoPanes> {
       await ViewSettingsScope.change(context, settings);
     } on Exception catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save the layout: $e')),
-        );
+        showErrorSnackBar(
+            ScaffoldMessenger.of(context), 'Could not save the layout: $e');
       }
     } finally {
       if (mounted) setState(() => _pending = null);

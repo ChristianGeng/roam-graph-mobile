@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import '../platform/error_text.dart';
 import 'ai_providers.dart';
 import 'ai_tools.dart';
 import 'web_access.dart';
@@ -72,7 +73,15 @@ Future<HttpReply> postWithDartIo(
 
 /// Something the user can act on, in plain words.
 class AiError implements Exception {
-  const AiError(this.message, {this.status, this.passing = false});
+  const AiError(
+    this.message, {
+    this.status,
+    this.passing = false,
+    this.provider,
+    this.model,
+    this.api,
+    this.answer,
+  });
 
   final String message;
 
@@ -83,6 +92,27 @@ class AiError implements Exception {
   /// The HTTP status the provider answered with, where it refused the
   /// request.
   final int? status;
+
+  /// Which provider, model and kind of API the failed request went to,
+  /// where the request was made (#180).
+  final String? provider;
+  final String? model;
+  final String? api;
+
+  /// What the provider answered, cleaned of keys and cut to 2000
+  /// characters (#180); null when there was no answer to show.
+  final String? answer;
+
+  /// The error with what helps to find the cause, to show with a copy
+  /// button (#180). [provider], [model] and [api] fill in or replace what
+  /// the error itself knows.
+  ErrorReport report({String? provider, String? model, String? api}) =>
+      ErrorReport(message,
+          provider: provider ?? this.provider,
+          model: model ?? this.model,
+          api: api ?? this.api,
+          status: status,
+          answer: answer);
 
   @override
   String toString() => message;
@@ -1007,19 +1037,31 @@ class ChatSession {
 /// words. Also for images (#112).
 Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
     Map<String, String> headers, Object? body, HttpPost post) async {
+  // Every error carries where the request went (#180).
+  AiError fail(String message,
+          {int? status, bool passing = false, String? answer}) =>
+      AiError(redactSecrets(message, secrets: [config.apiKey]),
+          status: status,
+          passing: passing,
+          provider: config.name,
+          model: config.model,
+          api: config.api.name,
+          answer: answer);
+  String answerOf(String raw) =>
+      cleanAnswer(raw, secrets: [config.apiKey]);
   HttpReply reply;
   try {
     reply = await post(url, headers, jsonEncode(body));
   } on SocketException catch (e) {
-    throw AiError(
+    throw fail(
         'No connection to ${url.host}: ${e.message}. Check the network.',
         passing: true);
   } on HandshakeException catch (e) {
-    throw AiError('No secure connection to ${url.host}: ${e.message}.');
+    throw fail('No secure connection to ${url.host}: ${e.message}.');
   } on TimeoutException {
-    throw AiError('${url.host} did not answer in time. Try again.');
+    throw fail('${url.host} did not answer in time. Try again.');
   } on HttpException catch (e) {
-    throw AiError('The connection to ${url.host} failed: ${e.message}.',
+    throw fail('The connection to ${url.host} failed: ${e.message}.',
         passing: true);
   }
   Object? json;
@@ -1029,18 +1071,23 @@ Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
     json = null;
   }
   if (reply.status >= 300 && reply.status < 400) {
-    throw AiError('${config.name} answered with a redirect (HTTP '
+    throw fail(
+        '${config.name} answered with a redirect (HTTP '
         '${reply.status}), which the app does not follow, so nothing goes '
-        'to another host. Check the base URL.');
+        'to another host. Check the base URL.',
+        status: reply.status,
+        answer: answerOf(reply.body));
   }
   if (reply.status < 200 || reply.status >= 300) {
-    throw AiError(_httpError(config, reply.status, _message(json, reply.body)),
+    throw fail(_httpError(config, reply.status, _message(json, reply.body)),
         status: reply.status,
         // A gateway or an overloaded provider (Anthropic's 529), for now.
-        passing: const {502, 503, 504, 529}.contains(reply.status));
+        passing: const {502, 503, 504, 529}.contains(reply.status),
+        answer: answerOf(reply.body));
   }
   if (json is! Map) {
-    throw AiError('${config.name} sent an answer the app cannot read.');
+    throw fail('${config.name} sent an answer the app cannot read.',
+        status: reply.status, answer: answerOf(reply.body));
   }
   return json.cast<String, Object?>();
 }

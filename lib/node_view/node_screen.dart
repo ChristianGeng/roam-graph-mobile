@@ -24,6 +24,7 @@ import '../graph/ai_share.dart';
 import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
+import '../platform/error_text.dart';
 import '../settings/view_settings.dart';
 import 'folding.dart';
 import 'quick_edits.dart';
@@ -440,7 +441,7 @@ class _NodeScreenState extends State<NodeScreen> {
 
   void _openId(String id) {
     if (!widget.graph.value.nodes.containsKey(id)) {
-      _tell('There is no node with the ID $id.');
+      _tell('There is no node with the ID $id.', error: true);
       return;
     }
     _endVisit();
@@ -639,7 +640,8 @@ class _NodeScreenState extends State<NodeScreen> {
                 'Settings.'
             : 'Orgro is not installed.');
       case OpenResult.noFile:
-        _tell('Could not find ${node.file} in the folder.');
+        _tell('Could not find ${node.file} in the folder.',
+            error: true);
     }
   }
 
@@ -675,7 +677,10 @@ class _NodeScreenState extends State<NodeScreen> {
     try {
       await widget.shareText(text, subject: node.displayTitle);
     } on PlatformException catch (e) {
-      if (mounted) _tell('Could not share the note: ${e.message ?? e.code}');
+      if (mounted) {
+        _tell('Could not share the note: ${e.message ?? e.code}',
+            error: true);
+      }
     }
   }
 
@@ -817,27 +822,30 @@ class _NodeScreenState extends State<NodeScreen> {
         if (base == null) {
           _endVisit();
           _readAgain();
-          _tell('Could not read ${node.file} as text to change.');
+          _tell('Could not read ${node.file} as text to change.',
+              error: true);
           return;
         }
         if (base.text != shown) {
           _endVisit();
           _readAgain();
           _tell('${node.file} changed since the app showed it, so nothing '
-              'was changed. It is shown again now.');
+              'was changed. It is shown again now.',
+              error: true);
           return;
         }
         final String after;
         try {
           after = change(base.text);
         } on NoteChangeError catch (e) {
-          _tell('${e.message} Nothing was changed.');
+          _tell('${e.message} Nothing was changed.', error: true);
           return;
         }
         if (after == base.text) return;
         if (editor.store.historyKey(node.file) != key) {
           _endVisit();
-          _tell('Another folder is open now; nothing was changed.');
+          _tell('Another folder is open now; nothing was changed.',
+              error: true);
           return;
         }
         _keepFolding(after);
@@ -867,7 +875,9 @@ class _NodeScreenState extends State<NodeScreen> {
         } else {
           _keptFolding = null;
           if (result is ChangedMeanwhile || result is NoteGone) _endVisit();
-          _tell(saveMessage(result, node.file) ?? done());
+          final problem = saveMessage(result, node.file);
+          _tell(problem ?? done(),
+              error: problem != null && result is! SavedNotIndexed);
         }
       });
 
@@ -907,8 +917,10 @@ class _NodeScreenState extends State<NodeScreen> {
           _keptFolding = null;
         }
         _readAgain();
-        _tell(saveMessage(result, step.file) ?? 'Undone.',
-            short: result is Saved || result is SavedNotIndexed);
+        final problem = saveMessage(result, step.file);
+        _tell(problem ?? 'Undone.',
+            short: result is Saved || result is SavedNotIndexed,
+            error: problem != null && result is! SavedNotIndexed);
       });
 
   void _undoChanged(String file) {
@@ -916,7 +928,8 @@ class _NodeScreenState extends State<NodeScreen> {
     _endVisit();
     _readAgain();
     _tell('$file or its folder changed since, so nothing was undone. '
-        'It is shown again now.');
+        'It is shown again now.',
+        error: true);
   }
 
   Future<void> _deleteNote(NoteWriter writer, RoamNode node) async {
@@ -985,8 +998,14 @@ class _NodeScreenState extends State<NodeScreen> {
     });
   }
 
-  void _tell(String message, {bool short = false}) {
-    ScaffoldMessenger.of(context)
+  /// An [error] has a "Copy" action (#180), and stays until dismissed.
+  void _tell(String message, {bool short = false, bool error = false}) {
+    final messenger = ScaffoldMessenger.of(context);
+    if (error) {
+      showErrorSnackBar(messenger, message);
+      return;
+    }
+    messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content: Text(message),

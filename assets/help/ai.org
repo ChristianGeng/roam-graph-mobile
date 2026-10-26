@@ -118,3 +118,9 @@ Searches and pages together are at most *Most web searches for one
 message* (5 by default). The AI names its sources as links, also in the
 notes it writes from facts of the web. Notes hidden from AI stay hidden:
 the AI does not see them, so it cannot put them into a search.
+
+* Errors
+Errors have a copy button; paste the text when you report a problem. The
+copied text has the app version, the platform, the time and, for AI
+errors, the provider, the model and the provider's own answer, without
+keys. Error messages in snack bars have a *Copy* action.
