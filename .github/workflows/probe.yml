@@ -42,49 +42,17 @@ jobs:
           mkagent() { curl -sS $M/agents "${H[@]}" -d "$(jq -nc --arg ins "${2:-$INS}" --argjson ca "$1" '{model:"mistral-medium-latest",name:"probe-181",instructions:$ins,tools:[{type:"image_generation"}]} + (if $ca == null then {} else {completion_args:$ca} end)')"; }
           converse() { curl -sS $M/conversations "${H[@]}" -d "$(jq -nc --arg id "$1" --arg p "${3:-$PROMPT}" --argjson extra "$2" '{agent_id:$id,inputs:$p} + $extra')"; }
           SH
-      - name: d) follow-up in a stored conversation, and a replay
+      - name: d2) replay carries the history
         run: |
           . /tmp/h.sh
-          sleep 90
-          id=$(mkagent null | jq -r .id)
-          c=$(converse "$id" '{"store":true}' 'Tell me in one sentence what the ECB is. Do not make an image.')
-          note "d first store=true" "$(echo "$c" | jq -c "$summary")"
-          note "d first raw shape" "$(echo "$c" | jq -c '{keys:keys, outputs:[.outputs[]?|{object,type,role,agent_id,model,id,content_type:(.content|type)}]}')"
-          cid=$(echo "$c" | jq -r '.conversation_id // empty')
-          T=$(echo "$c" | jq -r '[.outputs[]?|select(.type=="message.output")|.content|if type=="string" then . else tostring end]|join(" ")')
-          if [ -n "$cid" ]; then
-            f=$(curl -sS -w '\nHTTP %{http_code}' $M/conversations/$cid "${H[@]}" -d '{"inputs":"Use the image generation tool now.","store":true}')
-            body=$(echo "$f" | sed '$d')
-            note "d follow-up $(echo "$f" | tail -1)" "$(echo "$body" | jq -c "$summary")"
-            note "d follow-up raw shape" "$(echo "$body" | jq -c '{object, keys:keys, outputs:[.outputs[]?|{object,type,name,function,role,agent_id,model,content_type:(.content|type), info_keys:(.info|keys?)}]}')"
-            note "d delete conversation" "$(curl -sS -X DELETE $M/conversations/$cid "${H[@]}" -o /dev/null -w '%{http_code}')"
-          fi
-          sleep 20
-          r=$(curl -sS -w '\nHTTP %{http_code}' $M/conversations "${H[@]}" -d "$(jq -nc --arg id "$id" --arg t "${T:-The ECB is the central bank of the euro area.}" '{agent_id:$id,store:false,inputs:[{type:"message.input",role:"user",content:"Tell me in one sentence what the ECB is. Do not make an image."},{type:"message.output",role:"assistant",content:$t},{type:"message.input",role:"user",content:"Use the image generation tool now."}]}')")
-          note "d replay store=false $(echo "$r" | tail -1)" "$(echo "$r" | sed '$d' | jq -c "$summary")"
-      - name: i) milder instructions, loops counted
-        run: |
-          . /tmp/h.sh
-          sleep 30
           id=$(mkagent null "$INS3" | jq -r .id)
-          note "i German prompt run 1" "$(converse "$id" '{"store":false}' | jq -c "$summary")"
-          sleep 30
-          note "i German prompt run 2" "$(converse "$id" '{"store":false}' | jq -c "$summary")"
-          sleep 30
-          note "i red circle" "$(converse "$id" '{"store":false}' 'A red circle on a white background' | jq -c "$summary")"
-          sleep 30
-          old=$(mkagent null | jq -r .id)
-          p=$(curl -sS -w '\nHTTP %{http_code}' -X PATCH $M/agents/$old "${H[@]}" -d "$(jq -nc --arg i "$INS3" '{instructions:$i}')")
-          note "i PATCH old agent $(echo "$p" | tail -1)" "$(echo "$p" | sed '$d' | jq -c '{version, instructions:(.instructions|.[0:60]), tools}')"
-          note "i patched agent, red circle" "$(converse "$old" '{"store":false}' 'A red circle on a white background' | jq -c "$summary")"
-      - name: r) tool_choice required set by PATCH
-        run: |
-          . /tmp/h.sh
-          sleep 30
-          id=$(mkagent null | jq -r .id)
-          p=$(curl -sS -X PATCH $M/agents/$id "${H[@]}" -d '{"completion_args":{"tool_choice":"required"}}')
-          note "r PATCH" "$(echo "$p" | jq -c '{version, tc:(.completion_args.tool_choice)}')"
-          note "r red circle" "$(converse "$id" '{"store":false}' 'A red circle on a white background' | jq -c "$summary")"
+          replay() { curl -sS -w '\nHTTP %{http_code}' $M/conversations "${H[@]}" -d "$(jq -nc --arg id "$id" --arg u "$1" --arg a "$2" --arg n "$3" '{agent_id:$id,store:false,inputs:[{type:"message.input",role:"user",content:$u},{type:"message.output",role:"assistant",content:$a},{type:"message.input",role:"user",content:$n}]}')"; }
+          r=$(replay 'My favourite colour is green. Do not make an image.' 'Noted.' 'What is my favourite colour? Answer in one word, and do not make an image.')
+          note "d2 context $(echo "$r" | tail -1)" "$(echo "$r" | sed '$d' | jq -c "$summary")"
+          sleep 20
+          r=$(replay "$PROMPT" 'Die Daten stammen aus [EZB Leitzinsen](https://www.ecb.europa.eu/stats/key_ecb_interest_rates) und der Bundesbank.' 'Use the image generation tool now.')
+          note "d2 retry after text $(echo "$r" | tail -1)" "$(echo "$r" | sed '$d' | jq -c "$summary")"
+          note "d2 retry raw shape" "$(echo "$r" | sed '$d' | jq -c '{object, keys:keys, outputs:[.outputs[]?|{object,type,name,function,role,content_type:(.content|type), info_keys:(.info|keys?)}]}')"
       - name: Clean up
         if: always()
         run: |

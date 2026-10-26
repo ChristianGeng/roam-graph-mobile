@@ -406,18 +406,7 @@ Future<MadeImage> _mistralFile(
   final Uri imageUrl;
   switch (_fromMistral(json)) {
     case null:
-      final said = _mistralText(json);
-      final advice = provider.model == 'mistral-medium-latest'
-          ? 'try again, or choose another Mistral model as the image model'
-          : 'try mistral-medium-latest';
-      // The answer only repeats the prompt: the tool did not run (#163).
-      if (_repeats(said, prompt)) {
-        throw AiError('${provider.name} did not run its image tool. The '
-            'model "${provider.model}" may not use it; $advice.');
-      }
-      throw AiError('${provider.name} sent no image'
-          '${said.isEmpty ? '.' : ', only text: "${_shorten(said)}"'} The '
-          'model "${provider.model}" may not use the image tool; $advice.');
+      throw _noMistralImage(json, provider, prompt);
     case (link: final link?, fileId: _):
       final parsed = Uri.tryParse(link);
       if (parsed == null) {
@@ -459,6 +448,38 @@ Future<MadeImage> _mistralFile(
   }
   return MadeImage(bytes, extension);
 }
+
+/// The error when a Mistral answer has no image (#181): "Mistral did not
+/// make an image", with the start of its text. Links in the text are cut
+/// out, so no host is named: a link there is not an image.
+AiError _noMistralImage(
+    Map<String, Object?> json, ProviderConfig provider, String prompt) {
+  final said = _withoutLinks(_mistralText(json));
+  final advice = provider.model == 'mistral-medium-latest'
+      ? 'try again, or choose another Mistral model as the image model'
+      : 'try mistral-medium-latest';
+  if (said.isEmpty || _repeats(said, prompt)) {
+    // No text, or only the prompt again: the tool did not run (#163).
+    return AiError('${provider.name} did not make an image. '
+        '${said.isEmpty ? 'It sent no text either.' : 'Its answer only '
+            'repeats the prompt.'} The model "${provider.model}" may not use '
+        'the image tool; $advice.');
+  }
+  // Text instead of an image, for example about the sources of a prompt
+  // full of data (#181).
+  return AiError('${provider.name} did not make an image. Its answer '
+      'begins: "${_shorten(said)}". Try again, or describe only the '
+      'picture, without data or links.');
+}
+
+/// [text] without links: a Markdown link becomes its label, and a bare
+/// link becomes "(link)".
+String _withoutLinks(String text) => text
+    .replaceAllMapped(
+        RegExp(r'!?\[([^\]]*)\]\([^)\s]*\)'), (m) => m.group(1)!.trim())
+    .replaceAll(RegExp(r'\b(?:https?://|www\.)\S+'), '(link)')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
 
 /// The entries of a Mistral answer that hold content: the Conversations
 /// API's `outputs` (`message.output` entries), and, as Chat Completions
@@ -502,7 +523,7 @@ String _mistralText(Map<String, Object?> json) {
 /// The first image in a Mistral answer: a `tool_file` chunk (a file ID)
 /// or an `image_url` chunk (a link), in any of [_mistralMessages]; else
 /// the link in the `tool.execution` entry's `info.result`; else a
-/// Markdown link in the answer's text.
+/// Markdown link on one of [mistralImageHosts] in the answer's text.
 ({String? link, String? fileId})? _fromMistral(Map<String, Object?> json) {
   for (final message in _mistralMessages(json)) {
     final content = message is Map ? message['content'] : null;
@@ -546,10 +567,10 @@ String _mistralText(Map<String, Object?> json) {
     }
   }
   // Else a Markdown link in the answer's text, `![…](https://…)` or
-  // `[…](https://…)`, in string content or text chunks. The first link on
-  // an allowed host wins; else the first link, which is then refused.
+  // `[…](https://…)`, in string content or text chunks: only a link on
+  // an allowed host (#181). A link elsewhere, such as a source the text
+  // names, is not an image.
   final markdown = RegExp(r'!?\[[^\]]*\]\((https://[^)\s]+)\)');
-  String? first;
   for (final message in _mistralMessages(json)) {
     final content = message is Map ? message['content'] : null;
     final texts = <String>[
@@ -566,11 +587,9 @@ String _mistralText(Map<String, Object?> json) {
         if (url != null && isMistralImageUrl(url)) {
           return (link: link, fileId: null);
         }
-        first ??= link;
       }
     }
   }
-  if (first != null) return (link: first, fileId: null);
   return null;
 }
 
