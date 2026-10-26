@@ -534,6 +534,13 @@ jobs:
           fi
           gh api --paginate "repos/$GH_REPO/compare/$PREVIOUS...$GITHUB_SHA" \
             --jq '.files[].filename' > "$RUNNER_TEMP/changed-files.txt"
+          # The compare API names at most 300 files: a longer list may be
+          # cut, so then the tests run.
+          if [ "$(wc -l < "$RUNNER_TEMP/changed-files.txt")" -ge 300 ]; then
+            echo "Many files changed since $PREVIOUS: the live image tests run."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if grep -E '^(lib/ai/ai_images\.dart|lib/ai/ai_providers\.dart|test/live/)' \
               "$RUNNER_TEMP/changed-files.txt"; then
             echo "changed=true" >> "$GITHUB_OUTPUT"

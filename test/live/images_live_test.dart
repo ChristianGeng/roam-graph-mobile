@@ -162,7 +162,8 @@ void main() {
       );
       final priced = [
         for (final m in models)
-          if (m.images == true && (m.imagePrice ?? 0) > 0) m,
+          if (m.images == true && m.chat != true && (m.imagePrice ?? 0) > 0)
+            m,
       ]..sort((a, b) => a.imagePrice!.compareTo(b.imagePrice!));
       if (priced.isEmpty) {
         fail('Vercel\'s model list has no image-only model with a price');
