@@ -564,7 +564,7 @@ jobs:
     secrets: inherit
 
   release:
-    needs: [version, build, linux, windows, macos, org-roam, live-images]
+    needs: [version, build, linux, windows, macos, org-roam, live-check, live-images]
     # A pre-release needs build and org-roam; a full release all jobs. The
     # desktop jobs are skipped for a pre-release, and a skipped job would
     # skip this one without !cancelled().
@@ -573,6 +573,7 @@ jobs:
       && (needs.version.outputs.kind == 'prerelease' || needs.version.outputs.kind == 'full')
       && needs.build.result == 'success'
       && needs.org-roam.result == 'success'
+      && (needs.version.outputs.kind == 'prerelease' || needs.live-check.result == 'success')
       && (needs.version.outputs.kind == 'prerelease'
           || (needs.linux.result == 'success'
               && needs.windows.result == 'success'
