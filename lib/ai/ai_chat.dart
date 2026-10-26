@@ -1040,7 +1040,7 @@ Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
   // Every error carries where the request went (#180).
   AiError fail(String message,
           {int? status, bool passing = false, String? answer}) =>
-      AiError(message,
+      AiError(redactSecrets(message, secrets: [config.apiKey]),
           status: status,
           passing: passing,
           provider: config.name,

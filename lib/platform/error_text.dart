@@ -96,6 +96,14 @@ class ErrorReport {
   /// The provider's raw answer; cut and cleaned when it is copied.
   final String? answer;
 
+  /// The same report with another [message].
+  ErrorReport withMessage(String message) => ErrorReport(message,
+      provider: provider,
+      model: model,
+      api: api,
+      status: status,
+      answer: answer);
+
   /// What is copied. [version], [platform] and [now] are for tests.
   String text({String? version, String? platform, DateTime? now}) {
     final time = (now ?? DateTime.now())

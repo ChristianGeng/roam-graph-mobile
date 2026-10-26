@@ -620,7 +620,8 @@ class _ChatScreenState extends State<ChatScreen> {
         _proposalStatus[callId] = 'Saved.';
       }
     });
-    _tell(message ?? 'Saved ${node.displayTitle}.', error: message != null);
+    _tell(message ?? 'Saved ${node.displayTitle}.',
+        error: message != null && result is! SavedNotIndexed);
     if (message != null && result is NoWriteAccessToEdit) {
       await widget.writer?.allowWriting();
     }
@@ -698,7 +699,10 @@ class _ChatScreenState extends State<ChatScreen> {
           : 'The AI could not write the note ($failed), so the first line '
               'of the answer is the title.',
           error: failed != null,
-          report: failedDetail);
+          // The copied text says what the snack bar says.
+          report: failedDetail?.withMessage(
+              'The AI could not write the note ($failed), so the first '
+              'line of the answer is the title.'));
     }
     await _openCapture(writer, note ?? proposeNode(SharedText(entry.text)));
   }
