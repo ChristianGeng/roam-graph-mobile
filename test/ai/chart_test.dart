@@ -49,7 +49,7 @@ Map<String, Object?> chartArgs({
       'source': {'name': 'Example Bank', 'url': 'https://example.org/r'},
       'retrieved': '2026-10-20',
       'caption': 'The synthetic rate',
-      if (marks != null) 'marks': marks,
+      'marks': ?marks,
     };
 
 Future<ui.Image> decode(Uint8List bytes) async {
