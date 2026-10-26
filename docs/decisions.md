@@ -3031,6 +3031,63 @@ devices through Syncthing.
        conflict copies, the language report) are not errors of a kind that
        needs pasting. The pull request lists the places that were changed.
 
+102. **Mistral images: a clear error when no image came, and one retry**
+     (#181), `lib/ai/ai_images.dart`. *Replaces the Markdown part of
+     decision 97.* With a long prompt full of data and source links (an
+     infographic about interest rates), Mistral's agent answered with text
+     and a Markdown link to the source (`www.ecb.eu`). Decision 97 took the
+     first Markdown link when none was on Mistral's hosts, so the app said
+     "Mistral sent an image link to www.ecb.eu, which the app does not
+     download", which was misleading.
+     - **A required tool call is not possible.** Checked with the real API
+       through a temporary CI workflow (October 2026): `POST /v1/agents`
+       with `completion_args.tool_choice` takes only `auto`, `none` or
+       `required` (`any` and an object naming the tool are refused), and
+       `required` is refused for an agent with a built-in tool ("Can't
+       create an agent with 'tool_choice' set to 'required' and using built
+       in connectors"). `PATCH /v1/agents/<id>` accepts `required`, but a
+       conversation with that agent then fails ("An invalid response was
+       received from the upstream server"). A conversation with an agent
+       may not contain `completion_args`. So the agent keeps `auto`.
+     - **Clearer instructions:** the agent is told: "Use the image
+       generation tool to make the image the user describes. Do this also
+       when the request contains data, sources or links. Do not answer
+       with text or links instead of an image." In the check, this agent
+       called the tool once for each prompt, short or long. Stronger words
+       ("Always call the image generation tool exactly once ...", "Never
+       answer with text only") made the agent call the tool about twenty
+       times in one answer, until Mistral's rate limit stopped it; they are
+       not used.
+     - **Agents kept from before are made again once:** `imageAgents` keeps
+       `v2:<agent ID>` (`mistralAgentVersion`). A kept value without the
+       current version is an agent with the old instructions: the app
+       makes a new agent and keeps it. Mistral's `PATCH /v1/agents/<id>`
+       would update the old agent (it worked in the check), but the app's
+       requests to providers go through `HttpPost`, which sends only POST;
+       a new agent needs no new kind of request. The old agent stays
+       unused in the Mistral account ("Roam Graph images").
+     - **Markdown links:** only a link on `mistralImageHosts` counts as an
+       image. A link to another host in the text, such as a source, is not
+       an image link and is not refused as one.
+     - **One retry:** when the answer has no `tool_file` or `image_url`
+       chunk, no `url` in a `tool.execution` entry and no Markdown link on
+       an allowed host, the app asks once more: "Use the image generation
+       tool now." The conversation was started with `store: false`, and
+       Mistral cannot continue such a conversation
+       (`POST /v1/conversations/<id>` answers 404), so the app starts a new
+       one, again with `store: false`, whose `inputs` are the conversation
+       so far: the prompt (`message.input`, role `user`), Mistral's text
+       (`message.output`, role `assistant`, left out when there was none)
+       and the retry request. In the check, Mistral took this, used the
+       earlier entries, and ran the tool.
+     - **No image after the retry:** "Mistral did not make an image. Its
+       answer begins: "…"", with the start of the text, its links cut out
+       (a Markdown link becomes its label, another link "(link)"), so no
+       host is named; then "Try again, or describe only the picture,
+       without data or links." When there is no text, or the text only
+       repeats the prompt, the message says so and gives the model advice
+       as before.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

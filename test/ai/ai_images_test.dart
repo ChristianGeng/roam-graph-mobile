@@ -298,7 +298,7 @@ void main() {
       expect(url.toString(), 'https://api.mistral.ai/v1/conversations');
       expect(headers['authorization'], 'Bearer m-key');
       expect(body, {'agent_id': 'ag-1', 'inputs': 'A red fox', 'store': false});
-      expect(agents.ids, {'mistral-medium-latest': 'ag-1'});
+      expect(agents.ids, {'mistral-medium-latest': 'v2:ag-1'});
       final (fileUrl, fileHeaders) = downloads.single;
       expect(fileUrl.toString(), 'https://api.mistral.ai/v1/files/f-1/content');
       expect(fileHeaders, {'authorization': 'Bearer m-key'});
@@ -457,13 +457,14 @@ void main() {
       expect(sent.first.$3['model'], 'mistral-large-latest');
       expect(conversation()['agent_id'], 'ag-2');
       expect(agents.ids, {
-        'mistral-medium-latest': 'ag-1',
-        'mistral-large-latest': 'ag-2',
+        'mistral-medium-latest': 'v2:ag-1',
+        'mistral-large-latest': 'v2:ag-2',
       });
     });
 
     test('an agent Mistral no longer knows is made again, once', () async {
-      final agents = MemoryImageAgents()..ids['mistral-medium-latest'] = 'ag-old';
+      final agents = MemoryImageAgents()
+        ..ids['mistral-medium-latest'] = 'v2:ag-old';
       final image = outputs([
         {'type': 'tool_file', 'tool': 'image_generation', 'file_id': 'f-1'},
       ]);
@@ -472,7 +473,7 @@ void main() {
         (422, 'Agent ag-old does not exist'),
       ]) {
         sent.clear();
-        agents.ids['mistral-medium-latest'] = 'ag-old';
+        agents.ids['mistral-medium-latest'] = 'v2:ag-old';
         await makeImage(mistral(), 'x',
             post: (url, headers, body) async {
               sent.add(
@@ -492,12 +493,12 @@ void main() {
           ('/v1/agents', null),
           ('/v1/conversations', 'ag-new'),
         ]);
-        expect(agents.ids['mistral-medium-latest'], 'ag-new');
+        expect(agents.ids['mistral-medium-latest'], 'v2:ag-new');
       }
 
       // Not known again after it was made: said, not made a second time.
       sent.clear();
-      agents.ids['mistral-medium-latest'] = 'ag-old';
+      agents.ids['mistral-medium-latest'] = 'v2:ag-old';
       await expectLater(
           makeImage(mistral(), 'x',
               post: (url, headers, body) async {
@@ -515,7 +516,7 @@ void main() {
 
       // Another refusal is not taken for a missing agent.
       sent.clear();
-      agents.ids['mistral-medium-latest'] = 'ag-old';
+      agents.ids['mistral-medium-latest'] = 'v2:ag-old';
       await expectLater(
           makeImage(mistral(), 'x',
               post: (url, headers, body) async {
@@ -528,7 +529,7 @@ void main() {
               agents: agents),
           throwsA(isA<AiError>().having((e) => e.status, 'status', 401)));
       expect(sent, hasLength(1));
-      expect(agents.ids['mistral-medium-latest'], 'ag-old');
+      expect(agents.ids['mistral-medium-latest'], 'v2:ag-old');
     });
 
     test('an answer without an agent ID: said plainly', () async {
@@ -551,8 +552,10 @@ void main() {
                 ])),
                 download: bytes(base64.decode(png))),
             throwsA(isA<AiError>().having((e) => e.message, 'message',
-                allOf(startsWith('Mistral did not run its image tool.'),
-                    isNot(contains('only text'))))));
+                allOf(
+                    startsWith('Mistral did not make an image. Its answer '
+                        'only repeats the prompt.'),
+                    isNot(contains('begins'))))));
       }
     });
 
@@ -565,7 +568,7 @@ void main() {
               ])),
               download: bytes(base64.decode(png))),
           throwsA(isA<AiError>().having((e) => e.message, 'message',
-              allOf(contains('only text: "I cannot generate images."'),
+              allOf(contains('begins: "I cannot generate images."'),
                   isNot(contains('try mistral-medium-latest'))))));
     });
 
@@ -649,6 +652,166 @@ void main() {
       expect(downloads, isEmpty);
     });
 
+    // #181: a long prompt full of data and a source; Mistral's agent
+    // answered with text and a link to the source instead of an image.
+    const infographic = 'Infographic: the key rate of the fictional '
+        'Example Central Bank, 2020: 0.0 %, 2025: 2.15 %. Source: '
+        'https://www.ecb.europa.eu';
+    Map<String, Object?> sourceText() => {
+          'conversation_id': 'conv-1',
+          'outputs': [
+            {
+              'type': 'message.output',
+              'role': 'assistant',
+              'content': 'The rates rose in 2022. Sources: '
+                  '[ECB](https://www.ecb.eu/stats/rates) and '
+                  'https://www.ecb.eu/press.',
+            },
+          ],
+        };
+    List<Map<String, Object?>> conversations() => [
+          for (final s in sent)
+            if (s.$1.path.endsWith('/conversations')) s.$3,
+        ];
+
+    test('a new agent: the current instructions, kept with its version '
+        '(Mistral refuses tool_choice "required" for the image tool)',
+        () async {
+      final agents = MemoryImageAgents();
+      await makeImage(mistral(), 'A red fox',
+          post: api(realAnswer()),
+          download: bytes(base64.decode(png)),
+          agents: agents);
+      final agent = sent.first.$3;
+      expect(agent['instructions'], mistralAgentInstructions);
+      expect(mistralAgentInstructions, contains('data, sources or links'));
+      expect(agent.containsKey('completion_args'), isFalse);
+      expect(agents.ids, {'mistral-medium-latest': 'v$mistralAgentVersion:ag-1'});
+    });
+
+    test('an agent kept from before #181 is replaced once', () async {
+      final agents = MemoryImageAgents()
+        ..ids['mistral-medium-latest'] = 'ag-old';
+      for (var i = 0; i < 2; i++) {
+        await makeImage(mistral(), 'A red fox',
+            post: api(realAnswer(), agentId: 'ag-new'),
+            download: bytes(base64.decode(png)),
+            agents: agents);
+      }
+      expect(sent.map((s) => (s.$1.path, s.$3['agent_id'])), [
+        ('/v1/agents', null),
+        ('/v1/conversations', 'ag-new'),
+        ('/v1/conversations', 'ag-new'),
+      ]);
+      expect(agents.ids, {'mistral-medium-latest': 'v2:ag-new'});
+    });
+
+    test('only text and a link to www.ecb.eu: asked once more, then "did '
+        'not make an image", with no host and no download', () async {
+      await expectLater(
+          makeImage(mistral(), infographic,
+              post: api(sourceText()),
+              download: bytes(base64.decode(png)),
+              agents: MemoryImageAgents()),
+          throwsA(isA<AiError>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                  startsWith('Mistral did not make an image. Its answer '
+                      'begins: "The rates rose in 2022. Sources: ECB and '
+                      '(link)'),
+                  isNot(contains('ecb.eu')),
+                  isNot(contains('www.')),
+                  isNot(contains('does not download'))))));
+      expect(downloads, isEmpty);
+      final asked = conversations();
+      expect(asked, hasLength(2));
+      expect(asked.first['inputs'], infographic);
+      // The retry: the conversation so far again, not stored, then the
+      // request to use the tool.
+      expect(asked.last, {
+        'agent_id': 'ag-1',
+        'inputs': [
+          {'type': 'message.input', 'role': 'user', 'content': infographic},
+          {
+            'type': 'message.output',
+            'role': 'assistant',
+            'content': 'The rates rose in 2022. Sources: '
+                '[ECB](https://www.ecb.eu/stats/rates) and '
+                'https://www.ecb.eu/press.',
+          },
+          {
+            'type': 'message.input',
+            'role': 'user',
+            'content': mistralRetryInput,
+          },
+        ],
+        'store': false,
+      });
+      expect(mistralRetryInput, 'Use the image generation tool now.');
+    });
+
+    test('text first, then the retry runs the tool: the image', () async {
+      var call = 0;
+      final image = await makeImage(mistral(), infographic,
+          post: (url, headers, body) async {
+            sent.add((url, headers, jsonDecode(body) as Map<String, Object?>));
+            if (url.path.endsWith('/agents')) {
+              return HttpReply(200, jsonEncode({'id': 'ag-1'}));
+            }
+            call++;
+            return HttpReply(
+                200, jsonEncode(call == 1 ? sourceText() : realAnswer()));
+          },
+          download: bytes(base64.decode(png)),
+          agents: MemoryImageAgents());
+      expect(image.extension, 'png');
+      expect(conversations(), hasLength(2));
+      expect(downloads.single.$1.toString(), storage);
+    });
+
+    test('a host name as a link label or in the text is not named',
+        () async {
+      await expectLater(
+          makeImage(mistral(), infographic,
+              post: api({
+                'outputs': [
+                  {
+                    'type': 'message.output',
+                    'role': 'assistant',
+                    'content': 'Sources: [ecb.eu](https://www.ecb.eu/stats), '
+                        '[the ECB](https://www.ecb.eu) and '
+                        'bundesbank.de/statistik. Rates: 2.15 %.',
+                  },
+                ],
+              }),
+              download: bytes(base64.decode(png)),
+              agents: MemoryImageAgents()),
+          throwsA(isA<AiError>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                  contains('begins: "Sources: (link), the ECB and (link). '
+                      'Rates: 2.15 %."'),
+                  isNot(contains('ecb.eu')),
+                  isNot(contains('bundesbank'))))));
+      expect(downloads, isEmpty);
+    });
+
+    test('no text at all: the retry has no empty answer entry', () async {
+      await expectLater(
+          makeImage(mistral(), 'x',
+              post: api({'conversation_id': 'c', 'outputs': []}),
+              download: bytes(base64.decode(png)),
+              agents: MemoryImageAgents()),
+          throwsA(isA<AiError>().having((e) => e.message, 'message',
+              startsWith('Mistral did not make an image. It sent no text'))));
+      expect(conversations().last['inputs'], [
+        {'type': 'message.input', 'role': 'user', 'content': 'x'},
+        {'type': 'message.input', 'role': 'user', 'content': mistralRetryInput},
+      ]);
+    });
+
     test('no image, no image bytes, a failed download: said plainly',
         () async {
       await expectLater(
@@ -658,7 +821,8 @@ void main() {
               ])),
               download: bytes(base64.decode(png))),
           throwsA(isA<AiError>().having(
-              (e) => e.message, 'message', contains('Mistral sent no image'))));
+              (e) => e.message, 'message',
+              startsWith('Mistral did not make an image.'))));
       await expectLater(
           makeImage(mistral(), 'x',
               post: api(chunks([
