@@ -3184,6 +3184,28 @@ devices through Syncthing.
      - **Choice of tool:** `create_chart` for exact data, `create_image`
        with kind "infographic" for a designed picture.
 
+## 105. Live image tests with real keys (#168)
+
+- **Decision:** a separate workflow, `live-images.yml`, calls the app's real
+  image code (`makeImage`) against Mistral, the Vercel Images API, Vercel
+  chat and OpenRouter, with real keys from the repository secrets
+  `MISTRAL_API_KEY`, `VERCEL_AI_GATEWAY_API_KEY` and `OPENROUTER_API_KEY`.
+  The tests are in `test/live/`, tagged `live`, and the normal test step
+  runs `flutter test --exclude-tags live`, so a pull request never needs a
+  key or costs money.
+- **Cases:** Mistral with a short prompt and with the long infographic
+  prompt; Vercel Images API with the cheapest image model in Vercel's own
+  model list (chosen at run time, so a price change is followed); Vercel
+  chat and OpenRouter with `google/gemini-2.5-flash-image`.
+- **When it runs:** every Monday at 06:00 UTC, by hand, and at a full
+  release when `lib/ai/ai_images.dart`, `lib/ai/ai_providers.dart` or
+  `test/live/` changed since the last full release. At a full release a
+  failure only warns: the release goes on and its notes start with the
+  failed cases. A weekly or manual run that fails opens the issue "Live
+  image test failed", or adds a comment to it if it is open.
+- **Result:** each case writes a notice or an error annotation on the
+  run. Keys are masked in all output.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

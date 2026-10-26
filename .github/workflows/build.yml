@@ -210,7 +210,9 @@ jobs:
         shell: bash
         run: |
           status=0
-          flutter test 2>&1 | tee "$RUNNER_TEMP/test.txt" || status=$?
+          # The live image tests need real keys; live-images.yml runs them
+          # (#168).
+          flutter test --exclude-tags live 2>&1 | tee "$RUNNER_TEMP/test.txt" || status=$?
           if [ "$status" -ne 0 ]; then
             # The compact reporter rewrites its line with carriage returns:
             # make them line breaks, so a failed test's name is found too.
@@ -506,8 +508,56 @@ jobs:
           git diff --exit-code test/fixtures/org_roam_expected.json \
             test/fixtures/org_roam_expected_tables.json
 
+  live-check:
+    # Whether image code changed since the previous full release (#168):
+    # the live image tests run at a full release only then.
+    needs: version
+    if: needs.version.outputs.kind == 'full'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.changed.outputs.changed }}
+    steps:
+      - name: Compare with the previous full release
+        id: changed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PREVIOUS: ${{ needs.version.outputs.previous }}
+        run: |
+          if [ -z "$PREVIOUS" ]; then
+            echo "No previous release: the live image tests run."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh api --paginate "repos/$GH_REPO/compare/$PREVIOUS...$GITHUB_SHA" \
+            --jq '.files[].filename' > "$RUNNER_TEMP/changed-files.txt"
+          if grep -E '^(lib/ai/ai_images\.dart|lib/ai/ai_providers\.dart|test/live/)' \
+              "$RUNNER_TEMP/changed-files.txt"; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Image code did not change since $PREVIOUS: no live image tests."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  live-images:
+    # Warn only: the release is published whatever this finds (#168).
+    needs: [version, live-check]
+    if: needs.live-check.outputs.changed == 'true'
+    # The called workflow may open an issue in other runs, so it asks for
+    # issues: write; here it does not use it (warn-only).
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/live-images.yml
+    with:
+      warn-only: true
+    secrets: inherit
+
   release:
-    needs: [version, build, linux, windows, macos, org-roam]
+    needs: [version, build, linux, windows, macos, org-roam, live-images]
     # A pre-release needs build and org-roam; a full release all jobs. The
     # desktop jobs are skipped for a pre-release, and a skipped job would
     # skip this one without !cancelled().
@@ -561,7 +611,18 @@ jobs:
           LINUX: roam-graph-${{ needs.version.outputs.name }}-linux-x64.tar.gz
           WINDOWS: roam-graph-${{ needs.version.outputs.name }}-windows-x64.zip
           MACOS: roam-graph-${{ needs.version.outputs.name }}-macos.zip
+          LIVE_FAILED: ${{ needs.live-images.outputs.failed }}
+          LIVE_URL: ${{ needs.live-images.outputs.url }}
         run: |
+          if [ -n "$LIVE_FAILED" ]; then
+            # Warn only (#168): the release is made, its notes say so.
+            {
+              echo "Live image test failed: $LIVE_FAILED (see run $LIVE_URL)"
+              echo
+              cat release-notes.md
+            } > "$RUNNER_TEMP/notes.md"
+            mv "$RUNNER_TEMP/notes.md" release-notes.md
+          fi
           files=("$APK")
           mark=(--prerelease)
           if [ "$KIND" = full ]; then

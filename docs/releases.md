@@ -133,6 +133,24 @@ Runs on `main` wait for each other. If a merge comes while a full release
 waits for an earlier run, GitHub cancels the waiting full release (it
 keeps only the newest waiting run): start it again.
 
+## Live image tests
+
+The workflow `live-images.yml` makes real pictures with the app's image
+code, to find out when a provider changes its API. Add these secrets under
+Settings, Secrets and variables, Actions: `MISTRAL_API_KEY`,
+`VERCEL_AI_GATEWAY_API_KEY` and `OPENROUTER_API_KEY`. A case whose secret
+is missing fails with "The secret ... is not set".
+
+It runs every Monday at 06:00 UTC, by hand (Actions, **Live image test**,
+**Run workflow**), and as part of a full release when the image code
+changed since the last full release. At a full release a failure only
+warns: the release notes start with the failed cases. A weekly or manual
+failure opens the issue "Live image test failed", or comments on it if it
+is open. The result of each case is an annotation on the run.
+
+Each run makes five pictures, so it costs a few cents. The normal test
+step skips these tests (`--exclude-tags live`).
+
 ## Install with Obtainium
 
 1. In Obtainium, tap **Add App**.

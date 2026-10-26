@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-26: Live image tests with real keys ([#188](https://github.com/ChristianGeng/roam-graph-mobile/pull/188))
+
+- Added: a test workflow makes real pictures through Mistral, Vercel and OpenRouter every Monday, by hand, and at a full release when the image code changed. A failure opens the issue "Live image test failed"; at a full release it only warns in the release notes. This changes nothing in the app.
+
+Closes #168.
+
 ## 2026-10-26: Exact charts drawn by the app ([#187](https://github.com/ChristianGeng/roam-graph-mobile/pull/187))
 
 - Added: in the chat, the AI can draw a line, bar or area chart from exact data with the new tool `create_chart`. The app draws it itself, offline and without an image model, so every value is right.
