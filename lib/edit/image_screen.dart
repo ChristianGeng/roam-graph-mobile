@@ -107,9 +107,13 @@ class _ImageScreenState extends State<ImageScreen> {
   /// The description [_image] was made from.
   String _madeFrom = '';
 
-  /// Which provider and model make the image, and where (#127); null
-  /// until the settings are read.
-  String? _where;
+  /// What the image is for (#183): it picks "Images with:" or
+  /// "Infographics with:".
+  ImageKind _kind = ImageKind.illustration;
+
+  /// Which provider and model make the image of each kind, and where
+  /// (#127); empty until the settings are read.
+  final _where = <ImageKind, String>{};
   bool _whereAsked = false;
 
   /// Whether the last error was "no EU route", so the image can be made
@@ -129,15 +133,18 @@ class _ImageScreenState extends State<ImageScreen> {
     if (!mounted) return;
     final keys = AiSettingsScope.keysOf(context);
     if (keys == null) return;
-    final preset = imagePreset(settings);
-    final config = await imageConfig(settings, keys);
-    if (!mounted) return;
-    final model = config?.provider.model ?? '';
-    setState(() => _where = config == null
-        ? '${preset.name} cannot make images in the app.'
-        : 'Made by ${preset.name} with '
-            '${model.isEmpty ? 'no image model yet' : model}, '
-            '${imageRegion(preset, config)}.');
+    final where = <ImageKind, String>{};
+    for (final kind in ImageKind.values) {
+      final preset = imagePreset(settings, kind);
+      final config = await imageConfig(settings, keys, kind: kind);
+      final model = config?.provider.model ?? '';
+      where[kind] = config == null
+          ? '${preset.name} cannot make images in the app.'
+          : 'Made by ${preset.name} with '
+              '${model.isEmpty ? 'no image model yet' : model}, '
+              '${imageRegion(preset, config)}.';
+    }
+    if (mounted) setState(() => _where.addAll(where));
   }
 
   @override
@@ -171,8 +178,9 @@ class _ImageScreenState extends State<ImageScreen> {
     if (!mounted) return null;
     final keys = AiSettingsScope.keysOf(context);
     if (keys == null) return 'The AI settings are not available.';
-    final agents =
-        AiSettingsScope.imageAgentsOf(context, imagePreset(settings).id);
+    final kind = _kind;
+    final preset = imagePreset(settings, kind);
+    final agents = AiSettingsScope.imageAgentsOf(context, preset.id);
     // The note may be hidden from AI meanwhile: nothing is sent then.
     final editor = widget.writer.editor;
     final text = editor == null ? null : await editor.read(widget.node.file);
@@ -187,9 +195,9 @@ class _ImageScreenState extends State<ImageScreen> {
       _image = null;
       _madeFrom = '';
     });
-    final found = await imageConfig(settings, keys);
+    final found = await imageConfig(settings, keys, kind: kind);
     if (found == null) {
-      return '${imagePreset(settings).name} cannot make images in the app. '
+      return '${preset.name} cannot make images in the app. '
           'Choose one that does under "Images with:" in AI settings.';
     }
     final config = outsideEu
@@ -318,7 +326,25 @@ class _ImageScreenState extends State<ImageScreen> {
                   'note".'
               : 'Only this description is sent to the image model. The '
                   'image is saved only when you tap "Add to the note".'),
-          if (_where case final where?) ...[
+          const SizedBox(height: 8),
+          SegmentedButton<ImageKind>(
+            key: const ValueKey('image-kind'),
+            segments: [
+              for (final kind in ImageKind.values)
+                ButtonSegment(
+                  value: kind,
+                  label: Text(kind.label),
+                  icon: Icon(kind == ImageKind.illustration
+                      ? Icons.palette_outlined
+                      : Icons.bar_chart),
+                ),
+            ],
+            selected: {_kind},
+            onSelectionChanged: _working
+                ? null
+                : (kinds) => setState(() => _kind = kinds.first),
+          ),
+          if (_where[_kind] case final where?) ...[
             const SizedBox(height: 8),
             Text(where, key: const ValueKey('image-where')),
           ],

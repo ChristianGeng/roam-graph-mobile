@@ -27,6 +27,8 @@ class ProviderSettings {
     this.euOnly = false,
     this.imageModel = '',
     this.imageApi = ImageApi.images,
+    this.infographicModel = '',
+    this.infographicApi = ImageApi.images,
   });
 
   /// The preset's values.
@@ -37,7 +39,16 @@ class ProviderSettings {
         strongModel: preset.strongModel,
         imageModel: preset.imageModel,
         imageApi: preset.imageApi,
+        infographicModel: preset.imageModel,
+        infographicApi: preset.imageApi,
       );
+
+  /// The model infographics use when this provider is chosen under
+  /// "Infographics with:" (#183); empty when none is chosen.
+  final String infographicModel;
+
+  /// How [infographicModel] is asked.
+  final ImageApi infographicApi;
 
   /// The model "Create image" uses (#112); empty when none is chosen.
   final String imageModel;
@@ -65,6 +76,8 @@ class ProviderSettings {
         'euOnly': euOnly,
         'imageModel': imageModel,
         'imageApi': imageApi.name,
+        'infographicModel': infographicModel,
+        'infographicApi': infographicApi.name,
       };
 
   /// [json] over [preset]'s values; what is missing or unreadable keeps
@@ -74,6 +87,20 @@ class ProviderSettings {
     if (json is! Map) return base;
     String text(String key, String fallback) =>
         json[key] is String ? json[key] as String : fallback;
+    // An empty image model was saved before the provider made images:
+    // the preset's default then (#120).
+    String model(String key) => switch (json[key]) {
+          final String model when model.trim().isNotEmpty => model,
+          _ => base.imageModel,
+        };
+    // DashScope is Qwen's only way and the image tool Mistral's (#126);
+    // another way is kept only where the provider has no own one.
+    // Mistral settings saved before it made images get its own way.
+    ImageApi api(String key) => base.imageApi.ownProvider
+        ? base.imageApi
+        : ImageApi.values.firstWhere(
+            (k) => k.name == json[key] && !k.ownProvider,
+            orElse: () => base.imageApi);
     return ProviderSettings(
       api: preset.id == 'custom'
           ? ApiKind.values.firstWhere((k) => k.name == json['api'],
@@ -83,20 +110,11 @@ class ProviderSettings {
       defaultModel: text('defaultModel', base.defaultModel),
       strongModel: text('strongModel', base.strongModel),
       euOnly: json['euOnly'] is bool ? json['euOnly'] as bool : base.euOnly,
-      // An empty image model was saved before the provider made images:
-      // the preset's default then (#120).
-      imageModel: switch (json['imageModel']) {
-        final String model when model.trim().isNotEmpty => model,
-        _ => base.imageModel,
-      },
-      // DashScope is Qwen's only way and the image tool Mistral's (#126);
-      // another way is kept only where the provider has no own one.
-      // Mistral settings saved before it made images get its own way.
-      imageApi: base.imageApi.ownProvider
-          ? base.imageApi
-          : ImageApi.values.firstWhere(
-              (k) => k.name == json['imageApi'] && !k.ownProvider,
-              orElse: () => base.imageApi),
+      imageModel: model('imageModel'),
+      imageApi: api('imageApi'),
+      // Missing in settings saved before #183: the preset's image model.
+      infographicModel: model('infographicModel'),
+      infographicApi: api('infographicApi'),
     );
   }
 }
@@ -133,6 +151,7 @@ class AiSettings {
     this.maxAgentChanges = 30,
     this.maxImagesPerMessage = 1,
     this.imageProvider = '',
+    this.infographicProvider = '',
     this.webAccess = false,
     this.maxWebSearches = 5,
     this.imageAgents = const {},
@@ -163,6 +182,10 @@ class AiSettings {
   /// The preset ID of the provider "Create image" uses (#127); empty for
   /// "Same as the chat".
   final String imageProvider;
+
+  /// The preset ID of the provider infographics use (#183); empty for
+  /// "Same as "Images with:"": that provider and its image model.
+  final String infographicProvider;
 
   /// Tags that hide a note from AI; by default `private`.
   final List<String> hiddenTags;
@@ -214,6 +237,7 @@ class AiSettings {
     int? maxAgentChanges,
     int? maxImagesPerMessage,
     String? imageProvider,
+    String? infographicProvider,
     bool? webAccess,
     int? maxWebSearches,
     Map<String, String>? imageAgents,
@@ -230,6 +254,7 @@ class AiSettings {
         maxAgentChanges: maxAgentChanges ?? this.maxAgentChanges,
         maxImagesPerMessage: maxImagesPerMessage ?? this.maxImagesPerMessage,
         imageProvider: imageProvider ?? this.imageProvider,
+        infographicProvider: infographicProvider ?? this.infographicProvider,
         webAccess: webAccess ?? this.webAccess,
         maxWebSearches: maxWebSearches ?? this.maxWebSearches,
         imageAgents: imageAgents ?? this.imageAgents,
@@ -250,6 +275,7 @@ class AiSettings {
         'maxAgentChanges': maxAgentChanges,
         'maxImagesPerMessage': maxImagesPerMessage,
         'imageProvider': imageProvider,
+        'infographicProvider': infographicProvider,
         'webAccess': webAccess,
         'maxWebSearches': maxWebSearches,
         'imageAgents': imageAgents,
@@ -296,6 +322,11 @@ class AiSettings {
       imageProvider: switch (json['imageProvider']) {
         final String id when imageProviders.any((p) => p.id == id) => id,
         _ => defaults.imageProvider,
+      },
+      // Missing in settings saved before #183: as "Images with:".
+      infographicProvider: switch (json['infographicProvider']) {
+        final String id when imageProviders.any((p) => p.id == id) => id,
+        _ => defaults.infographicProvider,
       },
       webAccess: json['webAccess'] == true,
       maxWebSearches: positive('maxWebSearches', defaults.maxWebSearches),
@@ -350,31 +381,45 @@ Future<ProviderConfig> providerConfig(
   );
 }
 
-/// The provider "Create image" uses: the one of "Images with:", or the
-/// chat's (#127).
-ProviderPreset imagePreset(AiSettings settings) =>
-    settings.imageProvider.isEmpty
-        ? settings.preset
-        : presetById(settings.imageProvider);
+/// Whether [kind] uses "Infographics with:" (#183): an infographic, when
+/// a provider is chosen there; else "Images with:".
+bool _ownInfographics(AiSettings settings, ImageKind kind) =>
+    kind == ImageKind.infographic && settings.infographicProvider.isNotEmpty;
 
-/// What "Create image" needs (#112): the image provider's connection with
-/// its own key, image model and "EU only" (#127), and how to ask it; null
-/// when the provider makes no images in the app.
-Future<ImageConfig?> imageConfig(AiSettings settings, ApiKeyStore keys) async {
-  final preset = imagePreset(settings);
+/// The provider "Create image" uses for [kind]: for an illustration the
+/// one of "Images with:", or the chat's (#127); for an infographic the one
+/// of "Infographics with:", or that of "Images with:" (#183).
+ProviderPreset imagePreset(AiSettings settings,
+        [ImageKind kind = ImageKind.illustration]) =>
+    _ownInfographics(settings, kind)
+        ? presetById(settings.infographicProvider)
+        : settings.imageProvider.isEmpty
+            ? settings.preset
+            : presetById(settings.imageProvider);
+
+/// What "Create image" needs for [kind] (#112, #183): the image
+/// provider's connection with its own key, image model and "EU only"
+/// (#127), and how to ask it; null when the provider makes no images in
+/// the app.
+Future<ImageConfig?> imageConfig(AiSettings settings, ApiKeyStore keys,
+    {ImageKind kind = ImageKind.illustration}) async {
+  final preset = imagePreset(settings, kind);
   final path = preset.imagesPath;
   if (path == null || preset.api != ApiKind.openAi) return null;
   final values = settings.providerSettings(preset.id);
+  final (model, api) = _ownInfographics(settings, kind)
+      ? (values.infographicModel, values.infographicApi)
+      : (values.imageModel, values.imageApi);
   final base = await providerConfig(settings, keys, id: preset.id);
   // With "EU only", the preset's default image model gives way to its
   // default with an EU route (#127).
   final euDefault = base.euOnly &&
       preset.euImageModel.isNotEmpty &&
-      values.imageModel == preset.imageModel &&
-      values.imageApi == preset.imageApi;
+      model == preset.imageModel &&
+      api == preset.imageApi;
   return ImageConfig(
-    base.withModel(euDefault ? preset.euImageModel : values.imageModel),
-    api: euDefault ? preset.euImageApi : values.imageApi,
+    base.withModel(euDefault ? preset.euImageModel : model),
+    api: euDefault ? preset.euImageApi : api,
     imagesPath: path,
   );
 }
@@ -602,7 +647,10 @@ class _Draft {
       : api = settings.api,
         euOnly = settings.euOnly,
         imageApi = settings.imageApi,
+        infographicApi = settings.infographicApi,
         imageModel = TextEditingController(text: settings.imageModel),
+        infographicModel =
+            TextEditingController(text: settings.infographicModel),
         baseUrl = TextEditingController(text: settings.baseUrl),
         defaultModel = TextEditingController(text: settings.defaultModel),
         strongModel = TextEditingController(text: settings.strongModel);
@@ -610,7 +658,9 @@ class _Draft {
   ApiKind api;
   bool euOnly;
   ImageApi imageApi;
+  ImageApi infographicApi;
   final TextEditingController imageModel;
+  final TextEditingController infographicModel;
   final TextEditingController baseUrl;
   final TextEditingController defaultModel;
   final TextEditingController strongModel;
@@ -630,10 +680,19 @@ class _Draft {
         euOnly: euOnly,
         imageModel: imageModel.text.trim(),
         imageApi: imageApi,
+        infographicModel: infographicModel.text.trim(),
+        infographicApi: infographicApi,
       );
 
   void dispose() {
-    for (final c in [baseUrl, defaultModel, strongModel, imageModel, key]) {
+    for (final c in [
+      baseUrl,
+      defaultModel,
+      strongModel,
+      imageModel,
+      infographicModel,
+      key,
+    ]) {
       c.dispose();
     }
   }
@@ -671,6 +730,9 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
 
   /// "Images with:"; empty for the chat's provider (#127).
   String _imageProvider = '';
+
+  /// "Infographics with:"; empty for that of "Images with:" (#183).
+  String _infographicProvider = '';
   final _drafts = <String, _Draft>{};
   final _rounds = TextEditingController();
   final _tokens = TextEditingController();
@@ -779,6 +841,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _loaded = settings;
       _provider = settings.provider;
       _imageProvider = settings.imageProvider;
+      _infographicProvider = settings.infographicProvider;
       _rounds.text = '${settings.maxToolRounds}';
       _tokens.text = '${settings.maxOutputTokens}';
       _files.text = '${settings.maxChangeSetFiles}';
@@ -790,6 +853,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _editMode = settings.editMode;
       await _draft(_provider);
       if (_imageProvider.isNotEmpty) await _draft(_imageProvider);
+      if (_infographicProvider.isNotEmpty) await _draft(_infographicProvider);
       if (mounted) {
         setState(() => _tags = TagFieldController(settings.hiddenTags));
         unawaited(_checkModels(_provider));
@@ -885,6 +949,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       hiddenTags: tags.tags,
       provider: _provider,
       imageProvider: _imageProvider,
+      infographicProvider: _infographicProvider,
       providers: {
         ...loaded.providers,
         for (final MapEntry(:key, :value) in _drafts.entries)
@@ -984,7 +1049,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           }
         }
         if (!mounted) return;
-        final images = which == 'image';
+        final images = which == 'image' || which == 'infographic';
         var models = const <ModelInfo>[];
         final id = await ModelPickerScreen.open(
           context,
@@ -1008,13 +1073,18 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             // are asked through DashScope, Mistral's through its tool.
             if (images) {
               final model = models.where((m) => m.id == id).firstOrNull;
-              draft.imageApi = preset.imageApi.ownProvider
+              final api = preset.imageApi.ownProvider
                   ? preset.imageApi
                   : preset.id != 'openrouter' &&
                           model?.chat == true &&
                           model?.images == true
                       ? ImageApi.chat
                       : ImageApi.images;
+              if (which == 'image') {
+                draft.imageApi = api;
+              } else {
+                draft.infographicApi = api;
+              }
             }
           });
         }
@@ -1037,6 +1107,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         draft.defaultModel,
         draft.strongModel,
         draft.imageModel,
+        draft.infographicModel,
       ]),
       builder: (context, _) {
         final differs = draft.baseUrl.text.trim() != base.baseUrl ||
@@ -1044,7 +1115,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             draft.strongModel.text.trim() != base.strongModel ||
             (preset.makesImages &&
                 (draft.imageModel.text.trim() != base.imageModel ||
-                    draft.imageApi != base.imageApi)) ||
+                    draft.imageApi != base.imageApi ||
+                    draft.infographicModel.text.trim() !=
+                        base.infographicModel ||
+                    draft.infographicApi != base.infographicApi)) ||
             (preset.euSwitch && draft.euOnly != base.euOnly);
         if (!differs) return const SizedBox.shrink();
         return Align(
@@ -1061,6 +1135,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               draft.strongModel.text = base.strongModel;
               draft.imageModel.text = base.imageModel;
               draft.imageApi = base.imageApi;
+              draft.infographicModel.text = base.infographicModel;
+              draft.infographicApi = base.infographicApi;
               draft.euOnly = base.euOnly;
             }),
           ),
@@ -1069,30 +1145,38 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     );
   }
 
-  /// The image model and how it is asked, for [preset] (#112).
-  List<Widget> _imageFields(ProviderPreset preset, _Draft draft) {
+  /// The image model and how it is asked, for [preset] (#112); with
+  /// [infographic], the model for infographics (#183).
+  List<Widget> _imageFields(ProviderPreset preset, _Draft draft,
+      {bool infographic = false}) {
+    final which = infographic ? 'infographic' : 'image';
+    final field = infographic ? draft.infographicModel : draft.imageModel;
+    final api = infographic ? draft.infographicApi : draft.imageApi;
     return [
       if (preset.makesImages) ...[
         ListenableBuilder(
-          listenable: draft.imageModel,
+          listenable: field,
           builder: (context, _) => TextField(
-            key: ValueKey('image-model-${preset.id}'),
-            controller: draft.imageModel,
+            key: ValueKey('$which-model-${preset.id}'),
+            controller: field,
             decoration: InputDecoration(
-              labelText: 'Image model (optional)',
-              helperText: 'For "Create image" in a note\'s edit menu.',
+              labelText: infographic
+                  ? 'Infographic model'
+                  : 'Image model (optional)',
+              helperText: infographic
+                  ? 'For infographics: in the chat and in "Create image".'
+                  : 'For "Create image" in a note\'s edit menu.',
               errorText: modelGoneMessage(
-                  preset.name, draft.imageModel.text, _listedNow(preset.id)),
+                  preset.name, field.text, _listedNow(preset.id)),
               errorMaxLines: 3,
-              suffixIcon:
-                  _chooseModel(preset, draft, draft.imageModel, 'image'),
+              suffixIcon: _chooseModel(preset, draft, field, which),
             ),
           ),
         ),
         DropdownButtonFormField<ImageApi>(
           // Keyed by the value, so a model chosen from the list shows here.
-          key: ValueKey('image-api-${preset.id}-${draft.imageApi.name}'),
-          initialValue: draft.imageApi,
+          key: ValueKey('$which-api-${preset.id}-${api.name}'),
+          initialValue: api,
           isExpanded: true,
           decoration:
               const InputDecoration(labelText: 'How the image model is asked'),
@@ -1107,8 +1191,13 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                     value: kind,
                     child: Text(kind.label, overflow: TextOverflow.ellipsis)),
           ],
-          onChanged: (kind) =>
-              setState(() => draft.imageApi = kind ?? draft.imageApi),
+          onChanged: (kind) => setState(() {
+            if (infographic) {
+              draft.infographicApi = kind ?? draft.infographicApi;
+            } else {
+              draft.imageApi = kind ?? draft.imageApi;
+            }
+          }),
         ),
       ] else
         Padding(
@@ -1169,6 +1258,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               draft.imageModel.text = to;
               draft.imageApi = api;
             }
+            if (preset.euImageModel.isNotEmpty &&
+                draft.infographicModel.text.trim() == from) {
+              draft.infographicModel.text = to;
+              draft.infographicApi = api;
+            }
           }),
           title: const Text('EU only'),
           subtitle: const Text('Inference and stored data in the EU; models '
@@ -1222,6 +1316,69 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         ..._imageFields(other, _drafts[other.id]!),
         ..._keyFields(other, _drafts[other.id]!),
         ..._euFields(other, _drafts[other.id]!, 'eu-only-image'),
+      ],
+    ];
+  }
+
+  /// "Infographics with:" (#183): the provider and image model for
+  /// pictures with text and numbers; by default those of "Images with:".
+  /// A provider not shown above also shows its key and "EU only" here.
+  List<Widget> _infographicSection(BuildContext context) {
+    final images = presetById(
+        _imageProvider.isEmpty ? _provider : _imageProvider);
+    final chosen = _infographicProvider.isEmpty
+        ? null
+        : presetById(_infographicProvider);
+    final shownAbove = chosen != null &&
+        (chosen.id == _provider || chosen.id == _imageProvider);
+    return [
+      const SizedBox(height: 16),
+      Text('Create image: infographics',
+          style: Theme.of(context).textTheme.titleMedium),
+      DropdownButtonFormField<String>(
+        key: ValueKey('infographic-provider-$_infographicProvider'),
+        initialValue: _infographicProvider,
+        isExpanded: true,
+        decoration: const InputDecoration(
+          labelText: 'Infographics with:',
+          helperText: 'For pictures with text and numbers. GPT Image and '
+              'Gemini Image set text well; FLUX (Mistral) does not.',
+          helperMaxLines: 3,
+        ),
+        items: [
+          DropdownMenuItem(
+              value: '',
+              child: Text('Same as "Images with:" (${images.name})',
+                  overflow: TextOverflow.ellipsis)),
+          for (final p in imageProviders)
+            DropdownMenuItem(
+                value: p.id,
+                child: Text(p.name, overflow: TextOverflow.ellipsis)),
+        ],
+        onChanged: (id) async {
+          if (id == null) return;
+          if (id.isNotEmpty) await _draft(id);
+          if (mounted) setState(() => _infographicProvider = id);
+          if (mounted && id.isNotEmpty) unawaited(_checkModels(id));
+        },
+      ),
+      if (chosen != null) ...[
+        const SizedBox(height: 8),
+        if (!shownAbove)
+          Text(chosen.note, key: const ValueKey('infographic-provider-note')),
+        ..._imageFields(chosen, _drafts[chosen.id]!, infographic: true),
+        if (shownAbove)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+                'The key and "EU only" of ${chosen.name} are set above.',
+                key: const ValueKey('infographic-key-above'),
+                style: Theme.of(context).textTheme.bodySmall),
+          )
+        else ...[
+          ..._keyFields(chosen, _drafts[chosen.id]!),
+          ..._euFields(chosen, _drafts[chosen.id]!, 'eu-only-infographic'),
+        ],
       ],
     ];
   }
@@ -1324,6 +1481,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       ..._keyFields(preset, draft),
       ..._euFields(preset, draft, 'eu-only'),
       ..._imageProviderSection(context),
+      ..._infographicSection(context),
       const SizedBox(height: 16),
       Text('Notes', style: text.titleSmall),
       TextField(

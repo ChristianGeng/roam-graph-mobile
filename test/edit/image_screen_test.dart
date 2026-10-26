@@ -231,6 +231,53 @@ void main() {
         'Made by Qwen (Alibaba Cloud) with qwen-image-2.0, outside the EU.');
   });
 
+  testWidgets('Illustration or Infographic: the line and the model change '
+      '(#183)', (tester) async {
+    final urls = <String>[];
+    final bodies = <Map<String, Object?>>[];
+    final (store, _, _) = await openScreen(tester, 'fox',
+        provider: 'vercel',
+        settings: AiSettings(
+          provider: 'anthropic',
+          imageProvider: 'mistral',
+          infographicProvider: 'vercel',
+          providers: {
+            'vercel': ProviderSettings.fromJson(
+                {'infographicModel': 'google/gemini-3-pro-image',
+                  'infographicApi': 'images'},
+                presetById('vercel')),
+          },
+        ),
+        post: (url, headers, body) async {
+          urls.add(url.toString());
+          bodies.add(jsonDecode(body) as Map<String, Object?>);
+          return HttpReply(
+              200,
+              jsonEncode({
+                'data': [
+                  {'b64_json': png},
+                ],
+              }));
+        });
+    expect(where(tester),
+        'Made by Mistral with mistral-medium-latest, in the EU.');
+    await tester.tap(find.text('Infographic'));
+    await tester.pumpAndSettle();
+    expect(where(tester),
+        'Made by Vercel AI Gateway with google/gemini-3-pro-image, '
+        'outside the EU.');
+    await tester.enterText(find.byType(TextField).first, 'Bar chart');
+    await tester.tap(find.text('Make image'));
+    await tester.pumpAndSettle();
+    expect(urls.single, startsWith('https://ai-gateway.vercel.sh/v1'));
+    expect(bodies.single['model'], 'google/gemini-3-pro-image');
+    await tester.tap(find.text('Illustration'));
+    await tester.pumpAndSettle();
+    expect(where(tester),
+        'Made by Mistral with mistral-medium-latest, in the EU.');
+    expect(store.files, notes);
+  });
+
   testWidgets('"Make this one outside the EU": once, the setting stays on',
       (tester) async {
     final bodies = <Map<String, Object?>>[];

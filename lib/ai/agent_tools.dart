@@ -197,8 +197,25 @@ const agentTools = [
   setLanguageTool,
 ];
 
+/// One image model for `create_image` (#183): how to ask it, and what
+/// the tool says about it.
+class ImageModel {
+  const ImageModel(
+      {required this.make, required this.name, this.maxPrompt = 4000});
+
+  /// Asks the image model; throws [AiError].
+  final Future<MadeImage> Function(String prompt) make;
+
+  /// Which model makes the images, and where.
+  final String name;
+
+  /// The longest prompt the provider takes.
+  final int maxPrompt;
+}
+
 /// What `create_image` needs (#129): the image model of "Images with:"
-/// (#127), said in words for the tool's description, and where images go.
+/// (#127), said in words for the tool's description, and where images go;
+/// and the one of "Infographics with:" (#183).
 class ImageMaker {
   const ImageMaker({
     required this.make,
@@ -206,7 +223,17 @@ class ImageMaker {
     required this.folder,
     this.maxPrompt = 4000,
     this.limit = 1,
+    this.infographics,
   });
+
+  /// The image model of "Infographics with:" (#183); null when it is the
+  /// same as for illustrations.
+  final ImageModel? infographics;
+
+  /// The image model for [kind].
+  ImageModel forKind(ImageKind kind) =>
+      (kind == ImageKind.infographic ? infographics : null) ??
+      ImageModel(make: make, name: model, maxPrompt: maxPrompt);
 
   /// Asks the image model; throws [AiError].
   final Future<MadeImage> Function(String prompt) make;
@@ -230,45 +257,221 @@ class ImageMaker {
 /// 800 characters; the others far more.
 int maxImagePrompt(ImageApi api) => api == ImageApi.dashscope ? 800 : 4000;
 
-/// `create_image` (#129), described with the image model in use, so the
-/// model knows what it asks.
-AiTool createImageTool(ImageMaker maker) => AiTool(
-      'create_image',
-      'Make an image with an image model and add it to a note, below its '
-          'text, with a caption. The image model is ${maker.model}. Only '
-          'the prompt goes to it, never the notes, and it knows nothing '
-          'after its training: first read what the image is about with the '
-          'other tools, then put every fact, number, year and label the '
-          'image needs into the prompt, in English. Image models draw text '
-          'and numbers poorly: keep labels few and short, and numbers few '
-          'and large. At most ${maker.maxPrompt} characters. At most '
-          '${maker.limit} ${maker.limit == 1 ? 'image' : 'images'} for one '
-          'message, so use it only when I ask for an image, and only once '
-          'unless the image is wrong. You are shown the image if you can '
-          'see images: check it against the prompt. If a word or number '
-          'is wrong and the limit allows, make it again for the same note: '
-          'the new image replaces the one of this message; else tell me '
-          'what is wrong.',
-      {
-        'type': 'object',
-        'properties': {
-          'id': {
-            'type': 'string',
-            'description': 'The ID of the note the image is for',
-          },
-          'prompt': {
-            'type': 'string',
-            'description': 'What the image shows, with all facts and labels',
-          },
-          'caption': {
-            'type': 'string',
-            'description': 'A short caption for the note, one line, in the '
-                'language of the note',
-          },
+/// `create_image` (#129), described with the image models in use, so the
+/// model knows what it asks: one for illustrations and one for
+/// infographics (#183).
+AiTool createImageTool(ImageMaker maker) {
+  final illustration = maker.forKind(ImageKind.illustration);
+  final infographic = maker.forKind(ImageKind.infographic);
+  return AiTool(
+    'create_image',
+    'Make an image with an image model and add it to a note, below its '
+        'text, with a caption. kind "illustration" (the default) is drawn '
+        'by ${illustration.name}, at most ${illustration.maxPrompt} '
+        'characters of prompt; kind "infographic" by ${infographic.name}, '
+        'at most ${infographic.maxPrompt}. Use "infographic" for anything '
+        'with numbers, labels or text. Only the prompt goes to the image '
+        'model, never the notes, and it knows nothing after its training: '
+        'do the research first, with the other tools, then put every fact, '
+        'number, year and label the image needs into the prompt, in '
+        'English. For an infographic, write the prompt as a layout brief: '
+        'the title, the exact values with units and dates, the chart form, '
+        'the labels, the colours, and a source line naming the source and '
+        'the date the data was read. Give the same values in data: they go '
+        'into the note below the image, as a table with the source. No '
+        'links and no running text in the prompt. For an illustration, '
+        'keep labels few and short, and numbers few and large. At most '
+        '${maker.limit} ${maker.limit == 1 ? 'image' : 'images'} for one '
+        'message, so use it only when I ask for an image, and only once '
+        'unless the image is wrong. You are shown the image if you can '
+        'see images: check it against the prompt. If a word or number '
+        'is wrong and the limit allows, make it again for the same note: '
+        'the new image replaces the one of this message; else tell me '
+        'what is wrong.',
+    {
+      'type': 'object',
+      'properties': {
+        'id': {
+          'type': 'string',
+          'description': 'The ID of the note the image is for',
         },
-        'required': ['id', 'prompt', 'caption'],
+        'kind': {
+          'type': 'string',
+          'enum': [for (final kind in ImageKind.values) kind.name],
+          'description': '"infographic" for numbers, labels or text; else '
+              '"illustration" (the default)',
+        },
+        'prompt': {
+          'type': 'string',
+          'description': 'What the image shows, with all facts and labels; '
+              'for an infographic a layout brief, without links',
+        },
+        'caption': {
+          'type': 'string',
+          'description': 'A short caption for the note, one line, in the '
+              'language of the note',
+        },
+        'data': {
+          'type': 'object',
+          'description': 'Only for an infographic, and needed there: the '
+              'values it shows, written into the note below the image',
+          'properties': {
+            'columns': {
+              'type': 'array',
+              'items': {'type': 'string'},
+              'description': 'The column headings, with units',
+            },
+            'rows': {
+              'type': 'array',
+              'items': {
+                'type': 'array',
+                'items': {'type': 'string'},
+              },
+              'description': 'The rows, one value per column, as written '
+                  'in the picture',
+            },
+            'source': {
+              'type': 'object',
+              'properties': {
+                'name': {'type': 'string'},
+                'url': {
+                  'type': 'string',
+                  'description': 'https://..., or id:<ID> for a note',
+                },
+              },
+              'required': ['name', 'url'],
+            },
+            'retrieved': {
+              'type': 'string',
+              'description': 'The date the data was read, YYYY-MM-DD',
+            },
+          },
+          'required': ['columns', 'rows', 'source', 'retrieved'],
+        },
       },
+      'required': ['id', 'prompt', 'caption'],
+    },
+  );
+}
+
+/// The values an infographic shows (#183), written into the note below
+/// its image, so they can be checked and updated later.
+class InfographicData {
+  const InfographicData({
+    required this.columns,
+    required this.rows,
+    required this.sourceName,
+    required this.sourceUrl,
+    required this.retrieved,
+  });
+
+  /// The most columns and rows: a small table.
+  static const maxColumns = 12, maxRows = 60;
+
+  final List<String> columns;
+  final List<List<String>> rows;
+  final String sourceName;
+
+  /// `https://…`, `http://…` or `id:<ID>`.
+  final String sourceUrl;
+
+  /// The date the data was read, `YYYY-MM-DD`.
+  final String retrieved;
+
+  /// [json], the tool's `data`, checked; a [ToolError] says what is wrong.
+  factory InfographicData.from(Object? json) {
+    if (json is! Map) {
+      throw const ToolError('an infographic needs data: columns, rows, '
+          'source (name and url) and retrieved.');
+    }
+    String cell(Object? value) => switch (value) {
+          final String text => _cell(text),
+          final num number => '$number',
+          null => '',
+          _ => throw const ToolError('data values must be text or numbers.'),
+        };
+    final columns = json['columns'];
+    if (columns is! List || columns.isEmpty) {
+      throw const ToolError('data.columns is missing.');
+    }
+    if (columns.length > maxColumns) {
+      throw const ToolError(
+          'data has more than $maxColumns columns; keep the table small.');
+    }
+    final rows = json['rows'];
+    if (rows is! List || rows.isEmpty) {
+      throw const ToolError('data.rows is missing.');
+    }
+    if (rows.length > maxRows) {
+      throw const ToolError(
+          'data has more than $maxRows rows; keep the table small.');
+    }
+    final table = <List<String>>[];
+    for (final row in rows) {
+      if (row is! List) {
+        throw const ToolError('each row in data.rows must be a list.');
+      }
+      if (row.length > columns.length) {
+        throw const ToolError('a row in data.rows has more values than '
+            'data.columns has columns.');
+      }
+      table.add([
+        for (var i = 0; i < columns.length; i++)
+          i < row.length ? cell(row[i]) : '',
+      ]);
+    }
+    final source = json['source'];
+    final name = source is Map && source['name'] is String
+        ? _cell(source['name'] as String).replaceAll(RegExp(r'[\[\]]'), '')
+        : '';
+    final url = source is Map && source['url'] is String
+        ? (source['url'] as String).trim()
+        : '';
+    if (name.isEmpty || url.isEmpty) {
+      throw const ToolError('data.source needs a name and a url.');
+    }
+    if (!RegExp(r'^(https?://|id:)[^\s\[\]]+$').hasMatch(url)) {
+      throw const ToolError('data.source.url must be an https:// link, or '
+          'id:<ID> for a note.');
+    }
+    final retrieved =
+        json['retrieved'] is String ? (json['retrieved'] as String).trim() : '';
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(retrieved)) {
+      throw const ToolError('data.retrieved must be the date the data was '
+          'read, as YYYY-MM-DD.');
+    }
+    return InfographicData(
+      columns: [for (final c in columns) cell(c)],
+      rows: table,
+      sourceName: name,
+      sourceUrl: url,
+      retrieved: retrieved,
     );
+  }
+
+  /// One table cell: one line, without the column bar.
+  static String _cell(String text) => oneLine(text).replaceAll('|', '/');
+
+  /// The Org table, aligned as Org aligns it, and the source line.
+  String get org {
+    final widths = [
+      for (var i = 0; i < columns.length; i++)
+        [columns[i], for (final row in rows) row[i]]
+            .map((c) => c.runes.length)
+            .reduce(max),
+    ];
+    String line(List<String> cells) => '| ${[
+          for (var i = 0; i < cells.length; i++)
+            cells[i] + ' ' * (widths[i] - cells[i].runes.length),
+        ].join(' | ')} |';
+    return [
+      line(columns),
+      '|${[for (final w in widths) '-' * (w + 2)].join('+')}|',
+      for (final row in rows) line(row),
+      'Source: [[$sourceUrl][$sourceName]], retrieved $retrieved',
+    ].join('\n');
+  }
+}
 
 /// [system] with today's date, so "the last 5 years" is counted from
 /// today, not from the end of the model's training (#129).
@@ -323,6 +526,10 @@ class AgentWriter {
   final _imageBlocks = <String, String>{};
   int _imageCount = 0;
 
+  /// The infographics made for each note in the current message (#183):
+  /// a second one corrects the first; there is no third.
+  final _infographicTries = <String, int>{};
+
   /// The image the call [call] made, for [ChatSession.toolImage].
   ToolImage? imageFor(ToolCall call) => _imagesByCall[call.id];
 
@@ -367,6 +574,7 @@ class AgentWriter {
     _imagesByCall.clear();
     _imageBlocks.clear();
     _imageCount = 0;
+    _infographicTries.clear();
     return changes = AgentChanges(
       messageId: '${time.microsecondsSinceEpoch.toRadixString(36)}-'
           '${(_random ?? Random()).nextInt(1 << 30).toRadixString(36)}',
@@ -600,11 +808,35 @@ class AgentWriter {
     }
     final args = call.input;
     final node = _node(_string(args, 'id'));
+    final kind = switch (args['kind']) {
+      null || '' || 'illustration' => ImageKind.illustration,
+      'infographic' => ImageKind.infographic,
+      _ => throw const ToolError(
+          'kind must be "illustration" or "infographic".'),
+    };
+    final model = maker.forKind(kind);
     final prompt = _string(args, 'prompt').trim();
     final caption = oneLine(_string(args, 'caption', required: false));
-    if (prompt.length > maker.maxPrompt) {
+    if (prompt.length > model.maxPrompt) {
       throw ToolError('the prompt has ${prompt.length} characters; the image '
-          'model takes at most ${maker.maxPrompt}. Shorten it.');
+          'model takes at most ${model.maxPrompt}. Shorten it.');
+    }
+    final infographic = kind == ImageKind.infographic;
+    final data = infographic ? InfographicData.from(args['data']) : null;
+    if (data != null) {
+      if (RegExp(r'https?://|www\.', caseSensitive: false).hasMatch(prompt)) {
+        throw const ToolError('the prompt has a link. Name the source and '
+            'the date in the prompt without its link; the link goes into '
+            'data.source.url.');
+      }
+      if (data.sourceUrl.startsWith('id:')) {
+        _checkLinks('[[${data.sourceUrl}]]');
+      }
+      if ((_infographicTries[node.id] ?? 0) >= 2) {
+        throw const ToolError('this note\'s infographic was made twice in '
+            'this message already. Do not make it again; tell me what is '
+            'still wrong in it.');
+      }
     }
     if (_imageCount >= maker.limit) {
       throw ToolError('the limit of ${maker.limit} '
@@ -616,7 +848,7 @@ class AgentWriter {
     await _read(editor, node);
     final MadeImage image;
     try {
-      image = await maker.make(prompt);
+      image = await model.make(prompt);
     } on AiError catch (e) {
       throw ToolError('the image model failed: ${e.message}');
     }
@@ -642,7 +874,8 @@ class AgentWriter {
     }
     if (path == null) throw const ToolError('no free file name for the image.');
     final block = '# image prompt: ${oneLine(prompt)}\n'
-        '${imageAddition(caption.isEmpty ? oneLine(prompt) : caption, relativeLink(node.file, path))}';
+        '${imageAddition(caption.isEmpty ? oneLine(prompt) : caption, relativeLink(node.file, path))}'
+        '${data == null ? '' : '\n${data.org}\n'}';
     // The note as it is now: the image took a while.
     final (base, lines) = await _read(editor, node);
     final earlier = _imageBlocks[node.id];
@@ -666,7 +899,26 @@ class AgentWriter {
       'webp' => 'image/webp',
       _ => 'image/png',
     });
-    return '$result Made by ${maker.model}.';
+    if (data == null) return '$result Made by ${model.name}.';
+    final tries =
+        _infographicTries[node.id] = (_infographicTries[node.id] ?? 0) + 1;
+    final check = 'Made by ${model.name}. The data table and the source '
+        'line are in the note below the image. Compare every number and '
+        'label in the picture with data.';
+    if (tries >= 2) {
+      return '$result $check This was the corrected image: do not make it '
+          'again; tell me what is still wrong, if anything.';
+    }
+    if (_imageCount >= maker.limit) {
+      return '$result $check If one is wrong, tell me what is wrong: the '
+          'limit of ${maker.limit} '
+          '${maker.limit == 1 ? 'image' : 'images'} for this message is '
+          'reached.';
+    }
+    return '$result $check If one is wrong, make the image once more for '
+        'this note, with kind "infographic", the same data and a corrected '
+        'brief; it replaces this one. After that, tell me what is still '
+        'wrong instead of trying again.';
   }
 
   /// `rename_node`, `set_tags` and `set_aliases` (#97): the node's head,

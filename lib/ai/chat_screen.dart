@@ -355,6 +355,26 @@ class _ChatScreenState extends State<ChatScreen> {
         (provider.keyRequired && provider.apiKey.isEmpty)) {
       return null;
     }
+    // "Infographics with:" (#183), where it is not "Images with:". A
+    // missing key or model is said when an infographic is asked for.
+    ImageModel? infographics;
+    if (settings.infographicProvider.isNotEmpty) {
+      final preset = imagePreset(settings, ImageKind.infographic);
+      final agents = AiSettingsScope.imageAgentsOf(context, preset.id);
+      final config =
+          await imageConfig(settings, keys, kind: ImageKind.infographic);
+      if (!mounted) return null;
+      if (config != null) {
+        infographics = ImageModel(
+          make: (prompt) =>
+              makeImage(config, prompt, post: widget.post, agents: agents),
+          name: '${config.provider.model} at ${preset.name}, '
+              '${imageRegion(preset, config)}',
+          maxPrompt: maxImagePrompt(config.api),
+        );
+      }
+    }
+    if (!mounted) return null;
     final view = await ViewSettingsScope.current(context,
         limit: const Duration(seconds: 10));
     final preset = imagePreset(settings);
@@ -366,6 +386,7 @@ class _ChatScreenState extends State<ChatScreen> {
       folder: view.imageFolder,
       maxPrompt: maxImagePrompt(config.api),
       limit: settings.maxImagesPerMessage,
+      infographics: infographics,
     );
   }
 

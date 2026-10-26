@@ -13,6 +13,18 @@ import '../platform/error_text.dart';
 import 'ai_chat.dart';
 import 'ai_providers.dart';
 
+/// What an image is for (#183): an illustration, made with "Images
+/// with:", or an infographic, with text and numbers, made with
+/// "Infographics with:".
+enum ImageKind {
+  illustration('Illustration'),
+  infographic('Infographic');
+
+  const ImageKind(this.label);
+
+  final String label;
+}
+
 /// What "Create image" needs: the provider with its image model, how to
 /// ask it, and where.
 class ImageConfig {
