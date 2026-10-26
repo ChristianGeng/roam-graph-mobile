@@ -5,61 +5,95 @@ on:
     branches: [probe-181]
 permissions:
   contents: read
+env:
+  KEY: ${{ secrets.MISTRAL_API_KEY }}
+  M: https://api.mistral.ai/v1
+  INS: Use the image generation tool to make the image the user describes.
+  INS2: >-
+    You make images, and nothing else. Always call the image generation tool
+    exactly once with a short visual description of the requested picture.
+    Never answer with text only, and never answer with links or sources.
+    If the request contains data, sources or links, keep only what should be
+    drawn.
+  PROMPT: >-
+    Erstelle eine Infografik über die Entwicklung der Leitzinsen der fiktiven
+    Beispiel-Zentralbank in den letzten fünf Jahren. Daten (Jahresende):
+    2020: 0,00 %, 2021: 0,00 %, 2022: 2,50 %, 2023: 4,50 %, 2024: 3,15 %,
+    2025: 2,15 %. Hypothekenzinsen (10 Jahre): 2020: 1,1 %, 2021: 1,2 %,
+    2022: 3,6 %, 2023: 4,0 %, 2024: 3,5 %, 2025: 3,6 %. Liniendiagramm mit
+    beschrifteten Punkten, Titel "Zinsentwicklung 2020-2025", kurze
+    Erklärung: Anstieg 2022 wegen hoher Inflation, Senkungen ab 2024.
+    Quellen: [EZB Leitzinsen](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/key_ecb_interest_rates/html/index.en.html),
+    [Bundesbank Zinsstatistik](https://www.bundesbank.de/de/statistiken/geld-und-kapitalmaerkte/zinssaetze-und-renditen),
+    https://www.ecb.eu/press/pr/date/2024/html/index.en.html.
+defaults:
+  run:
+    shell: bash {0}
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
-      - name: Mistral tool choice
-        env:
-          KEY: ${{ secrets.MISTRAL_API_KEY }}
-        shell: bash {0}
+      - name: Helpers
         run: |
+          cat > /tmp/h.sh <<'SH'
           clean() { tr '\n\r' '  ' | sed -E 's#(https://[^?"\\ )]+)\?[^"\\ )]*#\1?SIG#g' | head -c 3000 | sed 's/%/%25/g'; }
           note() { t=$(printf '%s' "$2" | clean); echo "::notice title=$1::$t"; }
-          if [ -z "$KEY" ]; then note key "no key"; exit 0; fi
           H=(-H "Authorization: Bearer $KEY" -H "Content-Type: application/json")
-          M=https://api.mistral.ai/v1
-          INS='Use the image generation tool to make the image the user describes.'
-          PROMPT='Create an infographic about the key interest rate of the fictional Example Central Bank in the last five years. Data (year-end): 2020: 0.00 %, 2021: 0.00 %, 2022: 2.50 %, 2023: 4.50 %, 2024: 3.15 %, 2025: 2.15 %. Show a line chart with a labelled point for each year, the title "Example Central Bank key rate 2020-2025", and a short note that rates rose sharply in 2022 because of inflation. Clean style, blue tones, white background. Sources: [ECB key interest rates](https://www.ecb.europa.eu/stats/policy_and_exchange_rates/key_ecb_interest_rates/html/index.en.html), https://www.bundesbank.de/en/statistics/money-and-capital-markets/interest-rates-and-yields.'
           summary='{conversation_id, types:[.outputs[]?.type], tool:[.outputs[]?|select(.type=="tool.execution")|{name,function,arguments:((.arguments//"")|tostring|.[0:150]),result:((.info.result//"")|tostring|.[0:200])}], text:[.outputs[]?|select(.type=="message.output")|.content|(if type=="string" then . else tostring end)|.[0:500]], error:(.message // .detail // .error // null)}'
-          mkagent() { curl -sS $M/agents "${H[@]}" -d "$(jq -nc --arg ins "$INS" --argjson ca "$1" '{model:"mistral-medium-latest",name:"probe-181",instructions:$ins,tools:[{type:"image_generation"}]} + (if $ca == null then {} else {completion_args:$ca} end)')"; }
-          ids=()
-          # a) create with tool_choice any, then required.
-          for tc in any required; do
-            a=$(mkagent "{\"tool_choice\":\"$tc\"}")
-            note "a create tool_choice=$tc" "$(echo "$a" | jq -c '{id, version, model, completion_args, tools, error:(.message // .detail // null)}' 2>/dev/null || echo "$a")"
-            id=$(echo "$a" | jq -r '.id // empty'); [ -n "$id" ] && ids+=("$id")
-            [ "$tc" = any ] && ANY=$id
+          mkagent() { curl -sS $M/agents "${H[@]}" -d "$(jq -nc --arg ins "${2:-$INS}" --argjson ca "$1" '{model:"mistral-medium-latest",name:"probe-181",instructions:$ins,tools:[{type:"image_generation"}]} + (if $ca == null then {} else {completion_args:$ca} end)')"; }
+          converse() { curl -sS $M/conversations "${H[@]}" -d "$(jq -nc --arg id "$1" --arg p "${3:-$PROMPT}" --argjson extra "$2" '{agent_id:$id,inputs:$p} + $extra')"; }
+          SH
+      - name: a) tool_choice forms
+        run: |
+          . /tmp/h.sh
+          for ca in '{"tool_choice":{"type":"function","function":{"name":"image_generation"}}}' '{"tool_choice":{"type":"image_generation"}}'; do
+            a=$(mkagent "$ca")
+            note "a create $ca" "$(echo "$a" | jq -c '{id, completion_args:(.completion_args.tool_choice), error:(.detail // .message // null)}')"
           done
-          a=$(mkagent null); AUTO=$(echo "$a" | jq -r '.id // empty'); ids+=("$AUTO")
-          note "a create default" "$(echo "$a" | jq -c '{id, version, completion_args}')"
-          converse() { curl -sS $M/conversations "${H[@]}" -d "$(jq -nc --arg id "$1" --arg p "$PROMPT" --argjson extra "$2" '{agent_id:$id,inputs:$p} + $extra')"; }
-          # b) long prompt, auto vs any, three times each.
+          a=$(mkagent null); id=$(echo "$a" | jq -r .id)
+          p=$(curl -sS -w '\nHTTP %{http_code}' -X PATCH $M/agents/$id "${H[@]}" -d '{"completion_args":{"tool_choice":"required"}}')
+          note "a PATCH to required $(echo "$p" | tail -1)" "$(echo "$p" | sed '$d' | jq -c '{version, tc:(.completion_args.tool_choice), error:(.detail // .message // null)}')"
+      - name: c) update an agent
+        run: |
+          . /tmp/h.sh
+          a=$(mkagent null); id=$(echo "$a" | jq -r .id)
+          note "c created" "$(echo "$a" | jq -c '{id, version, created_at, updated_at, instructions}')"
+          p=$(curl -sS -w '\nHTTP %{http_code}' -X PATCH $M/agents/$id "${H[@]}" -d "$(jq -nc --arg i "$INS2" '{instructions:$i}')")
+          note "c PATCH instructions $(echo "$p" | tail -1)" "$(echo "$p" | sed '$d' | jq -c '{id, version, versions, deployment_chat, updated_at, instructions:(.instructions|tostring|.[0:80]), tools, model, name, error:(.detail // .message // null)}')"
+          g=$(curl -sS $M/agents/$id "${H[@]}")
+          note "c GET after PATCH" "$(echo "$g" | jq -c '{id, version, instructions:(.instructions|tostring|.[0:80])}')"
+          note "c raw keys" "$(echo "$g" | jq -c 'keys')"
+          note "c conversation after PATCH" "$(converse "$id" '{"store":false}' 'A red circle on a white background' | jq -c "$summary")"
+      - name: d) follow-up with store true
+        run: |
+          . /tmp/h.sh
+          a=$(mkagent null); id=$(echo "$a" | jq -r .id)
+          c=$(converse "$id" '{"store":true}' 'Please only tell me in one sentence what the ECB is. Do not make an image.')
+          note "d first store=true" "$(echo "$c" | jq -c "$summary")"
+          cid=$(echo "$c" | jq -r '.conversation_id // empty')
+          f=$(curl -sS -w '\nHTTP %{http_code}' $M/conversations/$cid "${H[@]}" -d '{"inputs":"Use the image generation tool now.","store":true}')
+          body=$(echo "$f" | sed '$d')
+          note "d follow-up $(echo "$f" | tail -1)" "$(echo "$body" | jq -c "$summary")"
+          note "d follow-up raw shape" "$(echo "$body" | jq -c '{object, keys:keys, outputs:[.outputs[]?|{object,type,name,function,role,agent_id,model,content_type:(.content|type), info_keys:(.info|keys?)}]}')"
+          f2=$(curl -sS -w '\nHTTP %{http_code}' $M/conversations/$cid "${H[@]}" -d '{"inputs":"Use the image generation tool now.","store":false}')
+          note "d follow-up store=false on stored $(echo "$f2" | tail -1)" "$(echo "$f2" | sed '$d' | jq -c "$summary")"
+          note "d delete conversation" "$(curl -sS -X DELETE $M/conversations/$cid "${H[@]}" -o /dev/null -w '%{http_code}')"
+      - name: b) realistic German prompt, old and new instructions
+        run: |
+          . /tmp/h.sh
+          old=$(mkagent null | jq -r .id); new=$(mkagent null "$INS2" | jq -r .id)
           for i in 1 2 3; do
-            note "b auto run $i" "$(converse "$AUTO" '{"store":false}' | jq -c "$summary")"
-            [ -n "$ANY" ] && note "b any run $i" "$(converse "$ANY" '{"store":false}' | jq -c "$summary")"
+            note "b old instructions run $i" "$(converse "$old" '{"store":false}' | jq -c "$summary")"
+            note "b new instructions run $i" "$(converse "$new" '{"store":false}' | jq -c "$summary")"
           done
-          # e) per-conversation completion_args with an agent.
-          note "e auto agent + completion_args any" "$(converse "$AUTO" '{"store":false,"completion_args":{"tool_choice":"any"}}' | jq -c "$summary")"
-          # d) follow-up: store false, then store true.
-          for st in false true; do
-            c=$(converse "$AUTO" "{\"store\":$st}")
-            note "d first store=$st" "$(echo "$c" | jq -c "$summary")"
-            cid=$(echo "$c" | jq -r '.conversation_id // empty')
-            [ -z "$cid" ] && continue
-            f=$(curl -sS -w '\nHTTP %{http_code}' $M/conversations/$cid "${H[@]}" -d "{\"inputs\":\"Use the image generation tool now.\",\"store\":$st}")
-            code=$(echo "$f" | tail -1); body=$(echo "$f" | sed '$d')
-            note "d follow-up store=$st $code" "$(echo "$body" | jq -c "$summary" 2>/dev/null || echo "$body")"
-            note "d follow-up raw keys store=$st" "$(echo "$body" | jq -c '{object, keys:keys, outputs:[.outputs[]?|del(.content)|del(.info)|del(.arguments)]}' 2>/dev/null)"
-            [ "$st" = true ] && curl -sS -X DELETE $M/conversations/$cid "${H[@]}" -o /dev/null -w 'deleted conv %{http_code}\n'
+      - name: Clean up
+        if: always()
+        run: |
+          . /tmp/h.sh
+          n=0
+          for id in $(curl -sS "$M/agents?page_size=100" "${H[@]}" | jq -r '.[]? | select(.name=="probe-181") | .id') ag_01a1774eb65e719997f9bafe95fc06d2; do
+            code=$(curl -sS -X DELETE $M/agents/$id "${H[@]}" -o /dev/null -w '%{http_code}'); n=$((n+1)); echo "$id $code"
           done
-          # c) update an existing agent.
-          p=$(curl -sS -w '\nHTTP %{http_code}' -X PATCH $M/agents/$AUTO "${H[@]}" -d '{"completion_args":{"tool_choice":"any"}}')
-          note "c PATCH $(echo "$p" | tail -1)" "$(echo "$p" | sed '$d' | jq -c '{id, version, completion_args, tools, instructions, error:(.message // .detail // null)}' 2>/dev/null)"
-          g=$(curl -sS $M/agents/$AUTO "${H[@]}")
-          note "c GET after PATCH" "$(echo "$g" | jq -c '{id, version, completion_args, tools}')"
-          note "c auto agent after PATCH run" "$(converse "$AUTO" '{"store":false}' | jq -c "$summary")"
-          for id in "${ids[@]}"; do
-            [ -n "$id" ] && note "delete $id" "$(curl -sS -X DELETE $M/agents/$id "${H[@]}" -o /dev/null -w '%{http_code}')"
-          done
+          left=$(curl -sS "$M/agents?page_size=100" "${H[@]}" | jq -c '[.[]? | select(.name=="probe-181") | .id]')
+          note "cleanup" "deleted calls: $n; probe agents left: $left"
