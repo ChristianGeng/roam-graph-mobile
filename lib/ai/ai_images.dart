@@ -527,12 +527,19 @@ AiError _noMistralImage(
       answer: _answerOf(json, provider));
 }
 
-/// [text] without links: a Markdown link becomes its label, and a bare
-/// link becomes "(link)".
+/// [text] without links and host names: a Markdown link becomes its
+/// label, and a bare link or a host name (also as a label, such as
+/// `[ecb.eu](…)`) becomes "(link)".
 String _withoutLinks(String text) => text
     .replaceAllMapped(
         RegExp(r'!?\[([^\]]*)\]\([^)\s]*\)'), (m) => m.group(1)!.trim())
     .replaceAll(RegExp(r'\b(?:https?://|www\.)\S+'), '(link)')
+    // A host name: words joined by dots, ending in letters, such as
+    // `ecb.eu` or `bundesbank.de/statistik`.
+    .replaceAll(
+        RegExp(r'\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}\b(?:/\S*[^\s.,;:!?)])?',
+            caseSensitive: false),
+        '(link)')
     .replaceAll(RegExp(r'\s+'), ' ')
     .trim();
 

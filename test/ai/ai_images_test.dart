@@ -770,6 +770,34 @@ void main() {
       expect(downloads.single.$1.toString(), storage);
     });
 
+    test('a host name as a link label or in the text is not named',
+        () async {
+      await expectLater(
+          makeImage(mistral(), infographic,
+              post: api({
+                'outputs': [
+                  {
+                    'type': 'message.output',
+                    'role': 'assistant',
+                    'content': 'Sources: [ecb.eu](https://www.ecb.eu/stats), '
+                        '[the ECB](https://www.ecb.eu) and '
+                        'bundesbank.de/statistik. Rates: 2.15 %.',
+                  },
+                ],
+              }),
+              download: bytes(base64.decode(png)),
+              agents: MemoryImageAgents()),
+          throwsA(isA<AiError>().having(
+              (e) => e.message,
+              'message',
+              allOf(
+                  contains('begins: "Sources: (link), the ECB and (link). '
+                      'Rates: 2.15 %."'),
+                  isNot(contains('ecb.eu')),
+                  isNot(contains('bundesbank'))))));
+      expect(downloads, isEmpty);
+    });
+
     test('no text at all: the retry has no empty answer entry', () async {
       await expectLater(
           makeImage(mistral(), 'x',
