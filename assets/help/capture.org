@@ -26,7 +26,9 @@ on the desktop.
 Instead of a new node, the shared text can go into an existing one: tap
 *Use for an existing node* in the bar of the capture screen, then *Add to a
 node* (the text goes to the end of the node you choose) or *Replace a
-node's text* (shown as a diff first).
+node's text* (shown as a diff first). The capture screen closes and the
+original shared text is used, so choose this before you edit the text
+there; edit it on the next screen.
 
 * The first time
 Android may let the app only read the folder. Saving then asks to choose

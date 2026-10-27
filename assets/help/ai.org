@@ -35,10 +35,11 @@ In the bar of the chat:
 - *New chat* starts again.
 - *AI settings* opens the settings.
 
-The app goes online only for the chat, and only when I send a message: my
-message and the notes the AI reads go to that provider. Each provider's note
-says where the data goes; some keep it in the EU. Notes with a hidden tag
-stay out, see [[id:roam-graph-help-hidden-from-ai][Hidden from AI]].
+The chat goes online only when I send a message: my message and the notes
+the AI reads go to the chat provider. Each provider's note says where the
+data goes; some keep it in the EU. Notes with a hidden tag stay out. What
+else leaves the phone (images, edits, web access) is on
+[[id:roam-graph-help-ai-privacy][AI privacy]].
 
 ** Share notes with an AI app
 *Share with AI* (a note's *AI* menu, or several notes selected in search

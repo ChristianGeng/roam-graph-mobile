@@ -83,9 +83,9 @@ bring the steps back.
 :PROPERTIES:
 :ID:       roam-graph-help-edit-note
 :END:
-The *Edit* menu (the ⋮ icon in the bar) holds these. Apart from the quick
-edits above, nothing is saved before I tap *Save*, and the old version is
-kept (*Earlier versions*).
+The *Edit* menu (the ⋮ icon in the bar) holds these. Each writes only
+after I confirm it (*Save*, *Delete*, *Add to
+the note* or *Restore*), and the old version is kept (*Earlier versions*).
 - *Edit text*: edit the note's text. Tap *Review* to see the change, then
   *Save*. Nothing is saved before that.
 - *Add to this node*: type Org text, and tap *Save*; it goes to the end of

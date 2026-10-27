@@ -59,8 +59,10 @@ key, image model and "EU only", like "Images with:". Empty (*Same as
 Image and Gemini Image set text well; FLUX (Mistral) does not.
 
 Two ways to make one:
-- In *Create image* (see above), choose *Infographic* above *Make image*.
-  The line below names the provider and model of "Infographics with:".
+- In *Create image* (steps in
+  [[id:roam-graph-help-make-image][Make an image]]), choose *Infographic*
+  above *Make image*. The line below names the provider and model of
+  "Infographics with:".
 - In the chat, in agent mode, ask for it: "Make an infographic of my
   training over the last 5 years for this note". The AI reads the notes
   first, writes the image prompt with the facts in it, and adds the image
@@ -69,11 +71,12 @@ Two ways to make one:
   too, if its model can see images, and checks it. The chat knows today's
   date.
 
-For an infographic the AI uses the model of "Infographics with:". Its
-prompt is a layout brief: the title, the exact values with units and
-dates, the chart form, the labels, the colours and a source line, without
-links. Below the image the note gets the values as an Org table and a line
-~Source: [[url][name]], retrieved <date>~, so the numbers can be checked
+For an infographic asked for in the chat, the AI uses the model of
+"Infographics with:". Its prompt is a layout brief: the title, the exact
+values with units and dates, the chart form, the labels, the colours and a
+source line, without links. Below the image the chat's AI puts the values
+as an Org table and a line ~Source: [[url][name]], retrieved <date>~
+(*Create image* adds only the image with its caption), so the numbers can be checked
 and updated later. The AI compares every number and label in the picture
 with the table; if one is wrong and the image limit allows, it makes the
 image once more, which replaces the first, and then says what is still

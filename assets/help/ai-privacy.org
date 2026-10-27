@@ -32,6 +32,13 @@ A note that is hidden can still be deleted by hand, see
   providers to their EU processing.
 - *Create image* sends the description and, if ticked, the note's title to
   the image provider.
+- In agent mode, an image or infographic asked for in the chat is made from
+  facts the AI read in the notes: they go into the image prompt, which is
+  sent to the provider of *Images with:* or *Infographics with:*. These can
+  differ from the chat provider and have their own keys. Notes hidden from
+  AI stay out.
+- *Edit with AI* sends the note, and its linked notes if chosen, to the
+  chat provider.
 - Keys are kept in the device's secure storage, never in the notes.
 
 * Web access

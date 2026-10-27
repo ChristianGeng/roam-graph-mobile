@@ -6,7 +6,9 @@
 
 Open *Search* with the magnifier in the graph or note view. Type a title
 or alias, or choose tags. *In the text* searches the words inside notes.
-Tap a result to open it; *Show in graph* shows it in the graph. To search
+Tap a result to open it. In the results for titles, aliases and tags,
+*Show in graph* shows it in the graph; for a result *In the text*, open it
+first and use *Show in graph* in the note. To search
 inside the note that is open, see
 [[id:roam-graph-help-search-in-note][Search inside a note]].
 

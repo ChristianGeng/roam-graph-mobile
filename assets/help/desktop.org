@@ -15,14 +15,16 @@ Each full release has one file for each system. A pre-release has the
 APK only.
 - *Linux*: ~roam-graph-<version>-linux-x64.tar.gz~. Unpack it, then run
   ~bundle/install.sh~. It adds *Roam Graph* to the app menu. To update, run
-  ~$HOME/.local/share/roam-graph/app/install.sh --update~; to remove the app,
-  ~install.sh --remove~. Your notes, settings and keys stay.
+  ~${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app/install.sh --update~;
+  to remove the app, run the same file with ~--remove~. Your notes,
+  settings and keys stay.
 - *Windows*: ~roam-graph-<version>-windows-x64.zip~. Unpack it, then start
   ~roam_graph_mobile.exe~. The app is not signed: if SmartScreen warns,
   choose *More info*, then *Run anyway*.
 - *macOS*: ~roam-graph-<version>-macos.zip~. Move *Roam Graph* to
-  Applications. The app is not signed: the first time, open System Settings,
-  Privacy & Security, and choose *Open Anyway*.
+  Applications. The app is not signed: the first time, try to open it; macOS
+  refuses. Then open System Settings, Privacy & Security, and choose *Open
+  Anyway* for Roam Graph.
 
 * First start
 Tap *Choose org folder* and pick the folder that holds ~roam/~ (or ~roam/~
@@ -33,8 +35,9 @@ the same files as Emacs. Emacs reloads a changed file with
 * Open in Emacs
 The note's button is *Open in Emacs* instead of *Open in Orgro*. It runs
 ~emacsclient~ at the note's heading, so Emacs needs ~(server-start)~;
-without a running server, Emacs itself starts. If it does not start, the
-app says so and names *Settings*.
+without a running server, Emacs itself starts. If the app cannot start
+the command at all, it says so and names *Settings*; it does not see a
+later failure of Emacs itself.
 
 The command is *Emacs command* in [[id:roam-graph-help-settings][Settings]]
 (shown on the desktop only). On Windows the default is ~emacsclientw.exe~;
