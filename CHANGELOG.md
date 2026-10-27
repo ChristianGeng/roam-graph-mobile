@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-27: Model advice in the picker and the help ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-27: Model advice in the picker and the help ([#191](https://github.com/ChristianGeng/roam-graph-mobile/pull/191))
 
 - Added: the model lists mark recommended models with their purpose and price class, list them first, and have a "Recommended" chip. OpenRouter lists also have a "Calls tools" chip and an order by price.
 - Changed: OpenRouter starts with a default chat model, a strong model and an image model. The help page "Choosing a model" starts with three ready setups.
