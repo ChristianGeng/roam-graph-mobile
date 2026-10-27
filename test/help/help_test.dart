@@ -17,6 +17,12 @@ RoamGraph helpGraphFromDisk() => RoamGraph.fromFiles([
     parseRoamFile(file, File('assets/help/$file').readAsStringSync()),
 ]);
 
+/// The target of an `[[id:…][…]]` link in an Org text.
+final idLink = RegExp(r'\[\[id:([^\]]+)\]');
+
+/// The value of a `:ID:` property line.
+final idLine = RegExp(r'^:ID:\s+(\S+)\s*$', multiLine: true);
+
 /// Waits for a help page to open: its pages are read from the asset
 /// bundle, which is real I/O outside the test's clock.
 Future<void> settleHelp(WidgetTester tester) async {
@@ -46,17 +52,23 @@ void main() {
           File('assets/help/$file').readAsStringSync(),
         );
         expect(data.error, isNull, reason: file);
-        expect(data.nodes.where((n) => n.isFile), hasLength(1), reason: file);
-        final node = data.nodes.single;
-        expect(node.title, isNotEmpty, reason: file);
-        // Not a UUID, so it cannot be the ID of one of my notes.
-        expect(node.id, startsWith('roam-graph-help-'), reason: file);
+        final pages = data.nodes.where((n) => n.isFile).toList();
+        expect(pages, hasLength(1), reason: file);
+        expect(pages.single.title, isNotEmpty, reason: file);
+        // Headings with an ID are nodes too, so tasks can be linked to.
+        // None has a UUID, so none can be the ID of one of my notes.
+        for (final node in data.nodes) {
+          expect(node.id, startsWith('roam-graph-help-'), reason: file);
+        }
       }
     });
 
     test('every id: link points to a help page, and every page is linked', () {
       final help = helpGraphFromDisk();
-      expect(help.nodes, hasLength(helpFiles.length));
+      expect(
+        help.nodes.values.where((n) => n.isFile),
+        hasLength(helpFiles.length),
+      );
       expect(
         help.danglingLinks,
         isEmpty,
@@ -70,6 +82,32 @@ void main() {
       }
       for (final id in [helpStart, helpLayouts, helpViews]) {
         expect(help.nodes, contains(id));
+      }
+    });
+
+    test('every [[id:…]] link in the text points to an ID that exists', () {
+      final ids = <String>{};
+      final dests = <String, List<String>>{};
+      for (final file in helpFiles) {
+        final text = File('assets/help/$file').readAsStringSync();
+        ids.addAll([for (final m in idLine.allMatches(text)) m[1]!]);
+        dests[file] = [for (final m in idLink.allMatches(text)) m[1]!];
+      }
+      for (final MapEntry(key: file, value: targets) in dests.entries) {
+        for (final target in targets) {
+          expect(ids, contains(target), reason: '$file links to $target');
+        }
+      }
+    });
+
+    test('the start page links to every page', () {
+      final text = File('assets/help/start.org').readAsStringSync();
+      final linked = {for (final m in idLink.allMatches(text)) m[1]!};
+      final pages = helpGraphFromDisk().nodes.values.where((n) => n.isFile);
+      for (final page in pages) {
+        if (page.id != helpStart) {
+          expect(linked, contains(page.id), reason: page.id);
+        }
       }
     });
 

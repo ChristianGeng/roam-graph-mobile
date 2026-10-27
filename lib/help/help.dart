@@ -18,9 +18,13 @@ const helpFiles = [
   'node-view.org',
   'capture.org',
   'ai.org',
+  'images.org',
+  'ai-privacy.org',
   'models.org',
   'conflicts.org',
   'settings.org',
+  'install.org',
+  'desktop.org',
 ];
 
 /// IDs of pages that controls open directly.

@@ -5,8 +5,8 @@
 #+STARTUP: showall
 
 * A new node
-The plus button in the graph, or "New node from here" in a note, writes a
-new note as org-roam's capture does on the laptop: a file
+The *New node* button (+) in the graph, or *New node from here* in a note,
+writes a new note as org-roam's capture does on the laptop: a file
 ~roam/<date and time>-<title>.org~ with a new ~:ID:~, ~#+title:~ and
 ~#+filetags:~. Syncthing brings it to the laptop, where org-roam finds it.
 
@@ -20,7 +20,15 @@ the old note gets a backlink and is never changed.
 * Shared text
 Text shared to Roam Graph from another app, such as an AI app, opens the
 same capture screen, with a title and text proposed from it. Nothing is
-written until I save.
+written until I save (the check mark). Text cannot be shared into the app
+on the desktop.
+
+Instead of a new node, the shared text can go into an existing one: tap
+*Use for an existing node* in the bar of the capture screen, then *Add to a
+node* (the text goes to the end of the node you choose) or *Replace a
+node's text* (shown as a diff first). The capture screen closes and the
+original shared text is used, so choose this before you edit the text
+there; edit it on the next screen.
 
 * The first time
 Android may let the app only read the folder. Saving then asks to choose

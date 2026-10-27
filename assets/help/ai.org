@@ -1,163 +1,137 @@
 :PROPERTIES:
 :ID:       roam-graph-help-ai
 :END:
-#+title: AI: sharing, hidden notes and the chat
+#+title: AI: the chat and the agent
 #+STARTUP: showall
 
-For model suggestions by purpose and price class, see
-[[id:roam-graph-help-models][Choosing a model]].
+The AI features are: a chat that reads my notes, an agent that can change
+them, and images. This page is about the chat and the agent. See also:
+- [[id:roam-graph-help-images][AI images, infographics and charts]]
+- [[id:roam-graph-help-ai-privacy][AI privacy: hidden notes and web access]]
+- [[id:roam-graph-help-models][Choosing a model]], for suggestions by purpose and price class.
 
-* Hidden from AI
-Notes with a tag such as ~:private:~ are never shown to an AI: not in a
-share, not to the chat. Headings with such a tag are left out of the notes
-that are. Set the tags in [[id:roam-graph-help-settings][Settings]], under
-AI: tap the graph's tags below the field, or type a tag, also one no note
-has yet, and add it with space, comma, colon or Enter.
+* Ask the AI
+:PROPERTIES:
+:ID:       roam-graph-help-ask-ai
+:END:
+1. Choose a provider and enter its key: *AI settings* (the gear on the
+   first screen and in the chat), or *Settings*, *AI* in the graph's
+   *More* menu. Tap the check mark to save. See
+   [[id:roam-graph-help-settings][Settings]].
+2. Open the chat: *Ask AI* in the graph's *More* menu, or in a note's *AI*
+   menu (the sparkle icon). From a note, the chat starts with that note.
+3. Type the question and send it.
 
-* Sharing with an AI app
-*Share with AI* (a note's AI menu, or several notes selected in search
-with a long press) sends the notes with their texts and links.
-An AI app's answer can come back as a new note: share it to Roam Graph
-([[id:roam-graph-help-capture][Capture and shared text]]).
-
-* Images
-*Create image* (a note's edit menu) asks an image model for a picture of
-what I describe; the image is added to the note only when I tap "Add to
-the note". Only the description and, if ticked, the note's title are sent.
-
-The provider is set under *Images with:* in AI settings: the chat's
-provider by default, or another one with its own key, image model and "EU
-only". Vercel AI Gateway, OpenRouter, Qwen, Mistral and Custom make images.
-Mistral makes them with its built-in image tool, in the EU; the app
-downloads them only from Mistral's servers. For this, the app makes an
-agent with the image tool at Mistral the first time ("Roam Graph images",
-one for each image model) and keeps its ID in the AI settings.
-
-Above "Make image" a line says which provider and model make the image,
-and whether that is in the EU, outside it, or not known. With "EU only" on,
-Vercel uses Gemini 2.5 Flash Image, the one image model there with an EU
-route. When a model has no EU route, *Make this one outside the EU* makes
-this one image without the EU option; "EU only" stays on.
-
-** Infographics
-*Infographics with:* in AI settings is the provider and image model for
-pictures with text and numbers: charts, tables, timelines. It has its own
-key, image model and "EU only", like "Images with:". Empty ("Same as
-"Images with:"") uses the provider and image model of "Images with:". GPT
-Image and Gemini Image set text well; FLUX (Mistral) does not.
-
-In "Create image", choose *Illustration* or *Infographic* above "Make
-image": the line below names the provider and model of that setting.
-
-** Images in the chat
-For an image about the contents of the notes, such as an infographic, ask
-in the chat, in agent mode: "Make an infographic of my training over the
-last 5 years for this note". The AI reads the notes first, writes the
-image prompt with the facts in it, and adds the image with a caption to
-the note, below its text, with the prompt as a comment (~# image
-prompt: …~). The image shows in the chat; the AI is shown it too, if its
-model can see images, and checks it. The chat knows today's date.
-
-For an infographic the AI uses the model of "Infographics with:". Its
-prompt is a layout brief: the title, the exact values with units and
-dates, the chart form, the labels, the colours and a source line, without
-links. Below the image the note gets the values as an Org table and a line
-~Source: [[url][name]], retrieved <date>~, so the numbers can be checked
-and updated later. The AI compares every number and label in the picture
-with the table; if one is wrong and the image limit allows, it makes the
-image once more, which replaces the first, and then says what is still
-wrong instead of trying again.
-
-By default the AI makes one image per message; set *Most images the agent
-may make for one message* in AI settings. A second image for the same note
-in one message replaces the first. "Undo all changes of this message"
-takes the image out of the note; the image file stays in the image folder.
-
-** Charts in the chat
-For exact numbers, such as interest rates, prices or a time series, ask in
-agent mode for a chart: "Chart the key interest rate since 2022 in this
-note". The AI does the research, then the app itself draws a line, bar or
-area chart from the values: free, offline, with no image model, and every
-value is the one given. The chart has a title, axis labels with units, a
-legend for more than one series, a few marked points and a line "Source:
-name, retrieved date". Below it the note gets the values as an Org table and
-the source line with its link.
-
-Use a chart when the numbers must be right. Ask for an infographic (see
-above) when you want a designed picture; an image model can paint a wrong
-number. The AI makes at most as many charts for one message as
-*Most images the agent may make for one message* allows, and a second chart for the same note in one message replaces the
-first. "Undo all changes of this message" takes it out of the note; the
-image file stays.
-
-* The AI chat
-*Ask AI* (the graph's "More" menu, or a note's AI menu) opens a chat. The
-AI reads the notes itself, with the tools of my org-roam MCP server:
+The AI reads the notes itself, with the tools of my org-roam MCP server:
 search, read, backlinks, paths and the
 [[id:roam-graph-help-algorithms][graph algorithms]]. The tool calls show in
 the chat; ~id:~ links in answers open the note.
 
-"Save as new node" under an answer lets the AI make a note of it: a short,
+In the bar of the chat:
+- *Model* (the sliders icon) switches between the default model and the
+  strong model. It shows only when *Strong model (optional)* is set to a
+  different model in AI settings.
+- *Recent AI changes* shows what the AI changed.
+- *New chat* starts again.
+- *AI settings* opens the settings.
+
+The chat goes online only when I send a message: my message and the notes
+the AI reads go to the chat provider. Each provider's note says where the
+data goes; some keep it in the EU. Notes with a hidden tag stay out. What
+else leaves the phone (images, edits, web access) is on
+[[id:roam-graph-help-ai-privacy][AI privacy]].
+
+** Share notes with an AI app
+*Share with AI* (a note's *AI* menu, or several notes selected in search
+with a long press) sends the notes with their texts and links to another
+AI app. On the desktop it copies the text to the clipboard.
+An AI app's answer can come back as a new note: share it to Roam Graph
+([[id:roam-graph-help-capture][Capture and shared text]]).
+
+* Let the AI edit notes
+:PROPERTIES:
+:ID:       roam-graph-help-ai-edit
+:END:
+*Let the AI change notes* in AI settings has three choices:
+- *Off: the AI only reads.*
+- *Review each change first*: the AI proposes a change and the chat shows
+  it with *Review*. Nothing is saved before I save it there.
+- *Agent: it changes notes itself, I can undo*: the AI creates, edits and
+  links notes itself. A summary under the answer lists each note, to open
+  or to see the change as a diff.
+
+To undo an agent's changes, tap *Undo all changes of this message* in the
+summary. *Recent changes* in the graph's *More* menu, or *Recent AI changes*
+in the chat, keeps the same history, also after the message has gone; it
+has one *Undo these changes* for each action. Newer texts stay unchanged
+and notes that could not be restored are named.
+
+The limits are in AI settings: *Most changes the agent may make for one
+message*, *Most images the agent may make for one message* and *Most notes
+one AI change set may edit*. For a large change, ask the agent to explain
+its plan first.
+
+To change one note, or a note and its linked notes, without the chat, use
+*Edit with AI* in the note's *Edit* menu (⋮):
+1. Write what the AI should change, and tick *Also the linked notes* if it
+   should change them too.
+2. Tap *Ask the AI*.
+3. With linked notes, the AI first shows its plan. Tap *Go ahead* to
+   continue or *Back* to change the instruction.
+4. Look at the diff of each note, and save only what is right. The old
+   versions are kept.
+
+** Save an answer as a note
+*Save as new node* under an answer lets the AI make a note of it: a short,
 fitting title in the language of the answer, the content as Org text
 without chat phrases, and links to the notes the answer used and to the
 note the chat was opened from.
 - In agent mode, the button sends that request as my message; the AI makes
-  the note itself, and it shows in the summary with "Undo all" and in
-  "Recent changes". Hand deletes appear there too; the graph has the
-  same history in its *More* menu.
+  the note itself, and it shows in the summary with *Undo all changes of
+  this message* and in *Recent changes*.
 - In review and off mode, the AI is asked once more, without tools, for the
-  title and text; "New node" opens filled in with them, and nothing is
+  title and text; *New node* opens filled in with them, and nothing is
   saved before I save there. If its answer cannot be read, the first line
   of the answer is the title, as for shared text.
 
-The chat needs a provider and a key, set under AI in
-[[id:roam-graph-help-settings][Settings]]. The app goes online only for the
-chat, and only when I send a message: my message and the notes the AI
-reads go to that provider. Each provider's note says where the data goes;
-some keep it in the EU. Where the provider has a stronger model, the chat
-can switch to it.
-
-** Language of new notes
+* The language of notes
+:PROPERTIES:
+:ID:       roam-graph-help-note-language
+:END:
 The AI writes a new note in one language and marks it with Org's
 ~#+language:~ line after ~#+title:~. The language is, in this order:
 1. the one my request asks for ("auf Deutsch", "in English");
 2. the ~#+language:~ of the note the chat starts from;
 3. the language most of that note's links and backlinks have, when at
    least 2 have one and one value has more than half;
-4. *Language of new notes* in AI settings, under "Notes" (~en~ by
-   default).
+4. *Language of new notes* in AI settings, under *Notes* (~en~ by
+   default). To change it, type a language code, or tap one of the
+   language chips below the field.
 
 Example: the chat is opened from "Pilzsuche", which has ~#+language: de~.
 The AI is told "Write new notes linked from 'Pilzsuche' in German (de)",
-and a note made with "Save as new node" gets ~#+language: de~.
+and a note made with *Save as new node* gets ~#+language: de~.
 
 Edits keep a note's language: the AI does not translate unless I ask,
 and it does not add or change ~#+language:~ unless I ask. Notes written
-by hand get no ~#+language:~. To set it for existing notes, use *Set
-language…* in [[id:roam-graph-help-search][Search]].
+by hand get no ~#+language:~.
 
-** Web access
-With *Web access for the AI* on (AI settings, under "Web"; off by
-default), the chat can also use the web, for questions the notes do not
-answer:
-- *fetch_web_page* reads a web page, with every provider. The page is
-  fetched from the phone: only ~https://~ addresses, never an address in
-  the own network (the phone itself, the router, other devices at home;
-  also not after a redirect), without cookies or logins, at most 20
-  seconds and about 100,000 characters of text.
-- *web_search* is Anthropic's own search: the search words go to
-  Anthropic, which searches and reads the results. Mistral has a web
-  search only in another API than the one the chat uses, and Claude on
-  Amazon Bedrock has none; there the AI only reads pages whose address it
-  knows.
+To set the language of existing notes:
+1. In *Search*, long press a result to select it, and tap more notes.
+2. Tap *Set language…* and enter a code such as ~de~.
+3. One *Undo* in the message restores all files. See
+   [[id:roam-graph-help-search][Search and selected notes]].
 
-Searches and pages together are at most *Most web searches for one
-message* (5 by default). The AI names its sources as links, also in the
-notes it writes from facts of the web. Notes hidden from AI stay hidden:
-the AI does not see them, so it cannot put them into a search.
+* Copy an error
+:PROPERTIES:
+:ID:       roam-graph-help-copy-error
+:END:
+Errors in *Create image*, the chat, *Edit with AI* and the change set
+screen have a copy icon (*Copy error*), and the text can be selected. An
+error in a snack bar has a *Copy* action and stays until it is dismissed.
+Paste the copied text when you report a problem.
 
-* Errors
-Errors have a copy button; paste the text when you report a problem. The
-copied text has the app version, the platform, the time and, for AI
-errors, the provider, the model and the provider's own answer, without
-keys. Error messages in snack bars have a *Copy* action.
+The copied text has the message, the app version, the platform, the time
+(UTC) and, for AI errors, the provider, the model, the API kind, the HTTP
+status and the provider's own answer under "Answer:" (cut to 2000
+characters). It has no keys or tokens.

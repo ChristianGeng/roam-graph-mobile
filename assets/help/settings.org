@@ -4,18 +4,50 @@
 #+title: Settings
 #+STARTUP: showall
 
-"Settings" is in the graph's "More" menu.
+*Settings* is in the graph's *More* menu. The first screen has only *Help* and
+the gear *AI settings*. From top to bottom:
 
-- *Sections when a note opens*: collapsed (the top headings only),
-  headings (all headings, no text), or expanded (everything). A note's own
-  ~#+STARTUP:~ line comes first.
-- *AI*: the tags that hide notes from AI, and the chat's provider, base
-  URL, models and key, with the limits of a chat; under *Images with:*,
-  the provider for "Create image" (the chat's by default, or another with
-  its own key, image model and "EU only"); under *Web*, *Web access
-  for the AI* (off by default: search words go to the provider, pages
-  are fetched from the phone) and the most web searches for one message.
-  Keys are kept in
-  Android's secure storage, never in the notes. See
-  [[id:roam-graph-help-ai][AI]] and
+- *Sections when a note opens*: *Collapsed* (the top headings only),
+  *Headings* (all headings, no text), or *Expanded* (everything). A note's
+  own ~#+STARTUP:~ line comes first.
+- *Graph layout at start*: *Force-directed*, *Circular (circo)*, *Radial*,
+  *Grouped by communities*, *Hierarchical (dot)*, or *Last used*, the
+  layout chosen last in the graph's *View* menu. The *View* menu still
+  switches the layout while the graph is open; see
+  [[id:roam-graph-help-layouts][Layouts]].
+- *Graph width on the tablet*: shows the share of the graph next to a note.
+  Drag the divider between them to change it; *Reset* goes back to 40 : 60.
+- *AI*: opens AI settings, see below.
+- *Emacs command* (desktop only): what *Open in Emacs* runs; see
+  [[id:roam-graph-help-desktop][The desktop app]].
+- *Folder for new images*: where images made by the AI go, relative to
+  ~roam/~ (~img~ by default). *Default* sets it back.
+- *Theme*: *System* (as Android is set), *Light* or *Dark*.
+
+* AI settings
+Tap the check mark in the bar to save. Keys are kept in the device's secure
+storage, never in the notes. From top to bottom:
+- *Hidden from AI: tags*: the tags that hide notes from AI; see
+  [[id:roam-graph-help-hidden-from-ai][Hidden from AI]].
+- *AI chat: provider*: the provider, with its base URL, *Model*, *Strong
+  model (optional)* and key. The list icon (*Choose model*) fetches the
+  provider's models, with the chips *Recommended* and *Calls tools* and an
+  order by *Model ID* or *Price (lowest first)*; see
   [[id:roam-graph-help-models][Choosing a model]].
+  Some providers have *EU only*.
+- *Create image: provider*, *Images with:*: the chat's provider by default,
+  or another with its own key, image model and "EU only"; see
+  [[id:roam-graph-help-make-image][Make an image]].
+- *Create image: infographics*, *Infographics with:*: see
+  [[id:roam-graph-help-make-infographic][Make an infographic]].
+- *Notes*, *Language of new notes*: see
+  [[id:roam-graph-help-note-language][The language of notes]].
+- *Web*: *Web access for the AI* (off by default) and *Most web searches
+  for one message*; see [[id:roam-graph-help-web-access][Web access]].
+- *Limits*: *Most tool rounds per message*, *Most tokens per answer,
+  thinking included*, *Let the AI change notes*, *Most changes the agent
+  may make for one message*, *Most images the agent may make for one
+  message* and *Most notes one AI change set may edit*; see
+  [[id:roam-graph-help-ai-edit][Let the AI edit notes]].
+
+The AI chat itself: [[id:roam-graph-help-ai][AI]].

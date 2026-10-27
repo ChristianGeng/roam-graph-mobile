@@ -1,0 +1,41 @@
+:PROPERTIES:
+:ID:       roam-graph-help-install
+:END:
+#+title: Install and update the app
+#+STARTUP: showall
+
+The app comes from GitHub: https://github.com/ChristianGeng/roam-graph-mobile
+under Releases. The first screen of the app shows its *Version* at the
+bottom; give it when you report a problem.
+
+There are two kinds of builds:
+- A *pre-release* is made for every change that is merged. It has the
+  Android app (the APK) only, and a version like ~v0.2.1-dev.412~.
+- A *full release* is made by hand, when the owner asks. It has the Android
+  app and the desktop apps for Linux, Windows and macOS, and a version like
+  ~v0.3.0~.
+
+* Install on Android with Obtainium
+1. In Obtainium, tap *Add App*.
+2. As the app source URL, enter
+   ~https://github.com/ChristianGeng/roam-graph-mobile~.
+3. Tap *Add*, then *Install*.
+
+Obtainium then checks for new versions and updates in one tap. The
+repository is public, so no GitHub token is needed.
+
+* Pre-releases in Obtainium
+:PROPERTIES:
+:ID:       roam-graph-help-prereleases
+:END:
+Obtainium installs only full releases unless pre-releases are turned on.
+To get the build of every merge:
+1. In Obtainium, open the app's settings (when you add the app, they are on
+   the same screen).
+2. Turn on *Include prereleases*.
+3. Check for updates.
+
+To get only full releases, turn *Include prereleases* off again. Keep
+Obtainium's APK filter on ~\.apk$~: the releases also hold the desktop apps.
+
+The desktop apps: [[id:roam-graph-help-desktop][The desktop app]].

@@ -3235,6 +3235,20 @@ devices through Syncthing.
 - **Mistral has no infographic model:** its image tool does not set text
   well, so the list has none for that purpose.
 
+## 107. Help pages: a task index and linkable sections (#192)
+
+The help starts with a "How do I …?" list. Each task links to a heading
+with its own ID (`roam-graph-help-…`, never a UUID), so headings of the
+help pages are help nodes too, as headings with an ID are in my notes.
+- **One fact in one place:** steps that several pages need, such as
+  deleting a note, are written once and linked from the others.
+- **`ai.org` is split** into `ai.org` (chat and agent), `images.org` and
+  `ai-privacy.org`; `install.org` and `desktop.org` are new. The IDs of
+  the old pages stay. The help screen lists them in `helpFiles`; nothing
+  else in its code changed.
+- **A test** reads every `[[id:…]]` link in `assets/help/*.org` and checks
+  that its ID exists, and that the start page links to every page.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
