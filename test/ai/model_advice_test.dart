@@ -130,8 +130,11 @@ void main() {
     ], ApiKind.openAi);
 
     List<String> order(WidgetTester tester) => [
+          // The model rows only, not the switch "Also other models".
           for (final tile in tester.widgetList<ListTile>(find.byType(ListTile)))
-            (tile.title! as Text).data!,
+            if (tile.key case ValueKey<String>(:final value)
+                when value.startsWith('model-') && value != 'model-all')
+              (tile.title! as Text).data!,
         ];
 
     testWidgets('marks a recommended model and lists it first',
