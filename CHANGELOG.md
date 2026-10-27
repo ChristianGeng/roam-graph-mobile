@@ -12,7 +12,7 @@ each entry.
 
 - Added: the model lists mark recommended models with their purpose and price class, list them first, and have a "Recommended" chip. OpenRouter lists also have a "Calls tools" chip and an order by price.
 - Changed: OpenRouter starts with a default chat model, a strong model and an image model. The help page "Choosing a model" starts with three ready setups.
-- Added: a weekly check that the recommended models are still in the provider lists. Closes #190.
+- Added: a weekly check that the recommended models for Mistral, Vercel AI Gateway and OpenRouter are still in those providers' lists. Closes #190.
 
 ## 2026-10-26: Live image tests with real keys ([#188](https://github.com/ChristianGeng/roam-graph-mobile/pull/188))
 

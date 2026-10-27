@@ -5,8 +5,9 @@
 # model that lib/ai/model_advice.dart recommends for them is still listed.
 # It makes no paid request. Once a week, Monday 06:30 UTC, and by hand: a
 # missing model opens the issue "Recommended model missing", or comments on
-# it when it is open already. A list that could not be read fails the job
-# but opens no issue.
+# it when it is open already, also when another list could not be read. A
+# list that could not be read, with no model missing, fails the job but
+# opens no issue.
 #
 # The keys are repository secrets: MISTRAL_API_KEY, VERCEL_AI_GATEWAY_API_KEY
 # and OPENROUTER_API_KEY. Pull requests never get them: no pull request

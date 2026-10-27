@@ -30,8 +30,9 @@ chat's provider and model are set in AI settings; the image settings are *Images
   "EU only" on and ~google/gemini-2.5-flash-image~ (medium).
 - *Best quality:* Chat on Anthropic with ~claude-sonnet-5-5~
   (medium), for questions and the agent; ~claude-opus-5-5~ (expensive),
-  for hard work. *Infographics with:* Vercel AI Gateway with
-  ~openai/gpt-image-2~ (expensive).
+  for hard work. *Images with:* and *Infographics with:* Vercel AI
+  Gateway with ~openai/gpt-image-2~ (expensive); Anthropic makes no images
+  in the app.
 
 The sections below list more models for each purpose.
 
