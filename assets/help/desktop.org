@@ -1,0 +1,53 @@
+:PROPERTIES:
+:ID:       roam-graph-help-desktop
+:END:
+#+title: The desktop app
+#+STARTUP: showall
+
+The notebook has the same app as the phone: the graph, layouts, search, the
+node view, the AI and the edits are the same. It runs on Linux, Windows
+and macOS, and reads the same notes folder as Emacs. This page lists what
+differs from the phone. Installing: see
+[[id:roam-graph-help-install][Install and update the app]].
+
+* Install
+Each full release has one file for each system. A pre-release has the
+APK only.
+- *Linux*: ~roam-graph-<version>-linux-x64.tar.gz~. Unpack it, then run
+  ~bundle/install.sh~. It adds *Roam Graph* to the app menu. To update, run
+  ~$HOME/.local/share/roam-graph/app/install.sh --update~; to remove the app,
+  ~install.sh --remove~. Your notes, settings and keys stay.
+- *Windows*: ~roam-graph-<version>-windows-x64.zip~. Unpack it, then start
+  ~roam_graph_mobile.exe~. The app is not signed: if SmartScreen warns,
+  choose *More info*, then *Run anyway*.
+- *macOS*: ~roam-graph-<version>-macos.zip~. Move *Roam Graph* to
+  Applications. The app is not signed: the first time, open System Settings,
+  Privacy & Security, and choose *Open Anyway*.
+
+* First start
+Tap *Choose org folder* and pick the folder that holds ~roam/~ (or ~roam/~
+itself). The app remembers it; *Change folder* picks another. The app edits
+the same files as Emacs. Emacs reloads a changed file with
+~global-auto-revert-mode~, else it asks.
+
+* Open in Emacs
+The note's button is *Open in Emacs* instead of *Open in Orgro*. It runs
+~emacsclient~ at the note's heading, so Emacs needs ~(server-start)~;
+without a running server, Emacs itself starts. If it does not start, the
+app says so and names *Settings*.
+
+The command is *Emacs command* in [[id:roam-graph-help-settings][Settings]]
+(shown on the desktop only). On Windows the default is ~emacsclientw.exe~;
+if Emacs is not on the ~PATH~, enter the full path. On macOS an app started
+from the Dock does not see the shell's ~PATH~, so enter the full path, for
+example ~/opt/homebrew/bin/emacsclient~.
+
+* Other differences
+- Search inside a note: Ctrl+F (Cmd+F on macOS); Escape closes it. See
+  [[id:roam-graph-help-search-in-note][Search inside a note]].
+- In the graph, *right click* on a node opens the menu that a long press
+  opens on a phone.
+- Web links open in the web browser.
+- *Share with AI* copies the text to the clipboard. Text cannot be shared
+  into the app.
+- On Linux, API keys are kept in the system keyring.

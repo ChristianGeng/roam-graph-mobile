@@ -1,0 +1,101 @@
+:PROPERTIES:
+:ID:       roam-graph-help-images
+:END:
+#+title: AI images, infographics and charts
+#+STARTUP: showall
+
+Three ways to put a picture in a note: an image made by an image model, an
+infographic (a designed picture with text and numbers), and a chart that
+the app draws itself from exact values. Which one to use: a chart when the
+numbers must be right, an infographic when you want a designed picture (an
+image model can paint a wrong number), an illustration for everything
+else.
+
+The chat and the agent are on [[id:roam-graph-help-ai][the AI page]];
+[[id:roam-graph-help-models][Choosing a model]] suggests image models.
+
+* Make an image
+:PROPERTIES:
+:ID:       roam-graph-help-make-image
+:END:
+1. Open the note, then *Create image* in the *Edit* menu (⋮). For a note
+   hidden from AI it only says that no image is made.
+2. Describe what the image should show. Tick the box if the note's title
+   should go to the image model too.
+3. Choose *Illustration* above *Make image*. The line below names the
+   provider and model, and says whether that is in the EU, outside it, or
+   not known.
+4. Tap *Make image*. If it does not fit, change the text and tap *Try
+   again*.
+5. Tap *Add to the note*. The image is added to the note only then. The
+   image file goes to the folder set under *Folder for new images* in
+   [[id:roam-graph-help-settings][Settings]] (~img~ by default).
+
+Only the description and, if ticked, the note's title are sent.
+
+The provider is set under *Images with:* in AI settings: the chat's
+provider by default, or another one with its own key, image model and "EU
+only". Vercel AI Gateway, OpenRouter, Qwen, Mistral and Custom make images;
+the other providers say "cannot make images in the app".
+
+Mistral makes them with its built-in image tool, in the EU; the app
+downloads them only from Mistral's servers. For this, the app makes an
+agent with the image tool at Mistral the first time ("Roam Graph images",
+one for each image model) and keeps its ID in the AI settings.
+
+With "EU only" on, Vercel uses Gemini 2.5 Flash Image, the one image model
+there with an EU route. When a model has no EU route, *Make this one
+outside the EU* makes this one image without the EU option; "EU only" stays
+on.
+
+* Make an infographic
+:PROPERTIES:
+:ID:       roam-graph-help-make-infographic
+:END:
+*Infographics with:* in AI settings is the provider and image model for
+pictures with text and numbers: charts, tables, timelines. It has its own
+key, image model and "EU only", like "Images with:". Empty (*Same as
+"Images with:"*) uses the provider and image model of "Images with:". GPT
+Image and Gemini Image set text well; FLUX (Mistral) does not.
+
+Two ways to make one:
+- In *Create image* (see above), choose *Infographic* above *Make image*.
+  The line below names the provider and model of "Infographics with:".
+- In the chat, in agent mode, ask for it: "Make an infographic of my
+  training over the last 5 years for this note". The AI reads the notes
+  first, writes the image prompt with the facts in it, and adds the image
+  with a caption to the note, below its text, with the prompt as a comment
+  (~# image prompt: …~). The image shows in the chat; the AI is shown it
+  too, if its model can see images, and checks it. The chat knows today's
+  date.
+
+For an infographic the AI uses the model of "Infographics with:". Its
+prompt is a layout brief: the title, the exact values with units and
+dates, the chart form, the labels, the colours and a source line, without
+links. Below the image the note gets the values as an Org table and a line
+~Source: [[url][name]], retrieved <date>~, so the numbers can be checked
+and updated later. The AI compares every number and label in the picture
+with the table; if one is wrong and the image limit allows, it makes the
+image once more, which replaces the first, and then says what is still
+wrong instead of trying again.
+
+* Make a chart
+:PROPERTIES:
+:ID:       roam-graph-help-make-chart
+:END:
+For exact numbers, such as interest rates, prices or a time series, ask in
+the chat, in agent mode, for a chart: "Chart the key interest rate since
+2022 in this note". The AI does the research, then calls its tool
+~create_chart~, and the app itself draws a line, bar or area chart from the
+values: free, offline, with no image model, and every value is the one
+given. The chart has a title, axis labels with units, a legend for more
+than one series, a few marked points and a line "Source: name, retrieved
+date". Below it the note gets the values as an Org table and the source
+line with its link.
+
+* How many images, and how to undo
+By default the AI makes one image or chart per message; set *Most images
+the agent may make for one message* in AI settings. A second image or chart
+for the same note in one message replaces the first. *Undo all changes of
+this message* takes it out of the note; the image file stays in the image
+folder.

@@ -8,9 +8,19 @@ When the same file changes on two devices before Syncthing has synced
 them, Syncthing keeps both: the file, and a copy named
 ~<name>.sync-conflict-<date>-<device>.org~.
 
-The app lists these copies on its first screen and says when a new one
-appears. It does not merge them: which version is right is a decision for
-Emacs on the laptop. Merge or delete the copy there; Syncthing then removes
-it everywhere.
+* Solve a sync conflict
+1. Look at the first screen of the app. It lists every conflict copy under
+   "Syncthing conflict copies: resolve them in Emacs", and a message says
+   when a new one appears.
+2. On the laptop, open the file and the copy in Emacs and keep what is
+   right. The app does not merge them: which version is right is a
+   decision for Emacs.
+3. Delete the copy there. Syncthing then removes it everywhere.
+4. In the app, tap *Scan again* on the first screen.
 
-The app writes only new files, so it does not cause conflicts itself.
+* Fewer conflicts
+Before every write the app checks that the file is still the version it
+read. If the file changed meanwhile, it saves nothing and says so. The old
+version of every changed note is kept (*Earlier versions* in the note's
+*Edit* menu). A conflict can still happen if two devices change the same
+file before Syncthing has synced them.

@@ -1,0 +1,58 @@
+:PROPERTIES:
+:ID:       roam-graph-help-ai-privacy
+:END:
+#+title: AI privacy: hidden notes and web access
+#+STARTUP: showall
+
+What the AI can see, and what leaves the phone. The chat is described on
+[[id:roam-graph-help-ai][the AI page]].
+
+* Hidden from AI
+:PROPERTIES:
+:ID:       roam-graph-help-hidden-from-ai
+:END:
+Notes with a tag such as ~:private:~ are never shown to an AI: not in a
+share, not to the chat, not for an image or an edit. Headings with such a
+tag are left out of the notes that are.
+
+To set the tags:
+1. Open AI settings (*Settings*, *AI*, or the gear on the first screen).
+2. In *Hidden from AI: tags*, tap the graph's tags below the field, or type
+   a tag, also one no note has yet, and add it with space, comma, colon or
+   Enter.
+3. Tap the check mark to save.
+
+A note that is hidden can still be deleted by hand, see
+[[id:roam-graph-help-delete-note][Delete a note]].
+
+* What leaves the phone
+- The chat sends my messages and the notes its tools read to the chat
+  provider, only when I send a message. Each provider's note in AI settings
+  says where the data goes; some keep it in the EU. "EU only" limits some
+  providers to their EU processing.
+- *Create image* sends the description and, if ticked, the note's title to
+  the image provider.
+- Keys are kept in the device's secure storage, never in the notes.
+
+* Web access
+:PROPERTIES:
+:ID:       roam-graph-help-web-access
+:END:
+With *Web access for the AI* on (AI settings, under *Web*; off by
+default), the chat can also use the web, for questions the notes do not
+answer:
+- *fetch_web_page* reads a web page, with every provider. The page is
+  fetched from the phone: only ~https://~ addresses, never an address in
+  the own network (the phone itself, the router, other devices at home;
+  also not after a redirect), without cookies or logins, at most 20
+  seconds and about 100,000 characters of text.
+- *web_search* is Anthropic's own search: the search words go to
+  Anthropic, which searches and reads the results. Mistral has a web
+  search only in another API than the one the chat uses, and Claude on
+  Amazon Bedrock has none; there the AI only reads pages whose address it
+  knows.
+
+Searches and pages together are at most *Most web searches for one
+message* (5 by default). The AI names its sources as links, also in the
+notes it writes from facts of the web. Notes hidden from AI stay hidden:
+the AI does not see them, so it cannot put them into a search.

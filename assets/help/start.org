@@ -4,12 +4,44 @@
 #+title: Roam Graph help
 #+STARTUP: showall
 
-Roam Graph shows my org-roam notes on the phone and the tablet, without
-Emacs. Syncthing copies the notes from the laptop; the app reads the folder,
-builds the same graph org-roam builds, and draws it.
+Roam Graph shows my org-roam notes on the phone, the tablet and the
+notebook, without Emacs. Syncthing copies the notes from the laptop; the
+app reads the folder, builds the same graph org-roam builds, and draws it.
 
 The app can create, edit and delete notes. Every write checks the file
 version first, and old texts are kept so changes can be undone.
+
+* How do I …?
+Each line opens the section that answers it.
+- Open a note and follow its links:
+  [[id:roam-graph-help-open-notes][Open a note and follow links]]
+- Tick a TODO or a checkbox, and undo it:
+  [[id:roam-graph-help-todo][Tick a TODO or a checkbox, and undo]]
+- Edit a note: [[id:roam-graph-help-edit-note][Edit a note]]
+- Delete a note: [[id:roam-graph-help-delete-note][Delete a note]]
+- Search for a note: [[id:roam-graph-help-search][Search and selected notes]];
+  search inside one note:
+  [[id:roam-graph-help-search-in-note][Search inside a note]]
+- Capture a note: [[id:roam-graph-help-capture][Capture and shared text]]
+- Change the graph layout: [[id:roam-graph-help-layouts][Layouts]]
+- Ask the AI a question: [[id:roam-graph-help-ask-ai][Ask the AI]]
+- Let the AI edit my notes:
+  [[id:roam-graph-help-ai-edit][Let the AI edit notes]]
+- Make an image: [[id:roam-graph-help-make-image][Make an image]]; an
+  infographic: [[id:roam-graph-help-make-infographic][Make an infographic]];
+  a chart: [[id:roam-graph-help-make-chart][Make a chart]]
+- Choose a model: [[id:roam-graph-help-models][Choosing a model]]
+- Set the language of notes:
+  [[id:roam-graph-help-note-language][The language of notes]]
+- Copy an error to report it:
+  [[id:roam-graph-help-copy-error][Copy an error]]
+- Keep notes away from the AI:
+  [[id:roam-graph-help-hidden-from-ai][Hidden from AI]]
+- Get pre-releases in Obtainium:
+  [[id:roam-graph-help-prereleases][Pre-releases in Obtainium]]
+- Use the desktop app: [[id:roam-graph-help-desktop][The desktop app]]
+- Solve a sync conflict:
+  [[id:roam-graph-help-conflicts][Syncthing conflict copies]]
 
 * Pages
 - [[id:roam-graph-help-graph-view][The graph view]]
@@ -19,9 +51,14 @@ version first, and old texts are kept so changes can be undone.
 - [[id:roam-graph-help-algorithms][The other graph algorithms]]
 - [[id:roam-graph-help-node-view][The node view]]
 - [[id:roam-graph-help-capture][Capture and shared text]]
-- [[id:roam-graph-help-ai][AI: sharing, hidden notes and the chat]]
+- [[id:roam-graph-help-ai][AI: the chat and the agent]]
+- [[id:roam-graph-help-images][AI images, infographics and charts]]
+- [[id:roam-graph-help-ai-privacy][AI privacy: hidden notes and web access]]
+- [[id:roam-graph-help-models][Choosing a model]]
 - [[id:roam-graph-help-conflicts][Syncthing conflict copies]]
 - [[id:roam-graph-help-settings][Settings]]
+- [[id:roam-graph-help-install][Install and update the app]]
+- [[id:roam-graph-help-desktop][The desktop app]]
 
 These help pages are Org files with their own IDs, like notes. Tapping a
 link opens the page, and Back returns, as in the node view. They are never

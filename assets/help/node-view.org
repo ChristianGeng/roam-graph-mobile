@@ -5,78 +5,27 @@
 #+STARTUP: showall
 
 Shows a note as formatted Org: a whole file, or a heading with its subtree.
+The sections below are tasks; the first one is about reading.
 
-- *Links*: an ~id:~ link opens the linked note on a new page; Back
-  returns. Other links are shown but not opened.
-- *Search in this note* (the page icon in the bar, or Ctrl+F on the
-  desktop) marks every place the typed text is in the note, upper and
-  lower case alike, and opens the sections they are in. The bar counts
-  them; the arrows go to the next or the previous one, around the ends,
-  and Enter goes to the next. *Only matching sections* folds away the
-  sections without a match, as Org's sparse tree does. Closing the
-  search (the x, Back or Escape) removes the marks and folds the
-  sections as they were. On a narrow screen, *New node from here* and
-  *Open in Orgro* are in *More for this note* (…).
-- *Links* and *Backlinks*: below the text, this note's ~id:~ links, and
-  every link to this note, with where in the linking note it is.
-- *Trash icons* remove a link: on a link, from this note; on a backlink,
-  from the other note. The link becomes its text, so nothing is lost. On an
-  image, the image link goes with its ~#+caption:~ and ~# image prompt:~
-  lines; the image file stays in the folder. Each shows the change first,
-  and is saved as every edit, with the old version kept.
-- *+* adds a link: next to *Links*, to the note you choose, on this
-  note's "See also:" line; next to *Backlinks*, to this note, on the
-  chosen note's "See also:" line. Type a title that is no note's, and the
-  list offers a *New note* with it first, as Emacs's org-roam-node-insert
-  does; it is made at once and the link goes to it. The change shows
-  first, and is saved as every edit.
-- *Title, tags and aliases* in the edit menu changes the note's head. The
-  tags are chips; tap the x to remove one. Below, the tags of the graph,
-  the most used first with their number of notes, can be tapped. Typing
-  filters them; space, comma, colon or Enter adds what is typed, and a tag
-  no note has yet shows as *New tag*. Only letters, digits and ~_@#%~ can
-  be in a tag.
-- *Checkboxes*: tap a list item with a checkbox to tick or untick it, as
-  Org's C-c C-c does; ~[-]~ becomes ~[X]~. The boxes and progress cookies
-  (~[1/3]~, ~[33%]~) above it follow. It is saved at once, without the
-  diff; a short message confirms the change.
-- *TODO states*: slide a heading to the left for its next state, or
-  long-press it for the list of states: the note's ~#+TODO:~ keywords, or
-  TODO and DONE. With ~#+STARTUP: logdone~, a heading that becomes done
-  gets a ~CLOSED:~ time, and loses it when it is no longer done. Saved at
-  once. If the note changed in Emacs since it was shown,
-  nothing is saved and the note is shown again.
-- *Undo* in the bar undoes one quick edit per tap, newest first, for as
-  long as you stay in this note. The icon disappears when no steps are
-  left, when you leave the note (Back, another note or *Show in graph*),
-  when you open any surface in the *Edit* menu, or when the file changes
-  from outside. Returning to the note does not bring the steps back.
-  Quick-edit confirmations close after about two seconds, without an
-  action button.
-- *Delete note…*, in the ⋮ edit menu, asks before deleting. The dialog
-  names the file or subtree that will go, counts heading nodes in a file
-  and notes linking to it. *Turn the links into plain text* is the
-  default; *Leave the links* keeps dead links, as deleting in Emacs does.
-  *Cancel* writes nothing. After deletion, the previous note or graph is
-  shown. The message's *Undo* restores the deletion and link changes as
-  one step. It stays until the next action or a swipe. The action is also
-  in the graph's *Recent changes*. An undo never overwrites newer text;
-  notes left unchanged are named. Only files directly in ~roam/~ can be
-  deleted here, including notes hidden from AI.
-- *Insert link* in *Edit text* puts a link to a note you choose at the
-  cursor; selected text becomes the link's description.
-- The buttons below the text in *Edit text* act on the line of the
-  cursor, or on the selected lines, as Org's commands do: *New heading*
-  (after the current subtree, at its level), *Up a level* and *Down a
-  level* (a heading with its subtree, a list item with its sub-items),
-  *Move up* and *Move down* (past the heading or item before or after it
-  at the same level), *New list item* (with the same bullet; numbers
-  count on), *Checkbox on or off*, and *Next TODO state*. A heading above
-  a property drawer keeps its level and its place among the drawers;
-  such a button does nothing and says why. Nothing is saved before
-  *Review* and *Save*.
-- Changes made in Emacs show within about 30 seconds while the app is
-  open, once Syncthing has brought them.
+* Open a note and follow links
+:PROPERTIES:
+:ID:       roam-graph-help-open-notes
+:END:
+1. In the graph, tap a node to open it (see
+   [[id:roam-graph-help-graph-view][The graph view]]), or find it with
+   *Search* (see [[id:roam-graph-help-search][Search and selected notes]]).
+2. Tap an ~id:~ link to open the linked note on a new page. Back returns.
+   A web, mail or phone link (~https:~, ~mailto:~, ~tel:~) opens in the app
+   the device has for it, the browser on the desktop; a message names the
+   address and has *Copy*. Other links, such as ~file:~, are shown but not
+   opened.
+3. Under the text, *Links* lists this note's ~id:~ links and *Backlinks*
+   lists every link to this note, with where in the linking note it is.
+   Tap an entry to open that note.
+4. Tap *Show in graph* (the hub icon in the bar) to return to the graph,
+   centred on this note.
+
+Other things the page shows:
 - *Sections* open collapsed or expanded, as set in
   [[id:roam-graph-help-settings][Settings]]; a note's own ~#+STARTUP:~
   line comes first. Tap a heading to open or close it.
@@ -86,8 +35,130 @@ Shows a note as formatted Org: a whole file, or a heading with its subtree.
 - *Mermaid* blocks show the image Emacs made; a block without one is drawn
   on the device, marked as such.
 - *Source blocks* are coloured as Emacs colours them.
-- *Open in Orgro* hands the file to Orgro, to read or edit it there.
-- *Show in graph* returns to the graph, centred on this note.
+- Changes made in Emacs show within about 30 seconds while the app is
+  open, once Syncthing has brought them.
+
+* Search inside a note
+:PROPERTIES:
+:ID:       roam-graph-help-search-in-note
+:END:
+1. Tap *Search in this note* (the page icon in the bar), or press Ctrl+F
+   (Cmd+F on macOS) on the desktop.
+2. Type the text. Every place it is in the note is marked, upper and lower
+   case alike, and the sections they are in open.
+3. The bar counts the matches. The arrows go to the next or the previous
+   one, around the ends; Enter goes to the next.
+4. Tick *Only matching sections* to fold away the sections without a match,
+   as Org's sparse tree does.
+5. Close the search with the x, Back or Escape. The marks go and the
+   sections are folded as they were.
+
+To search all notes instead, use *Search* in the bar; see
+[[id:roam-graph-help-search][Search and selected notes]].
+
+* Tick a TODO or a checkbox, and undo
+:PROPERTIES:
+:ID:       roam-graph-help-todo
+:END:
+These quick edits are saved at once, without the diff; a short message
+confirms the change, and closes after about two seconds.
+- *Checkboxes*: tap a list item with a checkbox to tick or untick it, as
+  Org's C-c C-c does; ~[-]~ becomes ~[X]~. The boxes and progress cookies
+  (~[1/3]~, ~[33%]~) above it follow.
+- *TODO states*: slide a heading to the left for its next state, or
+  long-press it for the list of states: the note's ~#+TODO:~ keywords, or
+  TODO and DONE. With ~#+STARTUP: logdone~, a heading that becomes done
+  gets a ~CLOSED:~ time, and loses it when it is no longer done. If the note
+  changed in Emacs since it was shown, nothing is saved and the note is
+  shown again.
+
+To undo, tap *Undo the last change* (the undo arrow in the bar). Each tap
+undoes one quick edit, newest first, for as long as you stay in this note.
+The arrow disappears when no steps are left, when you leave the note (Back,
+another note or *Show in graph*), when you open any surface in the *Edit*
+menu, or when the file changes from outside. Returning to the note does not
+bring the steps back.
+
+* Edit a note
+:PROPERTIES:
+:ID:       roam-graph-help-edit-note
+:END:
+The *Edit* menu (the ⋮ icon in the bar) holds these. Apart from the quick
+edits above, nothing is saved before I tap *Save*, and the old version is
+kept (*Earlier versions*).
+- *Edit text*: edit the note's text. Tap *Review* to see the change, then
+  *Save*. Nothing is saved before that.
+- *Add to this node*: type Org text, and tap *Save*; it goes to the end of
+  the file, or of the heading after its subheadings. Nothing there changes.
+- *Title, tags and aliases* changes the note's head. The tags are chips; tap
+  the x to remove one. Below, the tags of the graph, the most used first
+  with their number of notes, can be tapped. Typing filters them; space,
+  comma, colon or Enter adds what is typed, and a tag no note has yet shows
+  as *New tag*. Only letters, digits and ~_@#%~ can be in a tag.
+- *Edit with AI*: the AI changes this note, and if asked its linked notes,
+  after a diff; see [[id:roam-graph-help-ai-edit][Let the AI edit notes]].
+- *Create image*: see [[id:roam-graph-help-make-image][Make an image]].
+- *Earlier versions*: the old texts the app kept, to bring one back.
+- *Delete note…*: see
+  [[id:roam-graph-help-delete-note][Delete a note]].
+
+** In Edit text
+- *Insert link* puts a link to a note you choose at the cursor; selected
+  text becomes the link's description.
+- The buttons below the text act on the line of the cursor, or on the
+  selected lines, as Org's commands do: *New heading* (after the current
+  subtree, at its level), *Up a level* and *Down a level* (a heading with
+  its subtree, a list item with its sub-items), *Move up* and *Move down*
+  (past the heading or item before or after it at the same level), *New list
+  item* (with the same bullet; numbers count on), *Checkbox on or off*, and
+  *Next TODO state*. A heading above a property drawer keeps its level and
+  its place among the drawers; such a button does nothing and says why.
+
+** Links
+- *+* adds a link: next to *Links*, to the note you choose, on this
+  note's "See also:" line; next to *Backlinks*, to this note, on the
+  chosen note's "See also:" line. Type a title that is no note's, and the
+  list offers a *New note* with it first, as Emacs's org-roam-node-insert
+  does; it is made at once and the link goes to it. The change shows
+  first, and is saved as every edit.
+- *Trash icons* remove a link: on a link, from this note; on a backlink,
+  from the other note. The link becomes its text, so nothing is lost. On an
+  image, the image link goes with its ~#+caption:~ and ~# image prompt:~
+  lines; the image file stays in the folder. Each shows the change first,
+  and is saved as every edit.
+
+* Delete a note
+:PROPERTIES:
+:ID:       roam-graph-help-delete-note
+:END:
+1. In the *Edit* menu (⋮), choose *Delete note…*. The same action is in
+   the graph (long press on a node; see
+   [[id:roam-graph-help-graph-view][The graph view]]) and in search, for
+   several selected notes (see
+   [[id:roam-graph-help-search][Search and selected notes]]).
+2. The dialog names the file or subtree that will go. For a file it counts
+   the heading nodes in it and the notes that link to it.
+3. Choose what happens to links to the note: *Turn the links into plain
+   text* is the default; *Leave the links* keeps dead links, as deleting in
+   Emacs does.
+4. Tap *Delete*. *Cancel* writes nothing.
+
+After the deletion, the previous note or the graph is shown. The message's
+*Undo* restores the deletion and the link changes as one step. It stays
+until the next action or a swipe. Later, use *Recent changes* in the
+graph's *More* menu. An undo never overwrites newer text; notes left
+unchanged are named.
+
+Only files directly in ~roam/~ can be deleted here, including notes hidden
+from AI.
+
+* Other buttons in the bar
+- *Open in Orgro* hands the file to Orgro, to read or edit it there; on the
+  desktop it is *Open in Emacs*, see
+  [[id:roam-graph-help-desktop][The desktop app]].
 - *New node from here* writes a new note linking to this one; see
   [[id:roam-graph-help-capture][Capture]].
-- The *AI* menu: see [[id:roam-graph-help-ai][AI]].
+- On a narrow screen, *New node from here* and *Open in Orgro* are in
+  *More for this note* (…).
+- The *AI* menu has *Ask AI* and *Share with AI*; see
+  [[id:roam-graph-help-ai][AI]].
