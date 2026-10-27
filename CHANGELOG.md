@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-27: Model advice in the picker and the help ([#191](https://github.com/ChristianGeng/roam-graph-mobile/pull/191))
+
+- Added: the model lists mark recommended models with their purpose and price class, list them first, and have a "Recommended" chip. OpenRouter lists also have a "Calls tools" chip and an order by price.
+- Changed: OpenRouter starts with a default chat model, a strong model and an image model. The help page "Choosing a model" starts with three ready setups.
+- Added: a weekly check that the recommended models for Mistral, Vercel AI Gateway and OpenRouter are still in those providers' lists. Closes #190.
+
 ## 2026-10-26: Live image tests with real keys ([#188](https://github.com/ChristianGeng/roam-graph-mobile/pull/188))
 
 - Added: a test workflow makes real pictures through Mistral, Vercel and OpenRouter every Monday, by hand, and at a full release when the image code changed. A failure opens the issue "Live image test failed"; at a full release it only warns in the release notes. This changes nothing in the app.

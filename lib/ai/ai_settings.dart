@@ -1056,6 +1056,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           provider: preset.name,
           euOnly: preset.euSwitch && draft.euOnly,
           images: images,
+          providerId: preset.id,
           load: ({bool refresh = false}) async => models = await fetchModels(
             provider: preset.name,
             api: draft.api,
