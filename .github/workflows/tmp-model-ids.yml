@@ -1,0 +1,28 @@
+name: tmp model ids
+on:
+  push:
+    branches: [check/model-ids-190]
+permissions:
+  contents: read
+jobs:
+  ids:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lists
+        shell: bash
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          VERCEL_AI_GATEWAY_API_KEY: ${{ secrets.VERCEL_AI_GATEWAY_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          curl -sS -H "Authorization: Bearer $MISTRAL_API_KEY" https://api.mistral.ai/v1/models -o m.json
+          curl -sS -H "Authorization: Bearer $VERCEL_AI_GATEWAY_API_KEY" https://ai-gateway.vercel.sh/v1/models -o v.json
+          curl -sS -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/models -o o.json
+          echo "::notice title=sizes::$(wc -c m.json v.json o.json | tr '\n' ' ')"
+          jq -r '.data[] | select(.capabilities.function_calling==true) | .id' m.json | sort | paste -sd' ' - | fold -w 3000 | while read -r l; do echo "::notice title=mistral tools::$l"; done
+          jq -r '.data[] | select(.capabilities.completion_chat==true and (.capabilities.function_calling!=true)) | .id' m.json | sort | paste -sd' ' - | head -c 2500 | while read -r l; do echo "::notice title=mistral nontools::$l"; done
+          jq -r '.data[] | select(.id|test("claude|gpt-image|gemini|deepseek|mistral|flux|image|gpt-5|qwen")) | "\(.id) \(.type // "") in=\(.pricing.input // "") out=\(.pricing.output // "") img=\(.pricing.image // "") regions=\((.regions // [])|join(","))"' v.json | sort | split -l 25 - vpart_
+          for f in vpart_*; do echo "::notice title=vercel $f::$(paste -sd'|' $f)"; done
+          jq -r '.data[] | select(.architecture.output_modalities|index("image")) | "\(.id) out=\(.architecture.output_modalities|join("+")) p=\(.pricing.prompt) c=\(.pricing.completion) img=\(.pricing.image // "")"' o.json | sort | paste -sd'|' - | while read -r l; do echo "::notice title=or image::$l"; done
+          jq -r '.data[] | select(.supported_parameters|index("tools")) | select(.id|test("claude|deepseek|mistral|qwen|gemini-2.5|gemini-3|gpt-5|glm|kimi|minimax|grok")) | select((.id|test(":free"))|not) | "\(.id) p=\((.pricing.prompt|tonumber*1000000)) c=\((.pricing.completion|tonumber*1000000))"' o.json | sort | split -l 25 - opart_
+          for f in opart_*; do echo "::notice title=or tools $f::$(paste -sd'|' $f)"; done
