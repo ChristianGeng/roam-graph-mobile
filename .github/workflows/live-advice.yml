@@ -1,0 +1,149 @@
+# Weekly check of the recommended models (#190, decision 106).
+#
+# test/live/advice_live_test.dart fetches the model lists of Mistral, the
+# Vercel AI Gateway and OpenRouter with the CI keys and checks that every
+# model that lib/ai/model_advice.dart recommends for them is still listed.
+# It makes no paid request. Once a week, Monday 06:30 UTC, and by hand: a
+# missing model opens the issue "Recommended model missing", or comments on
+# it when it is open already. A list that could not be read fails the job
+# but opens no issue.
+#
+# The keys are repository secrets: MISTRAL_API_KEY, VERCEL_AI_GATEWAY_API_KEY
+# and OPENROUTER_API_KEY. Pull requests never get them: no pull request
+# starts this workflow.
+#
+# Actions are pinned to full commit SHAs, as in build.yml.
+
+name: Live advice
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 6 * * 1'
+
+permissions:
+  contents: read
+
+env:
+  # The same Flutter as build.yml. Update the two together.
+  FLUTTER_VERSION: 3.47.7
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      missing: ${{ steps.report.outputs.missing }}
+      url: ${{ steps.report.outputs.url }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Fetch the lists
+        id: tests
+        shell: bash
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          VERCEL_AI_GATEWAY_API_KEY: ${{ secrets.VERCEL_AI_GATEWAY_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          LIVE_RESULTS: ${{ runner.temp }}/advice-results.tsv
+        run: |
+          status=0
+          flutter test --tags live --reporter expanded \
+            test/live/advice_live_test.dart || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Report each model
+        id: report
+        if: always()
+        shell: bash
+        env:
+          RESULTS: ${{ runner.temp }}/advice-results.tsv
+          TEST_STATUS: ${{ steps.tests.outputs.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          missing=""
+          errors=""
+          if [ -f "$RESULTS" ]; then
+            while IFS=$'\t' read -r name status detail; do
+              detail=${detail//'%'/'%25'}
+              case "$status" in
+                passed) ;;
+                missing)
+                  echo "::error title=Recommended model missing::$name: $detail"
+                  missing="${missing:+$missing, }$name" ;;
+                *)
+                  echo "::error title=Model list not read::$name: $detail"
+                  errors="yes" ;;
+              esac
+            done < "$RESULTS"
+          fi
+          if [ -z "$missing" ] && [ -z "$errors" ] && [ "${TEST_STATUS:-1}" != 0 ]; then
+            errors="yes"
+            echo "::error title=Model list not read::The check did not finish. See the log."
+          fi
+          echo "missing=$missing" >> "$GITHUB_OUTPUT"
+          echo "errors=$errors" >> "$GITHUB_OUTPUT"
+          echo "url=$RUN_URL" >> "$GITHUB_OUTPUT"
+          echo "Missing: ${missing:-none}"
+
+      - name: Keep the results for the issue
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: advice-results
+          path: ${{ runner.temp }}/advice-results.tsv
+          if-no-files-found: ignore
+
+      - name: Fail the job
+        if: always() && (steps.report.outputs.missing != '' || steps.report.outputs.errors != '')
+        run: exit 1
+
+  issue:
+    needs: check
+    if: always() && needs.check.outputs.missing != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: advice-results
+
+      - name: Open or update the issue
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MISSING: ${{ needs.check.outputs.missing }}
+          RUN_URL: ${{ needs.check.outputs.url }}
+          TITLE: Recommended model missing
+        run: |
+          {
+            echo "Not in the provider's model list: $MISSING"
+            echo
+            echo "Change lib/ai/model_advice.dart and assets/help/models.org, and the preset in lib/ai/ai_providers.dart when it names the model."
+            echo
+            echo "Run: $RUN_URL"
+          } > body.md
+          number=$(gh issue list --state open --limit 100 \
+            --json number,title \
+            --jq "[.[] | select(.title == \"$TITLE\")][0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body-file body.md
+          else
+            gh issue create --title "$TITLE" --body-file body.md
+          fi

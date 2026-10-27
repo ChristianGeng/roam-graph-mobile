@@ -3206,6 +3206,35 @@ devices through Syncthing.
 - **Result:** each case writes a notice or an error annotation on the
   run. Keys are masked in all output.
 
+## 106. One list of recommended models (#190)
+
+- **Decision:** `lib/ai/model_advice.dart` is the one list of recommended
+  models. For each provider preset it gives the model ID, the purposes
+  (`chat`, `agent`, `illustration`, `infographic`), a price class (cheap,
+  medium, expensive) and one line of why. The model picker, the help page
+  and a weekly check all read from it.
+- **Picker:** a recommended model has a label ("Recommended: chat, agent ·
+  medium · why"), is listed first, and the chip "Recommended" shows only
+  those. For OpenRouter the chip "Calls tools" and an order by price are
+  added to the chat list; the image list had the order already.
+- **Help page:** `assets/help/models.org` starts with "Quick start: three
+  setups" (cheap, EU, best quality). It stays a hand-written page; a test
+  checks that every model ID in `~…~` on the page is in the list, and the
+  other way round. No generator, so the page keeps its explanations.
+- **OpenRouter preset:** default model `deepseek/deepseek-v4-pro` (cheap,
+  lists tools, the model the Vercel preset has used for tool calls),
+  strong model `anthropic/claude-sonnet-5.5`, image model
+  `google/gemini-2.5-flash-image` through the Images API. OpenRouter does
+  not list `openai/gpt-image-2` (checked 2026-10-27), so it is not
+  recommended there.
+- **Weekly check:** `live-advice.yml` fetches the model lists of Mistral,
+  Vercel and OpenRouter and checks that every recommended ID is listed. It
+  makes no paid request. A missing model opens or updates the issue
+  "Recommended model missing". The other presets have no check: their
+  lists need keys the repository does not have.
+- **Mistral has no infographic model:** its image tool does not set text
+  well, so the list has none for that purpose.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

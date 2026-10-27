@@ -200,5 +200,16 @@ void main() {
       );
       return checkImage(image);
     });
+
+    // The preset's own image model, asked as the app asks it (#190).
+    liveCase('OpenRouter, Images API, the preset model', () async {
+      final preset = presetById('openrouter');
+      final image = await makeImage(
+        configFor('openrouter', openRouterKey,
+            model: preset.imageModel, api: preset.imageApi),
+        shortPrompt,
+      );
+      return checkImage(image);
+    });
   });
 }

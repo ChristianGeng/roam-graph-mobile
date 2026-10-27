@@ -200,7 +200,15 @@ const providerPresets = <ProviderPreset>[
     name: 'OpenRouter',
     api: ApiKind.openAi,
     baseUrl: 'https://openrouter.ai/api/v1',
+    // Models that list tools in OpenRouter's model list (checked
+    // 2026-10-27); the same default as the Vercel preset, which the app
+    // has used for tool calls. See lib/ai/model_advice.dart.
+    defaultModel: 'deepseek/deepseek-v4-pro',
+    strongModel: 'anthropic/claude-sonnet-5.5',
     imagesPath: '/images',
+    // Asked through the Images API (/images); the probe of #177 got an
+    // image from it. OpenRouter does not list openai/gpt-image-2.
+    imageModel: 'google/gemini-2.5-flash-image',
     note: 'Routes to many providers, whose terms apply; EU-only routing only '
         'on the Business plan; 5.5 % fee on credits.',
   ),

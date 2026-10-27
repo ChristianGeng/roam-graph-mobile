@@ -4,7 +4,7 @@
 #+title: Choosing a model
 #+STARTUP: showall
 
-Checked: 2026-10-24
+Checked: 2026-10-27
 
 The model lists in the settings show the current prices where the provider sends them.
 
@@ -12,6 +12,39 @@ The model lists in the settings show the current prices where the provider sends
 not a quote. Long notes, many tool calls, image size and quality change
 the cost. Choose the chat and image providers separately under
 [[id:roam-graph-help-settings][Settings]].
+
+* Quick start: three setups
+In the model lists in AI settings, a recommended model carries the label
+"Recommended" with its purpose and price class, and the "Recommended"
+chip shows only those. Pick one of these three setups to start. The
+chat's provider and model are set in AI settings; the image settings are *Images with:* and *Infographics with:*.
+
+- *Cheap:* Chat on Vercel AI Gateway with ~deepseek/deepseek-v4-pro~
+  (cheap), for questions and for the agent; it calls tools. *Images
+  with:* Vercel AI Gateway, ~openai/gpt-image-1-mini~ (cheap), for
+  plain illustrations. For exact charts the agent uses ~create_chart~, which
+  draws them offline and costs no image model.
+- *EU:* Chat on Mistral with ~mistral-large-4~ (cheap), for
+  questions and the agent. *Images with:* Mistral, ~mistral-medium-latest~
+  (medium), for illustrations. *Infographics with:* Vercel AI Gateway with
+  "EU only" on and ~google/gemini-2.5-flash-image~ (medium).
+- *Best quality:* Chat on Anthropic with ~claude-sonnet-5-5~
+  (medium), for questions and the agent; ~claude-opus-5-5~ (expensive),
+  for hard work. *Infographics with:* Vercel AI Gateway with
+  ~openai/gpt-image-2~ (expensive).
+
+The sections below list more models for each purpose.
+
+* Charts and infographics
+Both give a picture with numbers, but they work differently.
+
+- ~create_chart~ draws a line, bar or area chart from the exact values the
+  agent gives it. It runs on the device, needs no image model, and every
+  value in the picture is the one given. Use it for data such as interest
+  rates, prices or time series.
+- An infographic model paints a designed picture: layout, icons, text and
+  colour. It can get a number or a word wrong, so check what it wrote.
+  Use it when the look matters more than exact values.
 
 * Chat questions about the notes
 Even a question needs tool calls: the model searches and reads the notes.
@@ -30,8 +63,9 @@ Start with one of these; use a stronger model for difficult comparisons.
 - *DeepSeek:* ~deepseek-v4-pro~ (cheap), if processing in China is suitable.
 - *Qwen:* ~qwen3.8-max~ (medium), for general questions; the preset uses
   Singapore.
-- *OpenRouter:* ~anthropic/claude-sonnet-5.5~ (medium), for comparisons
-  across notes; the chosen host's terms apply.
+- *OpenRouter:* ~deepseek/deepseek-v4-pro~ (cheap), the default, for
+  general questions; ~anthropic/claude-sonnet-5.5~ (medium), the strong
+  model, for comparisons across notes. The chosen host's terms apply.
 - *Hugging Face:* ~Qwen/Qwen3-Coder-480B-A35B-Instruct~ (medium), for
   questions that need tools; check which host serves it.
 - *Custom:* there is no fixed model or price class. Use the server's list
@@ -54,7 +88,8 @@ editing tools. For a large change, ask it to explain the plan first.
 - *DeepSeek:* ~deepseek-v4-pro~ (cheap), for simpler changes, processed
   and stored in China.
 - *Qwen:* ~qwen3.8-max~ (medium), for edits through its tools.
-- *OpenRouter:* ~anthropic/claude-sonnet-5.5~ (medium); choose a route
+- *OpenRouter:* ~anthropic/claude-sonnet-5.5~ (medium); or
+  ~deepseek/deepseek-v4-pro~ (cheap) for simpler edits. Choose a route
   that supports tools.
 - *Hugging Face:* ~Qwen/Qwen3-Coder-480B-A35B-Instruct~ (medium), for
   agent tasks; tool support depends on the host too.
@@ -87,8 +122,9 @@ infographics.
 - *DashScope Qwen Image:* ~qwen-image-2.0~ (cheap), for straightforward
   illustrations through Qwen's own image API. The preset uses Singapore;
   the key must belong to that region.
-- *OpenRouter Images API:* ~openai/gpt-image-2~ (expensive), for detailed
-  images through the Images API; the selected host's terms apply.
+- *OpenRouter Images API:* ~google/gemini-2.5-flash-image~ (medium), the
+  preset's image model, for quick illustrations and images with text. The
+  selected host's terms apply. OpenRouter does not list GPT Image.
 - *Custom:* use an image model and API documented by that server. There
   is no fixed model or price class.
 
@@ -117,14 +153,30 @@ These statements follow the provider notes in the app's settings.
   ~anthropic/claude-sonnet-5.5~ (medium) for chat and edits, or
   ~google/gemini-2.5-flash-image~ (medium) for images. Inference and stored
   data stay in the EU for models with an EU route; others fail. Vercel
-  is a US company. ~deepseek/deepseek-v4-pro~ and
-  ~mistral/mistral-large-4~ have no EU route in the preset notes.
+  is a US company. DeepSeek V4 Pro and the Mistral model on Vercel have
+  no EU route in the preset notes.
 
 Anthropic directly processes globally or in the US; DeepSeek processes
 and stores in China; the Qwen preset uses Singapore. OpenRouter's note
 says EU-only routing needs its Business plan; this app's preset does not
 enforce that route. Hugging Face and Custom do not guarantee a region.
 Use one of the EU options above when the notes must stay in the EU.
+
+* OpenRouter: how to find a model
+OpenRouter lists hundreds of models. To find one that works here:
+
+1. Open the model list of the chat and turn on the "Calls tools" chip.
+   The chat needs a model that calls tools to read and change notes.
+2. Order the list by price (lowest first).
+3. Start with a recommended model: they come first and carry the label.
+   The preset starts with ~deepseek/deepseek-v4-pro~ (cheap) and has
+   ~anthropic/claude-sonnet-5.5~ (medium) as the strong model.
+4. Remember that the host OpenRouter chooses for the model sets the
+   terms for your data, and that OpenRouter adds a fee of 5.5 % to credits.
+
+Images go through the Images API; the preset uses
+~google/gemini-2.5-flash-image~ (medium). The image list also has the
+price order.
 
 * Sources for the suggestions
 The app's provider presets supply the default and strong model names,

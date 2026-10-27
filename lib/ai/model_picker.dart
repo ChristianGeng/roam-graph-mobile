@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'ai_chat.dart';
 import 'ai_models.dart';
+import 'model_advice.dart';
 
 /// A searchable list of a provider's models (#75); picking one returns
 /// its ID. The list is fetched by the caller's [load].
@@ -12,7 +13,12 @@ class ModelPickerScreen extends StatefulWidget {
     required this.load,
     this.euOnly = false,
     this.images = false,
+    this.providerId = '',
   });
+
+  /// The `id` of the provider preset, to mark its recommended models
+  /// (#190); empty for none.
+  final String providerId;
 
   /// Lists image models instead of chat models (#112).
   final bool images;
@@ -30,11 +36,17 @@ class ModelPickerScreen extends StatefulWidget {
     required Future<List<ModelInfo>> Function({bool refresh}) load,
     bool euOnly = false,
     bool images = false,
+    String providerId = '',
   }) => Navigator.push<String>(
     context,
     MaterialPageRoute(
       builder: (_) => ModelPickerScreen(
-          provider: provider, load: load, euOnly: euOnly, images: images),
+        provider: provider,
+        load: load,
+        euOnly: euOnly,
+        images: images,
+        providerId: providerId,
+      ),
     ),
   );
 
@@ -48,6 +60,8 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
   String? _error;
   bool _all = false;
   bool _byPrice = false;
+  bool _onlyRecommended = false;
+  bool _onlyTools = false;
 
   @override
   void initState() {
@@ -110,6 +124,19 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
     return cost != 0 ? cost : a.id.compareTo(b.id);
   }
 
+  // Chat models by output price, unknown prices last (OpenRouter's list).
+  int _compareChatPrices(ModelInfo a, ModelInfo b) {
+    final pa = a.outputPrice;
+    final pb = b.outputPrice;
+    if (pa == null || pb == null) {
+      if (pa != null) return -1;
+      if (pb != null) return 1;
+      return a.id.compareTo(b.id);
+    }
+    final cost = pa.compareTo(pb);
+    return cost != 0 ? cost : a.id.compareTo(b.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final models = _models;
@@ -131,12 +158,30 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
         : m.chat != false && (!knowsTools || m.tools == true);
     final hidden =
         (models ?? const <ModelInfo>[]).where((m) => !usable(m)).length;
-    final shown = [
+    ModelAdvice? adviceOf(ModelInfo m) => widget.providerId.isEmpty
+        ? null
+        : adviceForModel(widget.providerId, m.id, images: widget.images);
+    final hasAdvice = widget.providerId.isNotEmpty &&
+        (models ?? const <ModelInfo>[]).any((m) => adviceOf(m) != null);
+    // OpenRouter: a filter for tools and an order by price, for chat too.
+    final openRouter = widget.providerId == 'openrouter';
+    final canOrder = widget.images || openRouter;
+    final showToolsChip = openRouter && !widget.images && knowsTools;
+    final found = [
       for (final m in models ?? const <ModelInfo>[])
         if (_all || usable(m))
           if (words.every('${m.id} ${m.name ?? ''}'.toLowerCase().contains)) m,
     ];
-    if (widget.images && _byPrice) shown.sort(_compareImagePrices);
+    if (_byPrice && widget.images) found.sort(_compareImagePrices);
+    if (_byPrice && !widget.images && openRouter) {
+      found.sort(_compareChatPrices);
+    }
+    // Recommended models first, in the order chosen.
+    final shown = [
+      ...found.where((m) => adviceOf(m) != null),
+      if (!_onlyRecommended) ...found.where((m) => adviceOf(m) == null),
+    ];
+    if (_onlyTools) shown.removeWhere((m) => m.tools != true);
     return Scaffold(
       appBar: AppBar(
         title: TextField(
@@ -170,7 +215,35 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                if (widget.images)
+                if (hasAdvice || showToolsChip)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 8,
+                        children: [
+                          if (hasAdvice)
+                            FilterChip(
+                              key: const ValueKey('model-recommended'),
+                              label: const Text('Recommended'),
+                              selected: _onlyRecommended,
+                              onSelected: (on) =>
+                                  setState(() => _onlyRecommended = on),
+                            ),
+                          if (showToolsChip)
+                            FilterChip(
+                              key: const ValueKey('model-tools'),
+                              label: const Text('Calls tools'),
+                              selected: _onlyTools,
+                              onSelected: (on) =>
+                                  setState(() => _onlyTools = on),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (canOrder)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
@@ -204,6 +277,12 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
                     child: Text('Per-image prices first, then token prices '
                         'by output price; unknown prices last. '
                         'These units cannot be compared.'),
+                  ),
+                if (!widget.images && _byPrice)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+                    child: Text('By output price per million tokens; '
+                        'unknown prices last.'),
                   ),
                 if (hidden > 0)
                   SwitchListTile(
@@ -255,6 +334,7 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
                           widget.euOnly &&
                           (m.inEu == false ||
                               (knowsRegions && m.regions == null));
+                      final advice = adviceOf(m);
                       final details = [
                         ?m.name,
                         if (widget.images && m.imagePrice != null)
@@ -279,7 +359,24 @@ class _ModelPickerScreenState extends State<ModelPickerScreen> {
                         key: ValueKey('model-${m.id}'),
                         enabled: !noEu,
                         title: Text(m.id),
-                        subtitle: details.isEmpty ? null : Text(details),
+                        subtitle: details.isEmpty && advice == null
+                            ? null
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (details.isNotEmpty) Text(details),
+                                  if (advice != null)
+                                    Text(
+                                      'Recommended: ${advice.purposeLabels}'
+                                      ' · ${advice.price.label}'
+                                      ' · ${advice.why}',
+                                      key: ValueKey('badge-${m.id}'),
+                                      style: TextStyle(
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    ),
+                                ],
+                              ),
                         onTap: () => Navigator.pop(context, m.id),
                       );
                     },
