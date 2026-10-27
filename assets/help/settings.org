@@ -31,7 +31,9 @@ storage, never in the notes. From top to bottom:
   [[id:roam-graph-help-hidden-from-ai][Hidden from AI]].
 - *AI chat: provider*: the provider, with its base URL, *Model*, *Strong
   model (optional)* and key. The list icon (*Choose model*) fetches the
-  provider's models; see [[id:roam-graph-help-models][Choosing a model]].
+  provider's models, with the chips *Recommended* and *Calls tools* and an
+  order by *Model ID* or *Price (lowest first)*; see
+  [[id:roam-graph-help-models][Choosing a model]].
   Some providers have *EU only*.
 - *Create image: provider*, *Images with:*: the chat's provider by default,
   or another with its own key, image model and "EU only"; see

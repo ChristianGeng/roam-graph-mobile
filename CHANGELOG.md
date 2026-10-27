@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-27: Help pages: a task index, every page checked ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Added: the help starts with a "How do I …?" list of tasks, each linking to its section, and new pages: AI images, infographics and charts; AI privacy; Install and update the app; The desktop app.
+- Changed: every help page was checked against the app. The AI page is split in three, Settings lists all settings (also Theme, Folder for new images and the AI settings), and the node view, search, capture, conflicts and graph pages name the buttons as the app shows them. Wrong statements were fixed: web links do open, and the app now writes files, so conflicts are possible.
+- Added: a test checks that every help link points to an existing page or section.
+
+Closes #192.
+
 ## 2026-10-27: Model advice in the picker and the help ([#191](https://github.com/ChristianGeng/roam-graph-mobile/pull/191))
 
 - Added: the model lists mark recommended models with their purpose and price class, list them first, and have a "Recommended" chip. OpenRouter lists also have a "Calls tools" chip and an order by price.
