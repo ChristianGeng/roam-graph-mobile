@@ -13,7 +13,7 @@ import 'package:roam_graph_mobile/ai/web_access.dart';
 
 import 'ai_chat_test.dart' show FakeServer, anthropic, anthropicReply, openAiReply;
 import 'ai_settings_test.dart'
-    show MemoryAiSettingsStore, pumpIn, scrollTo;
+    show MemoryAiSettingsStore, backToAi, openRow, pumpIn, scrollTo;
 import 'ai_visibility_test.dart' show graphOf, notes;
 
 /// Names and the addresses they stand for, as DNS would answer.
@@ -623,6 +623,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      await openRow(tester, 'web');
       final toggle = find.byKey(const ValueKey('web-access'));
       await scrollTo(tester, toggle);
       expect(find.textContaining('Search words go to the provider'),
@@ -634,6 +635,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(
           find.byKey(const ValueKey('max-web-searches')), '3');
+      await backToAi(tester);
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
       expect(store.settings.webAccess, isTrue);

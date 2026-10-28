@@ -9,7 +9,7 @@ import 'package:roam_graph_mobile/ai/ai_providers.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 
 import 'ai_settings_test.dart'
-    show MemoryAiSettingsStore, MemoryKeyStore, scrollTo;
+    show MemoryAiSettingsStore, MemoryKeyStore, openRow, scrollTo;
 
 /// Answers GETs with [replies] in order, and keeps the requests.
 class FakeGet {
@@ -340,6 +340,7 @@ void main() {
       child: MaterialApp(home: AiSettingsScreen(get: get.call)),
     ));
     await tester.pumpAndSettle();
+    await openRow(tester, 'chat');
     final choose = find.byKey(const ValueKey('choose-default-vercel'));
     await scrollTo(tester, choose);
     await tester.tap(choose);
@@ -386,6 +387,7 @@ void main() {
       child: MaterialApp(home: AiSettingsScreen(get: get.call)),
     ));
     await tester.pumpAndSettle();
+    await openRow(tester, 'chat');
     final choose = find.byKey(const ValueKey('choose-default-qwen'));
     await scrollTo(tester, choose);
     await tester.tap(choose);
@@ -420,6 +422,7 @@ void main() {
       child: MaterialApp(home: AiSettingsScreen(get: get.call)),
     ));
     await tester.pumpAndSettle();
+    await openRow(tester, 'chat');
     final choose = find.byKey(const ValueKey('choose-default-openrouter'));
     await scrollTo(tester, choose);
     await tester.tap(choose);
@@ -446,6 +449,7 @@ void main() {
       child: MaterialApp(home: AiSettingsScreen(get: get.call)),
     ));
     await tester.pumpAndSettle();
+    await openRow(tester, 'chat');
     const gone = 'mistral-large-4 is not in Mistral\'s model list now. '
         'Choose another model.';
     await scrollTo(tester, find.byKey(const ValueKey('default-model-mistral')));
