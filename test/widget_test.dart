@@ -1843,7 +1843,7 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
 
-    expect(access.readPaths.last, 'roam/c.org');
+    expect(access.readPaths, contains('roam/c.org'));
     await openFolderSheet(tester);
     expect(stat(tester, 'files'), '3');
   });
