@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-28: Empty saved models take the defaults ([#200](https://github.com/ChristianGeng/roam-graph-mobile/pull/200))
+
+- Fixed: OpenRouter (and any provider saved with empty model fields) showed no chat model after its preset got defaults; an empty saved model now takes the preset's model.
+
 ## 2026-10-28: The app opens the graph at once ([#198](https://github.com/ChristianGeng/roam-graph-mobile/pull/198))
 
 - Changed: when the folder is known, the app opens the graph without a tap. The first page stays only when there is no graph: first start, access lost, no `roam/` folder, a failed scan. Back in the graph closes the app.
