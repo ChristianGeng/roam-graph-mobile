@@ -1689,13 +1689,19 @@ void main() {
       (tester) async {
     final access = withNotes(saved: org);
     await start(tester, access);
-    expect(access.readPaths, ['roam/a.org', 'roam/b.org']);
+    // The scans read several files at once; the open graph's note pane
+    // reads single notes, which these checks leave out.
+    List<List<String>> scans() =>
+        [for (final call in access.readCalls) if (call.length > 1) call];
+    expect(scans(), [
+      ['roam/a.org', 'roam/b.org']
+    ]);
     await openFolderSheet(tester);
 
     // Nothing changed: nothing is read.
     await tapText(tester, 'Scan again');
     await tester.pumpAndSettle();
-    expect(access.readPaths, hasLength(2));
+    expect(scans(), hasLength(1));
     expectSomeNotes(tester);
 
     // b.org changed: only b.org is read, and the change shows.
@@ -1712,7 +1718,8 @@ void main() {
       };
     await tapText(tester, 'Scan again');
     await tester.pumpAndSettle();
-    expect(access.readPaths.skip(2), ['roam/b.org']);
+    expect(access.readPaths.where((path) => path == 'roam/b.org'), hasLength(2));
+    expect(scans(), hasLength(1));
     expect(stat(tester, 'nodes'), '2');
     expect(stat(tester, 'refs'), '0');
   });
@@ -1743,7 +1750,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(index.rebuilds, 2);
-    expect(access.readPaths, hasLength(4));
+    expect([for (final call in access.readCalls) if (call.length > 1) call], [
+      ['roam/a.org', 'roam/b.org'],
+      ['roam/a.org', 'roam/b.org'],
+    ]);
     expectSomeNotes(tester);
   });
 
@@ -1810,7 +1820,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(index.folder, other.uri);
-    expect(access.readPaths.skip(2), ['roam/a.org', 'roam/b.org']);
+    expect(
+        [for (final call in access.readCalls) if (call.length > 1) call].last,
+        ['roam/a.org', 'roam/b.org']);
     expect(index.db.loadGraph().nodes.keys,
         unorderedEquals(['other-a', 'other-b']));
   });
