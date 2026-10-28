@@ -640,6 +640,28 @@ void main() {
     expect(vercel.imageApi, ImageApi.images);
   });
 
+  test("empty saved chat models take the preset's models", () {
+    final openRouter = presetById('openrouter');
+    expect(openRouter.defaultModel, isNotEmpty);
+    // Saved before OpenRouter had default models (#190).
+    final old = ProviderSettings.fromJson(
+        {'defaultModel': '', 'strongModel': ' ', 'baseUrl': ''}, openRouter);
+    expect(old.defaultModel, openRouter.defaultModel);
+    expect(old.strongModel, openRouter.strongModel);
+    final chosen = ProviderSettings.fromJson(
+        {'defaultModel': 'synthetic/model-a', 'strongModel': 'synthetic/b'},
+        openRouter);
+    expect(chosen.defaultModel, 'synthetic/model-a');
+    expect(chosen.strongModel, 'synthetic/b');
+    // The strong model is optional: cleared on purpose, it stays empty.
+    final cleared = ProviderSettings.fromJson(
+        {'defaultModel': 'synthetic/model-a', 'strongModel': ''}, openRouter);
+    expect(cleared.strongModel, isEmpty);
+    final spaces = ProviderSettings.fromJson(
+        {'defaultModel': 'synthetic/model-a', 'strongModel': '  '}, openRouter);
+    expect(spaces.strongModel, isEmpty);
+  });
+
   test('Mistral makes images with its image tool (#126)', () {
     final mistral = presetById('mistral');
     expect(mistral.makesImages, isTrue);
