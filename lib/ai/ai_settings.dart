@@ -118,7 +118,7 @@ class ProviderSettings {
       defaultModel: nonEmpty('defaultModel', base.defaultModel),
       strongModel: nonEmpty('defaultModel', '').isEmpty
           ? nonEmpty('strongModel', base.strongModel)
-          : text('strongModel', base.strongModel),
+          : text('strongModel', base.strongModel).trim(),
       euOnly: json['euOnly'] is bool ? json['euOnly'] as bool : base.euOnly,
       imageModel: model('imageModel'),
       imageApi: api('imageApi'),

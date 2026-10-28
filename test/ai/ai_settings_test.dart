@@ -657,6 +657,9 @@ void main() {
     final cleared = ProviderSettings.fromJson(
         {'defaultModel': 'synthetic/model-a', 'strongModel': ''}, openRouter);
     expect(cleared.strongModel, isEmpty);
+    final spaces = ProviderSettings.fromJson(
+        {'defaultModel': 'synthetic/model-a', 'strongModel': '  '}, openRouter);
+    expect(spaces.strongModel, isEmpty);
   });
 
   test('Mistral makes images with its image tool (#126)', () {
