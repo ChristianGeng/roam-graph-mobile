@@ -51,6 +51,19 @@ Future<void> scrollTo(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
+/// Opens the sub-page of a row of the AI settings page: `chat`, `images`,
+/// `agent`, `web`, `notes` or `privacy` (#194).
+Future<void> openRow(WidgetTester tester, String row) async {
+  await tester.tap(find.byKey(ValueKey('ai-$row')));
+  await tester.pumpAndSettle();
+}
+
+/// Goes back from a sub-page to the AI settings page.
+Future<void> backToAi(WidgetTester tester) async {
+  await tester.pageBack();
+  await tester.pumpAndSettle();
+}
+
 /// API keys in memory.
 class MemoryKeyStore implements ApiKeyStore {
   final keys = <String, String>{};
@@ -122,10 +135,13 @@ void main() {
       expect(find.text('tags: [private]'), findsOneWidget);
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      // The line under "Privacy" names the tags.
       expect(find.text('private'), findsOneWidget);
+      await openRow(tester, 'privacy');
 
       await tester.enterText(
           find.byKey(const ValueKey('hidden-tags')), 'private, secret :diary:');
+      await backToAi(tester);
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
       expect(store.settings.hiddenTags, ['private', 'secret', 'diary']);
@@ -155,6 +171,7 @@ void main() {
     );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
+    await openRow(tester, 'privacy');
     expect(find.text('work (2)'), findsOneWidget);
     await tester.tap(find.text('diary (1)'));
     await tester.pump();
@@ -162,6 +179,7 @@ void main() {
     await tester.enterText(find.byKey(const ValueKey('hidden-tags')), 'secret');
     await tester.pump();
     expect(find.text('New tag: secret'), findsOneWidget);
+    await backToAi(tester);
     await tester.tap(find.byTooltip('Save'));
     await tester.pumpAndSettle();
     expect(store.settings.hiddenTags, ['private', 'diary', 'secret']);
@@ -237,8 +255,10 @@ void main() {
       );
       await tester.tap(find.text('tags: [private]'));
       await tester.pumpAndSettle();
+      await openRow(tester, 'privacy');
       await tester.tap(find.byTooltip('Remove private'));
       await tester.pump();
+      await backToAi(tester);
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Could not save the settings'), findsOneWidget);
@@ -503,6 +523,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      await openRow(tester, 'chat');
       final reset = find.byKey(const ValueKey('reset-models-anthropic'),
           skipOffstage: false);
       // As the preset: nothing to reset.
@@ -517,6 +538,7 @@ void main() {
       await tester.tap(reset);
       await tester.pump();
       expect(reset, findsNothing);
+      await backToAi(tester);
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
       expect(store.settings.providerSettings('anthropic').defaultModel,
@@ -541,6 +563,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      await openRow(tester, 'chat');
       // The providers are grouped; the first group is above the note.
       expect(find.text('Data stays in the EU', skipOffstage: false),
           findsOneWidget);
@@ -559,6 +582,7 @@ void main() {
       final key = find.byKey(const ValueKey('api-key-mistral'));
       await scrollTo(tester, key);
       await tester.enterText(key, 'mi-key');
+      await backToAi(tester);
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
       expect(store.settings.provider, 'mistral');
@@ -582,6 +606,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      await openRow(tester, 'chat');
       expect(find.text('sk-old'), findsNothing);
       final remove = find.text('Remove the saved key');
       await scrollTo(tester, remove);
@@ -591,6 +616,7 @@ void main() {
           findsOneWidget);
       await tester.tap(remove);
       await tester.pumpAndSettle();
+      await backToAi(tester);
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
       expect(keys.keys, isEmpty);
@@ -750,6 +776,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      await openRow(tester, 'images');
       final choice = find.byKey(const ValueKey('image-provider-'));
       await scrollTo(tester, choice);
       expect(find.text('Same as the chat (Anthropic)'), findsOneWidget);
@@ -764,6 +791,7 @@ void main() {
       final key = find.byKey(const ValueKey('api-key-mistral'));
       await scrollTo(tester, key);
       await tester.enterText(key, 'mi-key');
+      await backToAi(tester);
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
       expect(store.settings.provider, 'anthropic');
@@ -881,6 +909,7 @@ void main() {
       );
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
+      await openRow(tester, 'images');
       final choice = find.byKey(const ValueKey('infographic-provider-'));
       await scrollTo(tester, choice);
       expect(find.text('Same as "Images with:" (Mistral)'), findsOneWidget);
@@ -900,6 +929,7 @@ void main() {
       final key = find.byKey(const ValueKey('api-key-vercel'));
       await scrollTo(tester, key);
       await tester.enterText(key, 've-key');
+      await backToAi(tester);
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
       expect(store.settings.provider, 'anthropic');
@@ -910,6 +940,271 @@ void main() {
       expect(vercel.imageModel, 'openai/gpt-image-2');
       expect(keys.keys, {'vercel': 've-key'});
       expect(jsonEncode(store.settings.toJson()), isNot(contains('ve-key')));
+    });
+  });
+
+  group('the sub-pages (#194)', () {
+    Future<void> openAiPage(WidgetTester tester,
+        {AiSettingsStore? store, ApiKeyStore? keys}) async {
+      await pumpIn(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => AiSettingsScreen.open(context),
+            child: const Text('open'),
+          ),
+        ),
+        store: store,
+        keys: keys,
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('six rows in this order, with the defaults under them',
+        (tester) async {
+      await openAiPage(tester);
+      const rows = [
+        ('chat', 'Chat', 'Anthropic · claude-sonnet-5-5'),
+        ('images', 'Images', 'Anthropic'),
+        ('agent', 'Agent and limits', 'Agent'),
+        ('web', 'Web access', 'Off'),
+        ('notes', 'Notes', 'English (en)'),
+        ('privacy', 'Privacy', 'private'),
+      ];
+      double? above;
+      for (final (key, title, subtitle) in rows) {
+        final row = find.byKey(ValueKey('ai-$key'));
+        expect(row, findsOneWidget);
+        expect(find.descendant(of: row, matching: find.text(title)),
+            findsOneWidget);
+        expect(find.descendant(of: row, matching: find.text(subtitle)),
+            findsOneWidget);
+        final top = tester.getTopLeft(row).dy;
+        expect(top, greaterThan(above ?? -1));
+        above = top;
+      }
+      // Nothing is changed yet.
+      expect(find.byKey(const ValueKey('ai-unsaved')), findsNothing);
+    });
+
+    testWidgets('the lines under the rows show the saved choices',
+        (tester) async {
+      await openAiPage(
+        tester,
+        store: MemoryAiSettingsStore(const AiSettings(
+          provider: 'mistral',
+          infographicProvider: 'vercel',
+          editMode: AiEditMode.review,
+          webAccess: true,
+          maxWebSearches: 7,
+          newNoteLanguage: 'de',
+          hiddenTags: ['private', 'diary'],
+        )),
+      );
+      Finder under(String key, String text) => find.descendant(
+          of: find.byKey(ValueKey('ai-$key')), matching: find.text(text));
+      expect(under('chat', 'Mistral · mistral-large-4'), findsOneWidget);
+      expect(under('images', 'Mistral · Vercel AI Gateway (infographics)'),
+          findsOneWidget);
+      expect(under('agent', 'Review'), findsOneWidget);
+      expect(under('web', 'On, at most 7 searches'), findsOneWidget);
+      expect(under('notes', 'German (de)'), findsOneWidget);
+      expect(under('privacy', 'private, diary'), findsOneWidget);
+    });
+
+    testWidgets('a page without tags says so', (tester) async {
+      await openAiPage(tester,
+          store: MemoryAiSettingsStore(const AiSettings(hiddenTags: [])));
+      expect(
+          find.descendant(
+              of: find.byKey(const ValueKey('ai-privacy')),
+              matching: find.text('No tags')),
+          findsOneWidget);
+    });
+
+    testWidgets('each sub-page shows its fields', (tester) async {
+      await openAiPage(tester);
+      const pages = {
+        'chat': [
+          'provider-anthropic',
+          'base-url-anthropic',
+          'default-model-anthropic',
+          'strong-model-anthropic',
+          'api-key-anthropic',
+        ],
+        'images': ['image-provider-', 'infographic-provider-'],
+        'agent': [
+          'max-tool-rounds',
+          'max-output-tokens',
+          'edit-mode',
+          'max-agent-changes',
+          'max-images',
+          'max-change-set-files',
+        ],
+        'web': ['web-access', 'max-web-searches'],
+        'notes': ['new-note-language'],
+        'privacy': ['hidden-tags'],
+      };
+      for (final MapEntry(key: row, value: keys) in pages.entries) {
+        await openRow(tester, row);
+        for (final key in keys) {
+          // The fields are listed from the top of the page down.
+          await scrollTo(tester, find.byKey(ValueKey(key)));
+          expect(find.byKey(ValueKey(key)), findsOneWidget,
+              reason: '$row: $key');
+        }
+        await backToAi(tester);
+      }
+    });
+
+    testWidgets('a change in a sub-page is saved with the check mark and '
+        'read back', (tester) async {
+      final store = MemoryAiSettingsStore();
+      await openAiPage(tester, store: store);
+      await openRow(tester, 'agent');
+      final changes = find.byKey(const ValueKey('max-agent-changes'));
+      await scrollTo(tester, changes);
+      await tester.enterText(changes, '12');
+      await backToAi(tester);
+      await openRow(tester, 'notes');
+      await tester.tap(find.byKey(const ValueKey('new-note-language-de')));
+      await tester.pump();
+      await backToAi(tester);
+      await openRow(tester, 'web');
+      await tester.tap(find.byKey(const ValueKey('web-access')));
+      await tester.pump();
+      await backToAi(tester);
+
+      // The page says so, and shows the new choices.
+      expect(find.byKey(const ValueKey('ai-unsaved')), findsOneWidget);
+      expect(find.text('German (de)'), findsOneWidget);
+      expect(find.text('On, at most 5 searches'), findsOneWidget);
+      expect(store.saves, 0);
+
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(store.saves, 1);
+      expect(store.settings.maxAgentChanges, 12);
+      expect(store.settings.newNoteLanguage, 'de');
+      expect(store.settings.webAccess, isTrue);
+      expect(find.byType(AiSettingsScreen), findsNothing);
+
+      // Opened again, the sub-page shows what was saved.
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.text('German (de)'), findsOneWidget);
+      expect(find.byKey(const ValueKey('ai-unsaved')), findsNothing);
+      await openRow(tester, 'agent');
+      final saved = tester.widget<TextField>(
+          find.byKey(const ValueKey('max-agent-changes')));
+      expect(saved.controller!.text, '12');
+    });
+
+    testWidgets('a key typed in a sub-page is stored only on Save',
+        (tester) async {
+      final keys = MemoryKeyStore();
+      await openAiPage(tester, keys: keys);
+      await openRow(tester, 'chat');
+      final key = find.byKey(const ValueKey('api-key-anthropic'));
+      await scrollTo(tester, key);
+      await tester.enterText(key, 'sk-new');
+      await backToAi(tester);
+      expect(keys.keys, isEmpty);
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(keys.keys, {'anthropic': 'sk-new'});
+    });
+
+    testWidgets('leaving with unsaved changes asks; Discard keeps the old '
+        'values', (tester) async {
+      final store = MemoryAiSettingsStore();
+      final keys = MemoryKeyStore();
+      await openAiPage(tester, store: store, keys: keys);
+      await openRow(tester, 'chat');
+      final key = find.byKey(const ValueKey('api-key-anthropic'));
+      await scrollTo(tester, key);
+      await tester.enterText(key, 'sk-new');
+      await backToAi(tester);
+      await openRow(tester, 'agent');
+      final rounds = find.byKey(const ValueKey('max-tool-rounds'));
+      await scrollTo(tester, rounds);
+      await tester.enterText(rounds, '3');
+      await backToAi(tester);
+
+      // Keep editing: the page stays, the changes stay.
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Discard changes?'), findsOneWidget);
+      await tester.tap(find.text('Keep editing'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AiSettingsScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('ai-unsaved')), findsOneWidget);
+
+      // Discard: the page closes and nothing is saved.
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AiSettingsScreen), findsNothing);
+      expect(store.saves, 0);
+      expect(store.settings.maxToolRounds, 10);
+      expect(keys.keys, isEmpty);
+    });
+
+    testWidgets('leaving without changes does not ask', (tester) async {
+      await openAiPage(tester);
+      await openRow(tester, 'web');
+      await backToAi(tester);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Discard changes?'), findsNothing);
+      expect(find.byType(AiSettingsScreen), findsNothing);
+    });
+
+    testWidgets("the chat provider's image model is on Chat when Images uses "
+        'another provider, else on Images', (tester) async {
+      final model = find.byKey(const ValueKey('image-model-vercel'));
+      await openAiPage(
+        tester,
+        store: MemoryAiSettingsStore(
+            const AiSettings(provider: 'vercel', imageProvider: 'mistral')),
+      );
+      await openRow(tester, 'chat');
+      await scrollTo(tester, model);
+      expect(model, findsOneWidget);
+      await backToAi(tester);
+      await openRow(tester, 'images');
+      expect(model, findsNothing);
+      expect(find.byKey(const ValueKey('image-model-mistral')),
+          findsOneWidget);
+    });
+
+    testWidgets("the chat provider's image model is on Images when Images "
+        'is the same as the chat', (tester) async {
+      final model = find.byKey(const ValueKey('image-model-vercel'));
+      await openAiPage(tester,
+          store: MemoryAiSettingsStore(const AiSettings(provider: 'vercel')));
+      await openRow(tester, 'images');
+      await scrollTo(tester, model);
+      expect(model, findsOneWidget);
+      await backToAi(tester);
+      await openRow(tester, 'chat');
+      await scrollTo(tester, find.byKey(const ValueKey('api-key-vercel')));
+      expect(model, findsNothing);
+    });
+
+    testWidgets('a provider switch is a change too', (tester) async {
+      await openAiPage(tester);
+      await openRow(tester, 'chat');
+      await tester.scrollUntilVisible(
+          find.byKey(const ValueKey('provider-mistral')), 200,
+          scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.byKey(const ValueKey('provider-mistral')));
+      await tester.pumpAndSettle();
+      await backToAi(tester);
+      expect(find.byKey(const ValueKey('ai-unsaved')), findsOneWidget);
+      expect(find.text('Mistral · mistral-large-4'), findsOneWidget);
     });
   });
 }
