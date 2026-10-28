@@ -189,6 +189,10 @@ void main() {
   });
 
   testWidgets('Settings offers the six choices', (tester) async {
+    // Tall, so all of the View page is on screen.
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final store = MemoryViewSettingsStore();
     await tester.pumpWidget(MaterialApp(
       builder: (context, child) => ViewSettingsHost(store: store, child: child!),
