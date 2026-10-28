@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-28: AI settings: sub-pages for Chat, Images, Agent and limits, Web access, Notes, Privacy ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-28: AI settings: sub-pages for Chat, Images, Agent and limits, Web access, Notes, Privacy ([#197](https://github.com/ChristianGeng/roam-graph-mobile/pull/197))
 
 - Changed: the AI settings page is a short list of six rows: Chat, Images, Agent and limits, Web access, Notes and Privacy. Each row opens a page with the same fields and texts as before and shows its current choice under the name.
 - Changed: all six pages change one draft. The check mark on the AI settings list saves it; the list says "Unsaved changes" until then, and going back asks "Discard changes?". Saved values and keys are stored as before.
