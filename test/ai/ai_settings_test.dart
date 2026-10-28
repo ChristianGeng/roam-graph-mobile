@@ -1162,6 +1162,38 @@ void main() {
       expect(find.byType(AiSettingsScreen), findsNothing);
     });
 
+    testWidgets("the chat provider's image model is on Chat when Images uses "
+        'another provider, else on Images', (tester) async {
+      final model = find.byKey(const ValueKey('image-model-vercel'));
+      await openAiPage(
+        tester,
+        store: MemoryAiSettingsStore(
+            const AiSettings(provider: 'vercel', imageProvider: 'mistral')),
+      );
+      await openRow(tester, 'chat');
+      await scrollTo(tester, model);
+      expect(model, findsOneWidget);
+      await backToAi(tester);
+      await openRow(tester, 'images');
+      expect(model, findsNothing);
+      expect(find.byKey(const ValueKey('image-model-mistral')),
+          findsOneWidget);
+    });
+
+    testWidgets("the chat provider's image model is on Images when Images "
+        'is the same as the chat', (tester) async {
+      final model = find.byKey(const ValueKey('image-model-vercel'));
+      await openAiPage(tester,
+          store: MemoryAiSettingsStore(const AiSettings(provider: 'vercel')));
+      await openRow(tester, 'images');
+      await scrollTo(tester, model);
+      expect(model, findsOneWidget);
+      await backToAi(tester);
+      await openRow(tester, 'chat');
+      await scrollTo(tester, find.byKey(const ValueKey('api-key-vercel')));
+      expect(model, findsNothing);
+    });
+
     testWidgets('a provider switch is a change too', (tester) async {
       await openAiPage(tester);
       await openRow(tester, 'chat');

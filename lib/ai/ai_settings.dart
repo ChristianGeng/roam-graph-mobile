@@ -1670,6 +1670,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           ),
         ),
       ),
+      // With another image provider, "Images" shows that one's image model;
+      // the chat provider's own stays here.
+      if (_imageProvider.isNotEmpty && _imageProvider != _provider)
+        ..._imageFields(preset, draft),
       _resetModels(preset, draft),
       ..._keyFields(preset, draft),
       ..._euFields(preset, draft, 'eu-only'),
