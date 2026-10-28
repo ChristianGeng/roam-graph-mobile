@@ -3249,6 +3249,23 @@ help pages are help nodes too, as headings with an ID are in my notes.
 - **A test** reads every `[[id:…]]` link in `assets/help/*.org` and checks
   that its ID exists, and that the start page links to every page.
 
+## 108. Settings: a short main page with categories (#189)
+
+The Settings page was one long flat list. It is now a short main page; the
+rest is one level down.
+- **Order:** "AI" (opens the AI settings page, unchanged; its subtitle is
+  the chat provider and model), "View" (opens a new page; its subtitle is
+  the theme and the graph layout at start), then the heading "Note files"
+  with "Folder for new images" and, on the desktop only, "Emacs command".
+- **"View" holds** Theme, Sections when a note opens, Graph layout at
+  start and Graph width on the tablet, with the same texts, keys and
+  saved values. No migration.
+- **"Note files" has no page of its own** because it has only two rows; a
+  page for two rows would add a tap and show nothing more. It gets one if
+  a third setting for note files comes.
+- **Step 2 is separate:** splitting the AI settings page into sub-pages
+  (Chat, Images, Web access, Agent and limits, Privacy) is a later issue.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

@@ -710,7 +710,8 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sections when a note opens'), findsOneWidget);
+    expect(find.text('Note files'), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-view')), findsOneWidget);
   });
 
   testWidgets('the bar fits a phone of 360 points', (tester) async {

@@ -189,11 +189,17 @@ void main() {
   });
 
   testWidgets('Settings offers the six choices', (tester) async {
+    // Tall, so all of the View page is on screen.
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final store = MemoryViewSettingsStore();
     await tester.pumpWidget(MaterialApp(
       builder: (context, child) => ViewSettingsHost(store: store, child: child!),
       home: const SettingsScreen(),
     ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-view')));
     await tester.pumpAndSettle();
     final circo = find.byKey(const ValueKey('start-layout-circo'));
     await tester.scrollUntilVisible(circo, 200,

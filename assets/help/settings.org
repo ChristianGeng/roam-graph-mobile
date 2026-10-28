@@ -4,9 +4,24 @@
 #+title: Settings
 #+STARTUP: showall
 
-*Settings* is in the graph's *More* menu. The first screen has only *Help* and
-the gear *AI settings*. From top to bottom:
+*Settings* is in the graph's *More* menu. The first screen is short. From top
+to bottom:
 
+- *AI*: opens AI settings, see below. Under the name it shows the chat
+  provider and model, for example "Mistral · mistral-large-4".
+- *View*: opens the page *View*. Under the name it shows the theme and the
+  graph layout at start, for example "System · Radial".
+- *Note files*: a heading with two rows:
+  - *Folder for new images*: where images made by the AI go, relative to
+    ~roam/~ (~img~ by default). *Default* sets it back.
+  - *Emacs command* (desktop only): what *Open in Emacs* runs; see
+    [[id:roam-graph-help-desktop][The desktop app]]. On Android the row is
+    not shown.
+
+* The page View
+From top to bottom:
+
+- *Theme*: *System* (as Android is set), *Light* or *Dark*.
 - *Sections when a note opens*: *Collapsed* (the top headings only),
   *Headings* (all headings, no text), or *Expanded* (everything). A note's
   own ~#+STARTUP:~ line comes first.
@@ -17,12 +32,6 @@ the gear *AI settings*. From top to bottom:
   [[id:roam-graph-help-layouts][Layouts]].
 - *Graph width on the tablet*: shows the share of the graph next to a note.
   Drag the divider between them to change it; *Reset* goes back to 40 : 60.
-- *AI*: opens AI settings, see below.
-- *Emacs command* (desktop only): what *Open in Emacs* runs; see
-  [[id:roam-graph-help-desktop][The desktop app]].
-- *Folder for new images*: where images made by the AI go, relative to
-  ~roam/~ (~img~ by default). *Default* sets it back.
-- *Theme*: *System* (as Android is set), *Light* or *Dark*.
 
 * AI settings
 Tap the check mark in the bar to save. Keys are kept in the device's secure

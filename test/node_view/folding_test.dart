@@ -129,12 +129,18 @@ void main() {
 
     testWidgets('quick choices: saved in order, and the latest is kept',
         (tester) async {
+      // Tall, so all of the View page is on screen.
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       final store = _GatedStore();
       await tester.pumpWidget(MaterialApp(
         builder: (context, child) =>
             ViewSettingsHost(store: store, child: child!),
         home: const SettingsScreen(),
       ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('settings-view')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('sections-headings')));
       await tester.tap(find.byKey(const ValueKey('sections-expanded')));
@@ -154,12 +160,18 @@ void main() {
 
     testWidgets('a failed latest save shows what the file holds, and says so',
         (tester) async {
+      // Tall, so all of the View page is on screen.
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       final store = _GatedStore();
       await tester.pumpWidget(MaterialApp(
         builder: (context, child) =>
             ViewSettingsHost(store: store, child: child!),
         home: const SettingsScreen(),
       ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('settings-view')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('sections-headings')));
       await tester.tap(find.byKey(const ValueKey('sections-expanded')));
@@ -176,12 +188,18 @@ void main() {
     });
 
     testWidgets('the settings page saves the choice', (tester) async {
+      // Tall, so all of the View page is on screen.
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       final store = MemoryViewSettingsStore();
       await tester.pumpWidget(MaterialApp(
         builder: (context, child) =>
             ViewSettingsHost(store: store, child: child!),
         home: const SettingsScreen(),
       ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('settings-view')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('sections-headings')));
       await tester.pumpAndSettle();

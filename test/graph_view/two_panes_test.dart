@@ -111,12 +111,18 @@ void main() {
   });
 
   testWidgets('Settings shows the width and resets it', (tester) async {
+    // Tall, so all of the View page is on screen.
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final store = MemoryViewSettingsStore(
         const ViewSettings(graphShare: 0.7, graphCollapsed: true));
     await tester.pumpWidget(MaterialApp(
       builder: (context, child) => ViewSettingsHost(store: store, child: child!),
       home: const SettingsScreen(),
     ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-view')));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
         find.byKey(const ValueKey('settings-graph-width-reset')), 200,
@@ -208,12 +214,18 @@ void main() {
 
     testWidgets('a quick Reset keeps a section choice still being saved',
         (tester) async {
+      // Tall, so all of the View page is on screen.
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
       final store = _SlowStore(const ViewSettings(graphShare: 0.7));
       await tester.pumpWidget(MaterialApp(
         builder: (context, child) =>
             ViewSettingsHost(store: store, child: child!),
         home: const SettingsScreen(),
       ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('settings-view')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('sections-expanded')));
       await tester.pump();
