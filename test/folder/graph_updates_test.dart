@@ -17,7 +17,6 @@ import '../widget_test.dart';
 Future<void> openB(WidgetTester tester, FakeFolderAccess access,
     {EditHistory? history}) async {
   await start(tester, access, history: history);
-  await tapText(tester, 'Show graph');
   await tester.pumpAndSettle();
   NodeScreen.open(
     tester.element(find.byType(GraphScreen)),
@@ -267,7 +266,6 @@ void main() {
               '[[file:img/p.png]]\nAfter.\n',
         };
       await start(tester, access);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
       await tester.pumpAndSettle();

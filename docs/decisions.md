@@ -3266,6 +3266,32 @@ rest is one level down.
 - **Step 2 is separate:** splitting the AI settings page into sub-pages
   (Chat, Images, Web access, Agent and limits, Privacy) is a later issue.
 
+## 109. The app opens the graph at once (#196)
+
+The start page showed the scan result and a "Show graph" button that had
+to be tapped at every start. The graph is what the app is for, so it opens
+at once.
+- **One screen, not a pushed one:** `FolderScreen` stays the owner of the
+  scan, the writer and the graph notifier, and shows the graph in its own
+  place once the scan ends in `indexed`. It is not a route above the start
+  page, so Back in the graph closes the app, and a state without a graph
+  (access lost, no `roam/`, failed scan) shows the start page again at once.
+- **A scan over an open graph keeps the graph on show.** While it runs, the
+  screen remembers the last state that was not "loading"; only a first scan
+  shows the spinner page.
+- **"Folder and index"** is a modal bottom sheet from "More" with exactly the
+  old indexed start page: counts, the three lists, the folder name and the
+  three buttons. It follows the scan, shows progress while one runs, and
+  closes if the folder can no longer be shown.
+- **A warning icon** (`Icons.warning_amber`, tooltip "Problems in the
+  folder: N") is in the app bar while skipped files, unreadable files and
+  conflict copies add up to more than 0. It opens the same sheet.
+- **The graph gets `FolderControls`** (the problem count and "open the
+  sheet"). Without it (as in graph tests), the menu item and the icon are
+  not shown.
+- **Shared widgets** for the counts and the lists are in
+  `lib/folder/folder_report.dart`; the start page uses the conflict list.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

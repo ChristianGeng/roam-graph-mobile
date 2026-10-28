@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-28: The app opens the graph at once ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Changed: when the folder is known, the app opens the graph without a tap. The first page stays only when there is no graph: first start, access lost, no `roam/` folder, a failed scan. Back in the graph closes the app.
+- Changed: the counts, the problem lists, "Scan again", "Rebuild index" and "Change folder" are in the sheet "Folder and index" in the graph's "More" menu.
+- Added: a warning icon in the graph's top bar when there are skipped files, unreadable files or conflict copies. It opens the same sheet.
+
+Closes #196.
+
 ## 2026-10-28: Settings: a short main page with categories ([#195](https://github.com/ChristianGeng/roam-graph-mobile/pull/195))
 
 - Changed: the Settings page is short. It has the rows "AI" and "View", then the heading "Note files" with "Folder for new images" and, on the desktop, "Emacs command". "AI" shows the chat provider and model; "View" shows the theme and the graph layout at start.

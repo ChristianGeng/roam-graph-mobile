@@ -42,6 +42,8 @@ Each line opens the section that answers it.
 - Get pre-releases in Obtainium:
   [[id:roam-graph-help-prereleases][Pre-releases in Obtainium]]
 - Use the desktop app: [[id:roam-graph-help-desktop][The desktop app]]
+- Scan again, rebuild the index or change the folder:
+  [[id:roam-graph-help-folder-index][Folder and index]]
 - Solve a sync conflict:
   [[id:roam-graph-help-conflicts][Syncthing conflict copies]]
 
