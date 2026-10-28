@@ -112,9 +112,13 @@ class ProviderSettings {
           : preset.api,
       baseUrl: text('baseUrl', base.baseUrl),
       // An empty model was saved before the preset had one (OpenRouter
-      // before #190): the preset's model then.
+      // before #190): the preset's model then. The strong model is
+      // optional, so an empty one is a choice, unless the default model
+      // was empty too, as in settings from before #190.
       defaultModel: nonEmpty('defaultModel', base.defaultModel),
-      strongModel: nonEmpty('strongModel', base.strongModel),
+      strongModel: nonEmpty('defaultModel', '').isEmpty
+          ? nonEmpty('strongModel', base.strongModel)
+          : text('strongModel', base.strongModel),
       euOnly: json['euOnly'] is bool ? json['euOnly'] as bool : base.euOnly,
       imageModel: model('imageModel'),
       imageApi: api('imageApi'),
