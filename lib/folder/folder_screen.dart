@@ -828,7 +828,10 @@ class _FolderScreenState extends State<FolderScreen>
       if (!_sheetClosing) {
         _sheetClosing = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (sheetContext.mounted) Navigator.of(sheetContext).pop();
+          if (sheetContext.mounted &&
+              ModalRoute.of(sheetContext)?.isCurrent == true) {
+            Navigator.of(sheetContext).pop();
+          }
         });
       }
       return const SizedBox.shrink();

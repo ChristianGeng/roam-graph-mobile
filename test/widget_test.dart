@@ -1702,6 +1702,9 @@ void main() {
     await tapText(tester, 'Scan again');
     await tester.pumpAndSettle();
     expect(scans(), hasLength(1));
+    // b.org is read by scans only; neither a scan nor the note pane read it
+    // again.
+    expect(access.readPaths.where((path) => path == 'roam/b.org'), hasLength(1));
     expectSomeNotes(tester);
 
     // b.org changed: only b.org is read, and the change shows.
