@@ -58,6 +58,20 @@ const _labelScale = 0.45;
 /// for the finger. An enlarged dot (#7) reaches as far beyond its edge.
 double tapReach(double scale) => _nodeRadius + 16 / scale;
 
+/// What the graph needs from the folder screen for "Folder and index"
+/// (#196): the number of problems the last scan found, and how to open the
+/// sheet that lists them.
+class FolderControls {
+  const FolderControls({required this.problems, required this.open});
+
+  /// Skipped files, unreadable files and conflict copies; the app bar shows
+  /// a warning icon while it is above 0.
+  final ValueListenable<int> problems;
+
+  /// Opens the sheet "Folder and index".
+  final VoidCallback open;
+}
+
 /// The node graph in the style of `org-roam-graph` (#6): nodes labelled
 /// with their titles, an edge for each pair of nodes with an `id:` link.
 ///
@@ -81,6 +95,7 @@ class GraphScreen extends StatefulWidget {
     this.computeLayout = layoutOnIsolate,
     this.computeAlgorithms = algorithmsOnIsolate,
     this.shareText = shareTextOut,
+    this.folder,
   });
 
   final ValueListenable<RoamGraph> graph;
@@ -103,6 +118,10 @@ class GraphScreen extends StatefulWidget {
 
   /// Sends text to another app; tests replace it.
   final TextSharer shareText;
+
+  /// The folder's scan, for "Folder and index" in the "More" menu and the
+  /// warning icon (#196); without it, neither is shown.
+  final FolderControls? folder;
 
   @override
   State<GraphScreen> createState() => _GraphScreenState();
@@ -131,7 +150,7 @@ enum _ScopeChoice {
 }
 
 /// The actions of the graph's "More" menu.
-enum _MoreAction { centre, askAi, recent, settings, help }
+enum _MoreAction { centre, askAi, recent, folder, settings, help }
 
 enum _NodeAction { open, edit, delete }
 
@@ -736,6 +755,8 @@ class _GraphScreenState extends State<GraphScreen> {
         if (widget.writer case final writer?) {
           RecentChangesScreen.open(context, writer: writer, log: writer.changeLog);
         }
+      case _MoreAction.folder:
+        widget.folder?.open();
       case _MoreAction.settings:
         SettingsScreen.open(context, graph: _graph);
       case _MoreAction.help:
@@ -829,6 +850,17 @@ class _GraphScreenState extends State<GraphScreen> {
           ],
         ),
         actions: [
+          if (widget.folder case final folder?)
+            ValueListenableBuilder<int>(
+              valueListenable: folder.problems,
+              builder: (context, problems, _) => problems == 0
+                  ? const SizedBox.shrink()
+                  : IconButton(
+                      tooltip: 'Problems in the folder: $problems',
+                      icon: const Icon(Icons.warning_amber),
+                      onPressed: folder.open,
+                    ),
+            ),
           IconButton(
             tooltip: 'Search',
             icon: const Icon(Icons.search),
@@ -913,6 +945,11 @@ class _GraphScreenState extends State<GraphScreen> {
               if (widget.writer?.editor != null)
                 const PopupMenuItem(
                     value: _MoreAction.recent, child: Text('Recent changes')),
+              if (widget.folder != null)
+                const PopupMenuItem(
+                  value: _MoreAction.folder,
+                  child: Text('Folder and index'),
+                ),
               const PopupMenuItem(
                 value: _MoreAction.settings,
                 child: Text('Settings'),

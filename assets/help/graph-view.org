@@ -52,5 +52,24 @@ graph looks, in two groups; a check mark shows the current choice.
   changes* for each action, also after its message has gone. Newer texts
   stay unchanged; notes that could not be restored are named. It shows
   when the app can write to the folder.
+- *Folder and index*: see below.
 - *Settings*: see [[id:roam-graph-help-settings][Settings]].
 - *Help*: these pages, starting with the list of tasks.
+
+* Folder and index
+:PROPERTIES:
+:ID:       roam-graph-help-folder-index
+:END:
+The app opens the graph at once when the folder is known. *More*, then
+*Folder and index* opens a sheet with what the last scan found: the counts
+to compare with org-roam, the files org-roam skips, the unreadable files and
+the Syncthing conflict copies. It also has the folder's name and three
+buttons:
+- *Scan again*: reads the files that changed. The graph shows the result.
+- *Rebuild index*: reads every file again.
+- *Change folder*: picks another org folder.
+
+When the scan found problems, a warning icon is in the top bar; its tooltip
+says how many problems there are. It opens the same sheet. Without problems there is no
+icon. If the folder cannot be read (access lost, no ~roam/~ folder, a failed
+scan), the app shows its first page again, with the reason.

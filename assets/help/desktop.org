@@ -28,7 +28,8 @@ APK only.
 
 * First start
 Tap *Choose org folder* and pick the folder that holds ~roam/~ (or ~roam/~
-itself). The app remembers it; *Change folder* picks another. The app edits
+itself). The app remembers it; *Change folder* in *More*, *Folder and index* picks
+another. From then on the app opens the graph at once. The app edits
 the same files as Emacs. Emacs reloads a changed file with
 ~global-auto-revert-mode~, else it asks.
 

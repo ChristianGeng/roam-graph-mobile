@@ -5,8 +5,9 @@
 #+STARTUP: showall
 
 The app comes from GitHub: https://github.com/ChristianGeng/roam-graph-mobile
-under Releases. The first screen of the app shows its *Version* at the
-bottom; give it when you report a problem.
+under Releases. The *Version* is at the bottom of the sheet *More*, *Folder and index* in the
+graph, and on the first page when there is no graph; give it when you report
+a problem.
 
 There are two kinds of builds:
 - A *pre-release* is made for every change that is merged. It has the

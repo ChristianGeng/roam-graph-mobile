@@ -26,6 +26,7 @@ import '../node_view/note_images.dart';
 import '../platform/desktop.dart';
 import '../settings/view_settings.dart';
 import 'folder_access.dart';
+import 'folder_report.dart';
 import 'org_files.dart';
 
 /// Builds the graph view, for [FolderScreen.graphScreen].
@@ -35,11 +36,14 @@ typedef GraphScreenBuilder = Widget Function(
   NoteOpener openInOrgro,
   NoteWriter writer,
   NoteFiles files,
+  FolderControls folder,
 );
 
-/// Lets the user choose the org folder (#3), keeps the graph's database up
-/// to date with it (#4, #5) and shows what it holds, to compare with
-/// org-roam on the laptop. From there, the graph view (#6) opens.
+/// Lets the user choose the org folder (#3) and keeps the graph's database
+/// up to date with it (#4, #5). Once the folder is indexed, it shows the
+/// graph view (#6) at once (#196); what the scan found is in the sheet
+/// "Folder and index" of the graph. This page itself shows only the states
+/// without a graph: no folder, access lost, no roam/ folder, a failed scan.
 class FolderScreen extends StatefulWidget {
   const FolderScreen({
     super.key,
@@ -81,6 +85,7 @@ class FolderScreen extends StatefulWidget {
     NoteOpener openInOrgro,
     NoteWriter writer,
     NoteFiles files,
+    FolderControls folder,
   ) =>
       GraphScreen(
         graph: graph,
@@ -88,6 +93,7 @@ class FolderScreen extends StatefulWidget {
         files: files,
         openInOrgro: openInOrgro,
         writer: writer,
+        folder: folder,
       );
 
   @override
@@ -116,6 +122,23 @@ class _FolderScreenState extends State<FolderScreen>
   ChosenFolder? _folder;
   _Result _result = _noResult;
   String _error = '';
+
+  /// The last state that was not [_Status.loading]. While a scan runs over
+  /// an open graph, the graph stays on show (#196).
+  _Status _settled = _Status.loading;
+
+  /// Tells the open sheet "Folder and index" that something changed.
+  final _revision = ValueNotifier<int>(0);
+
+  /// The number of problems of the last scan, for the graph's warning icon.
+  final _problems = ValueNotifier<int>(0);
+
+  /// True while the sheet "Folder and index" is open.
+  bool _sheetOpen = false;
+
+  /// True once the sheet has been asked to close, because the folder is no
+  /// longer indexed.
+  bool _sheetClosing = false;
 
   /// Counts operations; only the latest one may change what is shown, so a
   /// slow, older scan cannot replace a newer result.
@@ -442,6 +465,8 @@ class _FolderScreenState extends State<FolderScreen>
     WidgetsBinding.instance.removeObserver(this);
     _stopChecking();
     _graph?.dispose();
+    _revision.dispose();
+    _problems.dispose();
     super.dispose();
   }
 
@@ -496,7 +521,12 @@ class _FolderScreenState extends State<FolderScreen>
 
   /// Opens the folder picker. If the user cancels, nothing changes.
   Future<void> _choose() {
-    final previous = (_status, _folder, _result);
+    // While a scan runs, the state to come back to is the settled one.
+    final previous = (
+      _status == _Status.loading ? _settled : _status,
+      _folder,
+      _result,
+    );
     return _guard((generation) async {
       final folder = await widget.folderAccess.pickFolder();
       if (folder == null) {
@@ -627,6 +657,7 @@ class _FolderScreenState extends State<FolderScreen>
     final generation = ++_generation;
     if (_status != _Status.loading) {
       setState(() => _status = _Status.loading);
+      _revision.value++;
     }
     try {
       await work(generation);
@@ -644,16 +675,22 @@ class _FolderScreenState extends State<FolderScreen>
     _Result result,
   ) {
     if (!mounted || generation != _generation) return;
+    final graph = result.graph;
+    _problems.value = status == _Status.indexed && graph != null
+        ? problemCount(graph, result.unreadable, result.conflicts)
+        : 0;
     setState(() {
       _status = status;
+      if (status != _Status.loading) _settled = status;
       _folder = folder;
       _result = result;
     });
+    _revision.value++;
     // Conflict copies that appear later, for example on resume, are
     // reported wherever the user is, also over the graph (#13): those not
     // seen by the last scan of the folder, also when another one was
     // resolved meanwhile. Those found by the first scan of a folder are
-    // listed on this screen, which is then the one on show.
+    // shown by the warning icon of the graph (#196).
     final scanned = status == _Status.indexed || status == _Status.noRoam;
     final seen = _conflictsFolder == folder?.uri ? _conflictsSeen : null;
     final fresh = seen == null
@@ -666,9 +703,9 @@ class _FolderScreenState extends State<FolderScreen>
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
         content: Text(fresh.length == 1
             ? 'Syncthing made a new conflict copy in the folder. '
-                'Resolve it in Emacs; the counts screen lists it.'
+                'Resolve it in Emacs; "Folder and index" lists it.'
             : 'Syncthing made ${fresh.length} new conflict copies in the '
-                'folder. Resolve them in Emacs; the counts screen lists '
+                'folder. Resolve them in Emacs; "Folder and index" lists '
                 'them.'),
       ));
     }
@@ -682,7 +719,7 @@ class _FolderScreenState extends State<FolderScreen>
     }
     // An open graph view shows the new graph. Other results, such as a
     // failed scan, leave it as it is.
-    if (result.graph case final graph?) {
+    if (graph != null) {
       if (_graph case final notifier?) {
         notifier.value = graph;
       } else {
@@ -695,12 +732,27 @@ class _FolderScreenState extends State<FolderScreen>
     if (!mounted || generation != _generation) return;
     setState(() {
       _status = _Status.failed;
+      _settled = _Status.failed;
       _error = message;
     });
+    _revision.value++;
   }
+
+  /// The controls the graph gets for "Folder and index" (#196).
+  late final _controls =
+      FolderControls(problems: _problems, open: _showFolderSheet);
 
   @override
   Widget build(BuildContext context) {
+    // The graph is the home screen once the folder is indexed, and stays
+    // while a scan runs over it (#196).
+    final notifier = _graph;
+    if (notifier != null &&
+        (_status == _Status.indexed ||
+            (_status == _Status.loading && _settled == _Status.indexed))) {
+      return widget.graphScreen(
+          notifier, _readNote, _openInOrgro, _writer, _files, _controls);
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Roam Graph'),
@@ -732,6 +784,85 @@ class _FolderScreenState extends State<FolderScreen>
           'Version ${widget.version}',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
+    );
+  }
+
+  /// Opens the sheet "Folder and index" (#196): what the scan found, and
+  /// "Scan again", "Rebuild index" and "Change folder". It follows the
+  /// scan, so it shows progress while one runs.
+  Future<void> _showFolderSheet() async {
+    if (_sheetOpen) return;
+    _sheetOpen = true;
+    _sheetClosing = false;
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheetContext) => DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.7,
+          minChildSize: 0.3,
+          maxChildSize: 0.95,
+          builder: (context, controller) => ListenableBuilder(
+            listenable: _revision,
+            builder: (context, _) => _sheetContent(sheetContext, controller),
+          ),
+        ),
+      );
+    } finally {
+      _sheetOpen = false;
+    }
+  }
+
+  Widget _sheetContent(BuildContext sheetContext, ScrollController controller) {
+    final graph = _result.graph;
+    if (_status == _Status.loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_status != _Status.indexed || graph == null) {
+      // The folder cannot be shown any more, for example after access was
+      // lost: the start page shows why.
+      if (!_sheetClosing) {
+        _sheetClosing = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (sheetContext.mounted &&
+              ModalRoute.of(sheetContext)?.isCurrent == true) {
+            Navigator.of(sheetContext).pop();
+          }
+        });
+      }
+      return const SizedBox.shrink();
+    }
+    return SingleChildScrollView(
+      controller: controller,
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 16,
+          children: [
+            FolderReport(
+              graph: graph,
+              unreadable: _result.unreadable,
+              conflicts: _result.conflicts,
+            ),
+            Text('Folder: ${_folder?.name}'),
+            OutlinedButton(
+                onPressed: _rescan, child: const Text('Scan again')),
+            TextButton(
+              onPressed: _rebuild,
+              child: const Text('Rebuild index'),
+            ),
+            TextButton(
+                onPressed: _choose, child: const Text('Change folder')),
+            Text(
+              'Version ${widget.version}',
+              style: Theme.of(sheetContext).textTheme.bodySmall,
+            ),
+          ],
         ),
       ),
     );
@@ -774,52 +905,14 @@ class _FolderScreenState extends State<FolderScreen>
             'Choose the org folder that contains roam/, or roam/ itself.',
             textAlign: TextAlign.center,
           ),
-          if (_result.conflicts.isNotEmpty) _conflictList(),
+          if (_result.conflicts.isNotEmpty)
+            ConflictList(conflicts: _result.conflicts),
           OutlinedButton(onPressed: _rescan, child: const Text('Scan again')),
           chooseButton,
         ]);
       case _Status.indexed:
-        return _column([
-          Text('Graph in roam/', style: text.titleLarge),
-          // Also without nodes: the graph offers "New node" (#11).
-          if ((_result.graph, _graph) case (_?, final notifier?))
-            FilledButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (context) =>
-                      widget.graphScreen(
-                          notifier, _readNote, _openInOrgro, _writer, _files),
-                ),
-              ),
-              icon: const Icon(Icons.hub_outlined),
-              label: const Text('Show graph'),
-            ),
-          if (_result.graph case final graph?)
-            _GraphSummary(
-              graph: graph,
-              unreadable: _result.unreadable,
-              conflicts: _result.conflicts.length,
-            ),
-          if (_result.graph case final graph? when graph.failedFiles.isNotEmpty)
-            _FileList(
-              title: 'Files org-roam skips',
-              files: [
-                for (final entry in graph.failedFiles.entries)
-                  '${entry.key}: ${entry.value}',
-              ],
-            ),
-          if (_result.unreadable.isNotEmpty)
-            _FileList(title: 'Unreadable files', files: _result.unreadable),
-          if (_result.conflicts.isNotEmpty) _conflictList(),
-          Text('Folder: ${_folder?.name}'),
-          OutlinedButton(onPressed: _rescan, child: const Text('Scan again')),
-          TextButton(
-            onPressed: _rebuild,
-            child: const Text('Rebuild index'),
-          ),
-          TextButton(onPressed: _choose, child: const Text('Change folder')),
-        ]);
+        // The graph is shown instead; see [build].
+        return const SizedBox.shrink();
       case _Status.failed:
         return _column([
           Text('Could not read the folder', style: text.titleLarge),
@@ -831,106 +924,11 @@ class _FolderScreenState extends State<FolderScreen>
     }
   }
 
-  /// Every conflict copy, so each can be found and resolved (#13).
-  Widget _conflictList() => _FileList(
-        title: 'Syncthing conflict copies: resolve them in Emacs',
-        files: _result.conflicts,
-        shown: null,
-      );
-
   Widget _column(List<Widget> children) => Column(
         mainAxisSize: MainAxisSize.min,
         spacing: 16,
         children: children,
       );
-}
-
-/// The counts to compare with org-roam's database on the laptop.
-class _GraphSummary extends StatelessWidget {
-  const _GraphSummary({
-    required this.graph,
-    required this.unreadable,
-    required this.conflicts,
-  });
-
-  final RoamGraph graph;
-  final List<String> unreadable;
-
-  /// The number of Syncthing conflict copies in the folder (#13).
-  final int conflicts;
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = [
-      ('files', 'Files', graph.files.length),
-      ('nodes', 'Nodes', graph.nodes.length),
-      ('file-nodes', '  in files', graph.fileNodeCount),
-      ('heading-nodes', '  in headings', graph.headingNodeCount),
-      ('links', 'id: links', graph.links.length),
-      ('dangling', 'Links to missing notes', graph.danglingLinks.length),
-      ('tags', 'Tags', graph.tagCount),
-      ('refs', 'Refs', graph.refCount),
-      ('aliases', 'Aliases', graph.aliasCount),
-      if (graph.duplicateIds.isNotEmpty)
-        ('duplicates', 'IDs used twice', graph.duplicateIds.length),
-      if (graph.failedFiles.isNotEmpty)
-        ('skipped', 'Files org-roam skips', graph.failedFiles.length),
-      if (unreadable.isNotEmpty)
-        ('unreadable', 'Unreadable files', unreadable.length),
-      if (conflicts > 0) ('conflicts', 'Syncthing conflict copies', conflicts),
-    ];
-    final bold = Theme.of(context)
-        .textTheme
-        .bodyLarge
-        ?.copyWith(fontWeight: FontWeight.bold);
-    return Table(
-      defaultColumnWidth: const IntrinsicColumnWidth(),
-      children: [
-        for (final (key, label, value) in rows)
-          TableRow(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(0, 4, 24, 4),
-                child: Text(label),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  '$value',
-                  key: ValueKey('stat-$key'),
-                  textAlign: TextAlign.end,
-                  style: bold,
-                ),
-              ),
-            ],
-          ),
-      ],
-    );
-  }
-}
-
-/// Names of files with a problem, so they can be found and fixed.
-class _FileList extends StatelessWidget {
-  const _FileList({required this.title, required this.files, this.shown = 10});
-
-  /// How many files are listed by name; all when null.
-  final int? shown;
-
-  final String title;
-  final List<String> files;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: Theme.of(context).textTheme.titleSmall),
-        for (final file in files.take(shown ?? files.length)) Text(file),
-        if (shown case final limit? when files.length > limit)
-          Text('and ${files.length - limit} more'),
-      ],
-    );
-  }
 }
 
 /// The files of the chosen folder at the latest scan, for images in notes

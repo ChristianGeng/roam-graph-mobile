@@ -9,14 +9,15 @@ them, Syncthing keeps both: the file, and a copy named
 ~<name>.sync-conflict-<date>-<device>.org~.
 
 * Solve a sync conflict
-1. Look at the first screen of the app. It lists every conflict copy under
-   "Syncthing conflict copies: resolve them in Emacs", and a message says
-   when a new one appears.
+1. Look at the warning icon in the graph's top bar. In the graph, open *More*,
+   then *Folder and index*; the icon opens the same sheet. It lists every
+   conflict copy under "Syncthing conflict copies: resolve them in Emacs",
+   and a message says when a new one appears.
 2. On the laptop, open the file and the copy in Emacs and keep what is
    right. The app does not merge them: which version is right is a
    decision for Emacs.
 3. Delete the copy there. Syncthing then removes it everywhere.
-4. In the app, tap *Scan again* on the first screen.
+4. In the app, open *More*, then *Folder and index*, and tap *Scan again*.
 
 * Fewer conflicts
 Before every write the app checks that the file is still the version it

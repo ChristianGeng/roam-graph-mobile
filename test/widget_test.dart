@@ -315,7 +315,7 @@ Future<TestGraphIndex> start(
       nodeMemory: nodeMemory,
       editHistory: history ?? MemoryEditHistory(),
       viewSettings: viewSettings ?? MemoryViewSettingsStore(),
-      graphScreen: (graph, readNote, openInOrgro, writer, files) {
+      graphScreen: (graph, readNote, openInOrgro, writer, files, folder) {
         lastWriter = writer;
         lastGraph = graph;
         return GraphScreen(
@@ -326,6 +326,7 @@ Future<TestGraphIndex> start(
         writer: writer,
         nodeMemory: nodeMemory,
         computeLayout: layoutHere,
+        folder: folder,
       );
       },
     ),
@@ -353,6 +354,21 @@ Future<void> tapText(WidgetTester tester, String text) async {
   await tester.ensureVisible(find.text(text));
   await tester.pump();
   await tester.tap(find.text(text));
+}
+
+/// Opens the sheet "Folder and index" of the graph, from the "More" menu
+/// (#196). It shows what the start page showed before.
+Future<void> openFolderSheet(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('More'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Folder and index'));
+  await tester.pumpAndSettle();
+}
+
+/// Closes the sheet by a tap on the barrier above it.
+Future<void> closeFolderSheet(WidgetTester tester) async {
+  await tester.tapAt(const Offset(5, 5));
+  await tester.pumpAndSettle();
 }
 
 /// The counts of [someTexts]. [unreadable] is the number of files shown as
@@ -388,7 +404,6 @@ void main() {
           mode);
     }
     // In dark, the graph view and its overlays draw without errors.
-    await tapText(tester, 'Show graph');
     await tester.pumpAndSettle();
     expect(Theme.of(tester.element(find.byType(GraphScreen))).brightness,
         Brightness.dark);
@@ -427,6 +442,7 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
 
+    await openFolderSheet(tester);
     expect(stat(tester, 'files'), '2');
     expect(find.text('Folder: org'), findsOneWidget);
   });
@@ -446,16 +462,143 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(access.pickCalls, 1);
+    await openFolderSheet(tester);
     expectSomeNotes(tester);
     expect(find.text('Folder: org'), findsOneWidget);
   });
 
-  testWidgets('"Show graph" opens the graph of the indexed notes',
+  testWidgets('a known folder opens the graph at once (#196)',
+      (tester) async {
+    await start(tester, withNotes(saved: org));
+
+    expect(find.byType(GraphScreen), findsOneWidget);
+    expect(find.text('Whole graph'), findsOneWidget);
+    expect(find.text('Choose org folder'), findsNothing);
+    expect(find.text('Scan again'), findsNothing);
+    // Back has nowhere to go but out of the app.
+    expect(Navigator.of(tester.element(find.byType(GraphScreen))).canPop(),
+        isFalse);
+  });
+
+  testWidgets('without a graph, the start page stays (#196)', (tester) async {
+    await start(tester, FakeFolderAccess());
+    expect(find.byType(GraphScreen), findsNothing);
+    expect(find.text('Choose your org folder'), findsOneWidget);
+  });
+
+  testWidgets('the graph opens after choosing a folder (#196)',
+      (tester) async {
+    await start(tester, withNotes(picked: org));
+    await tapText(tester, 'Choose org folder');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GraphScreen), findsOneWidget);
+    expect(find.text('Choose org folder'), findsNothing);
+  });
+
+  testWidgets('the graph opens by itself for a graph without nodes (#196)',
+      (tester) async {
+    await start(
+      tester,
+      FakeFolderAccess(saved: writableOrg, files: [
+        const FolderFile(path: 'roam', uri: 'content://r', isDirectory: true),
+        const FolderFile(path: 'roam/x.org', uri: 'content://x', modified: 1),
+      ], texts: {
+        'roam/x.org': '#+title: Not a node\n',
+      }),
+    );
+
+    expect(find.byType(GraphScreen), findsOneWidget);
+    expect(find.byTooltip('New node'), findsOneWidget);
+  });
+
+  testWidgets('"More, Folder and index" opens the sheet with the counts (#196)',
+      (tester) async {
+    await start(tester, withNotes(saved: org));
+    expect(stat(tester, 'files'), isNull);
+
+    await openFolderSheet(tester);
+
+    expectSomeNotes(tester);
+    expect(find.text('Folder: org'), findsOneWidget);
+    expect(find.text('Scan again'), findsOneWidget);
+    expect(find.text('Rebuild index'), findsOneWidget);
+    expect(find.text('Change folder'), findsOneWidget);
+
+    await closeFolderSheet(tester);
+    expect(stat(tester, 'files'), isNull);
+    expect(find.byType(GraphScreen), findsOneWidget);
+  });
+
+  testWidgets('"Scan again" in the sheet adds a new note to the graph (#196)',
+      (tester) async {
+    final access = withNotes(saved: org);
+    await start(tester, access);
+    await openFolderSheet(tester);
+    expect(stat(tester, 'nodes'), '3');
+
+    access
+      ..files = [
+        ...someFiles(),
+        const FolderFile(path: 'roam/c.org', uri: 'content://c2', modified: 1),
+      ]
+      ..texts = {
+        ...someTexts,
+        'roam/c.org': ':PROPERTIES:\n:ID: c\n:END:\n#+title: C\n',
+      };
+    await tapText(tester, 'Scan again');
+    await tester.pumpAndSettle();
+
+    // The sheet stays open and shows the new count; so does the graph.
+    expect(stat(tester, 'nodes'), '4');
+    expect(lastGraph!.value.nodes.containsKey('c'), isTrue);
+  });
+
+  group('the warning icon (#196)', () {
+    testWidgets('is not shown without problems', (tester) async {
+      await start(
+          tester,
+          FakeFolderAccess(
+              saved: org,
+              files: someFiles()
+                  .where((f) => !f.path.contains('.sync-conflict-'))
+                  .toList(),
+              texts: someTexts));
+      expect(find.byIcon(Icons.warning_amber), findsNothing);
+    });
+
+    testWidgets('is shown with an unreadable file, and opens the sheet',
+        (tester) async {
+      await start(
+        tester,
+        FakeFolderAccess(
+          saved: org,
+          files: someFiles()
+              .where((f) => !f.path.contains('.sync-conflict-'))
+              .toList(),
+          texts: {'roam/a.org': someTexts['roam/a.org']!},
+        ),
+      );
+      expect(find.byTooltip('Problems in the folder: 1'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.warning_amber));
+      await tester.pumpAndSettle();
+      expect(stat(tester, 'unreadable'), '1');
+      expect(find.text('b.org'), findsOneWidget);
+    });
+
+    testWidgets('is shown with a conflict copy', (tester) async {
+      // someFiles() has roam/b.sync-conflict-1.org next to roam/b.org.
+      await start(tester, withNotes(saved: org));
+      expect(find.byTooltip('Problems in the folder: 1'), findsOneWidget);
+    });
+  });
+
+  testWidgets('a known folder opens the graph of the indexed notes',
       (tester) async {
     final access = withNotes(saved: org);
     await start(tester, access);
 
-    await tapText(tester, 'Show graph');
     await tester.pumpAndSettle();
 
     expect(find.text('Whole graph'), findsOneWidget);
@@ -473,7 +616,6 @@ void main() {
       (tester) async {
     final access = withNotes(saved: org);
     await start(tester, access);
-    await tapText(tester, 'Show graph');
     await tester.pumpAndSettle();
 
     // Syncthing brought c, which links to a and b.
@@ -503,7 +645,6 @@ void main() {
       (tester) async {
     final access = withNotes(saved: org);
     await start(tester, access);
-    await tapText(tester, 'Show graph');
     await tester.pumpAndSettle();
     await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
     await tester.pumpAndSettle();
@@ -524,7 +665,6 @@ void main() {
         '[[id:b]]\n\n[[file:./img/p.png]]\n\n[[file:../include/q.png]]\n';
 
     Future<void> openA(WidgetTester tester) async {
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
       await tester.pumpAndSettle();
@@ -589,7 +729,6 @@ void main() {
         WidgetTester tester, ChosenFolder folder) async {
       final access = withNotes(saved: folder, picked: writableOrg);
       await start(tester, access);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('New node'));
       await tester.pumpAndSettle();
@@ -732,7 +871,6 @@ void main() {
       final access = withNotes(saved: writableOrg);
       final history = MemoryEditHistory();
       await start(tester, access, history: history);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       return (access, lastWriter!.editor!, history);
     }
@@ -796,7 +934,6 @@ void main() {
         (tester) async {
       final access = withNotes(saved: org);
       await start(tester, access);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       final editor = lastWriter!.editor!;
       final base = (await editor.read('a.org'))!;
@@ -814,7 +951,6 @@ void main() {
       final access = withNotes(saved: writableOrg);
       final history = MemoryEditHistory();
       await start(tester, access, history: history);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       // The test screen is a tablet in landscape: a is in the side pane.
       final before = access.texts['roam/a.org']!;
@@ -841,7 +977,6 @@ void main() {
         (tester) async {
       final access = withNotes(saved: org);
       await start(tester, access);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Edit'));
       await tester.pumpAndSettle();
@@ -866,7 +1001,6 @@ void main() {
             hasAccess: true,
             canWrite: true);
       await start(tester, access);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Edit'));
       await tester.pumpAndSettle();
@@ -891,7 +1025,6 @@ void main() {
         {MemoryEditHistory? history}) async {
       final access = withNotes(saved: writableOrg);
       await start(tester, access, history: history);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Edit'));
       await tester.pumpAndSettle();
@@ -1004,7 +1137,6 @@ void main() {
       final history = MemoryEditHistory();
       final access = withNotes(saved: writableOrg);
       await start(tester, access, history: history);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       final original = access.texts['roam/a.org']!;
       // An edit made here keeps the original.
@@ -1043,7 +1175,6 @@ void main() {
             hasAccess: true,
             canWrite: true);
       await start(tester, access, history: history);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Edit'));
       await tester.pumpAndSettle();
@@ -1064,7 +1195,6 @@ void main() {
 
     testWidgets('no earlier versions yet says so', (tester) async {
       await start(tester, withNotes(saved: writableOrg));
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Edit'));
       await tester.pumpAndSettle();
@@ -1135,7 +1265,6 @@ void main() {
     Future<FakeFolderAccess> showA(WidgetTester tester) async {
       final access = withNotes(saved: writableOrg);
       await start(tester, access);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       // The test screen is a tablet in landscape: a is in the side pane.
       return access;
@@ -1205,15 +1334,16 @@ void main() {
       // someFiles() has roam/b.sync-conflict-1.org next to roam/b.org.
       final access = withNotes(saved: org);
       await start(tester, access);
+      await openFolderSheet(tester);
       expect(stat(tester, 'conflicts'), '1');
       expect(find.text('roam/b.sync-conflict-1.org'), findsOneWidget);
       // The copy is no node: the counts are those of the notes alone.
       expectSomeNotes(tester);
-      // This screen lists it; no message on top.
+      // The sheet lists it; no message on top.
       expect(find.byType(SnackBar), findsNothing);
+      await closeFolderSheet(tester);
 
       // In the graph, Syncthing makes another one; it is reported there.
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       access.files = [
         ...access.files,
@@ -1232,7 +1362,6 @@ void main() {
         (tester) async {
       final access = withNotes(saved: org);
       await start(tester, access);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
 
       // b's copy is resolved in Emacs, and Syncthing makes one of a.
@@ -1275,17 +1404,20 @@ void main() {
               uri: 'content://n$i'),
       ];
       await start(tester, access);
+      await openFolderSheet(tester);
       expect(stat(tester, 'conflicts'), '13');
       await tester.scrollUntilVisible(
           find.text('roam/n21.sync-conflict-20261015-101021-ABCDEFG.org'),
-          200);
+          200,
+          scrollable: find.descendant(
+              of: find.byType(DraggableScrollableSheet),
+              matching: find.byType(Scrollable)));
       expect(find.textContaining(' more'), findsNothing);
     });
 
     testWidgets('several nodes captured in quick succession', (tester) async {
       final access = withNotes(saved: writableOrg);
       await start(tester, access);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       for (var i = 1; i <= 5; i++) {
         await tester.tap(find.byTooltip('New node'));
@@ -1413,9 +1545,10 @@ void main() {
       'roam/x.org': '#+title: Not a node\n',
     });
     await start(tester, access);
+    await openFolderSheet(tester);
     expect(stat(tester, 'nodes'), '0');
+    await closeFolderSheet(tester);
 
-    await tapText(tester, 'Show graph');
     await tester.pumpAndSettle();
     expect(find.text('There are no nodes in roam/.'), findsOneWidget);
     await tester.tap(find.byTooltip('New node'));
@@ -1435,6 +1568,7 @@ void main() {
   testWidgets('a folder chosen earlier is indexed on start', (tester) async {
     await start(tester, withNotes(saved: org));
 
+    await openFolderSheet(tester);
     expectSomeNotes(tester);
   });
 
@@ -1457,6 +1591,7 @@ void main() {
       ),
     );
 
+    await openFolderSheet(tester);
     expectSomeNotes(tester);
   });
 
@@ -1470,6 +1605,7 @@ void main() {
       ),
     );
 
+    await openFolderSheet(tester);
     expect(stat(tester, 'files'), '1');
     expect(stat(tester, 'unreadable'), '1');
     // Named, relative to roam/, so it can be found.
@@ -1489,6 +1625,7 @@ void main() {
       ),
     );
 
+    await openFolderSheet(tester);
     expect(stat(tester, 'files'), '1');
     expect(stat(tester, 'skipped'), '1');
     expect(find.textContaining('b.org: Unterminated quote'), findsOneWidget);
@@ -1507,6 +1644,7 @@ void main() {
       ),
     );
 
+    await openFolderSheet(tester);
     expect(stat(tester, 'nodes'), '1');
     expect(stat(tester, 'duplicates'), '1');
   });
@@ -1537,6 +1675,7 @@ void main() {
   testWidgets('cancelling the picker keeps the current folder', (tester) async {
     final access = withNotes(saved: org);
     await start(tester, access);
+    await openFolderSheet(tester);
 
     await tapText(tester, 'Change folder');
     await tester.pumpAndSettle();
@@ -1550,12 +1689,22 @@ void main() {
       (tester) async {
     final access = withNotes(saved: org);
     await start(tester, access);
-    expect(access.readPaths, ['roam/a.org', 'roam/b.org']);
+    // The scans read several files at once; the open graph's note pane
+    // reads single notes, which these checks leave out.
+    List<List<String>> scans() =>
+        [for (final call in access.readCalls) if (call.length > 1) call];
+    expect(scans(), [
+      ['roam/a.org', 'roam/b.org']
+    ]);
+    await openFolderSheet(tester);
 
     // Nothing changed: nothing is read.
     await tapText(tester, 'Scan again');
     await tester.pumpAndSettle();
-    expect(access.readPaths, hasLength(2));
+    expect(scans(), hasLength(1));
+    // b.org is read by scans only; neither a scan nor the note pane read it
+    // again.
+    expect(access.readPaths.where((path) => path == 'roam/b.org'), hasLength(1));
     expectSomeNotes(tester);
 
     // b.org changed: only b.org is read, and the change shows.
@@ -1572,7 +1721,8 @@ void main() {
       };
     await tapText(tester, 'Scan again');
     await tester.pumpAndSettle();
-    expect(access.readPaths.skip(2), ['roam/b.org']);
+    expect(access.readPaths.where((path) => path == 'roam/b.org'), hasLength(2));
+    expect(scans(), hasLength(1));
     expect(stat(tester, 'nodes'), '2');
     expect(stat(tester, 'refs'), '0');
   });
@@ -1580,6 +1730,7 @@ void main() {
   testWidgets('a file that is gone leaves the graph', (tester) async {
     final access = withNotes(saved: org);
     await start(tester, access);
+    await openFolderSheet(tester);
 
     access.files = [
       for (final f in someFiles())
@@ -1596,18 +1747,23 @@ void main() {
     final access = withNotes(saved: org);
     final index = await start(tester, access);
     expect(index.rebuilds, 1); // the first index of a folder
+    await openFolderSheet(tester);
 
     await tapText(tester, 'Rebuild index');
     await tester.pumpAndSettle();
 
     expect(index.rebuilds, 2);
-    expect(access.readPaths, hasLength(4));
+    expect([for (final call in access.readCalls) if (call.length > 1) call], [
+      ['roam/a.org', 'roam/b.org'],
+      ['roam/a.org', 'roam/b.org'],
+    ]);
     expectSomeNotes(tester);
   });
 
   testWidgets('a failed rebuild keeps the old index', (tester) async {
     final access = withNotes(saved: org);
     final index = await start(tester, access);
+    await openFolderSheet(tester);
 
     access.listError = PlatformException(code: 'io', message: 'gone');
     await tapText(tester, 'Rebuild index');
@@ -1619,6 +1775,7 @@ void main() {
   testWidgets('a rebuild keeps a file it cannot read', (tester) async {
     final access = withNotes(saved: org);
     final index = await start(tester, access);
+    await openFolderSheet(tester);
 
     access.texts = {'roam/a.org': someTexts['roam/a.org']!};
     await tapText(tester, 'Rebuild index');
@@ -1642,6 +1799,7 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
 
+    await openFolderSheet(tester);
     expectSomeNotes(tester);
   });
 
@@ -1650,6 +1808,7 @@ void main() {
     final access = withNotes(saved: org);
     final index = await start(tester, access);
     expect(index.folder, org.uri);
+    await openFolderSheet(tester);
 
     // Same paths and times as before, other content.
     const other =
@@ -1664,7 +1823,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(index.folder, other.uri);
-    expect(access.readPaths.skip(2), ['roam/a.org', 'roam/b.org']);
+    expect(
+        [for (final call in access.readCalls) if (call.length > 1) call].last,
+        ['roam/a.org', 'roam/b.org']);
     expect(index.db.loadGraph().nodes.keys,
         unorderedEquals(['other-a', 'other-b']));
   });
@@ -1685,7 +1846,8 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
 
-    expect(access.readPaths.last, 'roam/c.org');
+    expect(access.readPaths, contains('roam/c.org'));
+    await openFolderSheet(tester);
     expect(stat(tester, 'files'), '3');
   });
 
@@ -1705,6 +1867,8 @@ void main() {
     await tapText(tester, 'Try again');
     await tester.pumpAndSettle();
 
+    expect(find.byType(GraphScreen), findsOneWidget);
+    await openFolderSheet(tester);
     expectSomeNotes(tester);
   });
 }

@@ -40,7 +40,6 @@ Future<void> openTasks(WidgetTester tester, FakeFolderAccess access,
     EditHistory? history,
     void Function(BuildContext, String)? onShowInGraph}) async {
   await start(tester, access, history: history);
-  await tapText(tester, 'Show graph');
   await tester.pumpAndSettle();
   final context = tester.element(find.byType(GraphScreen));
   if (pane != null) {

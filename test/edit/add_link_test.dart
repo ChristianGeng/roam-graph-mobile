@@ -11,7 +11,6 @@ import '../widget_test.dart';
 Future<void> openNode(WidgetTester tester, FakeFolderAccess access, String id,
     {EditHistory? history}) async {
   await start(tester, access, history: history);
-  await tapText(tester, 'Show graph');
   await tester.pumpAndSettle();
   NodeScreen.open(
     tester.element(find.byType(GraphScreen)),

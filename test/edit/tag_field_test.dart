@@ -181,7 +181,6 @@ void main() {
     testWidgets('"New node"', (tester) async {
       final access = withNotes(saved: writableOrg, picked: writableOrg);
       await start(tester, access);
-      await tapText(tester, 'Show graph');
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('New node'));
       await tester.pumpAndSettle();
