@@ -777,6 +777,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   AiSettings? _loaded;
   String? _problem;
 
+  /// Whether a save is running. The page stays until it ends, so a key
+  /// that is written is never left behind by a discarded draft.
+  bool _saving = false;
+
   /// Changes whenever the page's state does, so an open sub-page, which is
   /// another route, builds again with the shared draft.
   final _tick = ValueNotifier<int>(0);
@@ -1008,6 +1012,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       newNoteLanguage: language,
     );
     final keys = AiSettingsScope.keysOf(context);
+    setState(() {
+      _saving = true;
+      _problem = null;
+    });
     try {
       for (final MapEntry(key: id, value: draft) in _drafts.entries) {
         final key = draft.key.text.trim();
@@ -1024,6 +1032,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       if (mounted) {
         setState(() => _problem = 'Could not save the settings: $e');
       }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -1144,7 +1154,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       // The page asks before it goes with unsaved changes (decision 109).
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) unawaited(_leave());
+        if (!didPop && !_saving) unawaited(_leave());
       },
       child: Scaffold(
         appBar: AppBar(
@@ -1153,7 +1163,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             IconButton(
               tooltip: 'Save',
               icon: const Icon(Icons.check),
-              onPressed: ready ? _save : null,
+              onPressed: ready && !_saving ? _save : null,
             ),
           ],
         ),
