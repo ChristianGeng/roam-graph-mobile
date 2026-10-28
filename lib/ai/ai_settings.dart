@@ -87,6 +87,10 @@ class ProviderSettings {
     if (json is! Map) return base;
     String text(String key, String fallback) =>
         json[key] is String ? json[key] as String : fallback;
+    String nonEmpty(String key, String fallback) => switch (json[key]) {
+          final String value when value.trim().isNotEmpty => value,
+          _ => fallback,
+        };
     // An empty image model was saved before the provider made images:
     // the preset's default then (#120).
     String model(String key) => switch (json[key]) {
@@ -107,8 +111,10 @@ class ProviderSettings {
               orElse: () => base.api)
           : preset.api,
       baseUrl: text('baseUrl', base.baseUrl),
-      defaultModel: text('defaultModel', base.defaultModel),
-      strongModel: text('strongModel', base.strongModel),
+      // An empty model was saved before the preset had one (OpenRouter
+      // before #190): the preset's model then.
+      defaultModel: nonEmpty('defaultModel', base.defaultModel),
+      strongModel: nonEmpty('strongModel', base.strongModel),
       euOnly: json['euOnly'] is bool ? json['euOnly'] as bool : base.euOnly,
       imageModel: model('imageModel'),
       imageApi: api('imageApi'),
