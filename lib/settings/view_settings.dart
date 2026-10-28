@@ -465,14 +465,28 @@ const _aiSubtitleFallback = 'Notes hidden from AI, and the provider, '
     'model and key of the AI chat';
 
 /// The AI row's subtitle: the chat provider and model of the saved AI
-/// settings, such as "Mistral · mistral-large-4".
-String _aiSubtitle(BuildContext context) {
-  final scope = context.dependOnInheritedWidgetOfExactType<AiSettingsScope>();
-  final settings = scope?.notifier?.value;
-  if (settings == null) return _aiSubtitleFallback;
-  final model = settings.providerSettings().defaultModel.trim();
-  if (model.isEmpty) return _aiSubtitleFallback;
-  return '${settings.preset.name} · $model';
+/// settings, such as "Mistral · mistral-large-4". Until they are loaded,
+/// and where they cannot be read, it is [_aiSubtitleFallback].
+class _AiSubtitle extends StatelessWidget {
+  const _AiSubtitle();
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = context.getInheritedWidgetOfExactType<AiSettingsScope>();
+    return FutureBuilder<void>(
+      future: scope?.loaded,
+      builder: (context, loading) {
+        if (loading.connectionState != ConnectionState.done) {
+          return const Text(_aiSubtitleFallback);
+        }
+        final settings = AiSettingsScope.of(context);
+        final model = settings.providerSettings().defaultModel.trim();
+        return Text(model.isEmpty
+            ? _aiSubtitleFallback
+            : '${settings.preset.name} · $model');
+      },
+    );
+  }
 }
 
 /// Saves [settings]; a failure shows in a snack bar.
@@ -602,7 +616,7 @@ class SettingsScreen extends StatelessWidget {
             key: const ValueKey('settings-ai'),
             leading: const Icon(Icons.auto_awesome_outlined),
             title: const Text('AI'),
-            subtitle: Text(_aiSubtitle(context)),
+            subtitle: const _AiSubtitle(),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => AiSettingsScreen.open(context, graph: graph),
           ),
@@ -626,6 +640,14 @@ class SettingsScreen extends StatelessWidget {
                   ),
             ),
           ),
+          ListTile(
+            key: const ValueKey('settings-image-folder'),
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Folder for new images'),
+            subtitle: Text('roam/${settings.imageFolder == '.' ? '' : '${settings.imageFolder}/'}'
+                ' · images the AI makes go here'),
+            onTap: () => _chooseImageFolder(context, settings),
+          ),
           if (isDesktop)
             ListTile(
               key: const ValueKey('settings-emacs'),
@@ -635,14 +657,6 @@ class SettingsScreen extends StatelessWidget {
                   'it with -n +LINE FILE'),
               onTap: () => _chooseEmacs(context, settings),
             ),
-          ListTile(
-            key: const ValueKey('settings-image-folder'),
-            leading: const Icon(Icons.image_outlined),
-            title: const Text('Folder for new images'),
-            subtitle: Text('roam/${settings.imageFolder == '.' ? '' : '${settings.imageFolder}/'}'
-                ' · images the AI makes go here'),
-            onTap: () => _chooseImageFolder(context, settings),
-          ),
         ],
       ),
     );

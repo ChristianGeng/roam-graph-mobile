@@ -86,16 +86,16 @@ void main() {
       expect(find.textContaining('roam/pictures/new/'), findsOneWidget);
     });
 
-    testWidgets('"Emacs command" is shown on the desktop, between View and '
-        'the images', (tester) async {
+    testWidgets('"Emacs command" is shown on the desktop, after the images',
+        (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       try {
         await pumpSettings(tester);
         final heading = top(tester, 'settings-note-files');
         final emacs = top(tester, 'settings-emacs');
         final images = top(tester, 'settings-image-folder');
-        expect(heading, lessThan(emacs));
-        expect(emacs, lessThan(images));
+        expect(heading, lessThan(images));
+        expect(images, lessThan(emacs));
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
