@@ -521,7 +521,12 @@ class _FolderScreenState extends State<FolderScreen>
 
   /// Opens the folder picker. If the user cancels, nothing changes.
   Future<void> _choose() {
-    final previous = (_status, _folder, _result);
+    // While a scan runs, the state to come back to is the settled one.
+    final previous = (
+      _status == _Status.loading ? _settled : _status,
+      _folder,
+      _result,
+    );
     return _guard((generation) async {
       final folder = await widget.folderAccess.pickFolder();
       if (folder == null) {
@@ -676,7 +681,7 @@ class _FolderScreenState extends State<FolderScreen>
         : 0;
     setState(() {
       _status = status;
-      _settled = status;
+      if (status != _Status.loading) _settled = status;
       _folder = folder;
       _result = result;
     });
