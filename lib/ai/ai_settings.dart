@@ -1123,7 +1123,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       title: Text(title),
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => _openPage(title, body),
+      // Not while a save runs: its last step closes this page.
+      onTap: _saving ? null : () => _openPage(title, body),
     );
   }
 
