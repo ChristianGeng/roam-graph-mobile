@@ -195,6 +195,8 @@ void main() {
       home: const SettingsScreen(),
     ));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-view')));
+    await tester.pumpAndSettle();
     final circo = find.byKey(const ValueKey('start-layout-circo'));
     await tester.scrollUntilVisible(circo, 200,
         scrollable: find.byType(Scrollable).first);

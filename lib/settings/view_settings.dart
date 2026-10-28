@@ -460,8 +460,35 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
   }
 }
 
-/// The settings page: for now, how far sections are open when a note
-/// opens.
+/// What the AI row says when the AI settings cannot be read.
+const _aiSubtitleFallback = 'Notes hidden from AI, and the provider, '
+    'model and key of the AI chat';
+
+/// The AI row's subtitle: the chat provider and model of the saved AI
+/// settings, such as "Mistral · mistral-large-4".
+String _aiSubtitle(BuildContext context) {
+  final scope = context.dependOnInheritedWidgetOfExactType<AiSettingsScope>();
+  final settings = scope?.notifier?.value;
+  if (settings == null) return _aiSubtitleFallback;
+  final model = settings.providerSettings().defaultModel.trim();
+  if (model.isEmpty) return _aiSubtitleFallback;
+  return '${settings.preset.name} · $model';
+}
+
+/// Saves [settings]; a failure shows in a snack bar.
+Future<void> _saveSettings(BuildContext context, ViewSettings settings) async {
+  try {
+    await ViewSettingsScope.change(context, settings);
+  } on Exception catch (e) {
+    if (context.mounted) {
+      showErrorSnackBar(ScaffoldMessenger.of(context),
+          'Could not save the setting: $e');
+    }
+  }
+}
+
+/// The settings page (#189): a short list with the categories AI and
+/// View, and the two settings for note files (#116, #112).
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, this.graph});
 
@@ -473,20 +500,6 @@ class SettingsScreen extends StatelessWidget {
         context,
         MaterialPageRoute<void>(builder: (_) => SettingsScreen(graph: graph)),
       );
-
-  Future<void> _choose(BuildContext context, SectionsOnOpen? value) async {
-    if (value == null) return;
-    final settings = ViewSettingsScope.of(context);
-    try {
-      await ViewSettingsScope.change(
-          context, settings.copyWith(sectionsOnOpen: value));
-    } on Exception catch (e) {
-      if (context.mounted) {
-        showErrorSnackBar(ScaffoldMessenger.of(context),
-            'Could not save the setting: $e');
-      }
-    }
-  }
 
   /// Asks for the Emacs command (#116); empty is the system's default.
   Future<void> _chooseEmacs(BuildContext context, ViewSettings settings) async {
@@ -522,7 +535,7 @@ class SettingsScreen extends StatelessWidget {
     );
     field.dispose();
     if (chosen != null && context.mounted) {
-      await _save(context, settings.copyWith(emacsClient: chosen));
+      await _saveSettings(context, settings.copyWith(emacsClient: chosen));
     }
   }
 
@@ -572,37 +585,121 @@ class SettingsScreen extends StatelessWidget {
     );
     field.dispose();
     if (chosen != null && context.mounted) {
-      await _save(context, settings.copyWith(imageFolder: chosen));
-    }
-  }
-
-  Future<void> _save(BuildContext context, ViewSettings settings) async {
-    try {
-      await ViewSettingsScope.change(context, settings);
-    } on Exception catch (e) {
-      if (context.mounted) {
-        showErrorSnackBar(ScaffoldMessenger.of(context),
-            'Could not save the setting: $e');
-      }
+      await _saveSettings(context, settings.copyWith(imageFolder: chosen));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final settings = ViewSettingsScope.of(context);
-    final current = settings.sectionsOnOpen;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
+          // The AI settings keep their own file, with the keys in secure
+          // storage (decision 45); this is the way to them.
+          ListTile(
+            key: const ValueKey('settings-ai'),
+            leading: const Icon(Icons.auto_awesome_outlined),
+            title: const Text('AI'),
+            subtitle: Text(_aiSubtitle(context)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => AiSettingsScreen.open(context, graph: graph),
+          ),
+          ListTile(
+            key: const ValueKey('settings-view'),
+            leading: const Icon(Icons.visibility_outlined),
+            title: const Text('View'),
+            subtitle: Text(
+                '${settings.theme.label} · ${settings.startLayout.label}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => ViewSettingsScreen.open(context),
+          ),
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text(
+              'Note files',
+              key: const ValueKey('settings-note-files'),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+            ),
+          ),
+          if (isDesktop)
+            ListTile(
+              key: const ValueKey('settings-emacs'),
+              leading: const Icon(Icons.edit_note_outlined),
+              title: const Text('Emacs command'),
+              subtitle: Text('${settings.emacsCommand} · "Open in Emacs" runs '
+                  'it with -n +LINE FILE'),
+              onTap: () => _chooseEmacs(context, settings),
+            ),
+          ListTile(
+            key: const ValueKey('settings-image-folder'),
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Folder for new images'),
+            subtitle: Text('roam/${settings.imageFolder == '.' ? '' : '${settings.imageFolder}/'}'
+                ' · images the AI makes go here'),
+            onTap: () => _chooseImageFolder(context, settings),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The page "View" (#189): the theme, the sections when a note opens, the
+/// graph layout at start and the graph width on the tablet.
+class ViewSettingsScreen extends StatelessWidget {
+  const ViewSettingsScreen({super.key});
+
+  static Future<void> open(BuildContext context) => Navigator.push(
+        context,
+        MaterialPageRoute<void>(builder: (_) => const ViewSettingsScreen()),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = ViewSettingsScope.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('View')),
+      body: ListView(
+        children: [
+          const ListTile(title: Text('Theme')),
+          RadioGroup<AppTheme>(
+            groupValue: settings.theme,
+            onChanged: (value) {
+              if (value != null) {
+                _saveSettings(context, settings.copyWith(theme: value));
+              }
+            },
+            child: Column(
+              children: [
+                for (final value in AppTheme.values)
+                  RadioListTile<AppTheme>(
+                    key: ValueKey('theme-${value.name}'),
+                    value: value,
+                    title: Text(value.label),
+                    subtitle: Text(value.description),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(),
           const ListTile(
             title: Text('Sections when a note opens'),
             subtitle: Text("A note's own #+STARTUP: line comes first, as "
                 'in Emacs. Tap a heading to open or close it.'),
           ),
           RadioGroup<SectionsOnOpen>(
-            groupValue: current,
-            onChanged: (value) => _choose(context, value),
+            groupValue: settings.sectionsOnOpen,
+            onChanged: (value) {
+              if (value != null) {
+                _saveSettings(
+                    context, settings.copyWith(sectionsOnOpen: value));
+              }
+            },
             child: Column(
               children: [
                 for (final value in SectionsOnOpen.values)
@@ -625,7 +722,7 @@ class SettingsScreen extends StatelessWidget {
             groupValue: settings.startLayout,
             onChanged: (value) {
               if (value != null) {
-                _save(context, settings.copyWith(startLayout: value));
+                _saveSettings(context, settings.copyWith(startLayout: value));
               }
             },
             child: Column(
@@ -658,7 +755,7 @@ class SettingsScreen extends StatelessWidget {
                           ViewSettings.defaultGraphShare &&
                       !settings.graphCollapsed
                   ? null
-                  : () => _save(
+                  : () => _saveSettings(
                         context,
                         settings.copyWith(
                           graphShare: ViewSettings.defaultGraphShare,
@@ -666,59 +763,6 @@ class SettingsScreen extends StatelessWidget {
                         ),
                       ),
               child: const Text('Reset'),
-            ),
-          ),
-          const Divider(),
-          // The AI settings keep their own file, with the keys in secure
-          // storage (decision 45); this is the way to them.
-          ListTile(
-            key: const ValueKey('settings-ai'),
-            leading: const Icon(Icons.auto_awesome_outlined),
-            title: const Text('AI'),
-            subtitle: const Text('Notes hidden from AI, and the provider, '
-                'model and key of the AI chat'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => AiSettingsScreen.open(context, graph: graph),
-          ),
-          const Divider(),
-          if (isDesktop) ...[
-            ListTile(
-              key: const ValueKey('settings-emacs'),
-              leading: const Icon(Icons.edit_note_outlined),
-              title: const Text('Emacs command'),
-              subtitle: Text('${settings.emacsCommand} · "Open in Emacs" runs '
-                  'it with -n +LINE FILE'),
-              onTap: () => _chooseEmacs(context, settings),
-            ),
-            const Divider(),
-          ],
-          ListTile(
-            key: const ValueKey('settings-image-folder'),
-            leading: const Icon(Icons.image_outlined),
-            title: const Text('Folder for new images'),
-            subtitle: Text('roam/${settings.imageFolder == '.' ? '' : '${settings.imageFolder}/'}'
-                ' · images the AI makes go here'),
-            onTap: () => _chooseImageFolder(context, settings),
-          ),
-          const Divider(),
-          const ListTile(title: Text('Theme')),
-          RadioGroup<AppTheme>(
-            groupValue: settings.theme,
-            onChanged: (value) {
-              if (value != null) {
-                _save(context, settings.copyWith(theme: value));
-              }
-            },
-            child: Column(
-              children: [
-                for (final value in AppTheme.values)
-                  RadioListTile<AppTheme>(
-                    key: ValueKey('theme-${value.name}'),
-                    value: value,
-                    title: Text(value.label),
-                    subtitle: Text(value.description),
-                  ),
-              ],
             ),
           ),
         ],

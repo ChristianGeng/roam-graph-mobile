@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-28: Settings: a short main page with categories ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Changed: the Settings page is short. It has the rows "AI" and "View", then the heading "Note files" with "Folder for new images" and, on the desktop, "Emacs command". "AI" shows the chat provider and model; "View" shows the theme and the graph layout at start.
+- Changed: the theme, the sections when a note opens, the graph layout at start and the graph width are on the new page "View", with the same texts. All saved values stay as they are.
+
+Closes #189.
+
 ## 2026-10-27: Help pages: a task index, every page checked ([#193](https://github.com/ChristianGeng/roam-graph-mobile/pull/193))
 
 - Added: the help starts with a "How do I …?" list of tasks, each linking to its section, and new pages: AI images, infographics and charts; AI privacy; Install and update the app; The desktop app.

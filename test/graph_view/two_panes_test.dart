@@ -118,6 +118,8 @@ void main() {
       home: const SettingsScreen(),
     ));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-view')));
+    await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
         find.byKey(const ValueKey('settings-graph-width-reset')), 200,
         scrollable: find.byType(Scrollable).first);
@@ -214,6 +216,8 @@ void main() {
             ViewSettingsHost(store: store, child: child!),
         home: const SettingsScreen(),
       ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('settings-view')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('sections-expanded')));
       await tester.pump();

@@ -27,6 +27,8 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-view')));
+    await tester.pumpAndSettle();
     final dark = find.byKey(const ValueKey('theme-dark'));
     await tester.scrollUntilVisible(dark, 200,
         scrollable: find.byType(Scrollable).first);
