@@ -38,7 +38,7 @@ void main() {
     await tester.tap(dark);
     await tester.pumpAndSettle();
     expect(store.settings.theme, AppTheme.dark);
-    expect(Theme.of(tester.element(find.byType(SettingsScreen))).brightness,
+    expect(Theme.of(tester.element(find.byType(ViewSettingsScreen))).brightness,
         Brightness.dark);
   });
 }
