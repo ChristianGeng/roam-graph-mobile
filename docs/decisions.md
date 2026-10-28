@@ -3266,6 +3266,40 @@ rest is one level down.
 - **Step 2 is separate:** splitting the AI settings page into sub-pages
   (Chat, Images, Web access, Agent and limits, Privacy) is a later issue.
 
+## 109. AI settings: six sub-pages, one draft, one Save (#194)
+
+The AI settings page was one long form. It is now a short list of six rows;
+each opens a sub-page and shows its current choice under the name.
+- **The rows, in this order:** "Chat" (provider, key, base URL, default and
+  strong model, "EU only"), "Images" ("Images with:" and "Infographics
+  with:", each with provider, key where it differs, and model), "Agent and
+  limits" (edit mode and the five limits), "Web access" (the switch and the
+  most web searches), "Notes" (language of new notes) and "Privacy"
+  ("Hidden from AI: tags").
+- **Saving: one draft for the whole AI area (option b).** The sub-pages
+  edit the draft of the AI page; the check mark of the AI page saves all of
+  it in one write, as before. While the draft differs from what is saved,
+  the AI page shows "Unsaved changes". Going back from the AI page with
+  unsaved changes asks "Discard changes?" ("Keep editing" or "Discard").
+  Going back from a sub-page to the AI page never asks.
+- **Why not a Save for each sub-page (option a):** the pages share
+  drafts. A provider is the chat provider on "Chat" and an image provider
+  on "Images", with one key and one set of models; the text under "Images"
+  names the chat's provider, and a changed chat provider changes it. With a
+  Save for each page, a key or a model typed on one page could be saved or
+  lost by another page, and the first save would have to know the other
+  page's half-finished edits. One draft has no such case, and the saved
+  file and the secure storage are written exactly as before (decision 45:
+  a key is stored only on Save).
+- **Unchanged:** all saved values, their names and storage (no migration),
+  all field keys and texts, the model picker, the badges and the copy
+  button on errors. The image model of the chat's provider is now on
+  "Images", where "Images with: Same as the chat" uses it; "Reset to the
+  defaults" stays on "Chat" and also resets the image models.
+- **Help:** `assets/help/settings.org` lists the six pages, and the pages
+  that name an AI setting say where it is now, for example "AI → Images →
+  Infographics with:".
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

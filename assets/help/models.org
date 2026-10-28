@@ -17,7 +17,7 @@ the cost. Choose the chat and image providers separately under
 In the model lists in AI settings, a recommended model carries the label
 "Recommended" with its purpose and price class, and the "Recommended"
 chip shows only those. Pick one of these three setups to start. The
-chat's provider and model are set in AI settings; the image settings are *Images with:* and *Infographics with:*.
+chat's provider and model are set in AI settings (AI → Chat); the image settings are *Images with:* and *Infographics with:* (AI → Images).
 
 - *Cheap:* Chat on Vercel AI Gateway with ~deepseek/deepseek-v4-pro~
   (cheap), for questions and for the agent; it calls tools. *Images
@@ -103,7 +103,7 @@ the notes, ask the chat in agent mode; for a picture from a description,
 use "Create image" in the note's edit menu.
 
 An infographic (text, numbers, labels) can use another provider and model
-than an illustration: set *Infographics with:* in AI settings. The same
+than an illustration: set *Infographics with:* in AI settings (AI → Images → Infographics with:). The same
 model picker, with its prices, chooses both. GPT Image
 (~openai/gpt-image-2~) and Gemini Image (~google/gemini-2.5-flash-image~)
 set text well; FLUX and Mistral's image tool, which uses FLUX, do not. A

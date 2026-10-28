@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-28: AI settings: sub-pages for Chat, Images, Agent and limits, Web access, Notes, Privacy ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Changed: the AI settings page is a short list of six rows: Chat, Images, Agent and limits, Web access, Notes and Privacy. Each row opens a page with the same fields and texts as before and shows its current choice under the name.
+- Changed: all six pages change one draft. The check mark on the AI settings list saves it; the list says "Unsaved changes" until then, and going back asks "Discard changes?". Saved values and keys are stored as before.
+- Changed: the help pages say where each AI setting is now.
+
+Closes #194.
+
 ## 2026-10-28: Settings: a short main page with categories ([#195](https://github.com/ChristianGeng/roam-graph-mobile/pull/195))
 
 - Changed: the Settings page is short. It has the rows "AI" and "View", then the heading "Note files" with "Folder for new images" and, on the desktop, "Emacs command". "AI" shows the chat provider and model; "View" shows the theme and the graph layout at start.

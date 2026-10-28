@@ -34,29 +34,41 @@ From top to bottom:
   Drag the divider between them to change it; *Reset* goes back to 40 : 60.
 
 * AI settings
-Tap the check mark in the bar to save. Keys are kept in the device's secure
-storage, never in the notes. From top to bottom:
-- *Hidden from AI: tags*: the tags that hide notes from AI; see
-  [[id:roam-graph-help-hidden-from-ai][Hidden from AI]].
-- *AI chat: provider*: the provider, with its base URL, *Model*, *Strong
-  model (optional)* and key. The list icon (*Choose model*) fetches the
+*AI settings* is a short list of six rows. Each opens a page and shows its
+current choice under the name. From top to bottom:
+- *Chat*: the provider, with its base URL, *Model*, *Strong model
+  (optional)* and key. The list icon (*Choose model*) fetches the
   provider's models, with the chips *Recommended* and *Calls tools* and an
   order by *Model ID* or *Price (lowest first)*; see
-  [[id:roam-graph-help-models][Choosing a model]].
-  Some providers have *EU only*.
-- *Create image: provider*, *Images with:*: the chat's provider by default,
-  or another with its own key, image model and "EU only"; see
-  [[id:roam-graph-help-make-image][Make an image]].
-- *Create image: infographics*, *Infographics with:*: see
-  [[id:roam-graph-help-make-infographic][Make an infographic]].
-- *Notes*, *Language of new notes*: see
-  [[id:roam-graph-help-note-language][The language of notes]].
-- *Web*: *Web access for the AI* (off by default) and *Most web searches
-  for one message*; see [[id:roam-graph-help-web-access][Web access]].
-- *Limits*: *Most tool rounds per message*, *Most tokens per answer,
-  thinking included*, *Let the AI change notes*, *Most changes the agent
+  [[id:roam-graph-help-models][Choosing a model]]. Some providers have
+  *EU only*. Under the name: "Mistral · mistral-large-4".
+- *Images*: *Images with:* (the chat's provider by default, or another with
+  its own key, image model and "EU only"; see
+  [[id:roam-graph-help-make-image][Make an image]]) and *Infographics
+  with:* (see [[id:roam-graph-help-make-infographic][Make an
+  infographic]]). Under the name: "Mistral · Vercel AI Gateway
+  (infographics)".
+- *Agent and limits*: *Let the AI change notes*, *Most changes the agent
   may make for one message*, *Most images the agent may make for one
-  message* and *Most notes one AI change set may edit*; see
-  [[id:roam-graph-help-ai-edit][Let the AI edit notes]].
+  message*, *Most notes one AI change set may edit*, *Most tool rounds per
+  message* and *Most tokens per answer, thinking included*; see
+  [[id:roam-graph-help-ai-edit][Let the AI edit notes]]. Under the name:
+  "Off", "Review" or "Agent".
+- *Web access*: *Web access for the AI* (off by default) and *Most web
+  searches for one message*; see
+  [[id:roam-graph-help-web-access][Web access]]. Under the name: "Off", or
+  "On, at most 5 searches".
+- *Notes*: *Language of new notes*; see
+  [[id:roam-graph-help-note-language][The language of notes]]. Under the
+  name: "English (en)".
+- *Privacy*: *Hidden from AI: tags*, the tags that hide notes from AI; see
+  [[id:roam-graph-help-hidden-from-ai][Hidden from AI]]. Under the name:
+  the tags, or "No tags".
+
+All six pages change one draft. Nothing is saved until I tap the check mark
+in the bar of the AI settings list; keys are then kept in the device's
+secure storage, never in the notes. While something is not saved, the list
+says "Unsaved changes". Going back from the list with unsaved changes asks
+"Discard changes?".
 
 The AI chat itself: [[id:roam-graph-help-ai][AI]].

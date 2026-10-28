@@ -16,7 +16,7 @@ them, and images. This page is about the chat and the agent. See also:
 :END:
 1. Choose a provider and enter its key: *AI settings* (the gear on the
    first screen and in the chat), or *Settings*, *AI* in the graph's
-   *More* menu. Tap the check mark to save. See
+   *More* menu. Open *Chat*, then go back and tap the check mark to save. See
    [[id:roam-graph-help-settings][Settings]].
 2. Open the chat: *Ask AI* in the graph's *More* menu, or in a note's *AI*
    menu (the sparkle icon). From a note, the chat starts with that note.
@@ -30,7 +30,7 @@ the chat; ~id:~ links in answers open the note.
 In the bar of the chat:
 - *Model* (the sliders icon) switches between the default model and the
   strong model. It shows only when *Strong model (optional)* is set to a
-  different model in AI settings.
+  different model in AI settings (AI → Chat).
 - *Recent AI changes* shows what the AI changed.
 - *New chat* starts again.
 - *AI settings* opens the settings.
@@ -52,7 +52,8 @@ An AI app's answer can come back as a new note: share it to Roam Graph
 :PROPERTIES:
 :ID:       roam-graph-help-ai-edit
 :END:
-*Let the AI change notes* in AI settings has three choices:
+*Let the AI change notes* in AI settings (AI → Agent and limits) has three
+choices:
 - *Off: the AI only reads.*
 - *Review each change first*: the AI proposes a change and the chat shows
   it with *Review*. Nothing is saved before I save it there.
@@ -66,7 +67,7 @@ in the chat, keeps the same history, also after the message has gone; it
 has one *Undo these changes* for each action. Newer texts stay unchanged
 and notes that could not be restored are named.
 
-The limits are in AI settings: *Most changes the agent may make for one
+The limits are in AI settings, under AI → Agent and limits: *Most changes the agent may make for one
 message*, *Most images the agent may make for one message* and *Most notes
 one AI change set may edit*. For a large change, ask the agent to explain
 its plan first.
@@ -104,7 +105,7 @@ The AI writes a new note in one language and marks it with Org's
 2. the ~#+language:~ of the note the chat starts from;
 3. the language most of that note's links and backlinks have, when at
    least 2 have one and one value has more than half;
-4. *Language of new notes* in AI settings, under *Notes* (~en~ by
+4. *Language of new notes* in AI settings (AI → Notes; ~en~ by
    default). To change it, type a language code, or tap one of the
    language chips below the field.
 

@@ -17,17 +17,17 @@ tag are left out of the notes that are.
 
 To set the tags:
 1. Open AI settings (*Settings*, *AI*, or the gear on the first screen).
-2. In *Hidden from AI: tags*, tap the graph's tags below the field, or type
+2. Open *Privacy*. In *Hidden from AI: tags*, tap the graph's tags below the field, or type
    a tag, also one no note has yet, and add it with space, comma, colon or
    Enter.
-3. Tap the check mark to save.
+3. Go back to the AI settings list and tap the check mark to save.
 
 A note that is hidden can still be deleted by hand, see
 [[id:roam-graph-help-delete-note][Delete a note]].
 
 * What leaves the phone
 - The chat sends my messages and the notes its tools read to the chat
-  provider, only when I send a message. Each provider's note in AI settings
+  provider, only when I send a message. Each provider's note in AI settings (AI → Chat)
   says where the data goes; some keep it in the EU. "EU only" limits some
   providers to their EU processing.
 - *Create image* sends the description and, if ticked, the note's title to
@@ -45,7 +45,7 @@ A note that is hidden can still be deleted by hand, see
 :PROPERTIES:
 :ID:       roam-graph-help-web-access
 :END:
-With *Web access for the AI* on (AI settings, under *Web*; off by
+With *Web access for the AI* on (AI settings → Web access; off by
 default), the chat can also use the web, for questions the notes do not
 answer:
 - *fetch_web_page* reads a web page, with every provider. The page is

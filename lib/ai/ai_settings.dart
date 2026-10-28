@@ -122,18 +122,21 @@ class ProviderSettings {
 /// "Let the AI change notes" (#82).
 enum AiEditMode {
   /// The AI only reads.
-  off('Off: the AI only reads'),
+  off('Off: the AI only reads', 'Off'),
 
   /// The AI proposes edits; each is saved only after my OK (#39, #76).
-  review('Review each change first'),
+  review('Review each change first', 'Review'),
 
   /// The AI creates, edits and links notes itself; I see a summary
   /// afterwards and can undo all changes of a message.
-  agent('Agent: it changes notes itself, I can undo');
+  agent('Agent: it changes notes itself, I can undo', 'Agent');
 
-  const AiEditMode(this.label);
+  const AiEditMode(this.label, this.shortLabel);
 
   final String label;
+
+  /// One word, for the line under "Agent and limits" in AI settings.
+  final String shortLabel;
 }
 
 /// The settings of the AI features: which tags hide a note from AI (#57),
@@ -698,8 +701,36 @@ class _Draft {
   }
 }
 
-/// The AI settings page: the tags that hide notes from AI (#57), and the
-/// provider of the chat with its key and limits (#59).
+/// A sub-page of the AI settings: [body] builds its fields from the draft
+/// of the AI page, and again whenever [rebuild] changes.
+class _AiSubPage extends StatelessWidget {
+  const _AiSubPage({
+    required this.title,
+    required this.rebuild,
+    required this.body,
+  });
+
+  final String title;
+  final Listenable rebuild;
+  final List<Widget> Function(BuildContext) body;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: ListenableBuilder(
+          listenable: rebuild,
+          builder: (context, _) => ListView(
+            padding: const EdgeInsets.all(16),
+            children: body(context),
+          ),
+        ),
+      );
+}
+
+/// The AI settings page (#194): a short list of rows, each opening a
+/// sub-page: Chat, Images, Agent and limits, Web access, Notes and Privacy.
+/// All sub-pages edit one draft, which the check mark here saves; leaving
+/// with unsaved changes asks (decision 109).
 class AiSettingsScreen extends StatefulWidget {
   const AiSettingsScreen({super.key, this.get = getWithDartIo, this.graph});
 
@@ -745,6 +776,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   AiEditMode _editMode = AiEditMode.agent;
   AiSettings? _loaded;
   String? _problem;
+
+  /// Changes whenever the page's state does, so an open sub-page, which is
+  /// another route, builds again with the shared draft.
+  final _tick = ValueNotifier<int>(0);
 
   /// Each provider's model IDs as its list has them now, to show a chosen
   /// model that is gone (#113), with the connection they were fetched
@@ -883,8 +918,15 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   }
 
   @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _tick.value++;
+  }
+
+  @override
   void dispose() {
     _recheck?.cancel();
+    _tick.dispose();
     _tags?.dispose();
     _rounds.dispose();
     _tokens.dispose();
@@ -985,49 +1027,186 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final ready = _tags != null;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('AI settings'),
+  /// Whether anything on the page differs from the saved settings: a
+  /// typed value, a typed or removed key, a changed choice.
+  bool get _dirty {
+    final saved = _loaded, tags = _tags;
+    if (saved == null || tags == null) return false;
+    if (jsonEncode(tags.tags) != jsonEncode(saved.hiddenTags) ||
+        _provider != saved.provider ||
+        _imageProvider != saved.imageProvider ||
+        _infographicProvider != saved.infographicProvider ||
+        _webAccess != saved.webAccess ||
+        _editMode != saved.editMode ||
+        _rounds.text.trim() != '${saved.maxToolRounds}' ||
+        _tokens.text.trim() != '${saved.maxOutputTokens}' ||
+        _files.text.trim() != '${saved.maxChangeSetFiles}' ||
+        _changes.text.trim() != '${saved.maxAgentChanges}' ||
+        _images.text.trim() != '${saved.maxImagesPerMessage}' ||
+        _webSearches.text.trim() != '${saved.maxWebSearches}' ||
+        _language.text.trim() != saved.newNoteLanguage) {
+      return true;
+    }
+    for (final MapEntry(key: id, value: draft) in _drafts.entries) {
+      if (draft.key.text.trim().isNotEmpty || draft.removeKey) return true;
+      if (jsonEncode(draft.settings.toJson()) !=
+          jsonEncode(saved.providerSettings(id).toJson())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Leaving the page: at once when nothing changed, else after asking.
+  Future<void> _leave() async {
+    if (!_dirty) {
+      Navigator.pop(context);
+      return;
+    }
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text('The changes in AI settings are not saved.'),
         actions: [
-          IconButton(
-            tooltip: 'Save',
-            icon: const Icon(Icons.check),
-            onPressed: ready ? _save : null,
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep editing'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Discard'),
           ),
         ],
       ),
-      body: !ready
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (_problem case final problem?)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      problem,
-                      style:
-                          TextStyle(color: Theme.of(context).colorScheme.error),
-                    ),
-                  ),
-                TagField(
-                  key: const ValueKey('hidden-tags'),
-                  controller: _tags!,
-                  known: _known,
-                  label: 'Hidden from AI: tags',
-                  helperText: 'Notes with one of these tags are never '
-                      'shared with an AI, nor shown to one. Headings with '
-                      'one of them are left out of the notes that are.',
-                ),
-                const SizedBox(height: 24),
-                ..._providerSection(context),
-              ],
-            ),
+    );
+    if (discard == true && mounted) Navigator.pop(context);
+  }
+
+  /// Opens a sub-page with [body]; it edits the draft of this page.
+  Future<void> _openPage(
+      String title, List<Widget> Function(BuildContext) body) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => _AiSubPage(title: title, rebuild: _tick, body: body),
+      ),
+    );
+    // Back here: the lines under the rows show the draft now.
+    if (mounted) setState(() {});
+  }
+
+  /// The language of new notes as the line under "Notes": "English (en)".
+  String _languageLine() {
+    final code = languageCode(_language.text);
+    if (code == null) return _language.text.trim();
+    return commonLanguages.containsKey(code.substring(0, 2))
+        ? languageName(code)
+        : code;
+  }
+
+  Widget _row(String key, IconData icon, String title, String subtitle,
+      List<Widget> Function(BuildContext) body) {
+    return ListTile(
+      key: ValueKey(key),
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _openPage(title, body),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = _tags != null;
+    String? chat, images, agent, web, notes, privacy;
+    if (ready) {
+      final chatPreset = presetById(_provider);
+      final model = _drafts[_provider]?.defaultModel.text.trim() ?? '';
+      chat = model.isEmpty ? chatPreset.name : '${chatPreset.name} · $model';
+      final imagesPreset =
+          _imageProvider.isEmpty ? chatPreset : presetById(_imageProvider);
+      images = _infographicProvider.isEmpty ||
+              _infographicProvider == imagesPreset.id
+          ? imagesPreset.name
+          : '${imagesPreset.name} · '
+              '${presetById(_infographicProvider).name} (infographics)';
+      agent = _editMode.shortLabel;
+      web = _webAccess
+          ? 'On, at most ${_webSearches.text.trim()} searches'
+          : 'Off';
+      notes = _languageLine();
+      final tags = _tags!.tags;
+      privacy = tags.isEmpty ? 'No tags' : tags.join(', ');
+    }
+    return PopScope(
+      // The page asks before it goes with unsaved changes (decision 109).
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_leave());
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('AI settings'),
+          actions: [
+            IconButton(
+              tooltip: 'Save',
+              icon: const Icon(Icons.check),
+              onPressed: ready ? _save : null,
+            ),
+          ],
+        ),
+        body: !ready
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                children: [
+                  if (_problem case final problem?)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: Text(
+                        problem,
+                        style: TextStyle(
+                            color: Theme.of(context).colorScheme.error),
+                      ),
+                    ),
+                  if (_dirty)
+                    const ListTile(
+                      key: ValueKey('ai-unsaved'),
+                      leading: Icon(Icons.edit_note),
+                      title: Text('Unsaved changes'),
+                      subtitle: Text('Tap the check mark to save them.'),
+                    ),
+                  _row('ai-chat', Icons.chat_outlined, 'Chat', chat!,
+                      _chatSection),
+                  _row('ai-images', Icons.image_outlined, 'Images', images!,
+                      _imagesSection),
+                  _row('ai-agent', Icons.tune, 'Agent and limits', agent!,
+                      _agentSection),
+                  _row('ai-web', Icons.public, 'Web access', web!,
+                      _webSection),
+                  _row('ai-notes', Icons.translate, 'Notes', notes!,
+                      _notesSection),
+                  _row('ai-privacy', Icons.lock_outline, 'Privacy', privacy!,
+                      _privacySection),
+                ],
+              ),
+      ),
+    );
+  }
+
+  /// "Privacy": the tags that hide notes from AI (#57).
+  List<Widget> _privacySection(BuildContext context) => [
+        TagField(
+          key: const ValueKey('hidden-tags'),
+          controller: _tags!,
+          known: _known,
+          label: 'Hidden from AI: tags',
+          helperText: 'Notes with one of these tags are never '
+              'shared with an AI, nor shown to one. Headings with '
+              'one of them are left out of the notes that are.',
+        ),
+      ];
 
   /// "Choose model" (#75): the provider's model list, fetched with the key
   /// typed in or saved; the chosen ID fills [field].
@@ -1317,6 +1496,18 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         ..._imageFields(other, _drafts[other.id]!),
         ..._keyFields(other, _drafts[other.id]!),
         ..._euFields(other, _drafts[other.id]!, 'eu-only-image'),
+      ] else ...[
+        // The chat's provider: its image model is set here, its key and
+        // "EU only" under Chat.
+        ..._imageFields(chat, _drafts[_provider]!),
+        if (chat.makesImages)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+                'The key and "EU only" of ${chat.name} are set under Chat.',
+                key: const ValueKey('image-key-chat'),
+                style: Theme.of(context).textTheme.bodySmall),
+          ),
       ],
     ];
   }
@@ -1372,7 +1563,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-                'The key and "EU only" of ${chosen.name} are set above.',
+                'The key and "EU only" of ${chosen.name} are set above or '
+                'under Chat.',
                 key: const ValueKey('infographic-key-above'),
                 style: Theme.of(context).textTheme.bodySmall),
           )
@@ -1384,7 +1576,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     ];
   }
 
-  List<Widget> _providerSection(BuildContext context) {
+  /// "Chat": the provider with its key, base URL, models and "EU only".
+  List<Widget> _chatSection(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final draft = _drafts[_provider]!;
     final preset = presetById(_provider);
@@ -1477,14 +1670,21 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           ),
         ),
       ),
-      ..._imageFields(preset, draft),
       _resetModels(preset, draft),
       ..._keyFields(preset, draft),
       ..._euFields(preset, draft, 'eu-only'),
-      ..._imageProviderSection(context),
-      ..._infographicSection(context),
-      const SizedBox(height: 16),
-      Text('Notes', style: text.titleSmall),
+    ];
+  }
+
+  /// "Images": "Images with:" and "Infographics with:" (#127, #183).
+  List<Widget> _imagesSection(BuildContext context) => [
+        ..._imageProviderSection(context),
+        ..._infographicSection(context),
+      ];
+
+  /// "Notes": the language of new notes (#172).
+  List<Widget> _notesSection(BuildContext context) {
+    return [
       TextField(
         key: const ValueKey('new-note-language'),
         controller: _language,
@@ -1508,8 +1708,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             ),
         ],
       ),
-      const SizedBox(height: 16),
-      Text('Web', style: text.titleSmall),
+    ];
+  }
+
+  /// "Web access": the switch and the most web searches (#137).
+  List<Widget> _webSection(BuildContext context) {
+    return [
       SwitchListTile(
         key: const ValueKey('web-access'),
         contentPadding: EdgeInsets.zero,
@@ -1531,8 +1735,13 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           helperText: 'Each page the AI reads counts as one too.',
         ),
       ),
-      const SizedBox(height: 16),
-      Text('Limits', style: text.titleSmall),
+    ];
+  }
+
+  /// "Agent and limits": what the AI may change, and the most it may do
+  /// for one message.
+  List<Widget> _agentSection(BuildContext context) {
+    return [
       TextField(
         key: const ValueKey('max-tool-rounds'),
         controller: _rounds,

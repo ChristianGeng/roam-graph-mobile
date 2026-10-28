@@ -33,7 +33,7 @@ The chat and the agent are on [[id:roam-graph-help-ai][the AI page]];
 
 Only the description and, if ticked, the note's title are sent.
 
-The provider is set under *Images with:* in AI settings: the chat's
+The provider is set under *Images with:* in AI settings (AI → Images): the chat's
 provider by default, or another one with its own key, image model and "EU
 only". Vercel AI Gateway, OpenRouter, Qwen, Mistral and Custom make images;
 the other providers say "cannot make images in the app".
@@ -52,7 +52,7 @@ on.
 :PROPERTIES:
 :ID:       roam-graph-help-make-infographic
 :END:
-*Infographics with:* in AI settings is the provider and image model for
+*Infographics with:* in AI settings (AI → Images → Infographics with:) is the provider and image model for
 pictures with text and numbers: charts, tables, timelines. It has its own
 key, image model and "EU only", like "Images with:". Empty (*Same as
 "Images with:"*) uses the provider and image model of "Images with:". GPT
@@ -98,7 +98,8 @@ line with its link.
 
 * How many images, and how to undo
 By default the AI makes one image or chart per message; set *Most images
-the agent may make for one message* in AI settings. A second image or chart
+the agent may make for one message* in AI settings (AI → Agent and
+limits). A second image or chart
 for the same note in one message replaces the first. *Undo all changes of
 this message* takes it out of the note; the image file stays in the image
 folder.
