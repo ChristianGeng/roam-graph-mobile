@@ -363,6 +363,10 @@ void main() {
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('chat-tile-long')));
     await settle(tester);
+    // The hint is at the end of the chat: scroll down to it.
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('chat-long')), 5000,
+        scrollable: find.byType(Scrollable).first, maxScrolls: 200);
     expect(find.byKey(const ValueKey('chat-long')), findsOneWidget);
   });
 
