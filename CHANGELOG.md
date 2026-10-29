@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-29: AI chats work in the background and notify ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-29: AI chats work in the background and notify ([#206](https://github.com/ChristianGeng/roam-graph-mobile/pull/206))
 
 Added: on Android, a chat keeps working when the app is in the background or the screen is off. An ongoing notification "AI is working on N chats" shows while any chat works. When an answer is ready in a chat that is not on screen, a notification says "Answer in '<chat>'" (or "Failed in '<chat>'"); a tap opens that chat. New setting "Notify when an answer is ready" (AI → Agent and limits). Android 13 and later ask for the notification permission at the first send.
 Closes #202.
