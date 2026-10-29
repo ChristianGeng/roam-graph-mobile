@@ -75,7 +75,6 @@ void main() {
           chatFile('Newer chat', lastUsed: '2026-10-02T10:00:00.000Z')
       ..files['fresh'] = chatFile('Fresh chat',
           lastUsed: '2026-10-03T10:00:00.000Z', unseen: true);
-    store = ChatStore(storage);
   });
 
   Future<void> openList(
@@ -84,6 +83,8 @@ void main() {
     NoteWriter? writer,
     AiSettings settings = const AiSettings(),
   }) async {
+    // Made here, in the test's zone, so its writes run when frames are pumped.
+    store = ChatStore(storage);
     await store.load();
     await tester.pumpWidget(AiSettingsHost(
       store: MemoryAiSettingsStore(settings),
