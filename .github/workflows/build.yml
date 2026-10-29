@@ -212,14 +212,27 @@ jobs:
           status=0
           # The live image tests need real keys; live-images.yml runs them
           # (#168).
-          out=""
-          for n in $(grep -o "^  testWidgets('[^']*'\|^  test('[^']*'" test/ai/chat_list_screen_test.dart | sed "s/^  [a-zA-Z]*('//;s/'$//" | tr ' ' '#'); do
-            name=$(echo "$n" | tr '#' ' ')
-            if timeout 60 flutter test test/ai/chat_list_screen_test.dart --plain-name "$name" > "$RUNNER_TEMP/one.txt" 2>&1; then :; else
-              out="$out%0AFAIL: $name: $(tr '\r' '\n' < "$RUNNER_TEMP/one.txt" | grep -E -A6 'EXCEPTION|Expected|Actual|Which' | head -12 | sed ':a;N;$!ba;s/\n/%0A/g')"
-            fi
-          done
-          echo "::error title=DEBUG list::$out"
+          cat > "$RUNNER_TEMP/dbg.py" <<'PY'
+          import re, subprocess, os
+          src = open('test/ai/chat_list_screen_test.dart').read()
+          names = re.findall(r"^  test(?:Widgets)?\('((?:[^'\\]|\\.)*)'", src, re.M)
+          names += re.findall(r"^  test(?:Widgets)?\(\s*\n\s*'((?:[^'\\]|\\.)*)'", src, re.M)
+          out = []
+          for n in names:
+              n = n.replace("\\'", "'")
+              try:
+                  r = subprocess.run(['flutter', 'test', 'test/ai/chat_list_screen_test.dart', '--plain-name', n], capture_output=True, text=True, timeout=60)
+                  if r.returncode != 0:
+                      t = (r.stdout + r.stderr).replace('\r', '\n')
+                      keep = [l for l in t.split('\n') if re.search(r'EXCEPTION|Expected|Actual|Which|Error|error', l)][:6]
+                      out.append('FAIL ' + n + ': ' + ' | '.join(keep))
+                  else:
+                      out.append('ok ' + n)
+              except subprocess.TimeoutExpired:
+                  out.append('HANG ' + n)
+          print('::error title=DEBUG list::' + '%0A'.join(out))
+          PY
+          python3 "$RUNNER_TEMP/dbg.py" || true
           status=1
           if [ "$status" -ne 0 ]; then
             # The compact reporter rewrites its line with carriage returns:
