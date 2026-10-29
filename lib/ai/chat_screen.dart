@@ -273,9 +273,12 @@ class _ChatScreenState extends State<ChatScreen> {
         ? null
         : await providerConfig(settings, keys, id: providerId);
     if (!mounted || !identical(chat, _chat)) return;
-    // A chat read from its file continues with its saved model; a fresh
-    // start applies the model of the settings as they are now.
-    final config = made != null && !fresh && chat.model.isNotEmpty
+    // A chat with messages continues with its saved model. The model of
+    // the settings as they are now is used for a chat without messages, and
+    // where the saved model is gone.
+    final config = made != null &&
+            chat.model.isNotEmpty &&
+            !(fresh && (chat.transcript.isEmpty || _modelGone != null))
         ? made.withModel(chat.model)
         : made;
     // Only the agent makes images: other modes do not wait for it.
