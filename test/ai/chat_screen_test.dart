@@ -292,6 +292,31 @@ void main() {
           findsOneWidget);
     });
 
+    testWidgets('a model picked after an error is named before "Send again"',
+        (tester) async {
+      clearModelCache();
+      addTearDown(clearModelCache);
+      final server = FakeServer([
+        for (var i = 0; i < 3; i++) const SocketException('offline'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Here now.'},
+        ]),
+      ]);
+      await openChat(tester, server, getModels: anthropicList);
+      await ask(tester, 'Hello?');
+      expect(find.text('Send again'), findsOneWidget);
+      await pickFromMenu(tester, 'claude-haiku-5');
+      await tester.tap(find.text('Send again'));
+      await tester.pumpAndSettle();
+      expect(server.requests.last.body['model'], 'claude-haiku-5');
+      expect(find.text('Model changed to anthropic/claude-haiku-5'),
+          findsOneWidget);
+      // The line comes before the message sent again.
+      expect(
+          tester.getTopLeft(find.text('Model changed to anthropic/claude-haiku-5')).dy,
+          lessThan(tester.getTopLeft(find.text('Hello?')).dy));
+    });
+
     testWidgets('"Use the default model" returns to the settings\' model',
         (tester) async {
       clearModelCache();

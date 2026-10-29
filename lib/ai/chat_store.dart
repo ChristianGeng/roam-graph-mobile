@@ -249,17 +249,36 @@ class Chat extends ChangeNotifier {
   void _noteModelChange(ChatSession s) {
     final model = s.config.model;
     if (lastSentModel.isNotEmpty && lastSentModel != model) {
-      final name = providerId.isEmpty ? providerName : providerId;
-      s.transcript.add(ModelChanged('Model changed to $name/$model'));
+      s.transcript.add(ModelChanged(_modelChangedText(model)));
     }
     lastSentModel = model;
+  }
+
+  String _modelChangedText(String model) {
+    final name = providerId.isEmpty ? providerName : providerId;
+    return 'Model changed to $name/$model';
   }
 
   /// Sends the conversation again after an error.
   Future<void> resume() async {
     final s = session;
     if (s == null || sending) return;
-    lastSentModel = s.config.model;
+    final model = s.config.model;
+    if (lastSentModel.isNotEmpty && lastSentModel != model) {
+      // The model was changed after the failed send: the line goes before
+      // the message that is sent again, and the agent's changes of that
+      // message and the later ones move up with it.
+      final at = currentMessageStart(s.transcript);
+      s.transcript.insert(at, ModelChanged(_modelChangedText(model)));
+      final moved = {
+        for (final MapEntry(:key, :value) in turnChanges.entries)
+          (key >= at ? key + 1 : key): value,
+      };
+      turnChanges
+        ..clear()
+        ..addAll(moved);
+    }
+    lastSentModel = model;
     await run(() => s.resume(onUpdate: _step));
   }
 

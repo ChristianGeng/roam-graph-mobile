@@ -422,9 +422,21 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Makes the session again after a change of AI settings, where the
   /// chat has no messages yet.
   void _restart() {
-    if (mounted && _chat.transcript.isEmpty && !_chat.sending) {
-      _start(fresh: true);
-    }
+    if (!mounted) return;
+    _refreshDefaults();
+    if (_chat.transcript.isEmpty && !_chat.sending) _start(fresh: true);
+  }
+
+  /// The default and strong model of the chat's provider as the AI
+  /// settings have them now, for the model menus (#203).
+  void _refreshDefaults() {
+    final id = _chat.providerId;
+    final values =
+        AiSettingsScope.of(context).providerSettings(id.isEmpty ? null : id);
+    setState(() {
+      _defaultModel = values.defaultModel;
+      _strongModel = values.strongModel;
+    });
   }
 
   /// The image models of "Images with:" and "Infographics with:" for the
@@ -789,7 +801,9 @@ class _ChatScreenState extends State<ChatScreen> {
   /// not changed, and the chat keeps its provider (#203).
   void _setModel(String model) {
     final session = _session;
-    if (session == null || model.isEmpty) return;
+    // Not while a request runs: a later round of it would use the new
+    // model, and the line in the transcript would come too late.
+    if (session == null || model.isEmpty || _sending) return;
     setState(() {
       session.model = model;
       _chat.model = model;
@@ -881,6 +895,7 @@ class _ChatScreenState extends State<ChatScreen> {
             PopupMenuButton<String>(
               tooltip: 'Model',
               icon: const Icon(Icons.tune),
+              enabled: !_sending,
               initialValue: model,
               onSelected: _setModel,
               itemBuilder: (_) => [
