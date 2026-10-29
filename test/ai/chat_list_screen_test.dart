@@ -105,6 +105,15 @@ void main() {
     await settle(tester);
   }
 
+  /// Waits for the files written so far. The store was made outside the
+  /// test's fake async zone, so its writes go on only while frames are
+  /// pumped.
+  Future<void> saved(WidgetTester tester) async {
+    final done = store.flush();
+    await tester.pump();
+    await done;
+  }
+
   Finder row(String id) => find.byKey(ValueKey('chat-row-$id'));
 
   testWidgets('the rows: order, title, note, model, time and the dot',
@@ -192,7 +201,7 @@ void main() {
     await settle(tester);
     expect(find.text('Mushrooms'), findsOneWidget);
     expect(find.text('Newer chat'), findsNothing);
-    await store.flush();
+    await saved(tester);
     expect(jsonDecode(storage.files['newer']!)['title'], 'Mushrooms');
   });
 
@@ -202,13 +211,13 @@ void main() {
     await settle(tester);
     expect(find.text('Newer chat'), findsNothing);
     expect(find.text('Chat deleted.'), findsOneWidget);
-    await store.flush();
+    await saved(tester);
     expect(storage.files.containsKey('newer'), isFalse);
 
     await tester.tap(find.text('Undo'));
     await settle(tester);
     expect(find.text('Newer chat'), findsOneWidget);
-    await store.flush();
+    await saved(tester);
     expect(storage.files.containsKey('newer'), isTrue);
   });
 
@@ -219,7 +228,7 @@ void main() {
     await tester.tap(find.text('Delete'));
     await settle(tester);
     expect(find.text('Older chat'), findsNothing);
-    await store.flush();
+    await saved(tester);
     expect(storage.files.keys, unorderedEquals(['newer', 'fresh']));
   });
 
@@ -241,7 +250,7 @@ void main() {
     expect(jsonEncode(messages.first), contains('Question of Newer chat'));
     expect(find.text('Second answer.', findRichText: true), findsOneWidget);
 
-    await store.flush();
+    await saved(tester);
     final saved = jsonDecode(storage.files['newer']!) as Map;
     expect((saved['transcript'] as List), hasLength(4));
     expect(saved['title'], 'Newer chat');
@@ -255,7 +264,7 @@ void main() {
     await tester.pageBack();
     await settle(tester);
     expect(find.byKey(const ValueKey('chat-dot-fresh')), findsNothing);
-    await store.flush();
+    await saved(tester);
     expect(jsonDecode(storage.files['fresh']!)['unseen'], false);
   });
 
@@ -333,7 +342,15 @@ void main() {
       ...(jsonDecode(chatFile('Long chat',
           lastUsed: '2026-10-04T10:00:00.000Z')) as Map<String, Object?>),
       'transcript': [
-        {'type': 'user', 'text': 'x' * 120000},
+        {'type': 'user', 'text': 'Question'},
+        {
+          'type': 'assistant',
+          'text': 'word ' * 24000,
+          'model': 'claude-sonnet-5-5',
+          'toolCalls': <Object?>[],
+          'searches': <Object?>[],
+          'paused': false,
+        },
       ],
     });
     await openList(tester, FakeServer([]));
@@ -356,7 +373,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('ai-agent')));
     await settle(tester);
     await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('max-parallel-chats')), 200);
+        find.byKey(const ValueKey('max-parallel-chats')), 200,
+        scrollable: find.byType(Scrollable).first);
     final field = tester
         .widget<TextField>(find.byKey(const ValueKey('max-parallel-chats')));
     expect(field.controller!.text, '3');
