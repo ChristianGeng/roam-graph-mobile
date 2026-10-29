@@ -251,10 +251,10 @@ void main() {
     expect(find.text('Second answer.', findRichText: true), findsOneWidget);
 
     await saved(tester);
-    final saved = jsonDecode(storage.files['newer']!) as Map;
-    expect((saved['transcript'] as List), hasLength(4));
-    expect(saved['title'], 'Newer chat');
-    expect(jsonEncode(saved), isNot(contains('sk-test')));
+    final file = jsonDecode(storage.files['newer']!) as Map;
+    expect((file['transcript'] as List), hasLength(4));
+    expect(file['title'], 'Newer chat');
+    expect(jsonEncode(file), isNot(contains('sk-test')));
   });
 
   testWidgets('opening a chat with a dot takes the dot away', (tester) async {
