@@ -20,13 +20,13 @@ class FakeService implements BackgroundService {
   @override
   Future<void> working(int chats) async {
     calls.add('working $chats');
-    if (failing) throw StateError('not allowed');
+    if (failing) throw Exception('not allowed');
   }
 
   @override
   Future<void> idle() async {
     calls.add('idle');
-    if (failing) throw StateError('not allowed');
+    if (failing) throw Exception('not allowed');
   }
 }
 
@@ -64,6 +64,7 @@ class FakeNotifier implements AnswerNotifier {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final graph = graphOf(notes);
 
   late FakeService service;
