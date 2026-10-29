@@ -138,6 +138,10 @@ class Chat extends ChangeNotifier {
   /// How many chat screens show this chat now.
   int viewers = 0;
 
+  /// Asks the chat screen whether it is the route on top, and not covered
+  /// by another page (#202); null where there is no screen.
+  bool Function()? screenIsCurrent;
+
   /// True while the chat is deleted (and may be brought back).
   bool discarded = false;
 
@@ -760,7 +764,9 @@ class ChatStore extends ChangeNotifier {
   /// A request of [chat] ended: tells me, if the chat is not on screen.
   void _announce(Chat chat, {required bool answered}) {
     if (!notifyAnswers) return;
-    if (chat.viewers > 0 && appVisible) return;
+    final onScreen =
+        chat.viewers > 0 && (chat.screenIsCurrent?.call() ?? true);
+    if (onScreen && appVisible) return;
     final String title, text;
     if (chat.error case final error?) {
       title = "Failed in '${chat.title}'";

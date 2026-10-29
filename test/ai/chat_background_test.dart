@@ -200,6 +200,15 @@ void main() {
       expect(notifier.shown.single.title, "Answer in 'Question'");
     });
 
+    test('an open chat covered by another page gives one', () async {
+      final chat = chatOn(FakeServer([answer('Here.')]));
+      chat.viewers++;
+      chat.screenIsCurrent = () => false;
+      await chat.send('Question');
+      await store.flushPlatform();
+      expect(notifier.shown, hasLength(1));
+    });
+
     test('a failure gives "Failed in" with the chat title', () async {
       final chat = chatOn(FakeServer([
         const HttpReply(401, '{"error": {"message": "bad key"}}'),
