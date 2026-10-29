@@ -50,9 +50,10 @@ current choice under the name. From top to bottom:
   (infographics)".
 - *Agent and limits*: *Let the AI change notes*, *Most changes the agent
   may make for one message*, *Most images the agent may make for one
-  message*, *Most notes one AI change set may edit*, *Most tool rounds per
-  message* and *Most tokens per answer, thinking included*; see
-  [[id:roam-graph-help-ai-edit][Let the AI edit notes]]. Under the name:
+  message*, *Most chats working at the same time*, *Most notes one AI change
+  set may edit*, *Most tool rounds per message* and *Most tokens per answer,
+  thinking included*; see [[id:roam-graph-help-ai-edit][Let the AI edit
+  notes]] and [[id:roam-graph-help-parallel-chats][Run several chats]]. Under the name:
   "Off", "Review" or "Agent".
 - *Web access*: *Web access for the AI* (off by default) and *Most web
   searches for one message*; see
@@ -62,7 +63,8 @@ current choice under the name. From top to bottom:
   [[id:roam-graph-help-note-language][The language of notes]]. Under the
   name: "English (en)".
 - *Privacy*: *Hidden from AI: tags*, the tags that hide notes from AI; see
-  [[id:roam-graph-help-hidden-from-ai][Hidden from AI]]. Under the name:
+  [[id:roam-graph-help-hidden-from-ai][Hidden from AI]]. Also *Keep chats
+  for*; see [[id:roam-graph-help-continue-chat][Continue an earlier chat]]. Under the name:
   the tags, or "No tags".
 
 All six pages change one draft. Nothing is saved until I tap the check mark

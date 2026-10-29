@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'ai/ai_settings.dart';
+import 'ai/chat_store.dart';
 import 'capture/share_inbox.dart';
 import 'edit/note_editor.dart';
 import 'folder/desktop_folder_access.dart';
@@ -33,6 +34,7 @@ class RoamGraphApp extends StatelessWidget {
     this.aiSettings = const FileAiSettingsStore(),
     this.viewSettings = const FileViewSettingsStore(),
     this.editHistory = const FileEditHistory(),
+    this.chatStorage = const FileChatStorage(),
   });
 
   /// The notes folder: Android's, or a plain folder on the desktop (#116).
@@ -45,34 +47,42 @@ class RoamGraphApp extends StatelessWidget {
   final ViewSettingsStore viewSettings;
   final EditHistory editHistory;
 
+  /// Where the AI chats are kept (#201): the app's private storage.
+  final ChatStorage chatStorage;
+
   @override
   Widget build(BuildContext context) {
     return AiSettingsHost(
       store: aiSettings,
       // Above the app, so every screen reads the same settings, and the
       // app reads its theme from them (#90).
-      child: ViewSettingsHost(
-        store: viewSettings,
-        child: Builder(
-          builder: (context) => MaterialApp(
-            title: 'Roam Graph',
-            themeMode: ViewSettingsScope.of(context).theme.mode,
-            theme: ThemeData(colorSchemeSeed: Colors.indigo),
-            darkTheme: ThemeData(
-              colorSchemeSeed: Colors.indigo,
-              brightness: Brightness.dark,
-            ),
-            home: FolderScreen(
-              folderAccess: folderAccess ??
-                  (isDesktop
-                      ? const DesktopFolderAccess()
-                      : const PlatformFolderAccess()),
-              version: appVersion,
-              graphIndex: graphIndex,
-              graphScreen: graphScreen,
-              shareInbox: shareInbox,
-              nodeMemory: nodeMemory,
-              editHistory: editHistory,
+      child: ChatStoreHost(
+        // Also above the navigator: chats keep working when their screen
+        // closes (#201).
+        storage: chatStorage,
+        child: ViewSettingsHost(
+          store: viewSettings,
+          child: Builder(
+            builder: (context) => MaterialApp(
+              title: 'Roam Graph',
+              themeMode: ViewSettingsScope.of(context).theme.mode,
+              theme: ThemeData(colorSchemeSeed: Colors.indigo),
+              darkTheme: ThemeData(
+                colorSchemeSeed: Colors.indigo,
+                brightness: Brightness.dark,
+              ),
+              home: FolderScreen(
+                folderAccess: folderAccess ??
+                    (isDesktop
+                        ? const DesktopFolderAccess()
+                        : const PlatformFolderAccess()),
+                version: appVersion,
+                graphIndex: graphIndex,
+                graphScreen: graphScreen,
+                shareInbox: shareInbox,
+                nodeMemory: nodeMemory,
+                editHistory: editHistory,
+              ),
             ),
           ),
         ),

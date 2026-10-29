@@ -4,7 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 
 import '../ai/ai_settings.dart';
-import '../ai/chat_screen.dart';
+import '../ai/chat_list_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../edit/add_link.dart';
@@ -685,11 +685,13 @@ class _NodeScreenState extends State<NodeScreen> {
   }
 
   /// Opens the AI chat about [node] (#60).
-  Future<void> _askAi(RoamNode node) => ChatScreen.open(
+  Future<void> _askAi(RoamNode node) => ChatListScreen.open(
         context,
         graph: widget.graph,
         readNote: widget.readNote,
         startNode: node,
+        // A new chat that starts with this note, as before (#201).
+        openNewChat: true,
         writer: widget.writer,
         searchText: widget.files?.searchText,
         // On a page above the chat, also from the side pane (#16).

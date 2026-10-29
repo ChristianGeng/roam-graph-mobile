@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../ai/chat_screen.dart';
+import '../ai/chat_list_screen.dart';
 import '../help/help.dart';
 import '../edit/delete_dialog.dart';
 import '../edit/edit_screen.dart';
@@ -737,7 +737,7 @@ class _GraphScreenState extends State<GraphScreen> {
       case _MoreAction.centre:
         _centreOnSelected();
       case _MoreAction.askAi:
-        ChatScreen.open(
+        ChatListScreen.open(
           context,
           graph: widget.graph,
           readNote: widget.readNote,

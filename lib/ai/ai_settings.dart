@@ -169,7 +169,16 @@ class AiSettings {
     this.maxWebSearches = 5,
     this.imageAgents = const {},
     this.newNoteLanguage = defaultNoteLanguage,
+    this.maxParallelChats = 3,
+    this.keepChatsDays = 90,
   });
+
+  /// "Most chats working at the same time" (#201): a further send waits.
+  final int maxParallelChats;
+
+  /// "Keep chats for" (#201), in days; 0 keeps them always. Older chats
+  /// are deleted when the app starts.
+  final int keepChatsDays;
 
   /// "Language of new notes" (#172): the code of the language the AI
   /// writes new notes in when neither the request, the note they start
@@ -255,6 +264,8 @@ class AiSettings {
     int? maxWebSearches,
     Map<String, String>? imageAgents,
     String? newNoteLanguage,
+    int? maxParallelChats,
+    int? keepChatsDays,
   }) =>
       AiSettings(
         hiddenTags: hiddenTags ?? this.hiddenTags,
@@ -272,6 +283,8 @@ class AiSettings {
         maxWebSearches: maxWebSearches ?? this.maxWebSearches,
         imageAgents: imageAgents ?? this.imageAgents,
         newNoteLanguage: newNoteLanguage ?? this.newNoteLanguage,
+        maxParallelChats: maxParallelChats ?? this.maxParallelChats,
+        keepChatsDays: keepChatsDays ?? this.keepChatsDays,
       );
 
   Map<String, Object?> toJson() => {
@@ -293,6 +306,8 @@ class AiSettings {
         'maxWebSearches': maxWebSearches,
         'imageAgents': imageAgents,
         'newNoteLanguage': newNoteLanguage,
+        'maxParallelChats': maxParallelChats,
+        'keepChatsDays': keepChatsDays,
       };
 
   /// Settings from [json]; a missing or unreadable value keeps its default.
@@ -353,9 +368,23 @@ class AiSettings {
         final String code => languageCode(code) ?? defaultNoteLanguage,
         _ => defaultNoteLanguage,
       },
+      maxParallelChats:
+          positive('maxParallelChats', defaults.maxParallelChats),
+      // 0 is "always"; a missing or odd value keeps the default.
+      keepChatsDays: keepChatsChoices.any((c) => c.$1 == json['keepChatsDays'])
+          ? json['keepChatsDays'] as int
+          : defaults.keepChatsDays,
     );
   }
 }
+
+/// The choices of "Keep chats for" (#201): days, 0 for always.
+const keepChatsChoices = [
+  (30, '30 days'),
+  (90, '90 days'),
+  (365, '1 year'),
+  (0, 'Always'),
+];
 
 /// The providers that can make images in the app, for "Images with:"
 /// (#127).
@@ -782,6 +811,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _images = TextEditingController();
   final _webSearches = TextEditingController();
   final _language = TextEditingController();
+  final _parallel = TextEditingController();
+  int _keepChats = 90;
   bool _webAccess = false;
   AiEditMode _editMode = AiEditMode.agent;
   AiSettings? _loaded;
@@ -898,6 +929,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _images.text = '${settings.maxImagesPerMessage}';
       _webSearches.text = '${settings.maxWebSearches}';
       _language.text = settings.newNoteLanguage;
+      _parallel.text = '${settings.maxParallelChats}';
+      _keepChats = settings.keepChatsDays;
       _webAccess = settings.webAccess;
       _editMode = settings.editMode;
       await _draft(_provider);
@@ -949,6 +982,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _images.dispose();
     _webSearches.dispose();
     _language.dispose();
+    _parallel.dispose();
     for (final d in _drafts.values) {
       d.dispose();
     }
@@ -983,6 +1017,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     if (webSearches == null || webSearches < 1) {
       setState(() => _problem =
           'The web searches per message must be at least 1.');
+      return;
+    }
+    final parallel = int.tryParse(_parallel.text.trim());
+    if (parallel == null || parallel < 1) {
+      setState(() => _problem =
+          'The chats working at the same time must be at least 1.');
       return;
     }
     final language = languageCode(_language.text);
@@ -1020,6 +1060,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       webAccess: _webAccess,
       maxWebSearches: webSearches,
       newNoteLanguage: language,
+      maxParallelChats: parallel,
+      keepChatsDays: _keepChats,
     );
     final keys = AiSettingsScope.keysOf(context);
     setState(() {
@@ -1064,7 +1106,9 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         _changes.text.trim() != '${saved.maxAgentChanges}' ||
         _images.text.trim() != '${saved.maxImagesPerMessage}' ||
         _webSearches.text.trim() != '${saved.maxWebSearches}' ||
-        _language.text.trim() != saved.newNoteLanguage) {
+        _language.text.trim() != saved.newNoteLanguage ||
+        _parallel.text.trim() != '${saved.maxParallelChats}' ||
+        _keepChats != saved.keepChatsDays) {
       return true;
     }
     for (final MapEntry(key: id, value: draft) in _drafts.entries) {
@@ -1226,6 +1270,23 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           helperText: 'Notes with one of these tags are never '
               'shared with an AI, nor shown to one. Headings with '
               'one of them are left out of the notes that are.',
+        ),
+        DropdownButtonFormField<int>(
+          key: const ValueKey('keep-chats'),
+          initialValue: _keepChats,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Keep chats for',
+            helperText: 'Chats are kept on this device only. Older chats '
+                'are deleted when the app starts.',
+          ),
+          items: [
+            for (final (days, label) in keepChatsChoices)
+              DropdownMenuItem(value: days, child: Text(label)),
+          ],
+          onChanged: (days) {
+            if (days != null) setState(() => _keepChats = days);
+          },
         ),
       ];
 
@@ -1812,6 +1873,15 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         decoration: const InputDecoration(
           labelText: 'Most images the agent may make for one message',
           helperText: 'Each image costs money at the image provider.',
+        ),
+      ),
+      TextField(
+        key: const ValueKey('max-parallel-chats'),
+        controller: _parallel,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          labelText: 'Most chats working at the same time',
+          helperText: 'A further message waits until one of them is done.',
         ),
       ),
       TextField(

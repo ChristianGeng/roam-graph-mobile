@@ -18,8 +18,9 @@ them, and images. This page is about the chat and the agent. See also:
    first screen and in the chat), or *Settings*, *AI* in the graph's
    *More* menu. Open *Chat*, then go back and tap the check mark to save. See
    [[id:roam-graph-help-settings][Settings]].
-2. Open the chat: *Ask AI* in the graph's *More* menu, or in a note's *AI*
-   menu (the sparkle icon). From a note, the chat starts with that note.
+2. Open the chat list: *Ask AI* in the graph's *More* menu, or in a note's
+   *AI* menu (the sparkle icon). From a note, a new chat starts with that
+   note. In the list, *New chat* starts a chat.
 3. Type the question and send it.
 
 The AI reads the notes itself, with the tools of my org-roam MCP server:
@@ -32,7 +33,9 @@ In the bar of the chat:
   strong model. It shows only when *Strong model (optional)* is set to a
   different model in AI settings (AI → Chat).
 - *Recent AI changes* shows what the AI changed.
-- *New chat* starts again.
+- *New chat* starts another chat. The chat I leave stays in the list.
+- *Chat menu*, *Save chat as note*: see
+  [[id:roam-graph-help-continue-chat][Continue an earlier chat]].
 - *AI settings* opens the settings.
 
 The chat goes online only when I send a message: my message and the notes
@@ -40,6 +43,51 @@ the AI reads go to the chat provider. Each provider's note says where the
 data goes; some keep it in the EU. Notes with a hidden tag stay out. What
 else leaves the phone (images, edits, web access) is on
 [[id:roam-graph-help-ai-privacy][AI privacy]].
+
+** Continue an earlier chat
+:PROPERTIES:
+:ID:       roam-graph-help-continue-chat
+:END:
+Chats are kept on this device, in the app's private storage, one file per
+chat. They are not in the notes folder and are not synced. A chat file holds
+its title, the times, the provider and model, the note it started from and
+the conversation. It never holds an API key, and the images the AI made are
+not kept in it, only a line that says there was one.
+
+The list shows the chats, the last used first: the title (the first message,
+or a name I gave), the note it started from, the provider and model, and
+when it was last used. Tap a chat to read it and go on; the whole
+conversation is sent again with the next message.
+- A spinner shows that the chat is working. A dot shows that a new answer
+  came since I last opened the chat.
+- *Rename* is in the row's menu.
+- Swipe a row to delete the chat. *Undo* in the bar at the bottom brings it
+  back.
+- A chat file that cannot be read is skipped, and the list says so.
+- *Keep chats for* (AI → Privacy) is 30 days, 90 days (the default), 1 year
+  or always. Older chats are deleted when the app starts.
+- Under a long chat (about 100,000 characters) a line suggests a new chat:
+  every message sends the whole chat again.
+- *Save chat as note* (the chat's menu) opens *New node* with the chat as
+  Org text: each question and each answer is a heading, and the tag is
+  ~chat~. I review it before it is saved.
+
+** Run several chats
+:PROPERTIES:
+:ID:       roam-graph-help-parallel-chats
+:END:
+Several chats can work at the same time: ask in one chat, go back to the
+list, and ask in another. A chat goes on when I leave its screen, and its
+answer is there when I open it again. Each chat sends one message at a time.
+
+*Most chats working at the same time* (AI → Agent and limits, 3 by default)
+limits this. A further message waits, and its chat shows *Waiting*. The
+screen stays on while any chat works. The app does not work in the
+background yet: when Android pauses the app, a request may stop, and
+*Send again* continues it.
+
+If two chats change the same note, the second change is refused with the
+message that the note changed meanwhile, and nothing is lost.
 
 ** Share notes with an AI app
 *Share with AI* (a note's *AI* menu, or several notes selected in search
