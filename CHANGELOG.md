@@ -8,6 +8,11 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-29: AI chats work in the background and notify ([#206](https://github.com/ChristianGeng/roam-graph-mobile/pull/206))
+
+Added: on Android, a chat keeps working when the app is in the background or the screen is off. An ongoing notification "AI is working on N chats" shows while any chat works. When an answer is ready in a chat that is not on screen, a notification says "Answer in '<chat>'" (or "Failed in '<chat>'"); a tap opens that chat. New setting "Notify when an answer is ready" (AI → Agent and limits). Android 13 and later ask for the notification permission at the first send.
+Closes #202.
+
 ## 2026-10-29: Model for this chat ([#205](https://github.com/ChristianGeng/roam-graph-mobile/pull/205))
 
 Added: the chat menu has "Model for this chat". It opens the model list of the chat's provider and uses the model you pick for this chat only; the AI settings stay as they are. "Use the default model" goes back. The chat shows "Model changed to …" where the model changed, and the chat file keeps the model.

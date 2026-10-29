@@ -3402,6 +3402,63 @@ model needed a change in AI settings, which applies to every chat.
   an EU route is listed as "no EU route" and cannot be picked.
 - **Images:** image and infographic models stay global in AI settings.
 
+## 113. AI chats in the background: a foreground service and notifications (#202)
+
+A request usually went on while the app was in the background, but Android
+could pause or end the app, and the answer was lost. Nothing told me when
+an answer had come.
+- **A small Kotlin service, no plugin.** `ChatWorkService` (in
+  `android/app/src/main/kotlin/`) is a foreground service that does no work
+  itself: the requests still run in Dart. The notifications are made with
+  Android's own `NotificationManager`. Both are reached over one method
+  channel (`roam_graph/chats`), like the share and screen channels. Why not
+  `flutter_foreground_task` and `flutter_local_notifications`: the app needs
+  one service and two kinds of notification; a plugin pair adds two
+  dependencies with their own Gradle, compileSdk and desugaring
+  requirements, which cannot be tried in the cloud sessions (Flutter runs
+  only in CI), and `flutter_foreground_task` runs its own isolate that the
+  app does not need. About 150 lines of Kotlin are easier to check.
+- **Dart side:** two small interfaces in `lib/platform/chat_background.dart`,
+  `BackgroundService` and `AnswerNotifier`. The Android classes call the
+  channel; the desktop and the tests use classes that do nothing, or fakes.
+  `ChatStore` is the only caller.
+- **When the service runs:** while at least one chat works (the number the
+  store already counts for "Most chats working at the same time"; a chat
+  that waits for a place does not count). The ongoing, low-priority
+  notification says "AI is working on N chats"; a tap opens the chat list.
+  The service stops when the last chat is done, failed or deleted. If
+  Android refuses to start it, the chat goes on as before.
+- **Service type `dataSync`** (network transfer), with the permissions
+  `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_DATA_SYNC`. `specialUse` was
+  not chosen: it is for work that no other type covers, and needs a declared
+  reason; `dataSync` covers network transfer. Android 15 stops a `dataSync` service after six hours in 24 hours;
+  the service then stops itself in `onTimeout`, and the chat is as it was
+  before this change.
+- **The notification about an answer:** when an answer arrives in a chat that
+  is not on screen, or the app is in the background even with the chat
+  open: "Answer in '<title>'" with the first line of the answer. A failed
+  request: "Failed in '<title>'" with the first line of the error. One
+  notification for each chat, a new one replaces the old. A tap opens that
+  chat: the activity keeps the chat ID, the Dart side takes it once, and
+  the graph screen opens the chat list above the current page, which opens
+  the chat (a chat list on screen opens it itself). A deleted chat gives no
+  notification.
+- **The permission:** Android 13 and later need `POST_NOTIFICATIONS`. The app
+  asks at the first send of a run of the app while it is missing, and does
+  not wait for the answer. If it is refused, chats work without
+  notifications, and AI → Agent and limits says so. Android stops showing
+  the question after repeated refusals; then the line tells me to allow it
+  in Android's settings.
+- **The setting** "Notify when an answer is ready" (AI → Agent and limits,
+  on by default) switches the notifications about answers. The ongoing
+  notification of the service stays, because Android requires it.
+- **Earlier wording:** decision 45 and the manifest said that nothing runs in
+  the background. This is still true for what the app sends: a request goes
+  out only when I send a message. The service only keeps the app alive
+  until that request ends.
+- **Desktop:** no service and no notification (a desktop notification needs
+  a plugin for each system; not worth it now).
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

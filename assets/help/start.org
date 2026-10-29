@@ -30,6 +30,7 @@ Each line opens the section that answers it.
 - Continue an earlier chat:
   [[id:roam-graph-help-continue-chat][Continue an earlier chat]]
 - Run several chats: [[id:roam-graph-help-parallel-chats][Run several chats]]
+- Chats in the background, and the notification about an answer: [[id:roam-graph-help-chat-notifications][Work in the background and notifications]]
 - Let the AI edit my notes:
   [[id:roam-graph-help-ai-edit][Let the AI edit notes]]
 - Make an image: [[id:roam-graph-help-make-image][Make an image]]; an

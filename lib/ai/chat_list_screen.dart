@@ -24,6 +24,7 @@ class ChatListScreen extends StatefulWidget {
     required this.readNote,
     this.startNode,
     this.openNewChat = false,
+    this.openChatId,
     this.writer,
     this.openNode,
     this.post = postWithDartIo,
@@ -42,6 +43,10 @@ class ChatListScreen extends StatefulWidget {
   /// Starts a new chat with [startNode] at once, as from a note's AI menu.
   final bool openNewChat;
 
+  /// The chat to open at once, after a tap on its notification (#202);
+  /// empty or null opens the list only.
+  final String? openChatId;
+
   final NoteWriter? writer;
   final OpenNode? openNode;
   final HttpPost post;
@@ -56,6 +61,7 @@ class ChatListScreen extends StatefulWidget {
     required NoteTextReader readNote,
     RoamNode? startNode,
     bool openNewChat = false,
+    String? openChatId,
     NoteWriter? writer,
     OpenNode? openNode,
     Future<List<TextHit>> Function(String query, {int limit})? searchText,
@@ -68,6 +74,7 @@ class ChatListScreen extends StatefulWidget {
         readNote: readNote,
         startNode: startNode,
         openNewChat: openNewChat,
+        openChatId: openChatId,
         writer: writer,
         openNode: openNode,
         searchText: searchText,
@@ -84,13 +91,76 @@ class _ChatListScreenState extends State<ChatListScreen> {
   late final ChatStore _store =
       ChatStoreScope.maybeOf(context) ?? ChatStore(MemoryChatStorage());
 
+  /// Waits for the saved chats to be read, to open a chat from a tap; and
+  /// the chat it opens (the last one asked for).
+  VoidCallback? _loadWait;
+  String? _waitingFor;
+
   @override
   void initState() {
     super.initState();
+    _store.openRequest.addListener(_openRequested);
     if (widget.openNewChat) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _open(null);
       });
+    }
+    if (widget.openChatId case final id? when id.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openById(id);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _store.openRequest.removeListener(_openRequested);
+    if (_loadWait case final wait?) _store.removeListener(wait);
+    super.dispose();
+  }
+
+  /// A tap on a notification while this list is the screen: opens the
+  /// chat.
+  void _openRequested() {
+    if (!(ModalRoute.of(context)?.isCurrent ?? false)) return;
+    final id = _store.takeOpenRequest();
+    if (id != null && id.isNotEmpty) _openById(id);
+  }
+
+  /// Opens the chat [id]; where the chats are still being read, when they
+  /// are.
+  void _openById(String id) {
+    Chat? find() {
+      for (final chat in _store.chats) {
+        if (chat.id == id) return chat;
+      }
+      return null;
+    }
+
+    final chat = find();
+    if (chat != null) {
+      _open(chat);
+    } else if (!_store.loaded) {
+      // One listener, whatever the number of taps: the last tap wins.
+      _waitingFor = id;
+      if (_loadWait != null) return;
+      void wait() {
+        if (!_store.loaded) return;
+        _store.removeListener(wait);
+        _loadWait = null;
+        final wanted = _waitingFor;
+        _waitingFor = null;
+        if (wanted == null || !mounted) return;
+        for (final chat in _store.chats) {
+          if (chat.id == wanted) {
+            _open(chat);
+            return;
+          }
+        }
+      }
+
+      _loadWait = wait;
+      _store.addListener(wait);
     }
   }
 

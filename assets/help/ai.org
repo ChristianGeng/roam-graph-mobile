@@ -87,12 +87,35 @@ answer is there when I open it again. Each chat sends one message at a time.
 
 *Most chats working at the same time* (AI → Agent and limits, 3 by default)
 limits this. A further message waits, and its chat shows *Waiting*. The
-screen stays on while any chat works. The app does not work in the
-background yet: when Android pauses the app, a request may stop, and
-*Send again* continues it.
+screen stays on while any chat works.
 
 If two chats change the same note, the second change is refused with the
 message that the note changed meanwhile, and nothing is lost.
+
+** Work in the background and notifications
+:PROPERTIES:
+:ID:       roam-graph-help-chat-notifications
+:END:
+On Android, a chat keeps working when the app is in the background or the
+screen is off. While any chat works, Android shows a quiet, ongoing
+notification, "AI is working on N chats". Tap it to open the chat list. It
+goes away when the last chat is done.
+
+When a chat that is not on screen gets its answer, a notification says
+*Answer in '<chat title>'* with the first line of the answer. A request that
+failed says *Failed in '<chat title>'*. Tap the notification to open that
+chat. The same happens for a chat whose screen is open while the app is in
+the background.
+
+On Android 13 and later, the app asks for the notification permission the
+first time a chat sends. If you say no, chats still work, but without
+notifications; AI → Agent and limits then says so. You can allow them later
+in Android's settings for this app.
+
+To turn the notification about answers off, switch off *Notify when an
+answer is ready* (AI → Agent and limits). The ongoing notification stays
+while a chat works, because Android needs it to keep the app running. On
+the desktop there is no service and no notification.
 
 ** Share notes with an AI app
 *Share with AI* (a note's *AI* menu, or several notes selected in search

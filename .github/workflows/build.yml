@@ -218,6 +218,10 @@ jobs:
             # make them line breaks, so a failed test's name is found too.
             tr '\r' '\n' < "$RUNNER_TEMP/test.txt" > "$RUNNER_TEMP/test-lines.txt"
             failures=$(grep -E -A 12 '══╡ EXCEPTION|^(Expected|  Actual|   Which):|\[E\]|Test failed|TimeoutException|Some tests failed' "$RUNNER_TEMP/test-lines.txt" | head -80 | sed ':a;N;$!ba;s/\n/%0A/g' || true)
+            if [ -z "$failures" ]; then
+              # The github reporter marks a failed test with a red cross.
+              failures=$(grep -A 6 '❌' "$RUNNER_TEMP/test-lines.txt" | sed 's|/home/runner/work/[^/]*/[^/]*/||' | cut -c1-300 | head -120 | sed ':a;N;$!ba;s/\n/%0A/g' || true)
+            fi
             echo "::error title=flutter test::${failures:-see the log}"
           fi
           exit "$status"

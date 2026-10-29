@@ -172,6 +172,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// This screen shows [chat] now: its answers count as seen.
   void _show(Chat chat) {
     chat.viewers++;
+    chat.screenIsCurrent = _isCurrent;
     chat.addListener(_onChat);
     // After the build: other screens listen to the chat too, and must not
     // be changed while a frame is built.
@@ -181,7 +182,11 @@ class _ChatScreenState extends State<ChatScreen> {
   void _leave(Chat chat) {
     chat.removeListener(_onChat);
     chat.viewers--;
+    if (chat.screenIsCurrent == _isCurrent) chat.screenIsCurrent = null;
   }
+
+  /// This screen is the page on top: no other page covers it (#202).
+  bool _isCurrent() => mounted && (ModalRoute.of(context)?.isCurrent ?? true);
 
   /// The chat changed, for example a request made a step.
   void _onChat() {

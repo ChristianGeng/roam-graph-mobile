@@ -50,10 +50,12 @@ current choice under the name. From top to bottom:
   (infographics)".
 - *Agent and limits*: *Let the AI change notes*, *Most changes the agent
   may make for one message*, *Most images the agent may make for one
-  message*, *Most chats working at the same time*, *Most notes one AI change
-  set may edit*, *Most tool rounds per message* and *Most tokens per answer,
+  message*, *Most chats working at the same time*, *Notify when an answer is
+  ready*, *Most notes one AI change set may edit*, *Most tool rounds per message* and *Most tokens per answer,
   thinking included*; see [[id:roam-graph-help-ai-edit][Let the AI edit
-  notes]] and [[id:roam-graph-help-parallel-chats][Run several chats]]. Under the name:
+  notes]], [[id:roam-graph-help-parallel-chats][Run several chats]] and
+  [[id:roam-graph-help-chat-notifications][Work in the background and
+  notifications]]. Under the name:
   "Off", "Review" or "Agent".
 - *Web access*: *Web access for the AI* (off by default) and *Most web
   searches for one message*; see
