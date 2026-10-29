@@ -400,6 +400,8 @@ void main() {
     store.requestOpen('older');
     await settle(tester);
     expect(find.byType(ChatScreen), findsOneWidget);
+    // The chat that was asked for, not another.
+    expect(find.text('Question of Older chat'), findsOneWidget);
     // The request is taken.
     expect(store.takeOpenRequest(), isNull);
   });
@@ -408,6 +410,7 @@ void main() {
       (tester) async {
     await openList(tester, FakeServer([]), openChatId: 'newer');
     expect(find.byType(ChatScreen), findsOneWidget);
+    expect(find.text('Question of Newer chat'), findsOneWidget);
   });
 
   testWidgets('a notification for a chat that is gone opens the list only',

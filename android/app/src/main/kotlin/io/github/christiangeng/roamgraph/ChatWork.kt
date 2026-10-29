@@ -1,6 +1,5 @@
 package io.github.christiangeng.roamgraph
 
-import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,7 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
+import android.net.Uri
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -24,15 +23,13 @@ object ChatNotifications {
     private const val CHANNEL_WORK = "chat_work"
     private const val CHANNEL_ANSWER = "chat_answer"
     const val WORK_ID = 2020
+    private const val ANSWER_ID = 2021
 
-    /** True where Android asks for the notification permission (13 and later). */
-    private fun needsPermission() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-
-    fun allowed(context: Context): Boolean {
-        if (!needsPermission()) return true
-        return context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-    }
+    /**
+     * True when the app may show notifications: the permission on Android 13
+     * and later, and the app's switch in Android's settings on all versions.
+     */
+    fun allowed(context: Context): Boolean = manager(context).areNotificationsEnabled()
 
     private fun manager(context: Context) =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -50,13 +47,16 @@ object ChatNotifications {
 
     /** A tap opens the app; [chatId] empty opens the chat list, else that chat. */
     private fun tapIntent(context: Context, chatId: String): PendingIntent {
+        // The data makes the intent of each chat different for Android, which
+        // compares intents without their extras: no chat's tap replaces another's.
         val open = Intent(context, MainActivity::class.java)
             .setAction(ACTION_OPEN)
+            .setData(Uri.parse("roamgraph://chat/" + Uri.encode(chatId)))
             .putExtra(EXTRA_CHAT, chatId)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         return PendingIntent.getActivity(
             context,
-            chatId.hashCode(),
+            0,
             open,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
@@ -94,7 +94,8 @@ object ChatNotifications {
             .setAutoCancel(true)
             .setContentIntent(tapIntent(context, chatId))
             .build()
-        manager(context).notify(chatId.hashCode(), notification)
+        // The chat's ID is the tag: one notification for each chat.
+        manager(context).notify(chatId, ANSWER_ID, notification)
     }
 
     fun update(context: Context, chats: Int) {

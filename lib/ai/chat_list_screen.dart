@@ -91,8 +91,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
   late final ChatStore _store =
       ChatStoreScope.maybeOf(context) ?? ChatStore(MemoryChatStorage());
 
-  /// Waits for the saved chats to be read, to open a chat from a tap.
+  /// Waits for the saved chats to be read, to open a chat from a tap; and
+  /// the chat it opens (the last one asked for).
   VoidCallback? _loadWait;
+  String? _waitingFor;
 
   @override
   void initState() {
@@ -139,12 +141,22 @@ class _ChatListScreenState extends State<ChatListScreen> {
     if (chat != null) {
       _open(chat);
     } else if (!_store.loaded) {
+      // One listener, whatever the number of taps: the last tap wins.
+      _waitingFor = id;
+      if (_loadWait != null) return;
       void wait() {
         if (!_store.loaded) return;
         _store.removeListener(wait);
         _loadWait = null;
-        final found = find();
-        if (found != null && mounted) _open(found);
+        final wanted = _waitingFor;
+        _waitingFor = null;
+        if (wanted == null || !mounted) return;
+        for (final chat in _store.chats) {
+          if (chat.id == wanted) {
+            _open(chat);
+            return;
+          }
+        }
       }
 
       _loadWait = wait;

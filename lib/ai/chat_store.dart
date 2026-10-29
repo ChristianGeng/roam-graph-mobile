@@ -723,8 +723,9 @@ class ChatStore extends ChangeNotifier {
     _platform = _platform.then((_) async {
       try {
         await call();
-      } on Exception {
-        // No service or no notification must never stop a chat.
+      } catch (_) {
+        // No service or no notification must never stop a chat, nor the
+        // calls queued after this one.
       }
     });
   }
@@ -743,11 +744,17 @@ class ChatStore extends ChangeNotifier {
   void _askForNotifications() {
     if (_askedForNotifications || !notifyAnswers) return;
     _askedForNotifications = true;
-    _call(() async {
-      if (!await notifier.permissionGranted()) {
-        await notifier.requestPermission();
+    // Not in the queue of [_call]: the question waits for me, and the
+    // service and the notifications must not wait with it.
+    unawaited(() async {
+      try {
+        if (!await notifier.permissionGranted()) {
+          await notifier.requestPermission();
+        }
+      } catch (_) {
+        // No question, no notifications; the chat is not affected.
       }
-    });
+    }());
   }
 
   /// A request of [chat] ended: tells me, if the chat is not on screen.
@@ -764,7 +771,11 @@ class ChatStore extends ChangeNotifier {
     } else {
       return;
     }
-    _call(() => notifier.show(chatId: chat.id, title: title, text: text));
+    // After the chat is written: a notification leads to a saved chat.
+    _call(() async {
+      await _writes;
+      await notifier.show(chatId: chat.id, title: title, text: text);
+    });
   }
 
   /// Saves [chat] in the background; a chat that is not in the list is not

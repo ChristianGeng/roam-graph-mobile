@@ -41,6 +41,7 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         restored = savedInstanceState != null
         savedInstanceState?.let { state ->
+            pendingOpen = state.getString(KEY_OPEN)
             @Suppress("DEPRECATION")
             state.getParcelableArrayList<Bundle>(KEY_SHARES)?.let { pendingShares.addAll(it) }
         }
@@ -50,6 +51,8 @@ class MainActivity : FlutterActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putParcelableArrayList(KEY_SHARES, ArrayList(pendingShares))
+        // A tap on a notification the Dart side did not take yet.
+        outState.putString(KEY_OPEN, pendingOpen)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -227,5 +230,6 @@ class MainActivity : FlutterActivity() {
         const val CHATS_CHANNEL = "roam_graph/chats"
         private const val REQUEST_NOTIFICATIONS = 4202
         private const val KEY_SHARES = "pending_shares"
+        private const val KEY_OPEN = "pending_open"
     }
 }

@@ -242,15 +242,18 @@ void main() {
       notifier.granted = false;
       final chat = chatOn(FakeServer([answer('A.'), answer('B.')]));
       await chat.send('One');
+      await pumpEventQueue();
+      // At the first send, not later.
+      expect(notifier.asked, 1);
       await chat.send('Two');
-      await store.flushPlatform();
+      await pumpEventQueue();
       expect(notifier.asked, 1);
     });
 
     test('is not asked when it is given', () async {
       final chat = chatOn(FakeServer([answer('A.')]));
       await chat.send('One');
-      await store.flushPlatform();
+      await pumpEventQueue();
       expect(notifier.asked, 0);
     });
   });
