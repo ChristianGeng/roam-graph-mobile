@@ -35,6 +35,7 @@ Map<String, Object?> answer(String text) => anthropicReply([
     ]);
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   final graph = graphOf(notes);
   RoamTools tools() => RoamTools(graph,
       readNote: (path) async => notes[path],
