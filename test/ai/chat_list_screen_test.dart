@@ -11,11 +11,13 @@ import 'package:roam_graph_mobile/ai/chat_screen.dart';
 import 'package:roam_graph_mobile/ai/chat_store.dart';
 import 'package:roam_graph_mobile/capture/capture_screen.dart';
 import 'package:roam_graph_mobile/edit/agent_changes.dart';
+import 'package:roam_graph_mobile/platform/chat_background.dart';
 
 import 'ai_chat_test.dart' show FakeServer, anthropic;
 import 'ai_settings_test.dart' show MemoryAiSettingsStore;
 import 'ai_visibility_test.dart' show graphOf, notes;
 import 'chat_screen_test.dart' show ask, keysWithAnthropic;
+import 'chat_background_test.dart' show FakeNotifier;
 import 'chat_store_test.dart' show GatedServer, answer;
 
 /// The file of a saved chat.
@@ -82,9 +84,11 @@ void main() {
     FakeServer server, {
     NoteWriter? writer,
     AiSettings settings = const AiSettings(),
+    String? openChatId,
+    AnswerNotifier notifier = const NoAnswerNotifier(),
   }) async {
     // Made here, in the test's zone, so its writes run when frames are pumped.
-    store = ChatStore(storage);
+    store = ChatStore(storage, notifier: notifier);
     await store.load();
     await tester.pumpWidget(AiSettingsHost(
       store: MemoryAiSettingsStore(settings),
@@ -96,6 +100,7 @@ void main() {
             graph: ValueNotifier(graph),
             readNote: (path) async => notes[path],
             writer: writer,
+            openChatId: openChatId,
             post: server.post,
             agentLog: MemoryAgentLog(),
             getModels: (url, headers) async => const HttpReply(404, ''),
@@ -386,6 +391,64 @@ void main() {
     await settle(tester);
     expect(find.byKey(const ValueKey('keep-chats')), findsOneWidget);
     expect(find.text('90 days'), findsOneWidget);
+  });
+
+  testWidgets('a tap on a notification opens its chat from the list',
+      (tester) async {
+    await openList(tester, FakeServer([]));
+    expect(find.byType(ChatScreen), findsNothing);
+    store.requestOpen('older');
+    await settle(tester);
+    expect(find.byType(ChatScreen), findsOneWidget);
+    // The request is taken.
+    expect(store.takeOpenRequest(), isNull);
+  });
+
+  testWidgets('the list opens the chat of a notification at once',
+      (tester) async {
+    await openList(tester, FakeServer([]), openChatId: 'newer');
+    expect(find.byType(ChatScreen), findsOneWidget);
+  });
+
+  testWidgets('a notification for a chat that is gone opens the list only',
+      (tester) async {
+    await openList(tester, FakeServer([]), openChatId: 'missing');
+    expect(find.byType(ChatScreen), findsNothing);
+    expect(find.text('Newer chat'), findsOneWidget);
+  });
+
+  testWidgets('the notification switch is on, and the refusal is told',
+      (tester) async {
+    await openList(tester, FakeServer([]),
+        notifier: FakeNotifier(granted: false));
+    await tester.tap(find.byTooltip('AI settings'));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('ai-agent')));
+    await settle(tester);
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('notify-answers')), 200,
+        scrollable: find.byType(Scrollable).first);
+    final tile = tester
+        .widget<SwitchListTile>(find.byKey(const ValueKey('notify-answers')));
+    expect(tile.value, isTrue);
+    expect(find.byKey(const ValueKey('notify-denied')), findsOneWidget);
+    // Off: the line goes with it.
+    await tester.tap(find.byKey(const ValueKey('notify-answers')));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('notify-denied')), findsNothing);
+  });
+
+  testWidgets('no refusal line when notifications are allowed',
+      (tester) async {
+    await openList(tester, FakeServer([]), notifier: FakeNotifier());
+    await tester.tap(find.byTooltip('AI settings'));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('ai-agent')));
+    await settle(tester);
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('notify-answers')), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.byKey(const ValueKey('notify-denied')), findsNothing);
   });
 }
 

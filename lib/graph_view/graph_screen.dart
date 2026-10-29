@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../ai/chat_list_screen.dart';
+import '../ai/chat_store.dart' show ChatStore, ChatStoreScope;
 import '../help/help.dart';
 import '../edit/delete_dialog.dart';
 import '../edit/edit_screen.dart';
@@ -296,7 +297,48 @@ class _GraphScreenState extends State<GraphScreen> {
   void initState() {
     super.initState();
     widget.graph.addListener(_graphChanged);
+    _chatStore = ChatStoreScope.maybeOf(context)
+      ?..openRequest.addListener(_chatRequested);
+    // A tap on a notification that started the app.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _chatRequested());
     _start();
+  }
+
+  /// The store, to follow taps on notifications (#202).
+  ChatStore? _chatStore;
+
+  /// A tap on a notification asks for a chat: the chat list opens above
+  /// whatever is on screen, and opens that chat. A chat list that is on
+  /// screen takes the request first.
+  void _chatRequested() {
+    final store = _chatStore;
+    if (store == null || store.openRequest.id == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final id = store.takeOpenRequest();
+      if (id == null) return;
+      _openChats(chatId: id);
+    });
+    // The app may be idle: make sure a frame comes.
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void _openChats({String? chatId}) {
+    ChatListScreen.open(
+      context,
+      graph: widget.graph,
+      readNote: widget.readNote,
+      startNode: chatId == null ? _graph.nodes[_centre] : null,
+      openChatId: chatId,
+      writer: widget.writer,
+      searchText: widget.files?.searchText,
+      // On a page above the chat, also on a tablet, where the side
+      // pane would be hidden behind it.
+      openNode: (_, id) {
+        widget.nodeMemory.remember(id);
+        _openPage(id);
+      },
+    );
   }
 
   @override
@@ -312,6 +354,7 @@ class _GraphScreenState extends State<GraphScreen> {
   @override
   void dispose() {
     widget.graph.removeListener(_graphChanged);
+    _chatStore?.openRequest.removeListener(_chatRequested);
     _transform.dispose();
     _drawing?.dispose();
     super.dispose();
@@ -737,20 +780,7 @@ class _GraphScreenState extends State<GraphScreen> {
       case _MoreAction.centre:
         _centreOnSelected();
       case _MoreAction.askAi:
-        ChatListScreen.open(
-          context,
-          graph: widget.graph,
-          readNote: widget.readNote,
-          startNode: _graph.nodes[_centre],
-          writer: widget.writer,
-          searchText: widget.files?.searchText,
-          // On a page above the chat, also on a tablet, where the side
-          // pane would be hidden behind it.
-          openNode: (_, id) {
-            widget.nodeMemory.remember(id);
-            _openPage(id);
-          },
-        );
+        _openChats();
       case _MoreAction.recent:
         if (widget.writer case final writer?) {
           RecentChangesScreen.open(context, writer: writer, log: writer.changeLog);

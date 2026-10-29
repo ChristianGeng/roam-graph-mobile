@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../edit/tag_field.dart';
 import '../graph/roam_graph.dart';
+import '../platform/desktop.dart' show isDesktop;
 import 'ai_chat.dart';
 import 'ai_images.dart';
 import 'ai_models.dart';
@@ -15,6 +16,7 @@ import 'model_picker.dart';
 import 'note_language.dart';
 import 'ai_providers.dart';
 import 'ai_visibility.dart';
+import 'chat_store.dart' show ChatStoreScope;
 
 /// One provider's values (#59), where they differ from its preset
 /// ([ProviderPreset]). The API key is not here: it is in [ApiKeyStore].
@@ -171,6 +173,7 @@ class AiSettings {
     this.newNoteLanguage = defaultNoteLanguage,
     this.maxParallelChats = 3,
     this.keepChatsDays = 90,
+    this.notifyAnswers = true,
   });
 
   /// "Most chats working at the same time" (#201): a further send waits.
@@ -179,6 +182,10 @@ class AiSettings {
   /// "Keep chats for" (#201), in days; 0 keeps them always. Older chats
   /// are deleted when the app starts.
   final int keepChatsDays;
+
+  /// "Notify when an answer is ready" (#202): a notification when a chat
+  /// that is not on screen gets its answer, or fails.
+  final bool notifyAnswers;
 
   /// "Language of new notes" (#172): the code of the language the AI
   /// writes new notes in when neither the request, the note they start
@@ -266,6 +273,7 @@ class AiSettings {
     String? newNoteLanguage,
     int? maxParallelChats,
     int? keepChatsDays,
+    bool? notifyAnswers,
   }) =>
       AiSettings(
         hiddenTags: hiddenTags ?? this.hiddenTags,
@@ -285,6 +293,7 @@ class AiSettings {
         newNoteLanguage: newNoteLanguage ?? this.newNoteLanguage,
         maxParallelChats: maxParallelChats ?? this.maxParallelChats,
         keepChatsDays: keepChatsDays ?? this.keepChatsDays,
+        notifyAnswers: notifyAnswers ?? this.notifyAnswers,
       );
 
   Map<String, Object?> toJson() => {
@@ -308,6 +317,7 @@ class AiSettings {
         'newNoteLanguage': newNoteLanguage,
         'maxParallelChats': maxParallelChats,
         'keepChatsDays': keepChatsDays,
+        'notifyAnswers': notifyAnswers,
       };
 
   /// Settings from [json]; a missing or unreadable value keeps its default.
@@ -374,6 +384,9 @@ class AiSettings {
       keepChatsDays: keepChatsChoices.any((c) => c.$1 == json['keepChatsDays'])
           ? json['keepChatsDays'] as int
           : defaults.keepChatsDays,
+      notifyAnswers: json['notifyAnswers'] is bool
+          ? json['notifyAnswers'] as bool
+          : defaults.notifyAnswers,
     );
   }
 }
@@ -814,6 +827,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _parallel = TextEditingController();
   int _keepChats = 90;
   bool _webAccess = false;
+  bool _notifyAnswers = true;
   AiEditMode _editMode = AiEditMode.agent;
   AiSettings? _loaded;
   String? _problem;
@@ -932,6 +946,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _parallel.text = '${settings.maxParallelChats}';
       _keepChats = settings.keepChatsDays;
       _webAccess = settings.webAccess;
+      _notifyAnswers = settings.notifyAnswers;
       _editMode = settings.editMode;
       await _draft(_provider);
       if (_imageProvider.isNotEmpty) await _draft(_imageProvider);
@@ -1062,6 +1077,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       newNoteLanguage: language,
       maxParallelChats: parallel,
       keepChatsDays: _keepChats,
+      notifyAnswers: _notifyAnswers,
     );
     final keys = AiSettingsScope.keysOf(context);
     setState(() {
@@ -1099,6 +1115,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         _imageProvider != saved.imageProvider ||
         _infographicProvider != saved.infographicProvider ||
         _webAccess != saved.webAccess ||
+        _notifyAnswers != saved.notifyAnswers ||
         _editMode != saved.editMode ||
         _rounds.text.trim() != '${saved.maxToolRounds}' ||
         _tokens.text.trim() != '${saved.maxOutputTokens}' ||
@@ -1892,6 +1909,85 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           labelText: 'Most notes one AI change set may edit',
         ),
       ),
+      SwitchListTile(
+        key: const ValueKey('notify-answers'),
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Notify when an answer is ready'),
+        subtitle: const Text(
+            'A notification when a chat that is not on screen has its '
+            'answer, or fails. A tap opens the chat.'),
+        value: _notifyAnswers,
+        onChanged: (on) => setState(() => _notifyAnswers = on),
+      ),
+      if (_notifyAnswers) const NotificationPermissionLine(),
     ];
+  }
+}
+
+/// The line under "Notify when an answer is ready" when Android does not
+/// allow notifications for the app (#202): chats still work, without them.
+/// It checks again when the app comes back from Android's settings.
+class NotificationPermissionLine extends StatefulWidget {
+  const NotificationPermissionLine({super.key});
+
+  @override
+  State<NotificationPermissionLine> createState() =>
+      _NotificationPermissionLineState();
+}
+
+class _NotificationPermissionLineState extends State<NotificationPermissionLine>
+    with WidgetsBindingObserver {
+  Future<bool>? _granted;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      setState(() => _granted = _check());
+    }
+  }
+
+  Future<bool> _check() async {
+    final store = ChatStoreScope.maybeOf(context);
+    if (store == null) return true;
+    try {
+      return await store.notifier.permissionGranted();
+    } on Exception {
+      return true;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (isDesktop) return const SizedBox.shrink();
+    return FutureBuilder<bool>(
+      future: _granted ??= _check(),
+      builder: (context, snapshot) {
+        if (snapshot.data != false) return const SizedBox.shrink();
+        return Padding(
+          key: const ValueKey('notify-denied'),
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            'Android does not allow notifications for this app. Chats still '
+            'work, but without a notification. Allow them in Android\'s '
+            'settings for this app.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+          ),
+        );
+      },
+    );
   }
 }

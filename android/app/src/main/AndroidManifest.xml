@@ -1,7 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Only for the AI chat (#59, decision 45): requests go to the chosen
-         provider when a message is sent, never in the background. -->
+         provider when a message is sent. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- A foreground service keeps a working chat alive when the app is in
+         the background (#202, decision 113); its type is dataSync. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- Android 13 and later: the notification about a ready answer (#202). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Roam Graph"
         android:name="${applicationName}"
@@ -34,6 +40,10 @@
                 <data android:mimeType="text/plain"/>
             </intent-filter>
         </activity>
+        <service
+            android:name=".ChatWorkService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

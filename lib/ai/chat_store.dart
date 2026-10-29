@@ -21,6 +21,7 @@ import 'package:path_provider/path_provider.dart';
 import '../edit/agent_changes.dart';
 import '../edit/change_set.dart';
 import '../edit/edit_proposal.dart';
+import '../platform/chat_background.dart';
 import '../platform/error_text.dart';
 import '../platform/screen_awake.dart';
 import 'agent_tools.dart';
@@ -307,6 +308,7 @@ class Chat extends ChangeNotifier {
       return;
     }
     pendingText = null;
+    store._askForNotifications();
     try {
       await whileScreenOn(work);
     } on AiError catch (e) {
@@ -322,6 +324,7 @@ class Chat extends ChangeNotifier {
           unseen = true;
         }
         store.save(this);
+        store._announce(this, answered: transcript.length > before);
       }
       notifyListeners();
     }
@@ -576,11 +579,34 @@ class FileChatStorage implements ChatStorage {
 
 /// All chats, and the rule for how many may work at the same time.
 class ChatStore extends ChangeNotifier {
-  ChatStore(this.storage, {int maxParallel = 3, DateTime Function()? now})
-      : _maxParallel = max(1, maxParallel),
+  ChatStore(
+    this.storage, {
+    int maxParallel = 3,
+    DateTime Function()? now,
+    this.background = const NoBackgroundService(),
+    this.notifier = const NoAnswerNotifier(),
+  })  : _maxParallel = max(1, maxParallel),
         now = now ?? DateTime.now;
 
   final ChatStorage storage;
+
+  /// The foreground service that runs while any chat works (#202).
+  final BackgroundService background;
+
+  /// The notifications about answers (#202).
+  final AnswerNotifier notifier;
+
+  /// "Notify when an answer is ready" (AI → Agent and limits).
+  bool notifyAnswers = true;
+
+  /// The app is on screen. A chat whose screen is open still gets a
+  /// notification while the app is in the background.
+  bool appVisible = true;
+
+  /// The chat a tap on a notification asked for: its ID, empty for the
+  /// list; null when nothing was asked. The screen that opens it takes it
+  /// with [takeOpenRequest].
+  final openRequest = OpenRequest();
 
   /// The clock; tests replace it.
   final DateTime Function() now;
@@ -596,6 +622,13 @@ class ChatStore extends ChangeNotifier {
 
   int _maxParallel;
   int _running = 0;
+
+  /// The number of working chats the service was last told.
+  int _announced = 0;
+
+  /// The calls to the service and the notifier, one after the other.
+  Future<void> _platform = Future.value();
+  bool _askedForNotifications = false;
   final _waiting = <({Chat chat, Completer<bool> done})>[];
   Future<void> _writes = Future.value();
   final _random = Random();
@@ -675,6 +708,65 @@ class ChatStore extends ChangeNotifier {
   /// Completes when the files written so far are written.
   Future<void> flush() => _writes;
 
+  /// Completes when the calls to the service and the notifier so far are
+  /// done.
+  Future<void> flushPlatform() => _platform;
+
+  /// A tap on a notification asks to open the chat [chatId] (empty: the
+  /// list).
+  void requestOpen(String chatId) => openRequest.set(chatId);
+
+  /// The chat a tap asked for, once; null when nothing is asked.
+  String? takeOpenRequest() => openRequest.take();
+
+  void _call(Future<void> Function() call) {
+    _platform = _platform.then((_) async {
+      try {
+        await call();
+      } on Exception {
+        // No service or no notification must never stop a chat.
+      }
+    });
+  }
+
+  /// Tells the service how many chats work now: it runs while one does.
+  void _syncService() {
+    final n = _running;
+    if (n == _announced) return;
+    _announced = n;
+    _call(() => n > 0 ? background.working(n) : background.idle());
+  }
+
+  /// Asks for the notification permission at the first send while there is
+  /// none; the chat does not wait for the answer. Android stops showing
+  /// the question after refusals, then this does nothing.
+  void _askForNotifications() {
+    if (_askedForNotifications || !notifyAnswers) return;
+    _askedForNotifications = true;
+    _call(() async {
+      if (!await notifier.permissionGranted()) {
+        await notifier.requestPermission();
+      }
+    });
+  }
+
+  /// A request of [chat] ended: tells me, if the chat is not on screen.
+  void _announce(Chat chat, {required bool answered}) {
+    if (!notifyAnswers) return;
+    if (chat.viewers > 0 && appVisible) return;
+    final String title, text;
+    if (chat.error case final error?) {
+      title = "Failed in '${chat.title}'";
+      text = _firstLine(error);
+    } else if (answered) {
+      title = "Answer in '${chat.title}'";
+      text = _firstLine(_lastAnswer(chat));
+    } else {
+      return;
+    }
+    _call(() => notifier.show(chatId: chat.id, title: title, text: text));
+  }
+
   /// Saves [chat] in the background; a chat that is not in the list is not
   /// saved.
   void save(Chat chat) {
@@ -736,6 +828,7 @@ class ChatStore extends ChangeNotifier {
   Future<bool> _acquire(Chat chat) {
     if (_running < _maxParallel && _waiting.isEmpty) {
       _running++;
+      _syncService();
       return Future.value(true);
     }
     final done = Completer<bool>();
@@ -747,6 +840,7 @@ class ChatStore extends ChangeNotifier {
   void _release() {
     _running--;
     _pump();
+    _syncService();
   }
 
   void _pump() {
@@ -756,6 +850,7 @@ class ChatStore extends ChangeNotifier {
       next.chat._setQueued(false);
       next.done.complete(true);
     }
+    _syncService();
   }
 
   void _cancelWait(Chat chat) {
@@ -765,6 +860,44 @@ class ChatStore extends ChangeNotifier {
     waiter.chat._setQueued(false);
     waiter.done.complete(false);
   }
+}
+
+/// A tap on a notification waiting to be answered by a screen (#202).
+class OpenRequest extends ChangeNotifier {
+  String? _id;
+
+  /// The chat asked for: its ID, empty for the list; null when none.
+  String? get id => _id;
+
+  void set(String id) {
+    _id = id;
+    notifyListeners();
+  }
+
+  /// The chat asked for, once.
+  String? take() {
+    final id = _id;
+    _id = null;
+    return id;
+  }
+}
+
+/// The text of the last answer of [chat]; empty if it has none.
+String _lastAnswer(Chat chat) {
+  for (final entry in chat.transcript.reversed) {
+    if (entry is AssistantMessage) return entry.text;
+  }
+  return '';
+}
+
+/// The first line of [text] that is not empty, cut to fit a notification.
+String _firstLine(String text) {
+  for (final line in text.split('\n')) {
+    final trimmed = line.trim();
+    if (trimmed.isEmpty) continue;
+    return trimmed.length > 140 ? '${trimmed.substring(0, 140)}…' : trimmed;
+  }
+  return '';
 }
 
 /// The chat store for the screens below it.
@@ -783,41 +916,76 @@ class ChatStoreScope extends InheritedNotifier<ChatStore> {
 
 /// Makes the [ChatStore] for the whole app, above the navigator like the
 /// AI settings, reads the saved chats at the start and follows "Most chats
-/// working at the same time".
+/// working at the same time" and "Notify when an answer is ready". It also
+/// tells the store whether the app is on screen, and passes on a tap on a
+/// notification (#202).
 class ChatStoreHost extends StatefulWidget {
   const ChatStoreHost({
     super.key,
     this.storage = const FileChatStorage(),
+    this.background,
+    this.notifier,
     required this.child,
   });
 
   final ChatStorage storage;
+
+  /// The service and the notifier; by default those of the platform.
+  final BackgroundService? background;
+  final AnswerNotifier? notifier;
   final Widget child;
 
   @override
   State<ChatStoreHost> createState() => _ChatStoreHostState();
 }
 
-class _ChatStoreHostState extends State<ChatStoreHost> {
-  late final ChatStore _store = ChatStore(widget.storage);
+class _ChatStoreHostState extends State<ChatStoreHost>
+    with WidgetsBindingObserver {
+  late final AnswerNotifier _notifier =
+      widget.notifier ?? platformAnswerNotifier();
+  late final ChatStore _store = ChatStore(
+    widget.storage,
+    background: widget.background ?? platformBackgroundService(),
+    notifier: _notifier,
+  );
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _notifier.listen(_store.requestOpen);
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _store.appVisible = state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.inactive;
   }
 
   Future<void> _load() async {
     if (!mounted) return;
     final settings = await AiSettingsScope.current(context);
     _store.maxParallel = settings.maxParallelChats;
+    _store.notifyAnswers = settings.notifyAnswers;
     await _store.load(keepDays: settings.keepChatsDays);
+    // The notification that started the app.
+    final tap = await _notifier.launchTap();
+    if (tap != null && mounted) _store.requestOpen(tap);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _store.maxParallel = AiSettingsScope.of(context).maxParallelChats;
+    final settings = AiSettingsScope.of(context);
+    _store.maxParallel = settings.maxParallelChats;
+    _store.notifyAnswers = settings.notifyAnswers;
   }
 
   @override

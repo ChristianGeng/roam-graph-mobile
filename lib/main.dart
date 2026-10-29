@@ -10,6 +10,7 @@ import 'folder/folder_screen.dart';
 import 'graph/graph_index.dart';
 import 'graph_view/node_memory.dart';
 import 'node_view/sclang_language.dart';
+import 'platform/chat_background.dart';
 import 'platform/desktop.dart';
 import 'settings/view_settings.dart';
 
@@ -35,6 +36,8 @@ class RoamGraphApp extends StatelessWidget {
     this.viewSettings = const FileViewSettingsStore(),
     this.editHistory = const FileEditHistory(),
     this.chatStorage = const FileChatStorage(),
+    this.backgroundService,
+    this.answerNotifier,
   });
 
   /// The notes folder: Android's, or a plain folder on the desktop (#116).
@@ -50,6 +53,11 @@ class RoamGraphApp extends StatelessWidget {
   /// Where the AI chats are kept (#201): the app's private storage.
   final ChatStorage chatStorage;
 
+  /// The Android foreground service and the answer notifications (#202);
+  /// by default those of the platform, none on the desktop.
+  final BackgroundService? backgroundService;
+  final AnswerNotifier? answerNotifier;
+
   @override
   Widget build(BuildContext context) {
     return AiSettingsHost(
@@ -60,6 +68,8 @@ class RoamGraphApp extends StatelessWidget {
         // Also above the navigator: chats keep working when their screen
         // closes (#201).
         storage: chatStorage,
+        background: backgroundService,
+        notifier: answerNotifier,
         child: ViewSettingsHost(
           store: viewSettings,
           child: Builder(
