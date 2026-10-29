@@ -50,6 +50,17 @@ String chatFile(
       ],
     });
 
+/// Pumps until nothing is scheduled, at most 50 frames. A focused text field
+/// keeps a cursor timer going, so pumpAndSettle could wait for ever.
+Future<void> settle(WidgetTester tester) async {
+  await tester.pump();
+  var n = 0;
+  while (tester.binding.hasScheduledFrame && n < 50) {
+    await tester.pump(const Duration(milliseconds: 100));
+    n++;
+  }
+}
+
 void main() {
   final graph = graphOf(notes);
 
@@ -91,7 +102,7 @@ void main() {
         ),
       ),
     ));
-    await tester.pumpAndSettle();
+    await settle(tester);
   }
 
   Finder row(String id) => find.byKey(ValueKey('chat-row-$id'));
@@ -143,7 +154,7 @@ void main() {
 
     server.gate.complete();
     await done;
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.byKey(const ValueKey('chat-spinner-newer')), findsNothing);
     expect(find.byKey(const ValueKey('chat-dot-newer')), findsOneWidget);
   });
@@ -165,20 +176,20 @@ void main() {
 
     server.gate.complete();
     await Future.wait([doneOne, doneTwo]);
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.textContaining('Waiting'), findsNothing);
   });
 
   testWidgets('rename from the row\'s menu', (tester) async {
     await openList(tester, FakeServer([]));
     await tester.tap(find.byKey(const ValueKey('chat-menu-newer')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('Rename'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.enterText(
         find.byKey(const ValueKey('chat-rename-field')), 'Mushrooms');
     await tester.tap(find.byKey(const ValueKey('chat-rename-ok')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.text('Mushrooms'), findsOneWidget);
     expect(find.text('Newer chat'), findsNothing);
     await store.flush();
@@ -188,14 +199,14 @@ void main() {
   testWidgets('swipe to delete, with Undo in a snack bar', (tester) async {
     await openList(tester, FakeServer([]));
     await tester.drag(row('newer'), const Offset(-800, 0));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.text('Newer chat'), findsNothing);
     expect(find.text('Chat deleted.'), findsOneWidget);
     await store.flush();
     expect(storage.files.containsKey('newer'), isFalse);
 
     await tester.tap(find.text('Undo'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.text('Newer chat'), findsOneWidget);
     await store.flush();
     expect(storage.files.containsKey('newer'), isTrue);
@@ -204,9 +215,9 @@ void main() {
   testWidgets('delete from the menu', (tester) async {
     await openList(tester, FakeServer([]));
     await tester.tap(find.byKey(const ValueKey('chat-menu-older')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('Delete'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.text('Older chat'), findsNothing);
     await store.flush();
     expect(storage.files.keys, unorderedEquals(['newer', 'fresh']));
@@ -217,7 +228,7 @@ void main() {
     final server = FakeServer([answer('Second answer.')]);
     await openList(tester, server);
     await tester.tap(find.text('Newer chat'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.byType(ChatScreen), findsOneWidget);
     expect(find.text('Question of Newer chat'), findsOneWidget);
     expect(find.text('Answer of Newer chat', findRichText: true), findsOneWidget);
@@ -240,9 +251,9 @@ void main() {
   testWidgets('opening a chat with a dot takes the dot away', (tester) async {
     await openList(tester, FakeServer([]));
     await tester.tap(find.text('Fresh chat'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.pageBack();
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.byKey(const ValueKey('chat-dot-fresh')), findsNothing);
     await store.flush();
     expect(jsonDecode(storage.files['fresh']!)['unseen'], false);
@@ -254,7 +265,7 @@ void main() {
     final server = GatedServer([answer('It is done.')]);
     await openList(tester, server);
     await tester.tap(find.byKey(const ValueKey('chat-new')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.enterText(
         find.byKey(const ValueKey('chat-input')), 'Slow question');
     await tester.tap(find.byTooltip('Send'));
@@ -270,14 +281,14 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
     server.gate.complete();
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     final chat = store.chats.single;
     expect(chat.unseen, isTrue);
     expect(find.byKey(ValueKey('chat-dot-${chat.id}')), findsOneWidget);
 
     await tester.tap(find.text('Slow question'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.text('It is done.', findRichText: true), findsOneWidget);
     expect(chat.unseen, isFalse);
   });
@@ -294,11 +305,11 @@ void main() {
     );
     await openList(tester, FakeServer([]), writer: writer);
     await tester.tap(find.text('Newer chat'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.byKey(const ValueKey('chat-menu')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.text('Save chat as note'));
-    await tester.pumpAndSettle();
+    await settle(tester);
 
     expect(find.byType(CaptureScreen), findsOneWidget);
     // Nothing is written before I save.
@@ -307,7 +318,7 @@ void main() {
         tester.widget<TextField>(find.byKey(const ValueKey('capture-title')));
     expect(title.controller!.text, 'Newer chat');
     await tester.tap(find.byTooltip('Save'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     final (name, text) = written.single;
     expect(name, endsWith('-newer_chat.org'));
     expect(text, contains('#+title: Newer chat'));
@@ -327,32 +338,32 @@ void main() {
     });
     await openList(tester, FakeServer([]));
     await tester.tap(find.text('Newer chat'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.byKey(const ValueKey('chat-long')), findsNothing);
     expect(find.textContaining('Size of this chat: about 42 characters'),
         findsOneWidget);
     await tester.pageBack();
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.byKey(const ValueKey('chat-tile-long')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.byKey(const ValueKey('chat-long')), findsOneWidget);
   });
 
   testWidgets('the limit is a field under Agent and limits', (tester) async {
     await openList(tester, FakeServer([]));
     await tester.tap(find.byTooltip('AI settings'));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.byKey(const ValueKey('ai-agent')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.scrollUntilVisible(
         find.byKey(const ValueKey('max-parallel-chats')), 200);
     final field = tester
         .widget<TextField>(find.byKey(const ValueKey('max-parallel-chats')));
     expect(field.controller!.text, '3');
     await tester.pageBack();
-    await tester.pumpAndSettle();
+    await settle(tester);
     await tester.tap(find.byKey(const ValueKey('ai-privacy')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(find.byKey(const ValueKey('keep-chats')), findsOneWidget);
     expect(find.text('90 days'), findsOneWidget);
   });
