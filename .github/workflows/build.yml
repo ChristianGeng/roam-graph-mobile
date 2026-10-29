@@ -212,8 +212,8 @@ jobs:
           status=0
           # The live image tests need real keys; live-images.yml runs them
           # (#168).
-          for f in chat_list_screen chat_store; do
-            timeout 400 flutter test --exclude-tags live --timeout 40s -r expanded test/ai/${f}_test.dart > "$RUNNER_TEMP/dbg-$f.txt" 2>&1 || true
+          for f in dbg_rename; do
+            timeout 150 flutter test --exclude-tags live --timeout 40s -r expanded test/ai/${f}_test.dart > "$RUNNER_TEMP/dbg-$f.txt" 2>&1 || true
             tr '\r' '\n' < "$RUNNER_TEMP/dbg-$f.txt" | grep -v -E '^\s*(package:|dart:|#[0-9])' | grep -v '^\s*$' | awk 'length<300' > "$RUNNER_TEMP/dbg-$f-short.txt" || true
             last=$(grep -E '^[0-9]{2}:[0-9]{2} \+' "$RUNNER_TEMP/dbg-$f-short.txt" | tail -2 | sed ':a;N;$!ba;s/\n/%0A/g')
             echo "::error title=DEBUG $f::$last%0A$(grep -v -E '^[0-9]{2}:[0-9]{2} \+[0-9]+: ' "$RUNNER_TEMP/dbg-$f-short.txt" | tail -c 3700 | sed ':a;N;$!ba;s/\n/%0A/g')"
