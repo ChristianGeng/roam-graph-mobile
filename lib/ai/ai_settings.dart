@@ -1979,9 +1979,10 @@ class _NotificationPermissionLineState extends State<NotificationPermissionLine>
           key: const ValueKey('notify-denied'),
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-            'Android does not allow notifications for this app. Chats still '
-            'work, but without a notification. Allow them in Android\'s '
-            'settings for this app.',
+            'Android does not allow notifications about answers for this app: '
+            'its notifications, or its "Answers" category, are switched off. '
+            'Chats still work, but without a notification. Allow them in '
+            'Android\'s settings for this app.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.error,
                 ),
