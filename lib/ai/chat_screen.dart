@@ -32,6 +32,7 @@ import 'chart.dart' show defaultChartColors;
 import 'chat_note.dart';
 import 'chat_store.dart';
 import 'edit_tools.dart';
+import 'model_picker.dart';
 import 'note_from_answer.dart';
 import 'note_language.dart';
 import 'web_access.dart';
@@ -421,9 +422,21 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Makes the session again after a change of AI settings, where the
   /// chat has no messages yet.
   void _restart() {
-    if (mounted && _chat.transcript.isEmpty && !_chat.sending) {
-      _start(fresh: true);
-    }
+    if (!mounted) return;
+    _refreshDefaults();
+    if (_chat.transcript.isEmpty && !_chat.sending) _start(fresh: true);
+  }
+
+  /// The default and strong model of the chat's provider as the AI
+  /// settings have them now, for the model menus (#203).
+  void _refreshDefaults() {
+    final id = _chat.providerId;
+    final values =
+        AiSettingsScope.of(context).providerSettings(id.isEmpty ? null : id);
+    setState(() {
+      _defaultModel = values.defaultModel;
+      _strongModel = values.strongModel;
+    });
   }
 
   /// The image models of "Images with:" and "Infographics with:" for the
@@ -784,6 +797,55 @@ class _ChatScreenState extends State<ChatScreen> {
     await _openCapture(writer, note, tags: const [chatNoteTag]);
   }
 
+  /// Uses [model] for the next messages of this chat. The AI settings are
+  /// not changed, and the chat keeps its provider (#203).
+  void _setModel(String model) {
+    final session = _session;
+    // Not while a request runs: a later round of it would use the new
+    // model, and the line in the transcript would come too late.
+    if (session == null || model.isEmpty || _sending) return;
+    setState(() {
+      session.model = model;
+      _chat.model = model;
+      _modelGone = null;
+    });
+    _chat.changed();
+    // The switched-to model is checked too (#113).
+    if (_config case final config?) {
+      unawaited(_checkModel(config, model));
+    }
+  }
+
+  /// "Model for this chat" (#203): the model picker of the chat's
+  /// provider, with its badges, filters and prices. "EU only" applies as
+  /// in the settings: the picker does not offer a model without an EU
+  /// route.
+  Future<void> _pickModel() async {
+    final config = _session?.config;
+    if (config == null || _sending) return;
+    final picked = await ModelPickerScreen.open(
+      context,
+      provider: config.name,
+      euOnly: config.euOnly,
+      providerId: _chat.providerId,
+      load: ({bool refresh = false}) => fetchModels(
+        provider: config.name,
+        api: config.api,
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey,
+        get: widget.getModels,
+        refresh: refresh,
+      ),
+    );
+    if (picked != null && mounted) _setModel(picked);
+  }
+
+  /// "Use the default model" (#203): back to the model of the AI
+  /// settings.
+  void _useDefaultModel() {
+    if (_defaultModel.isNotEmpty && !_sending) _setModel(_defaultModel);
+  }
+
   /// A new chat in this screen; the chat left stays in the chat list and
   /// goes on working.
   void _newChat() {
@@ -833,19 +895,9 @@ class _ChatScreenState extends State<ChatScreen> {
             PopupMenuButton<String>(
               tooltip: 'Model',
               icon: const Icon(Icons.tune),
+              enabled: !_sending,
               initialValue: model,
-              onSelected: (m) {
-                setState(() {
-                  session.model = m;
-                  _chat.model = m;
-                  _modelGone = null;
-                });
-                _chat.changed();
-                // The switched-to model is checked too (#113).
-                if (_config case final config?) {
-                  unawaited(_checkModel(config, m));
-                }
-              },
+              onSelected: _setModel,
               itemBuilder: (_) => [
                 PopupMenuItem(
                   value: _defaultModel,
@@ -869,19 +921,43 @@ class _ChatScreenState extends State<ChatScreen> {
             icon: const Icon(Icons.add_comment_outlined),
             onPressed: _preparing != null ? null : _newChat,
           ),
-          if (widget.writer case final writer?)
-            PopupMenuButton<String>(
-              key: const ValueKey('chat-menu'),
-              tooltip: 'Chat menu',
-              onSelected: (_) => _saveChatAsNote(writer),
-              itemBuilder: (_) => [
+          PopupMenuButton<String>(
+            key: const ValueKey('chat-menu'),
+            tooltip: 'Chat menu',
+            onSelected: (value) {
+              switch (value) {
+                case 'pick-model':
+                  _pickModel();
+                case 'default-model':
+                  _useDefaultModel();
+                case 'save-note':
+                  if (widget.writer case final writer?) {
+                    _saveChatAsNote(writer);
+                  }
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'pick-model',
+                enabled: session != null && !_sending,
+                child: const Text('Model for this chat'),
+              ),
+              PopupMenuItem(
+                value: 'default-model',
+                enabled: session != null &&
+                    !_sending &&
+                    _defaultModel.isNotEmpty &&
+                    model != _defaultModel,
+                child: const Text('Use the default model'),
+              ),
+              if (widget.writer != null)
                 PopupMenuItem(
                   value: 'save-note',
                   enabled: _chat.transcript.isNotEmpty,
                   child: const Text('Save chat as note'),
                 ),
-              ],
-            ),
+            ],
+          ),
           IconButton(
             tooltip: 'AI settings',
             icon: const Icon(Icons.settings_outlined),
@@ -983,9 +1059,27 @@ class _ChatScreenState extends State<ChatScreen> {
     for (final (i, entry) in transcript.indexed) {
       if (entry is UserMessage) turn = i;
       // The agent's summary goes after the last entry of its message.
-      final lastOfTurn =
-          i == transcript.length - 1 || transcript[i + 1] is UserMessage;
+      // The line "Model changed to …" (#203) is not part of a turn.
+      final lastOfTurn = entry is! ModelChanged &&
+          (i == transcript.length - 1 ||
+              transcript[i + 1] is UserMessage ||
+              transcript[i + 1] is ModelChanged);
       switch (entry) {
+        case ModelChanged():
+          children.add(
+            Padding(
+              key: ValueKey('chat-model-changed-$i'),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(
+                entry.text,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          );
         case UserMessage():
           children.add(
             Align(

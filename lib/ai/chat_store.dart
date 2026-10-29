@@ -75,6 +75,11 @@ class Chat extends ChangeNotifier {
   /// A new answer has come since the chat was last opened.
   bool unseen;
 
+  /// The model the last message went to; empty before the first message.
+  /// A different model at the next message adds a line to the transcript
+  /// (#203).
+  String lastSentModel = '';
+
   /// The transcript and the usage of a chat read from its file, until a
   /// session is made for it.
   List<ChatEntry> _stored = [];
@@ -160,6 +165,8 @@ class Chat extends ChangeNotifier {
     var n = 0;
     for (final entry in transcript) {
       switch (entry) {
+        case ModelChanged():
+          break;
         case UserMessage():
           n += entry.text.length + (entry.context?.length ?? 0);
         case AssistantMessage():
@@ -229,6 +236,7 @@ class Chat extends ChangeNotifier {
     final s = session;
     if (s == null || sending) return;
     pendingText = text;
+    _noteModelChange(s);
     // The agent's changes for this message are kept under its index.
     if (agent case final agent?) {
       turnChanges[s.transcript.length] = agent.startMessage(prompt: text);
@@ -236,10 +244,41 @@ class Chat extends ChangeNotifier {
     await run(() => s.send(text, context: context, onUpdate: _step));
   }
 
+  /// Adds the line "Model changed to …" where the model differs from the
+  /// one of the last message (#203), and remembers the model in use.
+  void _noteModelChange(ChatSession s) {
+    final model = s.config.model;
+    if (lastSentModel.isNotEmpty && lastSentModel != model) {
+      s.transcript.add(ModelChanged(_modelChangedText(model)));
+    }
+    lastSentModel = model;
+  }
+
+  String _modelChangedText(String model) {
+    final name = providerId.isEmpty ? providerName : providerId;
+    return 'Model changed to $name/$model';
+  }
+
   /// Sends the conversation again after an error.
   Future<void> resume() async {
     final s = session;
     if (s == null || sending) return;
+    final model = s.config.model;
+    if (lastSentModel.isNotEmpty && lastSentModel != model) {
+      // The model was changed after the failed send: the line goes before
+      // the message that is sent again, and the agent's changes of that
+      // message and the later ones move up with it.
+      final at = currentMessageStart(s.transcript);
+      s.transcript.insert(at, ModelChanged(_modelChangedText(model)));
+      final moved = {
+        for (final MapEntry(:key, :value) in turnChanges.entries)
+          (key >= at ? key + 1 : key): value,
+      };
+      turnChanges
+        ..clear()
+        ..addAll(moved);
+    }
+    lastSentModel = model;
     await run(() => s.resume(onUpdate: _step));
   }
 
@@ -296,6 +335,7 @@ class Chat extends ChangeNotifier {
         'provider': providerId,
         'providerName': providerName,
         'model': session?.config.model ?? model,
+        'lastSentModel': lastSentModel,
         'startNode': startNodeId,
         'startNodeTitle': startNodeTitle,
         'unseen': unseen,
@@ -333,6 +373,9 @@ class Chat extends ChangeNotifier {
     final entries = m['transcript'];
     if (entries is! List) throw const FormatException('no transcript');
     chat._stored = [for (final entry in entries) _entryFrom(entry)];
+    // A file from before this field: the model it was saved with.
+    chat.lastSentModel =
+        _text(m['lastSentModel']) ?? (entries.isEmpty ? '' : chat.model);
     return chat;
   }
 }
@@ -389,6 +432,7 @@ ToolResult _resultFrom(Object? json) {
 }
 
 Map<String, Object?> _entryJson(ChatEntry entry) => switch (entry) {
+      ModelChanged() => {'type': 'model', 'text': entry.text},
       UserMessage() => {
           'type': 'user',
           'text': entry.text,
@@ -412,6 +456,8 @@ Map<String, Object?> _entryJson(ChatEntry entry) => switch (entry) {
 ChatEntry _entryFrom(Object? json) {
   final m = _map(json);
   switch (m['type']) {
+    case 'model':
+      return ModelChanged(_need(m, 'text'));
     case 'user':
       return UserMessage(_need(m, 'text'), context: _text(m['context']));
     case 'assistant':

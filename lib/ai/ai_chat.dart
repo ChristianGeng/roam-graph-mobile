@@ -283,6 +283,15 @@ class ToolResults extends ChatEntry {
   final List<ToolResult> results;
 }
 
+/// A line in the transcript that says the model changed (#203). It is
+/// shown and saved with the chat, and never sent to a provider.
+class ModelChanged extends ChatEntry {
+  const ModelChanged(this.text);
+
+  /// For example "Model changed to anthropic/claude-opus-5-5".
+  final String text;
+}
+
 /// A request as the app sends it.
 class ApiRequest {
   const ApiRequest(this.url, this.headers, this.body);
@@ -358,6 +367,9 @@ class AnthropicApi extends ModelApi {
 
     for (final (index, entry) in transcript.indexed) {
       switch (entry) {
+        case ModelChanged():
+          // Only for the screen; the provider never sees it.
+          break;
         case UserMessage():
           addUser([
             {'type': 'text', 'text': entry.forModel},
@@ -562,6 +574,9 @@ class OpenAiApi extends ModelApi {
     ];
     for (final (index, entry) in transcript.indexed) {
       switch (entry) {
+        case ModelChanged():
+          // Only for the screen; the provider never sees it.
+          break;
         case UserMessage():
           messages.add({'role': 'user', 'content': entry.forModel});
         case AssistantMessage():

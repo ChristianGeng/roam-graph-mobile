@@ -32,6 +32,11 @@ In the bar of the chat:
 - *Model* (the sliders icon) switches between the default model and the
   strong model. It shows only when *Strong model (optional)* is set to a
   different model in AI settings (AI → Chat).
+- *Chat menu* → *Model for this chat* opens the model list of the chat's
+  provider and uses the model I pick for this chat only. The AI settings
+  stay as they are, and the chat keeps its provider. A line in the chat
+  says "Model changed to …" where the model changed. *Use the default
+  model* in the same menu goes back to the model of the AI settings.
 - *Recent AI changes* shows what the AI changed.
 - *New chat* starts another chat. The chat I leave stays in the list.
 - *Chat menu*, *Save chat as note*: see

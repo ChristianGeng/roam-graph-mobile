@@ -8,6 +8,11 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-29: Model for this chat ([#205](https://github.com/ChristianGeng/roam-graph-mobile/pull/205))
+
+Added: the chat menu has "Model for this chat". It opens the model list of the chat's provider and uses the model you pick for this chat only; the AI settings stay as they are. "Use the default model" goes back. The chat shows "Model changed to …" where the model changed, and the chat file keeps the model.
+Closes #203.
+
 ## 2026-10-29: AI chats: a chat list, kept on the device, working in parallel ([#204](https://github.com/ChristianGeng/roam-graph-mobile/pull/204))
 
 Added: "Ask AI" opens a list of chats. Chats are kept on this device and can be continued, renamed and deleted (with Undo). Several chats can work at the same time; a chat goes on when its screen closes. New settings: "Most chats working at the same time" and "Keep chats for". "Save chat as note" makes a note from a chat.

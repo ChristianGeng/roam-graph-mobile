@@ -3380,6 +3380,28 @@ store that lives as long as the app.
   service and a notification) is #202. Org files of chats in a synced
   folder are not made.
 
+## 112. Model for this chat (#203)
+
+A chat could switch between the default and the strong model; any other
+model needed a change in AI settings, which applies to every chat.
+- **The choice:** the chat menu has "Model for this chat". It opens the
+  model picker of the chat's provider (badges, filters and prices as in the
+  settings). The chosen model is used for the next messages and saved in
+  the chat file (`model`). The AI settings are not changed. "Use the
+  default model" in the same menu returns to the settings' default model.
+  The default/strong switch works as before.
+- **Provider:** a chat keeps its provider, because tool calls and message
+  formats differ between the APIs. Another provider is a new chat.
+- **The line in the transcript:** when a message goes to another model than
+  the last message did, the chat adds the line "Model changed to
+  <provider>/<model>" before it. It is shown and saved with the chat (entry
+  type `model`), is never sent to a provider, and does not count as a
+  message. A chat file records the model of the last message
+  (`lastSentModel`); a file without it takes `model`.
+- **"EU only":** the picker is the one of the settings, so a model without
+  an EU route is listed as "no EU route" and cannot be picked.
+- **Images:** image and infographic models stay global in AI settings.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
