@@ -289,6 +289,8 @@ class Chat extends ChangeNotifier {
 
   void _step() {
     if (!discarded) lastUsed = store.now();
+    // Tries the service again where its start or stop failed (#202).
+    store._syncService();
     changed();
   }
 
@@ -739,7 +741,15 @@ class ChatStore extends ChangeNotifier {
     final n = _running;
     if (n == _announced) return;
     _announced = n;
-    _call(() => n > 0 ? background.working(n) : background.idle());
+    _call(() async {
+      try {
+        await (n > 0 ? background.working(n) : background.idle());
+      } catch (_) {
+        // Not done: the next step of a chat tries again.
+        if (_announced == n) _announced = -1;
+        rethrow;
+      }
+    });
   }
 
   /// Asks for the notification permission at the first send while there is

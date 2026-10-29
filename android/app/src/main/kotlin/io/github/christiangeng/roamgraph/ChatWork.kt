@@ -31,6 +31,15 @@ object ChatNotifications {
      */
     fun allowed(context: Context): Boolean = manager(context).areNotificationsEnabled()
 
+    /** [allowed], and the channel of the answers is not switched off in Android's settings. */
+    fun answersAllowed(context: Context): Boolean {
+        if (!allowed(context)) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
+        channels(context)
+        val channel = manager(context).getNotificationChannel(CHANNEL_ANSWER)
+        return channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE
+    }
+
     private fun manager(context: Context) =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -86,7 +95,7 @@ object ChatNotifications {
 
     /** An answer or a failure; one notification for each chat, a new one replaces it. */
     fun answer(context: Context, chatId: String, title: String, text: String) {
-        if (!allowed(context)) return
+        if (!answersAllowed(context)) return
         val notification = builder(context, CHANNEL_ANSWER)
             .setContentTitle(title)
             .setContentText(text)

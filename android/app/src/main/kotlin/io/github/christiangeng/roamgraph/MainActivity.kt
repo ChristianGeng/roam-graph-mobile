@@ -149,7 +149,7 @@ class MainActivity : FlutterActivity() {
                 ChatWorkService.stop(this)
                 result.success(null)
             }
-            "hasPermission" -> result.success(ChatNotifications.allowed(this))
+            "hasPermission" -> result.success(ChatNotifications.answersAllowed(this))
             "requestPermission" -> {
                 if (ChatNotifications.allowed(this)) {
                     result.success(true)

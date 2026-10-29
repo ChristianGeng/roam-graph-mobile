@@ -6,7 +6,7 @@ import 'package:roam_graph_mobile/ai/ai_visibility.dart';
 import 'package:roam_graph_mobile/ai/chat_store.dart';
 import 'package:roam_graph_mobile/platform/chat_background.dart';
 
-import 'ai_chat_test.dart' show FakeServer, anthropic;
+import 'ai_chat_test.dart' show FakeServer, anthropic, anthropicReply;
 import 'ai_visibility_test.dart' show graphOf, notes;
 import 'chat_store_test.dart' show GatedServer, answer;
 
@@ -17,9 +17,16 @@ class FakeService implements BackgroundService {
   /// Makes every call fail, as when Android refuses the service.
   bool failing = false;
 
+  /// Makes the next calls fail, then lets them pass.
+  int failNext = 0;
+
   @override
   Future<void> working(int chats) async {
     calls.add('working $chats');
+    if (failNext > 0) {
+      failNext--;
+      throw Exception('not allowed');
+    }
     if (failing) throw Exception('not allowed');
   }
 
@@ -157,6 +164,29 @@ void main() {
       await chat.send('Question');
       await store.flushPlatform();
       expect(service.calls, ['working 1', 'idle']);
+    });
+
+    test('a service that could not start is tried again at the next step',
+        () async {
+      service.failNext = 1;
+      final chat = chatOn(FakeServer([
+        anthropicReply([
+          {
+            'type': 'tool_use',
+            'id': 't1',
+            'name': 'org_roam_find',
+            'input': {'search': 'Plan'},
+          },
+        ], stop: 'tool_use'),
+        answer('Done.'),
+      ]));
+      await chat.send('Where is my plan?');
+      await store.flushPlatform();
+      expect(service.calls.first, 'working 1');
+      // The first start failed; a step of the chat started it again.
+      expect(service.calls.where((c) => c == 'working 1').length,
+          greaterThanOrEqualTo(2));
+      expect(service.calls.last, 'idle');
     });
 
     test('a service that fails does not stop the chat', () async {
