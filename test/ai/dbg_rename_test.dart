@@ -15,6 +15,10 @@ import 'chat_screen_test.dart' show keysWithAnthropic;
 void main() {
   testWidgets('dbg rename', (tester) async {
     final storage = MemoryChatStorage()
+      ..files['older'] = chatFile('Older chat',
+          lastUsed: '2026-10-01T10:00:00.000Z', startTitle: 'Ideas')
+      ..files['fresh'] = chatFile('Fresh chat',
+          lastUsed: '2026-10-03T10:00:00.000Z', unseen: true)
       ..files['newer'] =
           chatFile('Newer chat', lastUsed: '2026-10-02T10:00:00.000Z');
     final store = ChatStore(storage);
