@@ -342,10 +342,12 @@ void main() {
       ...(jsonDecode(chatFile('Long chat',
           lastUsed: '2026-10-04T10:00:00.000Z')) as Map<String, Object?>),
       'transcript': [
-        {'type': 'user', 'text': 'Question'},
+        // The context of a message is sent again with every message, but the
+        // screen does not show it.
+        {'type': 'user', 'text': 'Question', 'context': 'x' * 120000},
         {
           'type': 'assistant',
-          'text': 'word ' * 24000,
+          'text': 'Answer',
           'model': 'claude-sonnet-5-5',
           'toolCalls': <Object?>[],
           'searches': <Object?>[],
@@ -363,10 +365,6 @@ void main() {
     await settle(tester);
     await tester.tap(find.byKey(const ValueKey('chat-tile-long')));
     await settle(tester);
-    // The hint is at the end of the chat: scroll down to it.
-    await tester.scrollUntilVisible(
-        find.byKey(const ValueKey('chat-long')), 5000,
-        scrollable: find.byType(Scrollable).first, maxScrolls: 200);
     expect(find.byKey(const ValueKey('chat-long')), findsOneWidget);
   });
 
