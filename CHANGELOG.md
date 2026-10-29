@@ -8,6 +8,11 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-29: AI chats: a chat list, kept on the device, working in parallel ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+Added: "Ask AI" opens a list of chats. Chats are kept on this device and can be continued, renamed and deleted (with Undo). Several chats can work at the same time; a chat goes on when its screen closes. New settings: "Most chats working at the same time" and "Keep chats for". "Save chat as note" makes a note from a chat.
+Closes #201.
+
 ## 2026-10-28: Empty saved models take the defaults ([#200](https://github.com/ChristianGeng/roam-graph-mobile/pull/200))
 
 - Fixed: OpenRouter (and any provider saved with empty model fields) showed no chat model after its preset got defaults; an empty saved model now takes the preset's model.

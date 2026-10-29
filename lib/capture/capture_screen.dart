@@ -97,6 +97,7 @@ class CaptureScreen extends StatefulWidget {
     this.linkByDefault = true,
     this.initialTitle = '',
     this.initialBody = '',
+    this.initialTags = const [],
     this.language,
     this.useForExisting,
     this.graph,
@@ -123,6 +124,9 @@ class CaptureScreen extends StatefulWidget {
   final String initialTitle;
   final String initialBody;
 
+  /// The tags the tag field starts with ("Save chat as note", #201).
+  final List<String> initialTags;
+
   /// The `#+language:` of a note the AI wrote ("Save as node", #172); a
   /// note written by hand gets none.
   final String? language;
@@ -138,6 +142,7 @@ class CaptureScreen extends StatefulWidget {
     bool linkByDefault = true,
     String initialTitle = '',
     String initialBody = '',
+    List<String> initialTags = const [],
     String? language,
     Future<void> Function(ShareUse use)? useForExisting,
     RoamGraph? graph,
@@ -151,6 +156,7 @@ class CaptureScreen extends StatefulWidget {
             linkByDefault: linkByDefault,
             initialTitle: initialTitle,
             initialBody: initialBody,
+            initialTags: initialTags,
             language: language,
             useForExisting: useForExisting,
             graph: graph,
@@ -164,7 +170,7 @@ class CaptureScreen extends StatefulWidget {
 
 class _CaptureScreenState extends State<CaptureScreen> {
   late final _title = TextEditingController(text: widget.initialTitle);
-  final _tags = TagFieldController();
+  late final _tags = TagFieldController(widget.initialTags);
   late final _known = tagCounts(widget.graph);
   late final _body = TextEditingController(text: widget.initialBody);
   bool _saving = false;

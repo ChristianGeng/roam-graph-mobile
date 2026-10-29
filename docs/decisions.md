@@ -1153,7 +1153,8 @@ devices through Syncthing.
     - **The conversation** is kept only while the chat is open; "New chat"
       starts again, with the settings as they are then. Nothing of it is
       stored. Closing the chat stops it: a request under way finishes, but
-      no tool runs and nothing more is sent.
+      no tool runs and nothing more is sent. (Replaced by decision 111:
+      chats are kept on the device and go on when the screen closes.)
     - **An open chat follows the app:** after a scan brings or removes
       notes, or a tag is hidden in the settings, the next tool call uses
       the graph and the hidden tags as they are then.
@@ -3325,6 +3326,59 @@ at once.
   not shown.
 - **Shared widgets** for the counts and the lists are in
   `lib/folder/folder_report.dart`; the start page uses the conflict list.
+
+## 111. AI chats: a list, kept on the device, working in parallel (#201)
+
+The chat lived in the chat screen: Back or "New chat" threw it away, and a
+request under way had nowhere to deliver its answer. Chats now belong to a
+store that lives as long as the app.
+- **Where chats live:** `ChatStore` (`lib/ai/chat_store.dart`) is provided
+  above the navigator, like the AI settings. A `Chat` holds the session,
+  the transcript, the proposals and the agent's changes of one chat. The
+  screen only shows a chat and sends to it, so closing the screen does not
+  stop a request; the chat screen shows the chat again when it is opened.
+  A chat without a message is not in the list and not saved.
+- **Where chats are saved:** one JSON file per chat in `chats/` in the
+  app's private support folder (path_provider), never in the org folder
+  and not synced. The owner confirmed this. A file holds the title (if
+  renamed), the times, provider and model, the start note's ID and title,
+  the usage and the transcript. It never holds the API key (the store never
+  sees it), and an image the model saw is saved as a line
+  ("[image: image/png, not kept in the chat]"), not as bytes. Files are
+  written next to the file and renamed, so a crash leaves no half file.
+- **Damaged files:** a file that is not a chat is skipped, counted, and
+  named in the list. It is left where it is.
+- **Continuing:** a chat read from its file gets a new session with the
+  saved transcript and its saved provider and model; the whole transcript
+  is sent with the next message, as before. What is not saved: the AI's
+  edit proposals, change sets and the agent's "Undo all" cards of an old
+  chat (they refer to notes that may have changed). The agent's changes
+  stay in "Recent AI changes".
+- **The list:** "Ask AI" opens it. A note's AI menu also starts a new chat
+  with that note. Rows show the title (first message cut to one line, or a
+  name from "Rename"), the start note, provider and model, and the last
+  use. A spinner means the chat works, a dot means a new answer came while
+  the chat was not open, "Waiting" means it waits for a place. Swipe or
+  "Delete" removes a chat and its file; "Undo" writes it back.
+- **Parallel chats:** several chats may send at once; one chat sends one
+  message at a time. "Most chats working at the same time" (AI → Agent and
+  limits, default 3) limits it; a further send waits in order, shows its
+  message and "Waiting", and starts when a place is free. The screen-on
+  hold (#131) is a count, so it holds while any chat works.
+- **Agent writes** are unchanged: each chat has its own agent writer, and
+  every write goes through the edit history and its hash check. A chat that
+  wrote from an old read gets the "changed since it was read" error, and
+  nothing is lost (tested with two chats on one note).
+- **Clean-up:** "Keep chats for" (AI → Privacy): 30 days, 90 days (default),
+  1 year or always. Chats not used for that long are deleted when the app
+  starts. The long-chat line appears above about 100,000 characters.
+- **Save chat as note:** the chat menu opens "New node" (the existing
+  capture, so the owner reviews it and it is written like any new node)
+  with the title, the tag `chat` and each question and answer as a heading.
+  Lines of an answer that would be headings are quoted with a comma.
+- **Not here:** running while Android has paused the app (a foreground
+  service and a notification) is #202. Org files of chats in a synced
+  folder are not made.
 
 ## Recommended, not decided
 

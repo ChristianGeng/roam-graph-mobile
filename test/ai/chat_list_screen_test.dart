@@ -1,0 +1,367 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:roam_graph_mobile/ai/ai_chat.dart' show ChatSession, HttpReply;
+import 'package:roam_graph_mobile/ai/ai_settings.dart';
+import 'package:roam_graph_mobile/ai/ai_tools.dart' show RoamTools;
+import 'package:roam_graph_mobile/ai/ai_visibility.dart' show AiVisibility;
+import 'package:roam_graph_mobile/ai/chat_list_screen.dart';
+import 'package:roam_graph_mobile/ai/chat_screen.dart';
+import 'package:roam_graph_mobile/ai/chat_store.dart';
+import 'package:roam_graph_mobile/capture/capture_screen.dart';
+import 'package:roam_graph_mobile/edit/agent_changes.dart';
+
+import 'ai_chat_test.dart' show FakeServer, anthropic;
+import 'ai_settings_test.dart' show MemoryAiSettingsStore;
+import 'ai_visibility_test.dart' show graphOf, notes;
+import 'chat_screen_test.dart' show ask, keysWithAnthropic;
+import 'chat_store_test.dart' show GatedServer, answer;
+
+/// The file of a saved chat.
+String chatFile(
+  String title, {
+  required String lastUsed,
+  bool unseen = false,
+  String? startTitle,
+}) =>
+    jsonEncode({
+      'version': 1,
+      'title': title,
+      'created': lastUsed,
+      'lastUsed': lastUsed,
+      'provider': 'anthropic',
+      'providerName': 'Anthropic',
+      'model': 'claude-sonnet-5-5',
+      'startNode': startTitle == null ? null : 'ideas',
+      'startNodeTitle': startTitle,
+      'unseen': unseen,
+      'usage': {'input': 10, 'cached': 0, 'output': 5},
+      'transcript': [
+        {'type': 'user', 'text': 'Question of $title'},
+        {
+          'type': 'assistant',
+          'text': 'Answer of $title',
+          'model': 'claude-sonnet-5-5',
+          'toolCalls': <Object?>[],
+          'searches': <Object?>[],
+          'paused': false,
+        },
+      ],
+    });
+
+void main() {
+  final graph = graphOf(notes);
+
+  late MemoryChatStorage storage;
+  late ChatStore store;
+
+  setUp(() {
+    storage = MemoryChatStorage()
+      ..files['older'] = chatFile('Older chat',
+          lastUsed: '2026-10-01T10:00:00.000Z', startTitle: 'Ideas')
+      ..files['newer'] =
+          chatFile('Newer chat', lastUsed: '2026-10-02T10:00:00.000Z')
+      ..files['fresh'] = chatFile('Fresh chat',
+          lastUsed: '2026-10-03T10:00:00.000Z', unseen: true);
+    store = ChatStore(storage);
+  });
+
+  Future<void> openList(
+    WidgetTester tester,
+    FakeServer server, {
+    NoteWriter? writer,
+    AiSettings settings = const AiSettings(),
+  }) async {
+    await store.load();
+    await tester.pumpWidget(AiSettingsHost(
+      store: MemoryAiSettingsStore(settings),
+      keys: keysWithAnthropic(),
+      child: ChatStoreScope(
+        store: store,
+        child: MaterialApp(
+          home: ChatListScreen(
+            graph: ValueNotifier(graph),
+            readNote: (path) async => notes[path],
+            writer: writer,
+            post: server.post,
+            agentLog: MemoryAgentLog(),
+            getModels: (url, headers) async => const HttpReply(404, ''),
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+  }
+
+  Finder row(String id) => find.byKey(ValueKey('chat-row-$id'));
+
+  testWidgets('the rows: order, title, note, model, time and the dot',
+      (tester) async {
+    await openList(tester, FakeServer([]));
+    // The last used first.
+    final fresh = tester.getTopLeft(find.text('Fresh chat')).dy;
+    final newer = tester.getTopLeft(find.text('Newer chat')).dy;
+    final older = tester.getTopLeft(find.text('Older chat')).dy;
+    expect(fresh, lessThan(newer));
+    expect(newer, lessThan(older));
+    expect(find.textContaining('Note: Ideas'), findsOneWidget);
+    expect(find.textContaining('Anthropic · claude-sonnet-5-5'), findsNWidgets(3));
+    expect(find.textContaining('2026-10-0'), findsNWidgets(3));
+    // A dot on the chat with a new answer.
+    expect(find.byKey(const ValueKey('chat-dot-fresh')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-dot-newer')), findsNothing);
+    expect(find.byKey(const ValueKey('chat-damaged')), findsNothing);
+  });
+
+  testWidgets('a damaged file is named in the list, not a crash',
+      (tester) async {
+    storage.files['broken'] = 'not json';
+    await openList(tester, FakeServer([]));
+    expect(find.text('One saved chat could not be read and was skipped.'),
+        findsOneWidget);
+    expect(find.text('Newer chat'), findsOneWidget);
+  });
+
+  testWidgets('no chats: the list says how to start', (tester) async {
+    storage.files.clear();
+    await openList(tester, FakeServer([]));
+    expect(find.byKey(const ValueKey('chat-none')), findsOneWidget);
+  });
+
+  testWidgets('a spinner while a chat works, a dot when the answer came',
+      (tester) async {
+    final server = GatedServer([answer('Done.')]);
+    await openList(tester, server);
+    // Ask in the chat list's chat "Newer chat" without opening it.
+    final chat = store.chats.firstWhere((c) => c.id == 'newer');
+    chat.attach(_sessionOn(server));
+    final done = chat.send('Another question');
+    await tester.pump();
+    expect(find.byKey(const ValueKey('chat-spinner-newer')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-dot-newer')), findsNothing);
+
+    server.gate.complete();
+    await done;
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-spinner-newer')), findsNothing);
+    expect(find.byKey(const ValueKey('chat-dot-newer')), findsOneWidget);
+  });
+
+  testWidgets('a waiting chat shows "Waiting"', (tester) async {
+    final server = GatedServer([answer('Done.'), answer('Done too.')]);
+    await openList(tester, server);
+    store.maxParallel = 1;
+    final one = store.chats.firstWhere((c) => c.id == 'newer');
+    final two = store.chats.firstWhere((c) => c.id == 'older');
+    one.attach(_sessionOn(server));
+    two.attach(_sessionOn(server));
+    final doneOne = one.send('First');
+    final doneTwo = two.send('Second');
+    await tester.pump();
+    expect(find.byKey(const ValueKey('chat-spinner-newer')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-wait-older')), findsOneWidget);
+    expect(find.textContaining('Waiting'), findsOneWidget);
+
+    server.gate.complete();
+    await Future.wait([doneOne, doneTwo]);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Waiting'), findsNothing);
+  });
+
+  testWidgets('rename from the row\'s menu', (tester) async {
+    await openList(tester, FakeServer([]));
+    await tester.tap(find.byKey(const ValueKey('chat-menu-newer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rename'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('chat-rename-field')), 'Mushrooms');
+    await tester.tap(find.byKey(const ValueKey('chat-rename-ok')));
+    await tester.pumpAndSettle();
+    expect(find.text('Mushrooms'), findsOneWidget);
+    expect(find.text('Newer chat'), findsNothing);
+    await store.flush();
+    expect(jsonDecode(storage.files['newer']!)['title'], 'Mushrooms');
+  });
+
+  testWidgets('swipe to delete, with Undo in a snack bar', (tester) async {
+    await openList(tester, FakeServer([]));
+    await tester.drag(row('newer'), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Newer chat'), findsNothing);
+    expect(find.text('Chat deleted.'), findsOneWidget);
+    await store.flush();
+    expect(storage.files.containsKey('newer'), isFalse);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Newer chat'), findsOneWidget);
+    await store.flush();
+    expect(storage.files.containsKey('newer'), isTrue);
+  });
+
+  testWidgets('delete from the menu', (tester) async {
+    await openList(tester, FakeServer([]));
+    await tester.tap(find.byKey(const ValueKey('chat-menu-older')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(find.text('Older chat'), findsNothing);
+    await store.flush();
+    expect(storage.files.keys, unorderedEquals(['newer', 'fresh']));
+  });
+
+  testWidgets('an old chat opens with its transcript and goes on',
+      (tester) async {
+    final server = FakeServer([answer('Second answer.')]);
+    await openList(tester, server);
+    await tester.tap(find.text('Newer chat'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(find.text('Question of Newer chat'), findsOneWidget);
+    expect(find.text('Answer of Newer chat', findRichText: true), findsOneWidget);
+    expect(find.text('Anthropic · claude-sonnet-5-5'), findsOneWidget);
+
+    await ask(tester, 'And then?');
+    // The saved transcript went with the new message.
+    final messages = server.requests.single.body['messages'] as List;
+    expect(messages, hasLength(3));
+    expect(jsonEncode(messages.first), contains('Question of Newer chat'));
+    expect(find.text('Second answer.', findRichText: true), findsOneWidget);
+
+    await store.flush();
+    final saved = jsonDecode(storage.files['newer']!) as Map;
+    expect((saved['transcript'] as List), hasLength(4));
+    expect(saved['title'], 'Newer chat');
+    expect(jsonEncode(saved), isNot(contains('sk-test')));
+  });
+
+  testWidgets('opening a chat with a dot takes the dot away', (tester) async {
+    await openList(tester, FakeServer([]));
+    await tester.tap(find.text('Fresh chat'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-dot-fresh')), findsNothing);
+    await store.flush();
+    expect(jsonDecode(storage.files['fresh']!)['unseen'], false);
+  });
+
+  testWidgets('closing the chat screen while a request runs: the answer '
+      'arrives in the store and shows when opened again', (tester) async {
+    storage.files.clear();
+    final server = GatedServer([answer('It is done.')]);
+    await openList(tester, server);
+    await tester.tap(find.byKey(const ValueKey('chat-new')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('chat-input')), 'Slow question');
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pump();
+    expect(server.arrived, 1);
+
+    // Back to the list while the request is still out.
+    await tester.pageBack();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(ChatScreen), findsNothing);
+    expect(find.text('Slow question'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    server.gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    final chat = store.chats.single;
+    expect(chat.unseen, isTrue);
+    expect(find.byKey(ValueKey('chat-dot-${chat.id}')), findsOneWidget);
+
+    await tester.tap(find.text('Slow question'));
+    await tester.pumpAndSettle();
+    expect(find.text('It is done.', findRichText: true), findsOneWidget);
+    expect(chat.unseen, isFalse);
+  });
+
+  testWidgets('"Save chat as note" opens "New node" with the chat',
+      (tester) async {
+    final written = <(String, String)>[];
+    final writer = NoteWriter(
+      create: (name, text) async {
+        written.add((name, text));
+        return Created(name);
+      },
+      allowWriting: () async {},
+    );
+    await openList(tester, FakeServer([]), writer: writer);
+    await tester.tap(find.text('Newer chat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('chat-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save chat as note'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CaptureScreen), findsOneWidget);
+    // Nothing is written before I save.
+    expect(written, isEmpty);
+    final title =
+        tester.widget<TextField>(find.byKey(const ValueKey('capture-title')));
+    expect(title.controller!.text, 'Newer chat');
+    await tester.tap(find.byTooltip('Save'));
+    await tester.pumpAndSettle();
+    final (name, text) = written.single;
+    expect(name, endsWith('-newer_chat.org'));
+    expect(text, contains('#+title: Newer chat'));
+    expect(text, contains('#+filetags: :chat:'));
+    expect(text, contains('* Question: Question of Newer chat'));
+    expect(text, contains('* Answer\nAnswer of Newer chat'));
+  });
+
+  testWidgets('the size of a long chat is shown with a hint',
+      (tester) async {
+    storage.files['long'] = jsonEncode({
+      ...(jsonDecode(chatFile('Long chat',
+          lastUsed: '2026-10-04T10:00:00.000Z')) as Map<String, Object?>),
+      'transcript': [
+        {'type': 'user', 'text': 'x' * 120000},
+      ],
+    });
+    await openList(tester, FakeServer([]));
+    await tester.tap(find.text('Newer chat'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-long')), findsNothing);
+    expect(find.textContaining('Size of this chat: about 42 characters'),
+        findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('chat-tile-long')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-long')), findsOneWidget);
+  });
+
+  testWidgets('the limit is a field under Agent and limits', (tester) async {
+    await openList(tester, FakeServer([]));
+    await tester.tap(find.byTooltip('AI settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('ai-agent')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('max-parallel-chats')), 200);
+    final field = tester
+        .widget<TextField>(find.byKey(const ValueKey('max-parallel-chats')));
+    expect(field.controller!.text, '3');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('ai-privacy')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('keep-chats')), findsOneWidget);
+    expect(find.text('90 days'), findsOneWidget);
+  });
+}
+
+ChatSession _sessionOn(FakeServer server) => ChatSession(
+      tools: RoamTools(graphOf(notes),
+          readNote: (path) async => notes[path],
+          visibility: const AiVisibility({'private'})),
+      config: anthropic,
+      post: server.post,
+    );

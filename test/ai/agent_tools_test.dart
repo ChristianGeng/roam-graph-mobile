@@ -18,8 +18,17 @@ class RacingStore extends MemoryNoteStore {
 
   String? raceOn;
 
+  /// Runs once, and is awaited, just before the next write: another chat
+  /// writes to the notes meanwhile (#201).
+  Future<void> Function()? beforeReplace;
+
   @override
-  Future<SaveResult> replace(String path, NoteVersion base, String text) {
+  Future<SaveResult> replace(
+      String path, NoteVersion base, String text) async {
+    if (beforeReplace case final hook?) {
+      beforeReplace = null;
+      await hook();
+    }
     if (path == raceOn) {
       files[path] = '${files[path]}From the laptop.\n';
       raceOn = null;
@@ -147,6 +156,35 @@ void main() {
     expect(await call('append_to_node', {'id': 'plan', 'text': 'x'}),
         'Added the text to "Plan".');
     expect(store.files['plan.org'], endsWith('From the laptop.\nx\n'));
+  });
+
+  test('two chats changing the same note cannot overwrite each other (#201)',
+      () async {
+    // The agent of a second chat, on the same notes.
+    final other = make();
+    store.beforeReplace = () async {
+      // The second chat writes while the first is between read and write.
+      expect(
+          await other.run(ToolCall('o', 'append_to_node',
+              {'id': 'plan', 'text': 'From chat two.'})),
+          'Added the text to "Plan".');
+    };
+    final result =
+        await call('append_to_node', {'id': 'plan', 'text': 'From chat one.'});
+    expect(result, startsWith('Error: plan.org changed since it was read'));
+    // Nothing of the second chat is lost, nothing of the first is written.
+    expect(store.files['plan.org'], endsWith('From chat two.\n'));
+    expect(store.files['plan.org'], isNot(contains('From chat one.')));
+    expect(agent.changes.isEmpty, isTrue);
+    expect(other.changes.changes, hasLength(1));
+
+    // The first chat reads again, and then both texts are there.
+    expect(
+        await call(
+            'append_to_node', {'id': 'plan', 'text': 'From chat one.'}),
+        'Added the text to "Plan".');
+    expect(store.files['plan.org'],
+        endsWith('From chat two.\nFrom chat one.\n'));
   });
 
   test('"Undo all" restores every file, unless it changed since', () async {

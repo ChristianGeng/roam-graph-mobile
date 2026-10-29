@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_chat.dart' show HttpReply;
 import 'package:roam_graph_mobile/ai/ai_models.dart' show HttpGet, clearModelCache;
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
+import 'package:roam_graph_mobile/ai/chat_list_screen.dart';
 import 'package:roam_graph_mobile/ai/chat_screen.dart';
 import 'package:roam_graph_mobile/capture/capture_screen.dart';
 import 'package:roam_graph_mobile/edit/agent_changes.dart';
@@ -867,10 +868,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ask AI'));
     await tester.pumpAndSettle();
+    // The graph opens the chat list (#201); "New chat" starts a chat with
+    // the note the graph shows.
+    expect(find.byType(ChatListScreen), findsOneWidget);
+    expect(find.byType(ChatScreen), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('chat-new')));
+    await tester.pumpAndSettle();
     expect(find.byType(ChatScreen), findsOneWidget);
     expect(tester.widget<ChatScreen>(find.byType(ChatScreen)).startNode?.id,
         'plan');
 
+    await tester.pageBack();
+    await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();
     // The test window is a tablet in landscape: the node is in the side
@@ -880,6 +889,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ask AI'));
     await tester.pumpAndSettle();
+    // From a note, a new chat starts with that note at once.
     final chat = tester.widget<ChatScreen>(find.byType(ChatScreen));
     expect(chat.startNode?.id, 'plan');
     // A link in an answer opens the node on a page above the chat, not in

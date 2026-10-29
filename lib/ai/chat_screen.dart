@@ -29,6 +29,8 @@ import 'ai_providers.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
 import 'chart.dart' show defaultChartColors;
+import 'chat_note.dart';
+import 'chat_store.dart';
 import 'edit_tools.dart';
 import 'note_from_answer.dart';
 import 'note_language.dart';
@@ -37,17 +39,22 @@ import 'web_access.dart';
 /// Opens a node by its ID, from a link in an answer.
 typedef OpenNode = void Function(BuildContext context, String id);
 
-/// The AI chat (#60): I ask, the model reads the graph with the tools of
+/// One AI chat (#60): I ask, the model reads the graph with the tools of
 /// my org-roam MCP server (#58) through the provider of the AI settings
 /// (#59), and answers. Its tool calls are shown, `id:` links in answers
 /// open the node, and an answer can become a new node through the capture
-/// screen, so I review it before anything is written. The conversation is
-/// kept only while the screen is open.
+/// screen, so I review it before anything is written.
+///
+/// The chat itself lives in the [ChatStore] (#201): closing this screen
+/// does not stop a request, and the chat is shown again from the chat
+/// list. Without a [chat], the screen starts a new one.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
     required this.graph,
     required this.readNote,
+    this.chat,
+    this.store,
     this.startNode,
     this.writer,
     this.openNode,
@@ -71,7 +78,14 @@ class ChatScreen extends StatefulWidget {
   final ValueListenable<RoamGraph> graph;
   final NoteTextReader readNote;
 
-  /// The node the chat was opened from; the first message names it.
+  /// The chat to show; null starts a new one.
+  final Chat? chat;
+
+  /// The store of [chat]; by default that of the app, or, where there is
+  /// none (tests of this screen alone), one of its own.
+  final ChatStore? store;
+
+  /// The node a new chat is started from; the first message names it.
   final RoamNode? startNode;
 
   /// Writes new nodes; without it, there is no "Save as new node".
@@ -86,30 +100,6 @@ class ChatScreen extends StatefulWidget {
   /// Where the agent's changes are logged (#82).
   final AgentLog agentLog;
 
-  static Future<void> open(
-    BuildContext context, {
-    required ValueListenable<RoamGraph> graph,
-    required NoteTextReader readNote,
-    RoamNode? startNode,
-    NoteWriter? writer,
-    OpenNode? openNode,
-    Future<List<TextHit>> Function(String query, {int limit})? searchText,
-    UrlOpener openUrl = openUrlOnDevice,
-  }) => Navigator.push(
-    context,
-    MaterialPageRoute<void>(
-      builder: (_) => ChatScreen(
-        graph: graph,
-        readNote: readNote,
-        startNode: startNode,
-        writer: writer,
-        openNode: openNode,
-        searchText: searchText,
-        openUrl: openUrl,
-      ),
-    ),
-  );
-
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
@@ -117,55 +107,18 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
-  ChatSession? _session;
+  late final ChatStore _store;
+  late Chat _chat;
   ProviderConfig? _config;
   String _defaultModel = '';
   String _strongModel = '';
-  bool _sending = false;
-  String? _error;
-
-  /// More about [_error] to copy with it (#180).
-  ErrorReport? _errorDetail;
   String? _setupProblem;
 
   /// Set when the chosen model is not in the provider's list now (#113).
   String? _modelGone;
 
-  /// Whether the node the chat starts from may be named to the AI: not
-  /// when it is hidden from AI (#57).
-  bool _startShown = false;
-
-  /// The language of new notes in this chat (#172), decided when it
-  /// starts.
-  NoteLanguage? _language;
-
-  String? get _languageName =>
-      _language == null ? null : languageName(_language!.code);
-
   /// The hidden tags the tools were made with.
   Set<String>? _hiddenTags;
-
-  /// The edits the AI proposed (#39), by the ID of the tool call, and
-  /// what became of those reviewed.
-  final _proposals = <String, EditProposal>{};
-  final _proposalStatus = <String, String>{};
-
-  /// The change sets the AI proposed (#76), by the ID of the tool call;
-  /// built when first reviewed, and kept, so their state stays.
-  final _setProposals =
-      <String, ({List<EditProposal> edits, String summary})>{};
-  final _sets = <String, ChangeSet>{};
-
-  /// The limit on notes per change set, from AI settings.
-  int _maxFiles = 20;
-
-  /// The agent's writes (#82), when AI settings let the AI change notes
-  /// itself; null otherwise.
-  AgentWriter? _agent;
-
-  /// What the agent changed, by the index of the message in the
-  /// transcript that asked for it.
-  final _turnChanges = <int, AgentChanges>{};
 
   /// Undo is running for this message.
   int? _undoing;
@@ -174,11 +127,64 @@ class _ChatScreenState extends State<ChatScreen> {
   /// node" in review and off mode (#145).
   int? _preparing;
 
+  // What belongs to the chat, and so outlives this screen.
+  ChatSession? get _session => _chat.session;
+  bool get _sending => _chat.sending;
+  String? get _error => _chat.error;
+  ErrorReport? get _errorDetail => _chat.errorDetail;
+  AgentWriter? get _agent => _chat.agent;
+  bool get _startShown => _chat.startShown;
+  NoteLanguage? get _language => _chat.language;
+  Map<String, EditProposal> get _proposals => _chat.proposals;
+  Map<String, String> get _proposalStatus => _chat.proposalStatus;
+  Map<String, ({List<EditProposal> edits, String summary})> get _setProposals =>
+      _chat.setProposals;
+  Map<String, ChangeSet> get _sets => _chat.sets;
+  Map<int, AgentChanges> get _turnChanges => _chat.turnChanges;
+
+  String? get _languageName =>
+      _language == null ? null : languageName(_language!.code);
+
+  /// The node the chat was started from, if the graph has it.
+  RoamNode? get _startNode {
+    final id = _chat.startNodeId;
+    return id == null ? null : widget.graph.value.nodes[id];
+  }
+
   @override
   void initState() {
     super.initState();
+    _store = widget.store ??
+        ChatStoreScope.maybeOf(context) ??
+        ChatStore(MemoryChatStorage());
+    _chat = widget.chat ?? _newChatOf(_store);
+    _show(_chat);
     widget.graph.addListener(_refreshTools);
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+  }
+
+  Chat _newChatOf(ChatStore store) => store.create(
+        startNodeId: widget.startNode?.id,
+        startNodeTitle: widget.startNode?.displayTitle,
+      );
+
+  /// This screen shows [chat] now: its answers count as seen.
+  void _show(Chat chat) {
+    chat.viewers++;
+    chat.markSeen();
+    chat.addListener(_onChat);
+  }
+
+  void _leave(Chat chat) {
+    chat.removeListener(_onChat);
+    chat.viewers--;
+  }
+
+  /// The chat changed, for example a request made a step.
+  void _onChat() {
+    if (!mounted) return;
+    setState(() {});
+    _toEnd();
   }
 
   @override
@@ -204,8 +210,8 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     widget.graph.removeListener(_refreshTools);
-    // A request under way finishes, but nothing more is read or sent.
-    _session?.cancel();
+    // A request under way goes on: the chat belongs to the store (#201).
+    _leave(_chat);
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -225,23 +231,50 @@ class _ChatScreenState extends State<ChatScreen> {
     if (session == null || !mounted) return;
     final settings = AiSettingsScope.of(context);
     _hiddenTags = settings.hiddenTags.toSet();
+    _chat.visibility = settings.visibility;
     session.tools = _tools(settings);
   }
 
-  /// Makes a new chat with the settings as they are now.
-  Future<void> _start() async {
+  /// Makes the session of the chat with the settings as they are now: for
+  /// a new chat, or one read from its file. A chat that has a session
+  /// keeps it; only a chat without messages starts again with [fresh].
+  Future<void> _start({bool fresh = false}) async {
     if (!mounted) return;
+    final chat = _chat;
     final settings = await AiSettingsScope.current(context);
-    if (!mounted) return;
+    if (!mounted || !identical(chat, _chat)) return;
+    // A chat read from its file continues with its own provider.
+    final providerId = chat.providerId.isEmpty ? null : chat.providerId;
+    final values = settings.providerSettings(providerId);
+    final kept = chat.session;
+    if (kept != null && !fresh) {
+      kept.tools = _tools(settings);
+      chat.visibility = settings.visibility;
+      setState(() {
+        _config = kept.config;
+        _hiddenTags = settings.hiddenTags.toSet();
+        _defaultModel = values.defaultModel;
+        _strongModel = values.strongModel;
+        _setupProblem = null;
+        _modelGone = null;
+      });
+      if (!chat.sending) unawaited(_checkModel(kept.config, kept.config.model));
+      return;
+    }
     final keys = AiSettingsScope.keysOf(context);
-    final config = keys == null ? null : await providerConfig(settings, keys);
-    if (!mounted) return;
+    final made = keys == null
+        ? null
+        : await providerConfig(settings, keys, id: providerId);
+    if (!mounted || !identical(chat, _chat)) return;
+    final config = made != null && chat.model.isNotEmpty
+        ? made.withModel(chat.model)
+        : made;
     // Only the agent makes images: other modes do not wait for it.
     final maker = widget.writer?.editor != null &&
             settings.editMode == AiEditMode.agent
         ? await _imageMaker(settings, keys)
         : null;
-    if (!mounted) return;
+    if (!mounted || !identical(chat, _chat)) return;
     // Charts need no image model, only the image folder (#184).
     String? chartFolder;
     if (widget.writer?.editor != null &&
@@ -251,46 +284,76 @@ class _ChatScreenState extends State<ChatScreen> {
           (await ViewSettingsScope.current(context,
                   limit: const Duration(seconds: 10)))
               .imageFolder;
-      if (!mounted) return;
+      if (!mounted || !identical(chat, _chat)) return;
     }
     // The chart is always on white: the colours of a light scheme with the
     // theme's seed, also in the dark theme.
     final scheme = ColorScheme.fromSeed(
         seedColor: Theme.of(context).colorScheme.primary,
         brightness: Brightness.light);
-    final values = settings.providerSettings();
-    final start = widget.startNode;
+    final start = _startNode;
     var startShown = start != null && !settings.visibility.hides(start);
     if (startShown) {
       final file = await widget.readNote(start.file);
       startShown =
           file == null || !settings.visibility.hidesInText(start, file);
     }
-    if (!mounted) return;
+    if (!mounted || !identical(chat, _chat)) return;
     final language = await decideLanguage(
       settings.visibility.visibleGraph(widget.graph.value),
       startShown ? start : null,
       read: widget.readNote,
       fallback: settings.newNoteLanguage,
     );
-    if (!mounted) return;
-    _session?.cancel();
+    if (!mounted || !identical(chat, _chat)) return;
+    // The session of a chat without messages is made again; tool-call IDs
+    // can repeat across chats, so nothing of an old one may stay.
+    final empty = chat.transcript.isEmpty;
+    chat.detach();
+    final editor = widget.writer?.editor;
+    // What the AI may change, as AI settings say, and only where notes
+    // can be saved.
+    final mode = editor == null ? AiEditMode.off : settings.editMode;
+    final agent = mode == AiEditMode.agent
+        ? AgentWriter(
+            writer: widget.writer!,
+            visibleGraph: () =>
+                settings.visibility.visibleGraph(widget.graph.value),
+            hiddenIds: () => settings.visibility.hiddenIds(widget.graph.value),
+            visibility: settings.visibility,
+            folder: () => editor!.store.historyKey('').split('\n').first,
+            limit: settings.maxAgentChanges,
+            log: widget.agentLog,
+            images: maker,
+            chartFolder: chartFolder,
+            chartLimit: settings.maxImagesPerMessage,
+            chartColors: [
+              scheme.primary,
+              scheme.tertiary,
+              scheme.secondary,
+              ...defaultChartColors,
+            ],
+            language: language.code,
+          )
+        : null;
+    final readNote = widget.readNote;
     setState(() {
-      _language = language;
-      // A new chat: tool-call IDs can repeat across chats, so nothing of
-      // the old one may be found under them.
-      _proposals.clear();
-      _turnChanges.clear();
-      _proposalStatus.clear();
-      _setProposals.clear();
-      _sets.clear();
-      _startShown = startShown;
+      if (empty) {
+        chat.proposals.clear();
+        chat.proposalStatus.clear();
+        chat.setProposals.clear();
+        chat.sets.clear();
+        chat.turnChanges.clear();
+      }
+      chat.language = language;
+      chat.startShown = startShown;
+      chat.visibility = settings.visibility;
+      chat.maxFiles = settings.maxChangeSetFiles;
+      chat.agent = agent;
       _hiddenTags = settings.hiddenTags.toSet();
-      _error = null;
       _config = config;
       _defaultModel = values.defaultModel;
       _strongModel = values.strongModel;
-      _maxFiles = settings.maxChangeSetFiles;
       _setupProblem = config == null
           ? 'The AI settings are not available.'
           : config.model.isEmpty
@@ -299,71 +362,55 @@ class _ChatScreenState extends State<ChatScreen> {
           ? 'Enter the API key for ${config.name} in AI settings.'
           : null;
       _modelGone = null;
-      final editor = widget.writer?.editor;
-      // What the AI may change, as AI settings say, and only where notes
-      // can be saved.
-      final mode = editor == null ? AiEditMode.off : settings.editMode;
-      _agent = mode == AiEditMode.agent
-          ? AgentWriter(
-              writer: widget.writer!,
-              visibleGraph: () =>
-                  settings.visibility.visibleGraph(widget.graph.value),
-              hiddenIds: () =>
-                  settings.visibility.hiddenIds(widget.graph.value),
-              visibility: settings.visibility,
-              folder: () => editor!.store.historyKey('').split('\n').first,
-              limit: settings.maxAgentChanges,
-              log: widget.agentLog,
-              images: maker,
-              chartFolder: chartFolder,
-              chartLimit: settings.maxImagesPerMessage,
-              chartColors: [
-                scheme.primary,
-                scheme.tertiary,
-                scheme.secondary,
-                ...defaultChartColors,
+      if (config != null) {
+        chat.providerId = providerId ?? settings.provider;
+        chat.providerName = config.name;
+        chat.model = config.model;
+        chat.attach(ChatSession(
+          tools: _tools(settings),
+          config: config,
+          post: widget.post,
+          maxToolRounds: settings.maxToolRounds,
+          toolList: switch (mode) {
+            AiEditMode.off => null,
+            AiEditMode.review => [
+                ...aiTools,
+                proposeEditTool,
+                proposeEditsTool(settings.maxChangeSetFiles),
               ],
-              language: language.code,
-            )
-          : null;
-      _session = config == null
-          ? null
-          : ChatSession(
-              tools: _tools(settings),
-              config: config,
-              post: widget.post,
-              maxToolRounds: settings.maxToolRounds,
-              toolList: switch (mode) {
-                AiEditMode.off => null,
-                AiEditMode.review => [
-                    ...aiTools,
-                    proposeEditTool,
-                    proposeEditsTool(settings.maxChangeSetFiles),
-                  ],
-                AiEditMode.agent => [...aiTools, ..._agent!.tools],
-              },
-              system: withToday(
-                  '${mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt} '
-                  '${languagePrompt(language)}',
-                  DateTime.now()),
-              toolImage: _agent?.imageFor,
-              web: settings.webAccess
-                  ? WebAccess(
-                      limit: settings.maxWebSearches,
-                      search: hasWebSearch(config),
-                    )
-                  : null,
-              handlers: {
-                if (mode == AiEditMode.review) ...{
-                  'propose_edit': _propose,
-                  'propose_edits': _proposeSet,
-                },
-                ...?_agent?.handlers,
-              },
-            );
+            AiEditMode.agent => [...aiTools, ...agent!.tools],
+          },
+          system: withToday(
+              '${mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt} '
+              '${languagePrompt(language)}',
+              DateTime.now()),
+          toolImage: agent?.imageFor,
+          web: settings.webAccess
+              ? WebAccess(
+                  limit: settings.maxWebSearches,
+                  search: hasWebSearch(config),
+                )
+              : null,
+          handlers: {
+            if (mode == AiEditMode.review) ...{
+              'propose_edit': (call) => _proposeEdit(chat, readNote, call),
+              'propose_edits': (call) => _proposeEditSet(chat, readNote, call),
+            },
+            ...?agent?.handlers,
+          },
+        ));
+      }
     });
     if (_setupProblem == null && config != null) {
       unawaited(_checkModel(config, config.model));
+    }
+  }
+
+  /// Makes the session again after a change of AI settings, where the
+  /// chat has no messages yet.
+  void _restart() {
+    if (mounted && _chat.transcript.isEmpty && !_chat.sending) {
+      _start(fresh: true);
     }
   }
 
@@ -444,16 +491,14 @@ class _ChatScreenState extends State<ChatScreen> {
       get: widget.getModels,
     );
     // Only for the chat and the model in use now.
-    if (!mounted || _config != config || _session?.config.model != model) {
-      return;
-    }
+    if (!mounted || _session?.config.model != model) return;
     final gone = modelGoneMessage(config.name, model, listed);
     setState(() => _modelGone = gone);
   }
 
   /// What the first message says about the node the chat came from.
   String? get _context {
-    final node = widget.startNode;
+    final node = _startNode;
     if (node == null || !_startShown) return null;
     return 'I am looking at the note "${node.displayTitle}" (ID ${node.id}). '
         'Read it with org_roam_read_node if you need it.';
@@ -469,42 +514,14 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Sends [text] as my message and runs the turn; also for "Save as new
   /// node" in agent mode (#145).
   Future<void> _sendText(String text) async {
-    final session = _session;
-    if (session == null || _sending) return;
-    // The agent's changes for this message are kept under its index.
-    if (_agent case final agent?) {
-      _turnChanges[session.transcript.length] =
-          agent.startMessage(prompt: text);
-    }
-    await _run(() => session.send(text, context: _context, onUpdate: _changed));
+    if (_session == null || _sending) return;
+    await _chat.send(text, context: _context);
+    _toEnd();
   }
 
   Future<void> _resume() async {
-    final session = _session;
-    if (session == null || _sending || _preparing != null) return;
-    await _run(() => session.resume(onUpdate: _changed));
-  }
-
-  Future<void> _run(Future<void> Function() work) async {
-    setState(() {
-      _sending = true;
-      _error = null;
-      _errorDetail = null;
-    });
-    try {
-      await whileScreenOn(work);
-    } on AiError catch (e) {
-      _error = e.message;
-      _errorDetail = e.report();
-    } finally {
-      if (mounted) setState(() => _sending = false);
-      _toEnd();
-    }
-  }
-
-  void _changed() {
-    if (!mounted) return;
-    setState(() {});
+    if (_session == null || _sending || _preparing != null) return;
+    await _chat.resume();
     _toEnd();
   }
 
@@ -534,65 +551,6 @@ class _ChatScreenState extends State<ChatScreen> {
     widget.openNode?.call(context, id);
   }
 
-  /// Throws [ToolError] if a note of [ids] got a hidden tag since the
-  /// index was built, as the read tools check it: its title must not
-  /// reach the AI.
-  Future<void> _checkStillVisible(List<String> ids) async {
-    final visibility = AiSettingsScope.of(context).visibility;
-    for (final id in ids) {
-      final node = widget.graph.value.nodes[id];
-      if (node == null) continue;
-      final text = await widget.readNote(node.file);
-      if (text != null && visibility.hidesInText(node, text)) {
-        throw ToolError('There is no note with the ID $id that you may see.');
-      }
-    }
-  }
-
-  /// Records an edit the AI proposes (#39); the tool writes nothing.
-  Future<String> _propose(ToolCall call) async {
-    final session = _session;
-    if (session == null) return 'Error: the chat has ended.';
-    try {
-      final proposal = proposalFrom(call.input, session.tools.graph);
-      await _checkStillVisible([proposal.nodeId]);
-      _proposals[call.id] = proposal;
-      final title = session.tools.graph.nodes[proposal.nodeId]!.displayTitle;
-      return 'Recorded. I review the change to "$title" as a diff in the '
-          'app before anything is saved; it is not saved yet.';
-    } on ToolError catch (e) {
-      return 'Error: ${e.message}';
-    }
-  }
-
-  /// Records a change set the AI proposes (#76); the tool writes nothing.
-  Future<String> _proposeSet(ToolCall call) async {
-    final session = _session;
-    if (session == null) return 'Error: the chat has ended.';
-    try {
-      final edits = proposalsFrom(call.input, session.tools.graph);
-      await _checkStillVisible([for (final e in edits) e.nodeId]);
-      final files = {
-        for (final e in edits) session.tools.graph.nodes[e.nodeId]!.file,
-      };
-      if (files.length != edits.length) {
-        return 'Error: two edits are for the same file; give one edit per '
-            'file, with both changes in it.';
-      }
-      if (files.length > _maxFiles) {
-        return 'Error: the set has ${files.length} notes; the limit is '
-            '$_maxFiles. Propose fewer at a time.';
-      }
-      final summary = call.input['summary'];
-      _setProposals[call.id] =
-          (edits: edits, summary: summary is String ? summary.trim() : '');
-      return 'Recorded a change set of ${edits.length} notes. I review each '
-          'diff in the app before anything is saved; nothing is saved yet.';
-    } on ToolError catch (e) {
-      return 'Error: ${e.message}';
-    }
-  }
-
   /// Opens the review of a change set (#76), built from the notes as they
   /// are now on first opening.
   Future<void> _reviewSet(String callId) async {
@@ -610,7 +568,7 @@ class _ChatScreenState extends State<ChatScreen> {
           editor: editor,
           visible: settings.visibility.visibleGraph(graph),
           graph: graph,
-          maxFiles: _maxFiles,
+          maxFiles: _chat.maxFiles,
           summary: proposed.summary,
           visibility: settings.visibility,
         );
@@ -719,7 +677,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     final entry = session.transcript[index];
     if (entry is! AssistantMessage) return;
-    final start = widget.startNode;
+    final start = _startNode;
     if (_agent != null) {
       await _sendText(agentSaveRequest(
         answer: entry.text,
@@ -770,14 +728,16 @@ class _ChatScreenState extends State<ChatScreen> {
   /// "New node", filled in with [proposal]; the node the chat came from
   /// is offered as a link.
   Future<void> _openCapture(
-      NoteWriter writer, ({String title, String body}) proposal) async {
-    final start = widget.startNode;
+      NoteWriter writer, ({String title, String body}) proposal,
+      {List<String> tags = const []}) async {
+    final start = _startNode;
     final id = await CaptureScreen.open(
       context,
       writer,
       graph: widget.graph.value,
       initialTitle: proposal.title,
       initialBody: proposal.body,
+      initialTags: tags,
       language: _language?.code ?? defaultNoteLanguage,
       linkTo: start == null ? null : (id: start.id, title: start.displayTitle),
     );
@@ -796,10 +756,43 @@ class _ChatScreenState extends State<ChatScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// "Save chat as note" (#201): the whole chat as an Org note, with each
+  /// question and answer as a heading; "New node" opens filled in, so I
+  /// review it before it is saved.
+  Future<void> _saveChatAsNote(NoteWriter writer) async {
+    final chat = _chat;
+    if (chat.transcript.isEmpty) return;
+    final note = chatAsNote(
+      title: chat.title,
+      transcript: chat.transcript,
+      provider: chat.providerName,
+      model: _session?.config.model ?? chat.model,
+      created: chat.createdAt,
+    );
+    await _openCapture(writer, note, tags: const [chatNoteTag]);
+  }
+
+  /// A new chat in this screen; the chat left stays in the chat list and
+  /// goes on working.
   void _newChat() {
-    if (_sending || _preparing != null) return;
+    if (_preparing != null || _undoing != null) return;
+    if (_chat.transcript.isEmpty) {
+      // Nothing to keep: the settings are read again.
+      if (!_chat.sending) _start(fresh: true);
+      return;
+    }
+    _leave(_chat);
+    setState(() {
+      _chat = _newChatOf(_store);
+      _setupProblem = null;
+      _modelGone = null;
+      _config = null;
+      _input.clear();
+    });
+    _show(_chat);
     _start();
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -832,8 +825,10 @@ class _ChatScreenState extends State<ChatScreen> {
               onSelected: (m) {
                 setState(() {
                   session.model = m;
+                  _chat.model = m;
                   _modelGone = null;
                 });
+                _chat.changed();
                 // The switched-to model is checked too (#113).
                 if (_config case final config?) {
                   unawaited(_checkModel(config, m));
@@ -860,8 +855,21 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             tooltip: 'New chat',
             icon: const Icon(Icons.add_comment_outlined),
-            onPressed: _sending || _preparing != null ? null : _newChat,
+            onPressed: _preparing != null ? null : _newChat,
           ),
+          if (widget.writer case final writer?)
+            PopupMenuButton<String>(
+              key: const ValueKey('chat-menu'),
+              tooltip: 'Chat menu',
+              onSelected: (_) => _saveChatAsNote(writer),
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'save-note',
+                  enabled: _chat.transcript.isNotEmpty,
+                  child: const Text('Save chat as note'),
+                ),
+              ],
+            ),
           IconButton(
             tooltip: 'AI settings',
             icon: const Icon(Icons.settings_outlined),
@@ -869,7 +877,7 @@ class _ChatScreenState extends State<ChatScreen> {
               await AiSettingsScreen.open(context,
                   graph: widget.graph.value);
               // The new settings apply to a new chat.
-              if (mounted && (session?.transcript.isEmpty ?? true)) _start();
+              _restart();
             },
           ),
         ],
@@ -877,6 +885,17 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(child: _list(context)),
+          if (_chat.queued)
+            Padding(
+              key: const ValueKey('chat-waiting'),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Text(
+                'Waiting: ${_store.maxParallel} chats are working at the '
+                'same time, the most AI settings allow. This one starts when '
+                'one is done.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
           if (_sending) const LinearProgressIndicator(),
           _composer(context),
         ],
@@ -899,7 +918,7 @@ class _ChatScreenState extends State<ChatScreen> {
               onPressed: () async {
                 await AiSettingsScreen.open(context,
                     graph: widget.graph.value);
-                if (mounted) _start();
+                if (mounted && !_chat.sending) _start(fresh: true);
               },
               child: const Text('AI settings'),
             ),
@@ -917,7 +936,7 @@ class _ChatScreenState extends State<ChatScreen> {
               onPressed: () async {
                 await AiSettingsScreen.open(context,
                     graph: widget.graph.value);
-                if (mounted) _start();
+                if (mounted && !_chat.sending) _start(fresh: true);
               },
               child: const Text('AI settings'),
             ),
@@ -929,14 +948,14 @@ class _ChatScreenState extends State<ChatScreen> {
         Padding(
           padding: const EdgeInsets.all(16),
           child: Text(
-            widget.startNode != null && !_startShown
+            _startNode != null && !_startShown
                 ? 'This note is hidden from AI by its tags, so the chat does '
                       'not name it. Ask about your other notes.'
-                : widget.startNode == null
+                : _startNode == null
                 ? 'Ask about your notes. The AI reads them with the tools of '
                       'your org-roam MCP server; notes hidden from AI stay '
                       'hidden.'
-                : 'Ask about "${widget.startNode!.displayTitle}" and its '
+                : 'Ask about "${_startNode!.displayTitle}" and its '
                       'neighbours. The AI reads the notes with the tools of '
                       'your org-roam MCP server; notes hidden from AI stay '
                       'hidden.',
@@ -947,7 +966,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       );
     }
-    final transcript = session?.transcript ?? const <ChatEntry>[];
+    final transcript = _chat.transcript;
     var turn = 0;
     for (final (i, entry) in transcript.indexed) {
       if (entry is UserMessage) turn = i;
@@ -1150,6 +1169,24 @@ class _ChatScreenState extends State<ChatScreen> {
         children.add(_agentSummary(turn, changes));
       }
     }
+    // My message while the chat waits for a place to work in.
+    if (_chat.pendingText case final pending?) {
+      children.add(
+        Align(
+          alignment: Alignment.centerRight,
+          child: Container(
+            key: const ValueKey('chat-pending'),
+            margin: const EdgeInsets.fromLTRB(48, 8, 8, 4),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colors.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(pending),
+          ),
+        ),
+      );
+    }
     if (_error case final error?) {
       children.add(
         Card(
@@ -1185,18 +1222,44 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       );
     }
-    if (session != null && session.transcript.isNotEmpty) {
-      final usage = session.usage;
+    if (_chat.transcript.isNotEmpty) {
+      final usage = _chat.usage;
+      final size = _chat.characters;
       children.add(
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: Text(
-            'Tokens in this chat: ${usage.input} in, of them ${usage.cached} '
-            'from the cache, ${usage.output} out.',
-            key: const ValueKey('chat-usage'),
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: colors.onSurfaceVariant,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tokens in this chat: ${usage.input} in, of them '
+                '${usage.cached} from the cache, ${usage.output} out.',
+                key: const ValueKey('chat-usage'),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              // Every message sends the whole chat again (#201).
+              Text(
+                'Size of this chat: about $size characters.',
+                key: const ValueKey('chat-size'),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: colors.onSurfaceVariant,
+                ),
+              ),
+              if (size > longChatCharacters)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'This chat is long, and every message sends all of it '
+                    'again. A new chat costs less.',
+                    key: const ValueKey('chat-long'),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.error,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       );
@@ -1392,4 +1455,67 @@ Future<void> copyText(BuildContext context, String text) async {
   messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(const SnackBar(content: Text('Copied.')));
+}
+
+/// Throws [ToolError] if a note of [ids] got a hidden tag since the index
+/// was built, as the read tools check it: its title must not reach the AI.
+Future<void> _checkStillVisible(
+    Chat chat, NoteTextReader readNote, List<String> ids) async {
+  final graph = chat.session?.tools.graph;
+  if (graph == null) return;
+  for (final id in ids) {
+    final node = graph.nodes[id];
+    if (node == null) continue;
+    final text = await readNote(node.file);
+    if (text != null && chat.visibility.hidesInText(node, text)) {
+      throw ToolError('There is no note with the ID $id that you may see.');
+    }
+  }
+}
+
+/// Records an edit the AI proposes (#39); the tool writes nothing. It
+/// works on the chat, not on the screen, which may be closed (#201).
+Future<String> _proposeEdit(
+    Chat chat, NoteTextReader readNote, ToolCall call) async {
+  final session = chat.session;
+  if (session == null) return 'Error: the chat has ended.';
+  try {
+    final proposal = proposalFrom(call.input, session.tools.graph);
+    await _checkStillVisible(chat, readNote, [proposal.nodeId]);
+    chat.proposals[call.id] = proposal;
+    final title = session.tools.graph.nodes[proposal.nodeId]!.displayTitle;
+    return 'Recorded. I review the change to "$title" as a diff in the '
+        'app before anything is saved; it is not saved yet.';
+  } on ToolError catch (e) {
+    return 'Error: ${e.message}';
+  }
+}
+
+/// Records a change set the AI proposes (#76); the tool writes nothing.
+Future<String> _proposeEditSet(
+    Chat chat, NoteTextReader readNote, ToolCall call) async {
+  final session = chat.session;
+  if (session == null) return 'Error: the chat has ended.';
+  try {
+    final edits = proposalsFrom(call.input, session.tools.graph);
+    await _checkStillVisible(chat, readNote, [for (final e in edits) e.nodeId]);
+    final files = {
+      for (final e in edits) session.tools.graph.nodes[e.nodeId]!.file,
+    };
+    if (files.length != edits.length) {
+      return 'Error: two edits are for the same file; give one edit per '
+          'file, with both changes in it.';
+    }
+    if (files.length > chat.maxFiles) {
+      return 'Error: the set has ${files.length} notes; the limit is '
+          '${chat.maxFiles}. Propose fewer at a time.';
+    }
+    final summary = call.input['summary'];
+    chat.setProposals[call.id] =
+        (edits: edits, summary: summary is String ? summary.trim() : '');
+    return 'Recorded a change set of ${edits.length} notes. I review each '
+        'diff in the app before anything is saved; nothing is saved yet.';
+  } on ToolError catch (e) {
+    return 'Error: ${e.message}';
+  }
 }
