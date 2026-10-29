@@ -237,14 +237,19 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Makes the session of the chat with the settings as they are now: for
   /// a new chat, or one read from its file. A chat that has a session
-  /// keeps it; only a chat without messages starts again with [fresh].
+  /// keeps it; [fresh] makes the session again, after a change in AI
+  /// settings.
   Future<void> _start({bool fresh = false}) async {
     if (!mounted) return;
     final chat = _chat;
     final settings = await AiSettingsScope.current(context);
     if (!mounted || !identical(chat, _chat)) return;
-    // A chat read from its file continues with its own provider.
-    final providerId = chat.providerId.isEmpty ? null : chat.providerId;
+    // A chat with messages keeps its provider; a chat without any takes
+    // the provider of the settings as they are now.
+    final providerId = chat.providerId.isNotEmpty &&
+            (!fresh || chat.transcript.isNotEmpty)
+        ? chat.providerId
+        : null;
     final values = settings.providerSettings(providerId);
     final kept = chat.session;
     if (kept != null && !fresh) {
@@ -266,7 +271,9 @@ class _ChatScreenState extends State<ChatScreen> {
         ? null
         : await providerConfig(settings, keys, id: providerId);
     if (!mounted || !identical(chat, _chat)) return;
-    final config = made != null && chat.model.isNotEmpty
+    // A chat read from its file continues with its saved model; a fresh
+    // start applies the model of the settings as they are now.
+    final config = made != null && !fresh && chat.model.isNotEmpty
         ? made.withModel(chat.model)
         : made;
     // Only the agent makes images: other modes do not wait for it.
