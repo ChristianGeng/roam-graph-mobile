@@ -7,9 +7,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_chat.dart' show HttpReply;
 import 'package:roam_graph_mobile/ai/ai_models.dart' show HttpGet, clearModelCache;
+import 'package:roam_graph_mobile/ai/ai_providers.dart' show ApiKind;
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 import 'package:roam_graph_mobile/ai/chat_list_screen.dart';
 import 'package:roam_graph_mobile/ai/chat_screen.dart';
+import 'package:roam_graph_mobile/ai/chat_store.dart';
+import 'package:roam_graph_mobile/ai/model_picker.dart';
 import 'package:roam_graph_mobile/capture/capture_screen.dart';
 import 'package:roam_graph_mobile/edit/agent_changes.dart';
 import 'package:roam_graph_mobile/edit/note_editor.dart';
@@ -43,12 +46,17 @@ Future<void> openChat(
   UrlOpener? openUrl,
   HttpGet? getModels,
   Future<String?> Function(String path)? readNote,
+  MemoryAiSettingsStore? settingsStore,
+  ChatStore? store,
+  Chat? chat,
 }) async {
   await tester.pumpWidget(AiSettingsHost(
-    store: MemoryAiSettingsStore(settings),
+    store: settingsStore ?? MemoryAiSettingsStore(settings),
     keys: keys ?? keysWithAnthropic(),
     child: MaterialApp(
       home: ChatScreen(
+        chat: chat,
+        store: store,
         graph: graphNotifier ?? ValueNotifier(graph),
         readNote: readNote ?? (path) async => notes[path],
         startNode: startNode,
@@ -207,6 +215,158 @@ void main() {
     expect(find.text('Anthropic · claude-opus-5-5'), findsOneWidget);
     await ask(tester, 'Think hard.');
     expect(server.requests.single.body['model'], 'claude-opus-5-5');
+  });
+
+  group('Model for this chat (#203)', () {
+    HttpGet listOf(List<Map<String, Object?>> models) =>
+        (url, headers) async => HttpReply(200, jsonEncode({'data': models}));
+
+    final anthropicList = listOf([
+      {'id': 'claude-sonnet-5-5'},
+      {'id': 'claude-opus-5-5'},
+      {'id': 'claude-haiku-5'},
+    ]);
+
+    Future<void> pickFromMenu(WidgetTester tester, String model) async {
+      await tester.tap(find.byKey(const ValueKey('chat-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Model for this chat'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey('model-$model')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets(
+        'a picked model is used, saved and kept; the settings stay',
+        (tester) async {
+      clearModelCache();
+      addTearDown(clearModelCache);
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'First answer.'},
+        ]),
+        anthropicReply([
+          {'type': 'text', 'text': 'Second answer.'},
+        ]),
+      ]);
+      final settings = MemoryAiSettingsStore();
+      final storage = MemoryChatStorage();
+      final store = ChatStore(storage);
+      await openChat(tester, server,
+          settingsStore: settings, store: store, getModels: anthropicList);
+      await ask(tester, 'First question.');
+      expect(server.requests.last.body['model'], 'claude-sonnet-5-5');
+      // Same model so far: no line in the transcript.
+      expect(find.textContaining('Model changed to'), findsNothing);
+
+      await pickFromMenu(tester, 'claude-haiku-5');
+      expect(find.text('Anthropic · claude-haiku-5'), findsOneWidget);
+      await ask(tester, 'Second question.');
+      expect(server.requests.last.body['model'], 'claude-haiku-5');
+      expect(find.text('Model changed to anthropic/claude-haiku-5'),
+          findsOneWidget);
+      // The line is not sent to the provider.
+      expect(jsonEncode(server.requests.last.body['messages']),
+          isNot(contains('Model changed to')));
+
+      // The settings are as they were.
+      expect(settings.saves, 0);
+      expect(settings.settings.providerSettings().defaultModel,
+          'claude-sonnet-5-5');
+      expect(settings.settings.providerSettings().strongModel,
+          'claude-opus-5-5');
+
+      // Saved with the chat; reopening keeps the model and the line.
+      await tester.pump();
+      await tester.pump();
+      final file = jsonDecode(storage.files.values.single) as Map;
+      expect(file['model'], 'claude-haiku-5');
+      final reopened = ChatStore(storage);
+      await reopened.load();
+      await openChat(tester, FakeServer([]),
+          store: reopened,
+          chat: reopened.chats.single,
+          getModels: anthropicList);
+      expect(find.text('Anthropic · claude-haiku-5'), findsOneWidget);
+      expect(find.text('Model changed to anthropic/claude-haiku-5'),
+          findsOneWidget);
+    });
+
+    testWidgets('"Use the default model" returns to the settings\' model',
+        (tester) async {
+      clearModelCache();
+      addTearDown(clearModelCache);
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Done.'},
+        ]),
+      ]);
+      await openChat(tester, server, getModels: anthropicList);
+      await pickFromMenu(tester, 'claude-haiku-5');
+      expect(find.text('Anthropic · claude-haiku-5'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('chat-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Use the default model'));
+      await tester.pumpAndSettle();
+      expect(find.text('Anthropic · claude-sonnet-5-5'), findsOneWidget);
+      await ask(tester, 'Hello.');
+      expect(server.requests.single.body['model'], 'claude-sonnet-5-5');
+    });
+
+    testWidgets('with "EU only" on, a model without an EU route is refused',
+        (tester) async {
+      clearModelCache();
+      addTearDown(clearModelCache);
+      const settings = AiSettings(
+        provider: 'vercel',
+        providers: {
+          'vercel': ProviderSettings(
+            api: ApiKind.openAi,
+            baseUrl: 'https://ai-gateway.vercel.sh/v1',
+            defaultModel: 'anthropic/claude-sonnet-5.5',
+            strongModel: '',
+            euOnly: true,
+          ),
+        },
+      );
+      await openChat(tester, FakeServer([]),
+          settings: settings,
+          keys: MemoryKeyStore()..keys['vercel'] = 'vk-test',
+          getModels: listOf([
+            {
+              'id': 'anthropic/claude-sonnet-5.5',
+              'type': 'language',
+              'tags': ['tool-use'],
+              'regions': ['eu', 'us'],
+            },
+            {
+              'id': 'mistral/mistral-large-4',
+              'type': 'language',
+              'tags': ['tool-use'],
+              'regions': ['us'],
+            },
+            {
+              'id': 'eu/other-model',
+              'type': 'language',
+              'tags': ['tool-use'],
+              'regions': ['eu'],
+            },
+          ]));
+      await tester.tap(find.byKey(const ValueKey('chat-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Model for this chat'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('no EU route'), findsOneWidget);
+      // The refused model cannot be picked: the picker stays open.
+      await tester.tap(find.byKey(const ValueKey('model-mistral/mistral-large-4')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ModelPickerScreen), findsOneWidget);
+      // One with an EU route can.
+      await tester.tap(find.byKey(const ValueKey('model-eu/other-model')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ModelPickerScreen), findsNothing);
+      expect(find.text('Vercel AI Gateway · eu/other-model'), findsOneWidget);
+    });
   });
 
   group('"Save as new node" (#145)', () {

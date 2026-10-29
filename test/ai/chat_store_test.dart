@@ -136,6 +136,41 @@ void main() {
       expect(jsonEncode(messages[2]), contains('Really?'));
     });
 
+    test('a changed model adds a line, saved with the chat (#203)', () async {
+      final server = FakeServer([answer('One.'), answer('Two.')]);
+      final chat = chatOn(server);
+      await chat.send('First');
+      // The same model: no line.
+      expect(chat.transcript.whereType<ModelChanged>(), isEmpty);
+      chat.session!.model = 'claude-opus-5-5';
+      chat.model = 'claude-opus-5-5';
+      await chat.send('Second');
+      final lines = chat.transcript.whereType<ModelChanged>().toList();
+      expect(lines.single.text, 'Model changed to anthropic/claude-opus-5-5');
+      // The line comes before my message and is not sent.
+      expect(chat.transcript[2], isA<ModelChanged>());
+      expect(chat.transcript[3], isA<UserMessage>());
+      expect(jsonEncode(server.requests.last.body['messages']),
+          isNot(contains('Model changed')));
+      expect(server.requests.last.body['model'], 'claude-opus-5-5');
+      await store.flush();
+
+      final again = ChatStore(storage);
+      await again.load();
+      final loaded = again.chats.single;
+      expect(loaded.model, 'claude-opus-5-5');
+      expect(loaded.transcript.whereType<ModelChanged>().single.text,
+          'Model changed to anthropic/claude-opus-5-5');
+      // Continued with the same model: no second line.
+      final next = FakeServer([answer('Three.')]);
+      loaded.attach(ChatSession(
+          tools: tools(),
+          config: anthropic.withModel('claude-opus-5-5'),
+          post: next.post));
+      await loaded.send('Third');
+      expect(loaded.transcript.whereType<ModelChanged>(), hasLength(1));
+    });
+
     test('the bytes of an image are not saved, only a line', () async {
       final server = FakeServer([
         anthropicReply([

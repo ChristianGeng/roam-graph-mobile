@@ -97,6 +97,8 @@ List<ChatEntry> noteRequestEntries(List<ChatEntry> transcript, int answerIndex,
   final entries = <ChatEntry>[];
   for (final entry in transcript.take(answerIndex + 1)) {
     switch (entry) {
+      case ModelChanged():
+        break;
       case UserMessage():
         entries.add(UserMessage(entry.forModel));
       case AssistantMessage(:final text, :final model, :final searches):
