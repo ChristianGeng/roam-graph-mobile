@@ -451,7 +451,7 @@ Looking.
 It is [[id:plan][Plan]].
 ,* not a heading
 
-* Question: Thanks. And more.
+* Question: Thanks.
 Thanks.
 And more.
 * Answer

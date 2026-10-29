@@ -212,7 +212,11 @@ jobs:
           status=0
           # The live image tests need real keys; live-images.yml runs them
           # (#168).
-          flutter test --exclude-tags live 2>&1 | tee "$RUNNER_TEMP/test.txt" || status=$?
+          flutter test --exclude-tags live -r failures-only test/ai/chat_list_screen_test.dart test/ai/chat_store_test.dart test/ai/chat_screen_test.dart test/ai/agent_tools_test.dart 2>&1 | tee "$RUNNER_TEMP/test.txt" || status=$?
+          tr '\r' '\n' < "$RUNNER_TEMP/test.txt" | grep -v -E '^\s*(package:|dart:|#[0-9])' | grep -v '^\s*$' | awk 'length<300' > "$RUNNER_TEMP/dbg.txt" || true
+          split -b 3500 "$RUNNER_TEMP/dbg.txt" "$RUNNER_TEMP/dbg-chunk-" || true
+          n=0
+          for c in "$RUNNER_TEMP"/dbg-chunk-*; do n=$((n+1)); [ "$n" -gt 9 ] && break; echo "::error title=DEBUG $n::$(sed ':a;N;$!ba;s/\n/%0A/g' "$c")"; done
           if [ "$status" -ne 0 ]; then
             # The compact reporter rewrites its line with carriage returns:
             # make them line breaks, so a failed test's name is found too.
