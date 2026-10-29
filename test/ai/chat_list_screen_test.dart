@@ -105,13 +105,12 @@ void main() {
     await settle(tester);
   }
 
-  /// Waits for the files written so far. The store was made outside the
-  /// test's fake async zone, so its writes go on only while frames are
-  /// pumped.
+  /// Lets the files written so far land. The writes are microtasks in the
+  /// test's fake async zone, so pumping runs them; awaiting the store's
+  /// future would wait for ever there.
   Future<void> saved(WidgetTester tester) async {
-    final done = store.flush();
     await tester.pump();
-    await done;
+    await tester.pump();
   }
 
   Finder row(String id) => find.byKey(ValueKey('chat-row-$id'));
