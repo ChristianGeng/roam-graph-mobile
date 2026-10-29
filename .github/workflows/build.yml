@@ -214,22 +214,25 @@ jobs:
           # (#168).
           cat > "$RUNNER_TEMP/dbg.py" <<'PY'
           import re, subprocess, os
-          src = open('test/ai/chat_list_screen_test.dart').read()
-          names = re.findall(r"^  test(?:Widgets)?\('((?:[^'\\]|\\.)*)'", src, re.M)
+          src = open('test/ai/dbg_list_test.dart').read()
+          names = [x for x in re.findall(r"^  test(?:Widgets)?\('((?:[^'\\]|\\.)*)'", src, re.M) if x.startswith(('rename','swipe'))]
           names += re.findall(r"^  test(?:Widgets)?\(\s*\n\s*'((?:[^'\\]|\\.)*)'", src, re.M)
           out = []
           for n in names:
               n = n.replace("\\'", "'")
               try:
-                  r = subprocess.run(['flutter', 'test', 'test/ai/chat_list_screen_test.dart', '--plain-name', n], capture_output=True, text=True, timeout=60)
+                  r = subprocess.run(['flutter', 'test', 'test/ai/dbg_list_test.dart', '--plain-name', n], capture_output=True, text=True, timeout=60)
                   if r.returncode != 0:
                       t = (r.stdout + r.stderr).replace('\r', '\n')
                       keep = [l for l in t.split('\n') if re.search(r'EXCEPTION|Expected|Actual|Which|Error|error', l)][:6]
                       out.append('FAIL ' + n + ': ' + ' | '.join(keep))
                   else:
                       out.append('ok ' + n)
-              except subprocess.TimeoutExpired:
-                  out.append('HANG ' + n)
+              except subprocess.TimeoutExpired as e:
+                  o = e.stdout or b''
+                  if isinstance(o, bytes): o = o.decode(errors='replace')
+                  marks = [l for l in o.replace('\r', '\n').split('\n') if l.startswith(('L', 'settle'))]
+                  out.append('HANG ' + n + ': ' + ' '.join(marks[-12:]))
           print('::error title=DEBUG list::' + '%0A'.join(out))
           PY
           python3 "$RUNNER_TEMP/dbg.py" || true
