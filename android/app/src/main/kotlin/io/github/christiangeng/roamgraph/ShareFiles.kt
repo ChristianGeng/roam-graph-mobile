@@ -56,7 +56,7 @@ object ShareFiles {
         return send
     }
 
-    /** The MIME type all of [types] share, or `image/*` for any image, or any type. */
+    /** The MIME type all of [types] share; else their main type with a wildcard; else any type. */
     fun commonType(types: List<String>): String {
         val first = types.first()
         if (types.all { it == first }) return first
