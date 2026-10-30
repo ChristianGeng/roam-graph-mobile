@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:material_ui/material_ui.dart';
 
 import 'ai/ai_settings.dart';
@@ -21,11 +19,12 @@ import 'settings/view_settings.dart';
 /// `--dart-define=APP_VERSION=...`. Local builds show "dev".
 const appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'dev');
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Copies of pictures and files shared with other apps are only needed
   // while the other app reads them (#209).
-  unawaited(deleteShareCache());
+  // Awaited, so it cannot delete a copy made by a share just after.
+  await deleteShareCache();
   // The app's own source-block grammar, before any note is shown (#147).
   registerSclang();
   runApp(const RoamGraphApp());

@@ -104,9 +104,24 @@ bool _isImageLine(String line) {
 String noteAsText(String title, String org, {required bool isFile}) {
   final kept = <String>[];
   var inDrawer = false;
+  var inBlock = false;
   var headingSeen = isFile;
   for (final line in const LineSplitter().convert(org)) {
     final trimmed = line.trim();
+    // The lines of a block (source, quote, example) stay as they are,
+    // without its `#+begin_` and `#+end_` lines.
+    if (inBlock) {
+      if (RegExp(r'^\s*#\+end_', caseSensitive: false).hasMatch(line)) {
+        inBlock = false;
+      } else {
+        kept.add(line);
+      }
+      continue;
+    }
+    if (RegExp(r'^\s*#\+begin_', caseSensitive: false).hasMatch(line)) {
+      inBlock = true;
+      continue;
+    }
     if (inDrawer) {
       if (trimmed.toUpperCase() == ':END:') inDrawer = false;
       continue;

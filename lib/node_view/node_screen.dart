@@ -1,3 +1,5 @@
+import 'dart:io' show FileSystemException;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
@@ -741,6 +743,8 @@ class _NodeScreenState extends State<NodeScreen> {
       if (mounted) {
         _tell('Could not share the note: ${e.message ?? e.code}', error: true);
       }
+    } on FileSystemException catch (e) {
+      if (mounted) _tell('Could not share the note: ${e.message}', error: true);
     }
   }
 

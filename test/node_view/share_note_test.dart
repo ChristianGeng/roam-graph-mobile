@@ -57,6 +57,13 @@ void main() {
       expect(text, contains('Source: Example Office, retrieved 2026-01-02'));
     });
 
+    test('the lines of a source block stay, also comments in it', () {
+      const org = '#+begin_src sh\n# list files\nls [[x]]\n#+end_src\n'
+          '# a comment\nAfter.';
+      expect(noteAsText('T', org, isFile: true),
+          'T\n\n# list files\nls [[x]]\nAfter.');
+    });
+
     test('a link without a description shows its target', () {
       expect(linksAsText('See [[id:abc]] and [[id:abc][the note]].'),
           'See id:abc and the note.');
@@ -195,11 +202,15 @@ void main() {
     testWidgets('on the desktop, "As text" says it was copied',
         (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-      await show(tester);
-      await chooseShare(tester);
-      expect(sentTexts, hasLength(1));
-      expect(find.text('Copied'), findsOneWidget);
-      debugDefaultTargetPlatformOverride = null;
+      try {
+        await show(tester);
+        await chooseShare(tester);
+        expect(sentTexts, hasLength(1));
+        expect(find.text('Copied'), findsOneWidget);
+      } finally {
+        // Not in a tear-down: the test checks it before those run.
+        debugDefaultTargetPlatformOverride = null;
+      }
     });
 
     testWidgets('a long press on an image offers Open and Share',

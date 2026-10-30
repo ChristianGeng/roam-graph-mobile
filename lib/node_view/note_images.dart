@@ -3,6 +3,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show FileSystemException;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -673,5 +674,7 @@ Future<void> runShare(
         messenger, 'Could not share the picture: ${e.message ?? e.code}');
   } on StateError catch (e) {
     showErrorSnackBar(messenger, e.message);
+  } on FileSystemException catch (e) {
+    showErrorSnackBar(messenger, 'Could not share the picture: ${e.message}');
   }
 }
