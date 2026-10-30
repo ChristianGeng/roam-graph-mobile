@@ -40,8 +40,10 @@ List<ChangelogEntry> parseChangelog(String changelog) {
   String? heading;
   final body = <String>[];
   void finish() {
-    if (heading != null) {
-      entries.add(ChangelogEntry(_plain(heading!), _plain(body.join('\n').trim())));
+    final title = heading;
+    if (title != null) {
+      entries.add(
+          ChangelogEntry(_plain(title), _plain(body.join('\n').trim())));
     }
     body.clear();
   }
