@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-30: Share a picture or a whole note with another app ([#0](https://github.com/ChristianGeng/roam-graph-mobile/pull/0))
+## 2026-10-30: Share a picture or a whole note with another app ([#210](https://github.com/ChristianGeng/roam-graph-mobile/pull/210))
 
 Added: a picture (also an infographic or a chart) can be shared through Android's share menu: long press on it, or the share icon on its page. The caption goes with it, and for an infographic or a chart the source line too.
 Added: "Share note…" in the note's ⋮ menu shares the note as text, as text with its images, or as an Org file. On the desktop, the text is copied and files are saved.
