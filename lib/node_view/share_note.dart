@@ -140,7 +140,7 @@ String noteAsText(String title, String org, {required bool isFile}) {
 /// The text that goes with the picture that a link to [location] (as
 /// written in the note) shows in [org]: its `#+caption:`, then, for an
 /// infographic or a chart (#183, #184) with a data table and a source line
-/// after the image, "Source: <name>, retrieved <date>". Null if there is
+/// after the image, `Source: <name>, retrieved <date>`. Null if there is
 /// neither.
 String? imageShareText(String org, String location) {
   final lines = const LineSplitter().convert(org);
