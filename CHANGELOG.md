@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-30: Settings: About, with the version and what is new ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-30: Settings: About, with the version and what is new ([#208](https://github.com/ChristianGeng/roam-graph-mobile/pull/208))
 
 Added: Settings has a last row "About" with the installed version ("(pre-release)" for a pre-release). It opens a page with the version (select or copy it), "What's new" from this changelog (newest 20 entries, "Show more" for the rest), a link "All releases on GitHub", and "Licences".
 Closes #207.
