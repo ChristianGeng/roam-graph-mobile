@@ -38,6 +38,9 @@ Each line opens the section that answers it.
 - Make an image: [[id:roam-graph-help-make-image][Make an image]]; an
   infographic: [[id:roam-graph-help-make-infographic][Make an infographic]];
   a chart: [[id:roam-graph-help-make-chart][Make a chart]]
+- Share a note or a picture with another app:
+  [[id:roam-graph-help-share-note][Share a note]],
+  [[id:roam-graph-help-share-picture][Share a picture]]
 - Choose a model: [[id:roam-graph-help-models][Choosing a model]]
 - Set the language of notes:
   [[id:roam-graph-help-note-language][The language of notes]]

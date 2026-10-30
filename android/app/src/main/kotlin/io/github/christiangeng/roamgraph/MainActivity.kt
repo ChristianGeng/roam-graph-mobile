@@ -63,7 +63,9 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler(access)
         // Methods: takeShare() -> {text, subject} of the oldest share not
         // taken yet, or null; shareText({text, subject}) opens Android's share
-        // menu to send text to another app, such as an AI app (#40). Calls to
+        // menu to send text to another app, such as an AI app (#40);
+        // shareFiles({paths, mimeTypes, text, subject}) shares copies of files
+        // from cacheDir/share/ through the FileProvider (#209). Calls to
         // Dart: shareArrived(), when a share comes while the app runs.
         val share = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SHARE_CHANNEL)
         share.setMethodCallHandler { call, result ->
@@ -89,6 +91,27 @@ class MainActivity : FlutterActivity() {
                         }
                         startActivity(Intent.createChooser(send, null))
                         result.success(null)
+                    }
+                }
+                "shareFiles" -> {
+                    val paths = call.argument<List<String>>("paths")
+                    val types = call.argument<List<String>>("mimeTypes")
+                    if (paths == null || types == null) {
+                        result.error("bad_args", "paths or mimeTypes is missing", null)
+                    } else {
+                        try {
+                            val send = ShareFiles.intent(
+                                this,
+                                paths,
+                                types,
+                                call.argument<String>("text"),
+                                call.argument<String>("subject"),
+                            )
+                            startActivity(Intent.createChooser(send, null))
+                            result.success(null)
+                        } catch (e: IllegalArgumentException) {
+                            result.error("bad_args", e.message, null)
+                        }
                     }
                 }
                 else -> result.notImplemented()

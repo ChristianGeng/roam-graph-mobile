@@ -6,14 +6,18 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 import 'package:vector_graphics_compiler/vector_graphics_compiler.dart'
     as compiler;
 
+import '../capture/share_out.dart';
 import '../folder/org_files.dart';
 import '../graph/roam_db.dart' show TextHit;
+import '../platform/error_text.dart';
+import 'share_note.dart';
 
 /// The files of the chosen folder, for images in notes.
 abstract interface class NoteFiles {
@@ -411,6 +415,7 @@ Widget? loadNoteImage(
   OrgTree root,
   OrgLink link, {
   VoidCallback? onRemove,
+  FileSharer? share,
 }) {
   final path = linkedImagePath(note, link.location);
   if (path == null || !files.reaches(path)) return null;
@@ -424,6 +429,12 @@ Widget? loadNoteImage(
     files: files,
     width: orgImageWidth(root, link),
     onRemove: onRemove,
+    // The caption and the source line are read from the note when the
+    // picture is shared, not for every image shown.
+    onShare: share == null
+        ? null
+        : () => shareImageFile(files, file, share,
+            text: imageShareText(root.toMarkup(), link.location)),
   );
 }
 
@@ -438,6 +449,7 @@ class NoteImage extends StatelessWidget {
     required this.files,
     this.width,
     this.onRemove,
+    this.onShare,
   });
 
   final OrgLink link;
@@ -449,11 +461,46 @@ class NoteImage extends StatelessWidget {
   /// null.
   final VoidCallback? onRemove;
 
+  /// Sends the picture to another app (#209); no share menu when null.
+  final Future<void> Function()? onShare;
+
   @override
   Widget build(BuildContext context) {
     final image = isSvg(file.path) ? _svg(context) : _raster(context);
+    final share = onShare;
     final shown = GestureDetector(
-      onTap: () => ImagePage.open(context, file, files),
+      onTap: () => ImagePage.open(context, file, files, onShare: share),
+      // A small menu: open it, or share it.
+      onLongPress: share == null
+          ? null
+          : () async {
+              final choice = await showModalBottomSheet<bool>(
+                context: context,
+                builder: (context) => SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.open_in_full),
+                        title: const Text('Open'),
+                        onTap: () => Navigator.pop(context, false),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.share),
+                        title: const Text('Share'),
+                        onTap: () => Navigator.pop(context, true),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+              if (!context.mounted || choice == null) return;
+              if (choice) {
+                await runShare(context, share);
+              } else {
+                await ImagePage.open(context, file, files, onShare: share);
+              }
+            },
       child: image,
     );
     final remove = onRemove;
@@ -545,17 +592,27 @@ class BrokenImage extends StatelessWidget {
 
 /// An image alone on its page, with pinch zoom. Back returns to the node.
 class ImagePage extends StatelessWidget {
-  const ImagePage({super.key, required this.file, required this.files});
+  const ImagePage({
+    super.key,
+    required this.file,
+    required this.files,
+    this.onShare,
+  });
 
   final FolderFile file;
   final NoteFiles files;
 
+  /// Sends the picture to another app (#209); no share icon when null.
+  final Future<void> Function()? onShare;
+
   static Future<void> open(
-          BuildContext context, FolderFile file, NoteFiles files) =>
+          BuildContext context, FolderFile file, NoteFiles files,
+          {Future<void> Function()? onShare}) =>
       Navigator.push(
         context,
         MaterialPageRoute<void>(
-          builder: (context) => ImagePage(file: file, files: files),
+          builder: (context) =>
+              ImagePage(file: file, files: files, onShare: onShare),
         ),
       );
 
@@ -572,7 +629,17 @@ class ImagePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: Text(file.path.split('/').last)),
+        appBar: AppBar(
+          title: Text(file.path.split('/').last),
+          actions: [
+            if (onShare case final share?)
+              IconButton(
+                tooltip: 'Share',
+                icon: const Icon(Icons.share),
+                onPressed: () => runShare(context, share),
+              ),
+          ],
+        ),
         body: InteractiveViewer(
           maxScale: maxScale,
           child: Center(
@@ -592,4 +659,19 @@ class ImagePage extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// Runs [share] (a picture sent to another app, #209) and tells what went
+/// wrong, if anything.
+Future<void> runShare(
+    BuildContext context, Future<void> Function() share) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await share();
+  } on PlatformException catch (e) {
+    showErrorSnackBar(
+        messenger, 'Could not share the picture: ${e.message ?? e.code}');
+  } on StateError catch (e) {
+    showErrorSnackBar(messenger, e.message);
+  }
 }

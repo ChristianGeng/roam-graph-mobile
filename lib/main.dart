@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 
 import 'ai/ai_settings.dart';
 import 'ai/chat_store.dart';
 import 'capture/share_inbox.dart';
+import 'capture/share_out.dart';
 import 'edit/note_editor.dart';
 import 'folder/desktop_folder_access.dart';
 import 'folder/folder_access.dart';
@@ -19,6 +22,10 @@ import 'settings/view_settings.dart';
 const appVersion = String.fromEnvironment('APP_VERSION', defaultValue: 'dev');
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Copies of pictures and files shared with other apps are only needed
+  // while the other app reads them (#209).
+  unawaited(deleteShareCache());
   // The app's own source-block grammar, before any note is shown (#147).
   registerSclang();
   runApp(const RoamGraphApp());

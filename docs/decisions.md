@@ -3459,6 +3459,53 @@ an answer had come.
 - **Desktop:** no service and no notification (a desktop notification needs
   a plugin for each system; not worth it now).
 
+## 114. Share a picture or a note: copies in the cache and a FileProvider (#209)
+
+A picture or a note could not leave the app except as text for an AI app.
+- **Copies, not the folder.** The app reads the file through the folder
+  access, as it does to show it, and writes a copy into its cache folder
+  `share/` (`copyToShareCache`). `MainActivity.kt` gives that copy a content
+  URI from a `FileProvider` (authority `<applicationId>.share`, only the
+  cache folder `share/` in `share_paths.xml`) and starts Android's share
+  menu with `ACTION_SEND` (one file) or `ACTION_SEND_MULTIPLE`, with
+  `EXTRA_STREAM`, `EXTRA_TEXT` and `FLAG_GRANT_READ_URI_PERMISSION`. The
+  other app can read this one copy only, never the notes folder, and the
+  app asks for no new permission. `ShareFiles.kt` refuses a path that is not
+  a file inside `cacheDir/share/`.
+- **Clean-up.** The Dart side deletes the whole `share/` folder when the app
+  starts. A copy lives at most until the next start.
+- **No new plugin.** `share_plus` would do the same, but it adds a plugin
+  with its own Gradle and compileSdk requirements, which cannot be tried in
+  the cloud sessions (Flutter runs only in CI). About 70 lines of Kotlin on
+  the existing `roam_graph/share` channel are easier to check. The only new
+  Gradle line is `androidx.core:core`, for the `FileProvider` class.
+- **A picture:** the image file itself (an SVG as the SVG file) with its
+  `#+caption:` as the text; for an infographic or a chart (#183, #184) with a
+  data table and a source line below it, the text also has "Source: <name>,
+  retrieved <date>" (the link shown by its description). Long press on an
+  image in a note: "Open" or "Share"; a share icon in the picture's own page.
+- **A note** ("Share note…" in the ⋮ menu; in the bar's "More" when the note
+  cannot be edited): a dialog with three choices, "As text" first.
+  - *As text:* the title, then the Org text without property drawers, `:ID:`
+    lines, Org comments, `#+` keywords and lines that are only an image link.
+    A `#+caption:` stays, as its text. Links show their description, or their
+    target when they have none. Headings, lists and tables stay as they are.
+    A heading node gives its subtree only, without its heading line (the
+    title says it).
+  - *As text with images:* the same text and the image files of the note
+    (links without a description, each file once). Images that cannot be read
+    are named and left out. With no image, only the text goes.
+  - *As Org file:* the note's `.org` text (a heading node: its subtree) as
+    `<title>.org`, MIME type `text/plain`, because few apps know `text/org`.
+- **Hidden from AI does not block it:** sharing is the user's own action.
+- **Desktop:** "As text" goes to the clipboard and says "Copied" (as "Share
+  with AI" does). A picture or a file is saved: the platform's save dialog
+  for one file, a folder dialog for several; if the system has no dialog, the
+  paths of copies in the cache folder go to the clipboard. The text of a
+  share with files goes to the clipboard too.
+- **Not done:** the app is no share target for pictures (decision 34 has
+  the share target for text only); sharing several notes at once.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

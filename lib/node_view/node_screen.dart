@@ -7,6 +7,7 @@ import '../ai/ai_settings.dart';
 import '../ai/chat_list_screen.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../capture/share_out.dart';
 import '../edit/add_link.dart';
 import '../edit/ai_edit_screen.dart';
 import '../edit/append_screen.dart';
@@ -34,6 +35,7 @@ import 'src_languages.dart';
 import '../search/search_screen.dart';
 import 'note_images.dart';
 import 'note_search.dart';
+import 'share_note.dart';
 import 'web_links.dart';
 import '../platform/desktop.dart';
 
@@ -72,6 +74,7 @@ class NodeScreen extends StatefulWidget {
     this.onBack,
     this.writer,
     this.shareText = shareTextOut,
+    this.shareFiles = shareFilesOut,
     this.openUrl = openUrlOnDevice,
     this.help = false,
     this.visitBoundary = 0,
@@ -109,6 +112,9 @@ class NodeScreen extends StatefulWidget {
   /// Sends text to an AI app (#41); tests replace it.
   final TextSharer shareText;
 
+  /// Sends pictures and files to another app (#209); tests replace it.
+  final FileSharer shareFiles;
+
   /// Opens web, mail and phone links in another app (#108); tests replace
   /// it.
   final UrlOpener openUrl;
@@ -133,6 +139,7 @@ class NodeScreen extends StatefulWidget {
     NoteOpener? openInOrgro,
     NoteWriter? writer,
     TextSharer shareText = shareTextOut,
+    FileSharer shareFiles = shareFilesOut,
     UrlOpener openUrl = openUrlOnDevice,
     bool help = false,
   }) {
@@ -150,6 +157,7 @@ class NodeScreen extends StatefulWidget {
           openInOrgro: openInOrgro,
           writer: writer,
           shareText: shareText,
+          shareFiles: shareFiles,
           openUrl: openUrl,
           help: help,
         ),
@@ -684,6 +692,58 @@ class _NodeScreenState extends State<NodeScreen> {
     }
   }
 
+  /// Asks how to share [node] and sends it to another app (#209): as
+  /// text, as text with its images, or as an Org file. A note hidden from AI
+  /// is shared too: this is the user's own action.
+  Future<void> _shareNote(RoamNode node) async {
+    final kind = await askShareKind(context);
+    if (kind == null || !mounted) return;
+    final file = await _text;
+    if (!mounted) return;
+    if (file == null) {
+      _tell('Could not read ${node.file}.', error: true);
+      return;
+    }
+    final org = nodeText(node, file);
+    if (org == null) {
+      _tell('The heading is no longer in ${node.file}; the file changed '
+          'since the app read it.');
+      return;
+    }
+    final title = node.displayTitle;
+    try {
+      switch (kind) {
+        case ShareNoteKind.text:
+          await widget.shareText(noteAsText(title, org, isFile: node.isFile),
+              subject: title);
+          if (isDesktop && mounted) _tell('Copied', short: true);
+        case ShareNoteKind.textWithImages:
+          final text = noteAsText(title, org, isFile: node.isFile);
+          final files = widget.files;
+          final found = files == null
+              ? (images: <OutFile>[], unread: 0)
+              : await noteImageFiles(files, node.file, org);
+          if (!mounted) return;
+          if (found.unread > 0) {
+            _tell('${found.unread} image${found.unread == 1 ? '' : 's'} '
+                'could not be read and ${found.unread == 1 ? 'is' : 'are'} '
+                'not shared.');
+          }
+          if (found.images.isEmpty) {
+            await widget.shareText(text, subject: title);
+          } else {
+            await widget.shareFiles(found.images, text: text, subject: title);
+          }
+        case ShareNoteKind.orgFile:
+          await widget.shareFiles([orgFileOf(title, org)], subject: title);
+      }
+    } on PlatformException catch (e) {
+      if (mounted) {
+        _tell('Could not share the note: ${e.message ?? e.code}', error: true);
+      }
+    }
+  }
+
   /// Opens the AI chat about [node] (#60).
   Future<void> _askAi(RoamNode node) => ChatListScreen.open(
         context,
@@ -1063,6 +1123,9 @@ class _NodeScreenState extends State<NodeScreen> {
       if (widget.openInOrgro case final open? when node != null)
         ('Open in $noteAppName', Icons.open_in_new,
             () => _openInOrgro(open, node)),
+      // Without the edit menu (⋮), which has "Share note…" otherwise.
+      if (node != null && !widget.help && widget.writer?.editor == null)
+        ('Share note…', Icons.share, () => _shareNote(node)),
     ];
     final buttons = [
       node != null, // Search in this note
@@ -1143,6 +1206,7 @@ class _NodeScreenState extends State<NodeScreen> {
                 _EditAction.ai => _aiEdit(writer, node),
                 _EditAction.image => _createImage(writer, node),
                 _EditAction.history => _history(writer, node),
+                _EditAction.share => _shareNote(node),
                 _EditAction.delete => _deleteNote(writer, node),
               },
               itemBuilder: (_) => [
@@ -1159,6 +1223,8 @@ class _NodeScreenState extends State<NodeScreen> {
                 if (writer.createFile != null)
                   const PopupMenuItem(
                       value: _EditAction.image, child: Text('Create image')),
+                const PopupMenuItem(
+                    value: _EditAction.share, child: Text('Share note…')),
                 const PopupMenuItem(
                     value: _EditAction.history,
                     child: Text('Earlier versions')),
@@ -1391,6 +1457,7 @@ class _NodeScreenState extends State<NodeScreen> {
             loadMermaidDrawing(link) ??
             switch (files) {
               final files? => loadNoteImage(files, node.file, tree, link,
+                  share: widget.shareFiles,
                   onRemove: switch (_editWriter) {
                     final writer? => () => _removeImage(writer, node, link),
                     null => null,
@@ -1412,4 +1479,4 @@ class _NodeScreenState extends State<NodeScreen> {
 enum _AiAction { ask, share }
 
 /// The edits of an existing note (v4).
-enum _EditAction { append, edit, meta, ai, image, history, delete }
+enum _EditAction { append, edit, meta, ai, image, share, history, delete }

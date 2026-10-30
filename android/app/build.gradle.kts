@@ -65,3 +65,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // FileProvider, for sharing pictures and files (#209). Flutter's own
+    // libraries already bring it; this makes the version explicit.
+    implementation("androidx.core:core:1.13.1")
+}

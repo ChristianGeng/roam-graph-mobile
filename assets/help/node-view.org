@@ -152,6 +152,25 @@ unchanged are named.
 Only files directly in ~roam/~ can be deleted here, including notes hidden
 from AI.
 
+* Share a note
+:PROPERTIES:
+:ID:       roam-graph-help-share-note
+:END:
+*Share note…* in the ⋮ menu (or in *More for this note* when the note
+cannot be edited) opens Android's share menu, for example to send the note
+to a Telegram chat. It asks how:
+- *As text*: the title, then the text of the note without its property
+  drawers, IDs, ~#+~ lines and comments. Links show their description.
+  Headings, lists and tables stay as they are. A caption stays as text.
+- *As text with images*: the same text and the image files of the note.
+- *As Org file*: the ~.org~ file, named after the note. For a heading node
+  it holds the heading and what is below it.
+
+A note hidden from AI can be shared too: this is your own action. On the
+desktop, *As text* copies the text ("Copied") and files are saved; see
+[[id:roam-graph-help-desktop][The desktop app]]. To share one picture, see
+[[id:roam-graph-help-share-picture][Share a picture]].
+
 * Other buttons in the bar
 - *Open in Orgro* hands the file to Orgro, to read or edit it there; on the
   desktop it is *Open in Emacs*, see
