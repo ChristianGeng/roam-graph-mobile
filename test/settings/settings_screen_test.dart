@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show AssetBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
+import 'package:roam_graph_mobile/node_view/web_links.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 import '../ai/ai_settings_test.dart' show MemoryAiSettingsStore, MemoryKeyStore;
@@ -11,6 +13,9 @@ Future<MemoryViewSettingsStore> pumpSettings(
   WidgetTester tester, {
   ViewSettings settings = const ViewSettings(),
   AiSettings ai = const AiSettings(),
+  String version = 'dev',
+  UrlOpener? openUrl,
+  AssetBundle? bundle,
 }) async {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1;
@@ -20,8 +25,14 @@ Future<MemoryViewSettingsStore> pumpSettings(
     store: MemoryAiSettingsStore(ai),
     keys: MemoryKeyStore(),
     child: MaterialApp(
-      builder: (context, child) => ViewSettingsHost(store: store, child: child!),
-      home: const SettingsScreen(),
+      builder: (context, child) {
+        final host = ViewSettingsHost(store: store, child: child!);
+        return bundle == null
+            ? host
+            : DefaultAssetBundle(bundle: bundle, child: host);
+      },
+      home: SettingsScreen(
+          version: version, openUrl: openUrl ?? (_) async => true),
     ),
   ));
   await tester.pumpAndSettle();

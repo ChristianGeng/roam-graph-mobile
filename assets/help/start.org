@@ -26,6 +26,8 @@ Each line opens the section that answers it.
 - Change the graph layout: [[id:roam-graph-help-layouts][Layouts]]
 - Change the theme, the layout at start, the folder for new images or the
   AI provider: [[id:roam-graph-help-settings][Settings]]
+- See the installed version and what's new:
+  [[id:roam-graph-help-settings][Settings]] (the row *About*)
 - Ask the AI a question: [[id:roam-graph-help-ask-ai][Ask the AI]]
 - Continue an earlier chat:
   [[id:roam-graph-help-continue-chat][Continue an earlier chat]]
