@@ -18,8 +18,11 @@ import 'package:path_provider/path_provider.dart';
 import '../ai/ai_settings.dart';
 import '../graph/graph_layout.dart';
 import '../graph/roam_graph.dart';
+import '../main.dart' show appVersion;
+import '../node_view/web_links.dart' show UrlOpener, openUrlOnDevice;
 import '../platform/desktop.dart';
 import '../platform/error_text.dart';
+import 'about_screen.dart';
 
 /// How far a note's sections are open when the note opens: the values
 /// Org's `#+STARTUP:` keyword has for this.
@@ -504,10 +507,21 @@ Future<void> _saveSettings(BuildContext context, ViewSettings settings) async {
 /// The settings page (#189): a short list with the categories AI and
 /// View, and the two settings for note files (#116, #112).
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, this.graph});
+  const SettingsScreen({
+    super.key,
+    this.graph,
+    this.version = appVersion,
+    this.openUrl = openUrlOnDevice,
+  });
 
   /// The graph, for the tags the AI settings offer.
   final RoamGraph? graph;
+
+  /// The version shown in the row "About" (#207).
+  final String version;
+
+  /// Opens the link of the About page; a fake in tests.
+  final UrlOpener openUrl;
 
   static Future<void> open(BuildContext context, {RoamGraph? graph}) =>
       Navigator.push(
@@ -657,6 +671,16 @@ class SettingsScreen extends StatelessWidget {
                   'it with -n +LINE FILE'),
               onTap: () => _chooseEmacs(context, settings),
             ),
+          const Divider(),
+          ListTile(
+            key: const ValueKey('settings-about'),
+            leading: const Icon(Icons.info_outline),
+            title: const Text('About'),
+            subtitle: Text(versionLabel(version)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () =>
+                AboutScreen.open(context, version: version, openUrl: openUrl),
+          ),
         ],
       ),
     );

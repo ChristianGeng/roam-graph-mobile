@@ -45,6 +45,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # The help pages (#62).
+  # The help pages (#62), and the changelog the About page shows (#207).
   assets:
     - assets/help/
+    - CHANGELOG.md

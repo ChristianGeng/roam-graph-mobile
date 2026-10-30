@@ -134,9 +134,10 @@ class ErrorReport {
 
 /// Puts [report] on the clipboard and says so.
 Future<void> copyError(ScaffoldMessengerState messenger, ErrorReport report) =>
-    _copy(messenger, report.text());
+    copyToClipboard(messenger, report.text());
 
-Future<void> _copy(ScaffoldMessengerState messenger, String text) async {
+/// Puts [text] on the clipboard and says so.
+Future<void> copyToClipboard(ScaffoldMessengerState messenger, String text) async {
   await Clipboard.setData(ClipboardData(text: text));
   if (!messenger.mounted) return;
   messenger

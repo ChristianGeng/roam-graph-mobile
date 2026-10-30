@@ -17,6 +17,9 @@ to bottom:
   - *Emacs command* (desktop only): what *Open in Emacs* runs; see
     [[id:roam-graph-help-desktop][The desktop app]]. On Android the row is
     not shown.
+- *About*: the last row. Under the name it shows the installed version, for
+  example "Version 0.2.0-dev.473 (pre-release)"; a build made on a
+  computer shows "Version dev". It opens the page *About*, see below.
 
 * The page View
 From top to bottom:
@@ -32,6 +35,18 @@ From top to bottom:
   [[id:roam-graph-help-layouts][Layouts]].
 - *Graph width on the tablet*: shows the share of the graph next to a note.
   Drag the divider between them to change it; *Reset* goes back to 40 : 60.
+
+* The page About
+From top to bottom:
+
+- The *version*. Press on it to select it, or tap the copy icon to copy it,
+  for example to paste it into an issue.
+- *All releases on GitHub*: opens the list of releases in the browser.
+  Pre-releases are listed there too.
+- *Licences*: the licences of the app and the packages it uses.
+- *What's new*: the entries of the changelog, newest first, each with its
+  date, title and pull request, and what changed. The newest 20 show;
+  *Show more* adds 20 more.
 
 * AI settings
 *AI settings* is a short list of six rows. Each opens a page and shows its
