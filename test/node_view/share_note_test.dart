@@ -64,6 +64,15 @@ void main() {
           'T\n\n# list files\nls [[x]]\nAfter.');
     });
 
+    test('only its own end line ends a block; comment blocks go; quotes '
+        'are converted', () {
+      const org = '#+begin_src sh\n#+end_quote\n# still code\n#+end_src\n'
+          '#+begin_comment\n# private\n#+end_comment\n'
+          '#+begin_quote\nSee [[id:x][the note]].\n#+end_quote\n';
+      expect(noteAsText('T', org, isFile: true),
+          'T\n\n#+end_quote\n# still code\nSee the note.');
+    });
+
     test('a link without a description shows its target', () {
       expect(linksAsText('See [[id:abc]] and [[id:abc][the note]].'),
           'See id:abc and the note.');

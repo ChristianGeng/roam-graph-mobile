@@ -104,22 +104,32 @@ bool _isImageLine(String line) {
 String noteAsText(String title, String org, {required bool isFile}) {
   final kept = <String>[];
   var inDrawer = false;
-  var inBlock = false;
+  // The type of the literal block (source, example, export, verse) or
+  // comment block the loop is in, in lower case; null outside one.
+  String? block;
   var headingSeen = isFile;
   for (final line in const LineSplitter().convert(org)) {
     final trimmed = line.trim();
-    // The lines of a block (source, quote, example) stay as they are,
-    // without its `#+begin_` and `#+end_` lines.
-    if (inBlock) {
-      if (RegExp(r'^\s*#\+end_', caseSensitive: false).hasMatch(line)) {
-        inBlock = false;
-      } else {
+    // The lines of a literal block stay as they are, without its
+    // `#+begin_` and `#+end_` lines; those of a comment block are left out.
+    // Only the end line of its own type ends it. A quote block holds Org
+    // text, which is converted as usual.
+    if (block != null) {
+      final end = RegExp(r'^\s*#\+end_(\w+)', caseSensitive: false)
+          .firstMatch(line);
+      if (end != null && end[1]!.toLowerCase() == block) {
+        block = null;
+      } else if (block != 'comment') {
         kept.add(line);
       }
       continue;
     }
-    if (RegExp(r'^\s*#\+begin_', caseSensitive: false).hasMatch(line)) {
-      inBlock = true;
+    final begin = RegExp(r'^\s*#\+begin_(\w+)', caseSensitive: false)
+        .firstMatch(line);
+    if (begin != null &&
+        const {'src', 'example', 'export', 'verse', 'comment'}
+            .contains(begin[1]!.toLowerCase())) {
+      block = begin[1]!.toLowerCase();
       continue;
     }
     if (inDrawer) {
