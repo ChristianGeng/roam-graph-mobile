@@ -195,11 +195,11 @@ void main() {
     testWidgets('on the desktop, "As text" says it was copied',
         (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-      addTearDown(() => debugDefaultTargetPlatformOverride = null);
       await show(tester);
       await chooseShare(tester);
       expect(sentTexts, hasLength(1));
       expect(find.text('Copied'), findsOneWidget);
+      debugDefaultTargetPlatformOverride = null;
     });
 
     testWidgets('a long press on an image offers Open and Share',
