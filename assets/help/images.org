@@ -96,6 +96,21 @@ than one series, a few marked points and a line "Source: name, retrieved
 date". Below it the note gets the values as an Org table and the source
 line with its link.
 
+* Share a picture
+:PROPERTIES:
+:ID:       roam-graph-help-share-picture
+:END:
+Long press on an image in a note and choose *Share*, or open the image and
+tap the share icon. Android's share menu opens, for example for a Telegram
+chat. The image file goes with its caption; for an infographic or a chart
+with a table and a source line, the text also has "Source: name, retrieved
+date". The other app gets a copy of this one image, never your notes
+folder; the copies are deleted when the app starts. An SVG is sent as the
+SVG file. To share a whole note, see
+[[id:roam-graph-help-share-note][Share a note]].
+
+On the desktop, the share icon saves the image where you choose.
+
 * How many images, and how to undo
 By default the AI makes one image or chart per message; set *Most images
 the agent may make for one message* in AI settings (AI → Agent and

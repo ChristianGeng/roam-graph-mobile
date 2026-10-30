@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The files the app shares with other apps (#209): copies in the cache
+     folder "share", nothing else. The folder name is also in share_out.dart. -->
+<paths>
+    <cache-path name="share" path="share/" />
+</paths>

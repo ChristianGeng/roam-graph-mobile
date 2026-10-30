@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-30: Share a picture or a whole note with another app ([#210](https://github.com/ChristianGeng/roam-graph-mobile/pull/210))
+
+Added: a picture (also an infographic or a chart) can be shared through Android's share menu: long press on it, or the share icon on its page. The caption goes with it, and for an infographic or a chart the source line too.
+Added: "Share note…" in the note's ⋮ menu shares the note as text, as text with its images, or as an Org file. On the desktop, the text is copied and files are saved.
+Closes #209.
+
 ## 2026-10-30: Settings: About, with the version and what is new ([#208](https://github.com/ChristianGeng/roam-graph-mobile/pull/208))
 
 Added: Settings has a last row "About" with the installed version ("(pre-release)" for a pre-release). It opens a page with the version (select or copy it), "What's new" from this changelog (newest 20 entries, "Show more" for the rest), a link "All releases on GitHub", and "Licences".
