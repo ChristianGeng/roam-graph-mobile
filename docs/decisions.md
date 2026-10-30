@@ -3477,8 +3477,9 @@ A picture or a note could not leave the app except as text for an AI app.
 - **No new plugin.** `share_plus` would do the same, but it adds a plugin
   with its own Gradle and compileSdk requirements, which cannot be tried in
   the cloud sessions (Flutter runs only in CI). About 70 lines of Kotlin on
-  the existing `roam_graph/share` channel are easier to check. The only new
-  Gradle line is `androidx.core:core`, for the `FileProvider` class.
+  the existing `roam_graph/share` channel are easier to check. The
+  `FileProvider` class comes from `androidx.core`, which Flutter's own
+  libraries already bring.
 - **A picture:** the image file itself (an SVG as the SVG file) with its
   `#+caption:` as the text; for an infographic or a chart (#183, #184) with a
   data table and a source line below it, the text also has "Source: <name>,
