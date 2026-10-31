@@ -86,10 +86,10 @@ List<OrgSection>? _pathTo(OrgTree node, OrgSection target) {
 }
 
 /// How the sections change so that [target], a section of [root], shows,
-/// as the states they are in now ([stateOf]) allow: [target] opens
-/// completely; a heading above it that hides it opens as far as its
-/// sub-headings, each as one line (`contents`: its own text stays hidden);
-/// nothing else changes. Null if [target] is not in [root].
+/// as the states they are in now ([stateOf]) allow: [target] and the
+/// sections under it open completely; a heading above it that hides it opens
+/// as far as its sub-headings, each as one line (`contents`: its own text
+/// stays hidden); nothing else changes. Null if [target] is not in [root].
 List<(OrgSection, OrgVisibilityState)>? headingFolding(
   OrgTree root,
   OrgSection target,
@@ -101,7 +101,10 @@ List<(OrgSection, OrgVisibilityState)>? headingFolding(
     for (final section in path.take(path.length - 1))
       if (stateOf(section) == OrgVisibilityState.folded)
         (section, OrgVisibilityState.contents),
-    (target, OrgVisibilityState.subtree),
+    // Each section shows by its own state, so the sections under the
+    // target open too.
+    for (final section in sectionsOf(target))
+      (section, OrgVisibilityState.subtree),
   ];
 }
 
