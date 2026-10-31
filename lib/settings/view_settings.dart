@@ -91,6 +91,7 @@ class ViewSettings {
     this.lastLayout = LayoutKind.force,
     this.theme = AppTheme.system,
     this.scripts = ScriptMode.braces,
+    this.joinLines = true,
     this.imageFolder = defaultImageFolder,
     this.emacsClient = '',
   });
@@ -126,6 +127,10 @@ class ViewSettings {
   /// braces by default, as Org's `^:{}`.
   final ScriptMode scripts;
 
+  /// Whether a single line break inside a paragraph shows as a space, so
+  /// filled paragraphs wrap at the screen's width (#219); on by default.
+  final bool joinLines;
+
   /// The folder for images the AI makes (#112), relative to `roam/`, as
   /// [cleanImageFolder] gives it.
   final String imageFolder;
@@ -156,6 +161,7 @@ class ViewSettings {
     LayoutKind? lastLayout,
     AppTheme? theme,
     ScriptMode? scripts,
+    bool? joinLines,
     String? imageFolder,
     String? emacsClient,
   }) =>
@@ -167,6 +173,7 @@ class ViewSettings {
         lastLayout: lastLayout ?? this.lastLayout,
         theme: theme ?? this.theme,
         scripts: scripts ?? this.scripts,
+        joinLines: joinLines ?? this.joinLines,
         imageFolder: imageFolder ?? this.imageFolder,
         emacsClient: emacsClient ?? this.emacsClient,
       );
@@ -179,6 +186,7 @@ class ViewSettings {
         'lastLayout': lastLayout.name,
         'theme': theme.name,
         'scripts': scripts.name,
+        'joinLines': joinLines,
         'imageFolder': imageFolder,
         'emacsClient': emacsClient,
       };
@@ -214,6 +222,10 @@ class ViewSettings {
               .where((value) => value.name == json['scripts'])
               .firstOrNull ??
           defaults.scripts,
+      joinLines: switch (json['joinLines']) {
+        final bool join => join,
+        _ => defaults.joinLines,
+      },
       imageFolder: switch (json['imageFolder']) {
         final String folder => cleanImageFolder(folder) ?? defaults.imageFolder,
         _ => defaults.imageFolder,
@@ -235,12 +247,14 @@ class ViewSettings {
       other.lastLayout == lastLayout &&
       other.theme == theme &&
       other.scripts == scripts &&
+      other.joinLines == joinLines &&
       other.imageFolder == imageFolder &&
       other.emacsClient == emacsClient;
 
   @override
   int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
-      startLayout, lastLayout, theme, scripts, imageFolder, emacsClient);
+      startLayout, lastLayout, theme, scripts, joinLines, imageFolder,
+      emacsClient);
 }
 
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
@@ -788,6 +802,17 @@ class ViewSettingsScreen extends StatelessWidget {
                   ),
               ],
             ),
+          ),
+          const Divider(),
+          SwitchListTile(
+            key: const ValueKey('settings-join-lines'),
+            title: const Text('Join lines of a paragraph'),
+            subtitle: const Text('A single line break inside a paragraph '
+                'shows as a space, so the text wraps at the screen width. '
+                'The file keeps its line breaks.'),
+            value: settings.joinLines,
+            onChanged: (value) =>
+                _saveSettings(context, settings.copyWith(joinLines: value)),
           ),
           const Divider(),
           const ListTile(
