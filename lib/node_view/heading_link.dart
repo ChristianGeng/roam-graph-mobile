@@ -144,7 +144,8 @@ Future<void> revealHeading(BuildContext scope, OrgSection target) async {
   final headline = _find(section, (w) => w is OrgHeadlineWidget);
   await Scrollable.ensureVisible(section,
       alignment: 0, duration: const Duration(milliseconds: 150));
-  if (!scope.mounted || headline == null || !headline.mounted) return;
+  if (!scope.mounted) return;
+  if (headline == null || !headline.mounted) return;
   _flash(scope, headline);
 }
 
