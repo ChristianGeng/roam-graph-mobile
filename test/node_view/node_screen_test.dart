@@ -8,6 +8,7 @@ import 'package:roam_graph_mobile/capture/share_inbox.dart';
 import 'package:roam_graph_mobile/graph/org_roam_parser.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
+import 'package:roam_graph_mobile/node_view/scripts.dart' show ScriptMode;
 import 'package:roam_graph_mobile/node_view/web_links.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
@@ -50,11 +51,12 @@ Future<MemoryNodeMemory> open(
   // Expanded, so the tests below see the text under headings; the
   // folding has its own tests.
   SectionsOnOpen sections = SectionsOnOpen.expanded,
+  ScriptMode scripts = ScriptMode.braces,
 }) async {
   final memory = MemoryNodeMemory();
   await tester.pumpWidget(MaterialApp(
     builder: (context, child) => ViewSettingsHost(
-      store: MemoryViewSettingsStore(ViewSettings(sectionsOnOpen: sections)),
+      store: MemoryViewSettingsStore(ViewSettings(sectionsOnOpen: sections, scripts: scripts)),
       child: child!,
     ),
     home: Builder(

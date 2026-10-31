@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-31: Subscripts and superscripts only with braces ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Changed: `real_time_streaming` and `x^2` show as typed. `H_{2}O` and `x^{2}` still show small text.
+- Added: Settings → View → "Subscripts and superscripts" (only with braces, as typed, always), and a note's own `#+OPTIONS: ^:t`, `^:{}` or `^:nil` line wins.
+- Closes #213.
+
 ## 2026-10-31: Links to a heading open the note at that heading ([#212](https://github.com/ChristianGeng/roam-graph-mobile/pull/212))
 
 - Changed: a link like `[[id:…::*Caveats]]`, `[[id:…::#custom-id]]` or `[[file:note.org::*Caveats]]` opens the note at that heading, unfolded, scrolled to the top and marked for a moment. The headings above it show as one line each. If the heading is gone, the note opens at the top with a message.
