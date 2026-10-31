@@ -16,6 +16,7 @@ import '../graph/graph_algorithms.dart';
 import '../graph/graph_layout.dart';
 import '../graph/graph_scope.dart';
 import '../graph/roam_graph.dart';
+import '../node_view/heading_link.dart';
 import '../node_view/node_screen.dart';
 import '../search/search_screen.dart';
 import '../settings/view_settings.dart';
@@ -225,6 +226,9 @@ class _GraphScreenState extends State<GraphScreen> {
   /// pane always shows [_centre].
   final _history = <String>[];
   int _paneVisitBoundary = 0;
+
+  /// The heading the side pane's note opens at (#211), from a link.
+  NodeHeading? _paneHeading;
 
   _GraphView _view = _GraphView.plain;
   _Algorithms? _algorithmsCache;
@@ -698,11 +702,24 @@ class _GraphScreenState extends State<GraphScreen> {
     }
   }
 
+  /// Opens the node [id] at [heading] (#211), as [_openNode] does.
+  void _openNodeAt(BuildContext _, String id, NodeHeading heading) {
+    if (!mounted || !_graph.nodes.containsKey(id)) return;
+    if (isTwoPane(MediaQuery.sizeOf(context))) {
+      _showInPane(id);
+      setState(() => _paneHeading = heading);
+    } else {
+      setState(() => _select(id));
+      _openPage(id, heading: heading);
+    }
+  }
+
   /// Opens the node view of [id] on a new page.
-  void _openPage(String id) => NodeScreen.open(
+  void _openPage(String id, {NodeHeading? heading}) => NodeScreen.open(
         context,
         graph: widget.graph,
         id: id,
+        heading: heading,
         readNote: widget.readNote,
         files: widget.files,
         nodeMemory: widget.nodeMemory,
@@ -716,12 +733,16 @@ class _GraphScreenState extends State<GraphScreen> {
   /// the view. A node outside the part of the graph drawn around another
   /// node gets that part drawn around it.
   void _showInPane(String id) {
-    setState(() => _select(id));
+    setState(() {
+      _paneHeading = null;
+      _select(id);
+    });
     _drawAroundCentreIfMissing();
   }
 
   void _paneBack() {
     setState(() {
+      _paneHeading = null;
       _history.removeLast();
       _centre = _history.last;
       if (_history.length == 1) _history.clear();
@@ -1036,6 +1057,8 @@ class _GraphScreenState extends State<GraphScreen> {
                     onShowInGraph: _showInGraph,
                     openInOrgro: widget.openInOrgro,
                     onOpenNode: _openNode,
+                    onOpenHeading: _openNodeAt,
+                    heading: _paneHeading,
                     onBack: _history.length > 1 ? _paneBack : null,
                     writer: widget.writer,
                     shareText: widget.shareText,

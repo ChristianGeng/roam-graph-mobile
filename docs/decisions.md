@@ -3507,6 +3507,46 @@ A picture or a note could not leave the app except as text for an AI app.
 - **Not done:** the app is no share target for pictures (decision 34 has
   the share target for text only); sharing several notes at once.
 
+## 115. Links to a heading open the note at that heading, unfolded (#211)
+
+`[[id:<id>::*Heading]]` opened the note at the top: the app kept the ID and
+dropped the search option. Org goes to the heading.
+- **Which options are read:** `*Heading` (a title), `#custom-id` (a
+  `:CUSTOM_ID:`) and plain text (a title), after `::` of an `id:` link or of
+  a `file:` link to a note of the index. `/regexp/`, a line number and
+  `(coderef)` open the note at the top, with no message. The first matching
+  heading in the file wins, as in Org.
+- **How a title matches:** without the TODO keyword, the priority, the tags
+  and statistics cookies (`[2/3]`, `[40%]`), runs of white space as one
+  space, upper and lower case alike. The search is inside the node the ID
+  opens (`findHeading` in `lib/node_view/heading_link.dart`).
+- **Folding** (`headingFolding`): the target gets `subtree`, so its text and
+  everything under it show. A heading above it that is folded gets
+  `contents`: its own text stays hidden, its sub-headings show as one line
+  each (Org's "show context"). A heading above it that already shows its
+  sub-headings keeps its state, and nothing else changes. `children` is not
+  used for the path, because in `org_flutter` it shows the heading's own
+  text too.
+- **Scrolling:** after the first frame the section is scrolled to the top
+  (`Scrollable.ensureVisible`, alignment 0) and its heading line is marked
+  with a mark that fades out in 1.5 seconds. `org_flutter`'s own
+  `OrgLocator` jump is not used: it opens the target only to `children`,
+  centres it, and matches headings by its own rules.
+- **Not found:** the note opens at the top, with the message `The heading
+  "Caveats" is no longer in this note.`
+- **Same note:** `[[*Heading]]` and `[[#custom-id]]` inside the shown note
+  go to the heading in place. A heading with its own `:ID:` still opens as
+  its own node. A link that `org_flutter` does not resolve is searched with
+  the same rules, and gives the message when nothing matches.
+- **`file:` links:** the path is resolved against the folder of the linking
+  note. If it is a file node of the index, that note opens (then the
+  heading). An absolute path, a path that leaves `roam/`, and any file not in
+  the index keep the old message.
+- **Two panes:** the side pane gets the heading through
+  `NodeScreen.heading` (a new object for each link, so the same link twice
+  goes there twice). Search results and the other callers of `onOpenNode`
+  are unchanged.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

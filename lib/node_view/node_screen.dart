@@ -30,6 +30,7 @@ import '../graph_view/node_memory.dart';
 import '../platform/error_text.dart';
 import '../settings/view_settings.dart';
 import 'folding.dart';
+import 'heading_link.dart';
 import 'quick_edits.dart';
 import 'latex.dart';
 import 'mermaid.dart';
@@ -73,6 +74,8 @@ class NodeScreen extends StatefulWidget {
     this.onShowInGraph,
     this.openInOrgro,
     this.onOpenNode,
+    this.onOpenHeading,
+    this.heading,
     this.onBack,
     this.writer,
     this.shareText = shareTextOut,
@@ -101,6 +104,16 @@ class NodeScreen extends StatefulWidget {
   /// Opens another node. When null, it opens on a new page; the side pane
   /// of the tablet layout (#16) shows it in place instead.
   final void Function(BuildContext context, String id)? onOpenNode;
+
+  /// Opens another node at a heading (#211), as [onOpenNode] does. When
+  /// null, a link to a heading opens the node at its top in the side
+  /// pane.
+  final void Function(BuildContext context, String id, NodeHeading heading)?
+      onOpenHeading;
+
+  /// The heading to go to when the node opens (#211): unfolded and scrolled
+  /// to. A new object (not an equal one) makes the screen go there again.
+  final NodeHeading? heading;
 
   /// Goes back to the node shown before, in the side pane; null when there
   /// is none. With [onOpenNode], the app bar has no other back button: the
@@ -144,6 +157,7 @@ class NodeScreen extends StatefulWidget {
     FileSharer shareFiles = shareFilesOut,
     UrlOpener openUrl = openUrlOnDevice,
     bool help = false,
+    NodeHeading? heading,
   }) {
     nodeMemory.remember(id);
     return Navigator.push(
@@ -152,6 +166,7 @@ class NodeScreen extends StatefulWidget {
         builder: (context) => NodeScreen(
           graph: graph,
           id: id,
+          heading: heading,
           readNote: readNote,
           files: files,
           nodeMemory: nodeMemory,
@@ -222,11 +237,15 @@ class _NodeScreenState extends State<NodeScreen> {
   /// note is still [text].
   ({String text, List<OrgVisibilityState> states})? _foldingBeforeSearch;
 
+  /// The heading to open the note at (#211), until it has been dealt with.
+  NodeHeading? _pendingHeading;
+
   RoamNode? get _node => widget.graph.value.nodes[widget.id];
 
   @override
   void initState() {
     super.initState();
+    _pendingHeading = widget.heading;
     _text = _read();
     widget.graph.addListener(_graphChanged);
   }
@@ -251,10 +270,31 @@ class _NodeScreenState extends State<NodeScreen> {
     _readAgain();
   }
 
+  /// [text] split at the first `::`: the path, and the search option.
+  (String, String?) _splitOption(String text) {
+    final i = text.indexOf('::');
+    return i < 0 ? (text, null) : (text.substring(0, i), text.substring(i + 2));
+  }
+
   void _openLink(OrgLink link) {
     final location = link.location;
     if (location.startsWith('id:')) {
-      _openId(location.substring(3).split('::').first.trim());
+      final (id, option) = _splitOption(location.substring(3));
+      _openId(id.trim(), heading: NodeHeading.fromOption(option));
+    } else if (location.startsWith('file:') &&
+        _openFileLink(location.substring(5))) {
+      // Opened a note of the index (#211).
+    } else if (location.startsWith('*') || location.startsWith('#')) {
+      // A heading of this note that Org's own search did not find.
+      final heading = NodeHeading.fromOption(location);
+      final orgContext = _orgContext;
+      if (heading == null || orgContext == null || !orgContext.mounted) return;
+      final target = findHeading(OrgController.of(orgContext).root, heading);
+      if (target == null) {
+        _tell(heading.missingMessage);
+      } else {
+        _showHeadingHere(target, heading);
+      }
     } else if (externalLinkTarget(location) case final uri?) {
       // Web, mail and phone links open in their app (#108).
       openExternalLink(context, uri, widget.openUrl);
@@ -264,16 +304,63 @@ class _NodeScreenState extends State<NodeScreen> {
     }
   }
 
+  /// A `file:` link ([rest] is the text after `file:`) to a note of the
+  /// index: opens it, at its heading if the link names one. False for any
+  /// other file.
+  bool _openFileLink(String rest) {
+    final node = _node;
+    if (node == null) return false;
+    final (path, option) = _splitOption(rest);
+    final resolved = resolveNotePath(node.file, path.trim());
+    if (resolved == null) return false;
+    for (final candidate in widget.graph.value.nodes.values) {
+      if (candidate.isFile && candidate.file == resolved) {
+        _openId(candidate.id, heading: NodeHeading.fromOption(option));
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// A link to a heading in the shown text itself: `[[id:...]]`,
-  /// `[[*Heading]]` or `[[#custom-id]]`, which Org reports as a section. A
-  /// heading that is a node opens; another heading cannot be shown alone.
+  /// `[[*Heading]]` or `[[#custom-id]]`, which Org reports as a section
+  /// ([section] is the section the link names; [searchOption] the part
+  /// after `::`). A heading that is a node opens as its own node; another
+  /// heading is unfolded and scrolled to in the shown note (#211).
   void _openSection(OrgTree section, {String? searchOption}) {
     final id = section.ids.firstOrNull;
-    if (id != null) {
+    final heading = NodeHeading.fromOption(searchOption);
+    if (heading != null) {
+      if (id != null && id != widget.id) {
+        _openId(id, heading: heading);
+        return;
+      }
+      final target = findHeading(section, heading);
+      if (target == null) {
+        _tell(heading.missingMessage);
+      } else {
+        _showHeadingHere(target, heading);
+      }
+    } else if (id != null) {
       _openId(id);
-    } else {
-      _tell('This heading is no node, so the app cannot open it.');
+    } else if (section is OrgSection) {
+      _showHeadingHere(section, null);
     }
+  }
+
+  /// Unfolds [target] in the note on screen and scrolls to it. [heading] is
+  /// what the link said, for the message when [target] is not on screen.
+  void _showHeadingHere(OrgSection target, NodeHeading? heading) {
+    final orgContext = _orgContext;
+    if (orgContext == null || !orgContext.mounted) return;
+    if (!unfoldHeading(orgContext, target)) {
+      _tell(heading?.missingMessage ??
+          'This heading is no longer in this note.');
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && orgContext.mounted) revealHeading(orgContext, target);
+    });
   }
 
   @override
@@ -288,6 +375,13 @@ class _NodeScreenState extends State<NodeScreen> {
       _endVisit(duringBuild: true);
     }
     if (old.id != widget.id || old.graph != widget.graph) _text = _read();
+    // A link to a heading (#211): a new heading object is a new link; the
+    // heading of an earlier link does not follow the screen to another node.
+    if (widget.heading != null && !identical(old.heading, widget.heading)) {
+      _pendingHeading = widget.heading;
+    } else if (old.id != widget.id) {
+      _pendingHeading = null;
+    }
     // A search belongs to the note it was made in.
     if (old.id != widget.id && _searching) {
       _searching = false;
@@ -449,7 +543,7 @@ class _NodeScreenState extends State<NodeScreen> {
         ),
       );
 
-  void _openId(String id) {
+  void _openId(String id, {NodeHeading? heading}) {
     if (!widget.graph.value.nodes.containsKey(id)) {
       _tell('There is no node with the ID $id.', error: true);
       return;
@@ -457,13 +551,18 @@ class _NodeScreenState extends State<NodeScreen> {
     _endVisit();
     if (widget.onOpenNode case final open?) {
       widget.nodeMemory.remember(id);
-      open(context, id);
+      if (heading != null && widget.onOpenHeading != null) {
+        widget.onOpenHeading!(context, id, heading);
+      } else {
+        open(context, id);
+      }
       return;
     }
     NodeScreen.open(
       context,
       graph: widget.graph,
       id: id,
+      heading: heading,
       readNote: widget.readNote,
       files: widget.files,
       nodeMemory: widget.nodeMemory,
@@ -1429,6 +1528,21 @@ class _NodeScreenState extends State<NodeScreen> {
         }),
       ),
     );
+    final heading = _pendingHeading;
+    final shown = heading == null
+        ? body
+        : ShowHeading(
+            key: ObjectKey(heading),
+            tree: tree,
+            heading: heading,
+            onMissing: () {
+              if (mounted) _tell(heading.missingMessage);
+            },
+            onDone: () {
+              if (identical(_pendingHeading, heading)) _pendingHeading = null;
+            },
+            child: body,
+          );
     return OrgController(
       // A new controller for new text or a new setting, so the folding
       // starts again.
@@ -1471,9 +1585,9 @@ class _NodeScreenState extends State<NodeScreen> {
         child: tree is OrgSection
             ? Padding(
                 padding: const EdgeInsets.all(16),
-                child: OpenSection(section: tree, state: state, child: body),
+                child: OpenSection(section: tree, state: state, child: shown),
               )
-            : body,
+            : shown,
       ),
     );
   }
