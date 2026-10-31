@@ -20,9 +20,15 @@ bool get isDesktop => switch (defaultTargetPlatform) {
 
 bool get _isWindows => defaultTargetPlatform == TargetPlatform.windows;
 
-/// The app notes open in outside this one: Emacs on the desktop, Orgro on
-/// Android.
-String get noteAppName => isDesktop ? 'Emacs' : 'Orgro';
+/// The app notes open in outside this one: Emacs on the desktop, an app
+/// chosen in Android's app chooser on Android (#218).
+String get noteAppName => isDesktop ? 'Emacs' : 'another app';
+
+/// The menu entry that opens a note outside this app: "Open in Emacs" on
+/// the desktop, "Open in another app…" on Android, where a chooser
+/// follows.
+String get openElsewhereLabel =>
+    isDesktop ? 'Open in $noteAppName' : 'Open in $noteAppName…';
 
 /// Runs a program; tests replace it. Throws [ProcessException] when the
 /// program is not there.

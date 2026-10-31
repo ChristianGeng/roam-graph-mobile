@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-01: "Open in another app…" instead of "Open in Orgro" ([#222](https://github.com/ChristianGeng/roam-graph-mobile/pull/222))
+
+- Changed: on Android, a note's "Open in Orgro" is now "Open in another app…". It shows Android's app chooser, so Orgro, Markor, a text editor or any other app that opens the file can be chosen; the app gets read access only.
+- Changed: without such an app, the message is "No app on this phone opens Org files."; on the desktop, "Open in Emacs" is unchanged.
+- Closes #218.
+
 ## 2026-10-31: Reach saved chats from a note and from the chat ([#216](https://github.com/ChristianGeng/roam-graph-mobile/pull/216))
 
 - Changed: a note's AI menu has "New chat about this note" and "Chats" instead of "Ask AI". "Chats" lists the chats about this note first, under "About this note".

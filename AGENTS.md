@@ -7,7 +7,7 @@ Instructions for AI coding assistants working in this repository.
 An Android app for my tablet and my phone that browses my org-roam knowledge
 graph offline, without Emacs. It reads the org files that Syncthing copies to
 the device, builds the graph itself, shows it with graph-algorithm views,
-renders nodes, and opens them in Orgro. From v2 it also creates new nodes.
+renders nodes, and opens them in another app. From v2 it also creates new nodes.
 The laptop keeps using Emacs and org-roam on the same files; the Syncthing
 folder is the only connection.
 

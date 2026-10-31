@@ -148,7 +148,7 @@ class DesktopFolderAccess implements FolderAccess {
 
   /// Android only: the desktop opens notes in Emacs instead.
   @override
-  Future<bool> openWith(FolderFile file, String packageName) async => false;
+  Future<bool> openElsewhere(FolderFile file) async => false;
 
   String _join(String dir, String name) =>
       '$dir${dir.endsWith(Platform.pathSeparator) ? '' : Platform.pathSeparator}$name';

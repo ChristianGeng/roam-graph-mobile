@@ -47,15 +47,12 @@ import '../platform/desktop.dart';
 /// be read.
 typedef NoteReader = Future<String?> Function(String path);
 
-/// Orgro's application ID (its `build.gradle`).
-const orgroPackage = 'com.madlonkay.orgro';
-
-/// What happened when a note was to be opened in Orgro.
+/// What happened when a note was to be opened in another app.
 enum OpenResult { opened, noApp, noFile }
 
-/// Opens a note in Orgro (#10), by its path relative to `roam/`.
-/// Opens the note [path] (relative to `roam/`) in another app: Orgro on
-/// Android, Emacs on the desktop (#116), there at [line].
+/// Opens the note [path] (relative to `roam/`) in another app: one chosen
+/// in Android's app chooser (#218), or Emacs on the desktop (#116), there
+/// at [line].
 typedef NoteOpener = Future<OpenResult> Function(String path, {int line});
 
 /// Shows a node as formatted Org (#8): a file node's whole file, a heading
@@ -73,7 +70,7 @@ class NodeScreen extends StatefulWidget {
     this.files,
     required this.nodeMemory,
     this.onShowInGraph,
-    this.openInOrgro,
+    this.openElsewhere,
     this.onOpenNode,
     this.onOpenHeading,
     this.heading,
@@ -99,8 +96,8 @@ class NodeScreen extends StatefulWidget {
   final NoteFiles? files;
   final NodeMemory nodeMemory;
 
-  /// Opens the node's file in Orgro; the button is hidden when null.
-  final NoteOpener? openInOrgro;
+  /// Opens the node's file in another app; the button is hidden when null.
+  final NoteOpener? openElsewhere;
 
   /// Opens another node. When null, it opens on a new page; the side pane
   /// of the tablet layout (#16) shows it in place instead.
@@ -152,7 +149,7 @@ class NodeScreen extends StatefulWidget {
     NoteFiles? files,
     required NodeMemory nodeMemory,
     void Function(BuildContext context, String id)? onShowInGraph,
-    NoteOpener? openInOrgro,
+    NoteOpener? openElsewhere,
     NoteWriter? writer,
     TextSharer shareText = shareTextOut,
     FileSharer shareFiles = shareFilesOut,
@@ -172,7 +169,7 @@ class NodeScreen extends StatefulWidget {
           files: files,
           nodeMemory: nodeMemory,
           onShowInGraph: onShowInGraph,
-          openInOrgro: openInOrgro,
+          openElsewhere: openElsewhere,
           writer: writer,
           shareText: shareText,
           shareFiles: shareFiles,
@@ -568,7 +565,7 @@ class _NodeScreenState extends State<NodeScreen> {
       files: widget.files,
       nodeMemory: widget.nodeMemory,
       onShowInGraph: widget.onShowInGraph,
-      openInOrgro: widget.openInOrgro,
+      openElsewhere: widget.openElsewhere,
       writer: widget.writer,
       shareText: widget.shareText,
       openUrl: widget.openUrl,
@@ -732,23 +729,22 @@ class _NodeScreenState extends State<NodeScreen> {
     if (message != null && mounted) _tell(message);
   }
 
-  /// Opens the node's file in Orgro, at the top: Orgro has no way to jump
-  /// to a heading from outside (decision 6). On the desktop in Emacs, at
-  /// the node's line (#116).
-  Future<void> _openInOrgro(NoteOpener open, RoamNode node) async {
+  /// Opens the node's file in an app chosen in Android's app chooser, at
+  /// the top: an Android intent cannot name a heading (decision 6). On the
+  /// desktop in Emacs, at the node's line (#116).
+  Future<void> _openElsewhere(NoteOpener open, RoamNode node) async {
     final result = await open(node.file, line: node.line);
     if (!mounted) return;
     switch (result) {
       case OpenResult.opened:
         if (!node.isFile && !isDesktop) {
-          _tell('Orgro opens ${node.file} at the top; '
-              'it cannot jump to the heading.');
+          _tell('Other apps open the file at the top.');
         }
       case OpenResult.noApp:
         _tell(isDesktop
             ? 'Emacs could not be started. Check the Emacs command in '
                 'Settings.'
-            : 'Orgro is not installed.');
+            : 'No app on this phone opens Org files.');
       case OpenResult.noFile:
         _tell('Could not find ${node.file} in the folder.',
             error: true);
@@ -870,7 +866,7 @@ class _NodeScreenState extends State<NodeScreen> {
           files: widget.files,
           nodeMemory: widget.nodeMemory,
           onShowInGraph: widget.onShowInGraph,
-          openInOrgro: widget.openInOrgro,
+          openElsewhere: widget.openElsewhere,
           writer: widget.writer,
           shareText: widget.shareText,
           openUrl: widget.openUrl,
@@ -1227,9 +1223,9 @@ class _NodeScreenState extends State<NodeScreen> {
       if (widget.writer case final writer? when node != null)
         ('New node from here', Icons.note_add_outlined,
             () => _capture(writer, node)),
-      if (widget.openInOrgro case final open? when node != null)
-        ('Open in $noteAppName', Icons.open_in_new,
-            () => _openInOrgro(open, node)),
+      if (widget.openElsewhere case final open? when node != null)
+        (openElsewhereLabel, Icons.open_in_new,
+            () => _openElsewhere(open, node)),
       // Without the edit menu (⋮), which has "Share note…" otherwise.
       if (node != null && !widget.help && widget.writer?.editor == null)
         ('Share note…', Icons.share, () => _shareNote(node)),
@@ -1273,7 +1269,7 @@ class _NodeScreenState extends State<NodeScreen> {
               files: widget.files,
               nodeMemory: widget.nodeMemory,
               onShowInGraph: onShowInGraph,
-              openInOrgro: widget.openInOrgro,
+              openElsewhere: widget.openElsewhere,
               onOpenNode: widget.onOpenNode,
               writer: widget.writer,
               shareText: widget.shareText,

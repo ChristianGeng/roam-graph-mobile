@@ -46,7 +46,7 @@ void main() {
       graph: f.graph,
       readNote: (path) async => f.store.files[path],
       writer: f.writer,
-      openInOrgro: opener,
+      openElsewhere: opener,
       nodeMemory: MemoryNodeMemory('a'),
       computeLayout: layoutHere,
       computeAlgorithms: algorithmsHere,

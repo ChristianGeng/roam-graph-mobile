@@ -43,7 +43,7 @@ class FakeFolderAccess implements FolderAccess {
   /// Whether the app to open files with is installed, and the paths it
   /// was asked to show, with the app.
   bool appInstalled = true;
-  final opened = <(String, String)>[];
+  final opened = <String>[];
 
   /// The files created, as directory URI and name.
   final created = <(String, String)>[];
@@ -121,9 +121,9 @@ class FakeFolderAccess implements FolderAccess {
   }
 
   @override
-  Future<bool> openWith(FolderFile file, String packageName) async {
+  Future<bool> openElsewhere(FolderFile file) async {
     if (!appInstalled) return false;
-    opened.add((file.path, packageName));
+    opened.add(file.path);
     return true;
   }
 
@@ -315,14 +315,14 @@ Future<TestGraphIndex> start(
       nodeMemory: nodeMemory,
       editHistory: history ?? MemoryEditHistory(),
       viewSettings: viewSettings ?? MemoryViewSettingsStore(),
-      graphScreen: (graph, readNote, openInOrgro, writer, files, folder) {
+      graphScreen: (graph, readNote, openElsewhere, writer, files, folder) {
         lastWriter = writer;
         lastGraph = graph;
         return GraphScreen(
         graph: graph,
         readNote: readNote,
         files: files,
-        openInOrgro: openInOrgro,
+        openElsewhere: openElsewhere,
         writer: writer,
         nodeMemory: nodeMemory,
         computeLayout: layoutHere,
@@ -641,7 +641,9 @@ void main() {
     expect(find.text('Backlinks: 1'), findsOneWidget);
   });
 
-  testWidgets('"Open in Orgro" hands the file to Orgro, or says it is missing',
+  testWidgets(
+      '"Open in another app…" hands the file to the chooser, or says no app '
+      'opens it (#218)',
       (tester) async {
     final access = withNotes(saved: org);
     await start(tester, access);
@@ -649,14 +651,14 @@ void main() {
     await tester.tapAt(tester.getCenter(find.byType(InteractiveViewer)));
     await tester.pumpAndSettle();
 
-    await tapNodeAction(tester, 'Open in Orgro');
+    await tapNodeAction(tester, 'Open in another app…');
     await tester.pumpAndSettle();
-    expect(access.opened, [('roam/a.org', 'com.madlonkay.orgro')]);
+    expect(access.opened, ['roam/a.org']);
 
     access.appInstalled = false;
-    await tapNodeAction(tester, 'Open in Orgro');
+    await tapNodeAction(tester, 'Open in another app…');
     await tester.pump();
-    expect(find.text('Orgro is not installed.'), findsOneWidget);
+    expect(find.text('No app on this phone opens Org files.'), findsOneWidget);
   });
 
   group('images in notes (#46)', () {

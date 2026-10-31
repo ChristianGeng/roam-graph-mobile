@@ -36,9 +36,11 @@ import java.util.concurrent.Executors
  *   it, leaving out (and not entering) directories named in skipDirs
  * - readFiles({uris}) -> [bytes or null] for each URI, read on the scan
  *   thread; null if a file cannot be read
- * - openWith({uri, package}) -> true if the app [package] was started to
- *   show the file (ACTION_VIEW), false if it is not installed (#10). It
- *   gets read access to the file only: v1 is read-only (decision 28).
+ * - openElsewhere({uri}) -> true if Android's app chooser was shown to
+ *   open the file (ACTION_VIEW) in another app, false if no app opens it
+ *   (#218). The MIME type is the content resolver's, else text/x-org; if
+ *   no app takes that, text/plain. The chosen app gets read access to the
+ *   file only.
  * - createFile({dir, name, bytes}) -> the new file's URI, in the folder
  *   [dir] (a document URI from listFiles, or the tree URI for the chosen
  *   folder itself). It never replaces a file: error "exists" if [name] is
@@ -134,14 +136,13 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                 }
                 deleteFile(Uri.parse(uri), expected, result)
             }
-            "openWith" -> {
+            "openElsewhere" -> {
                 val uri = call.argument<String>("uri")
-                val packageName = call.argument<String>("package")
-                if (uri == null || packageName == null) {
-                    result.error("bad_args", "uri or package is missing", null)
+                if (uri == null) {
+                    result.error("bad_args", "uri is missing", null)
                     return
                 }
-                result.success(openWith(Uri.parse(uri), packageName))
+                result.success(openElsewhere(Uri.parse(uri)))
             }
             "createDirectory" -> {
                 val dir = call.argument<String>("dir")
@@ -254,18 +255,36 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
         )
     }
 
-    private fun openWith(uri: Uri, packageName: String): Boolean {
-        val resolver = activity.contentResolver
-        val intent = Intent(Intent.ACTION_VIEW)
-            .setDataAndType(uri, resolver.getType(uri) ?: "text/plain")
-            .setPackage(packageName)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        return try {
-            activity.startActivity(intent)
-            true
-        } catch (_: ActivityNotFoundException) {
-            false
+    /**
+     * Shows the app chooser for [uri]. The chooser itself always starts, even
+     * when no app can take the file, so the apps are looked up first, for
+     * each MIME type in turn. Providers often report an .org file as
+     * application/octet-stream, which says nothing; it counts as unknown.
+     * Read access only: a write through another app would skip the checks of
+     * replaceFile, so that app needs its own access to the folder to edit.
+     */
+    private fun openElsewhere(uri: Uri): Boolean {
+        val reported = activity.contentResolver.getType(uri)
+            ?.takeUnless { it == "application/octet-stream" }
+        val types = listOf(reported ?: "text/x-org", "text/plain").distinct()
+        for (type in types) {
+            val intent = Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, type)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (activity.packageManager.queryIntentActivities(intent, 0).isEmpty()) {
+                continue
+            }
+            // createChooser copies the read grant and the URI (as ClipData)
+            // from the intent to the chooser, so the chosen app may read it.
+            val chooser = Intent.createChooser(intent, null)
+            return try {
+                activity.startActivity(chooser)
+                true
+            } catch (_: ActivityNotFoundException) {
+                false
+            }
         }
+        return false
     }
 
     private fun pickFolder(result: MethodChannel.Result) {
