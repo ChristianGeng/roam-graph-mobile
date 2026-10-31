@@ -142,24 +142,23 @@ Future<void> revealHeading(BuildContext scope, OrgSection target) async {
       scope, (w) => w is OrgSectionWidget && identical(w.section, target));
   if (section == null) return;
   final headline = _find(section, (w) => w is OrgHeadlineWidget);
+  // Read before the scroll: the context is not used after it.
+  final overlay = Overlay.maybeOf(scope);
+  final color = Theme.of(scope).colorScheme.tertiaryContainer;
   await Scrollable.ensureVisible(section,
       alignment: 0, duration: const Duration(milliseconds: 150));
-  if (!scope.mounted) return;
   if (headline == null || !headline.mounted) return;
-  _flash(scope, headline);
+  if (overlay == null || !overlay.mounted) return;
+  _flash(overlay, color, headline);
 }
 
 /// A mark over [headline] that fades out in a moment.
-void _flash(BuildContext scope, Element headline) {
+void _flash(OverlayState overlay, Color color, Element headline) {
   final box = headline.findRenderObject();
-  final overlay = Overlay.maybeOf(scope);
-  if (box is! RenderBox || !box.attached || !box.hasSize || overlay == null) {
-    return;
-  }
+  if (box is! RenderBox || !box.attached || !box.hasSize) return;
   final overlayBox = overlay.context.findRenderObject();
   if (overlayBox is! RenderBox) return;
   final rect = box.localToGlobal(Offset.zero, ancestor: overlayBox) & box.size;
-  final color = Theme.of(scope).colorScheme.tertiaryContainer;
   late final OverlayEntry entry;
   entry = OverlayEntry(
     builder: (_) => Positioned.fromRect(
