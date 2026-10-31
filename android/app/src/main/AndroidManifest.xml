@@ -67,15 +67,12 @@
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
     <queries>
-        <!-- "Open in another app…" (#218) looks up the apps that view Org
-             or plain text files before it shows the app chooser. -->
+        <!-- "Open in another app…" (#218) looks up the apps that view the
+             file before it shows the app chooser. The MIME type is the
+             provider's, which may be any type, so all types are visible. -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>
-            <data android:scheme="content" android:mimeType="text/x-org"/>
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW"/>
-            <data android:scheme="content" android:mimeType="text/plain"/>
+            <data android:scheme="content" android:mimeType="*/*"/>
         </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
