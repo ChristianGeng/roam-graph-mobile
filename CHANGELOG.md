@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-01: Filled paragraphs wrap at the screen width ([#223](https://github.com/ChristianGeng/roam-graph-mobile/pull/223))
+
+- Changed: a single line break inside a paragraph or a list item shows as a space, so a paragraph filled in Emacs (`M-q`) wraps at the screen width instead of looking ragged. Empty lines, `\\` at the end of a line, blocks, tables and fixed-width lines keep their lines. The file keeps its line breaks.
+- Added: Settings → View → "Join lines of a paragraph", on by default; off shows the lines as written.
+- Closes #219.
+
 ## 2026-10-31: Reach saved chats from a note and from the chat ([#216](https://github.com/ChristianGeng/roam-graph-mobile/pull/216))
 
 - Changed: a note's AI menu has "New chat about this note" and "Chats" instead of "Ask AI". "Chats" lists the chats about this note first, under "About this note".
