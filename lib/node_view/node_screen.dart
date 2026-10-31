@@ -379,7 +379,7 @@ class _NodeScreenState extends State<NodeScreen> {
     // heading of an earlier link does not follow the screen to another node.
     if (widget.heading != null && !identical(old.heading, widget.heading)) {
       _pendingHeading = widget.heading;
-    } else if (old.id != widget.id) {
+    } else if (widget.heading == null || old.id != widget.id) {
       _pendingHeading = null;
     }
     // A search belongs to the note it was made in.
