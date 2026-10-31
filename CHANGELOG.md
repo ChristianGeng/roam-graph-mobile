@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-31: Links to a heading open the note at that heading ([#212](https://github.com/ChristianGeng/roam-graph-mobile/pull/212))
+
+- Changed: a link like `[[id:…::*Caveats]]`, `[[id:…::#custom-id]]` or `[[file:note.org::*Caveats]]` opens the note at that heading, unfolded, scrolled to the top and marked for a moment. The headings above it show as one line each. If the heading is gone, the note opens at the top with a message.
+- Changed: `[[*Heading]]` and `[[#custom-id]]` in the same note go to the heading, also when it is no node.
+- Closes #211.
+
 ## 2026-10-30: Share a picture or a whole note with another app ([#210](https://github.com/ChristianGeng/roam-graph-mobile/pull/210))
 
 Added: a picture (also an infographic or a chart) can be shared through Android's share menu: long press on it, or the share icon on its page. The caption goes with it, and for an infographic or a chart the source line too.

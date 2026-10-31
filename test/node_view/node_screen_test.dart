@@ -149,14 +149,14 @@ void main() {
     expect(orgText('Some text of A'), findsNothing);
   });
 
-  testWidgets('a [[*Heading]] link opens the heading if it is a node',
-      (tester) async {
+  testWidgets('a [[*Heading]] link opens the heading if it is a node, '
+      'and goes to it in the note if it is not (#211)', (tester) async {
     await open(tester, 'b');
 
     await tester.tapOnText(find.textRange.ofSubstring('the other'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('This heading is no node, so the app cannot open it.'),
-        findsOneWidget);
+        findsNothing);
     expect(title('B'), findsOneWidget);
 
     await tester.tapOnText(find.textRange.ofSubstring('the part'));

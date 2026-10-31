@@ -17,8 +17,15 @@ The sections below are tasks; the first one is about reading.
 2. Tap an ~id:~ link to open the linked note on a new page. Back returns.
    A web, mail or phone link (~https:~, ~mailto:~, ~tel:~) opens in the app
    the device has for it, the browser on the desktop; a message names the
-   address and has *Copy*. Other links, such as ~file:~, are shown but not
-   opened.
+   address and has *Copy*. A link to a heading, with
+   ~::*Caveats~ or ~::#custom-id~ after the ID, opens the note at that
+   heading: the heading and what is under it show, the headings above
+   it show as one line each, and the heading is at the top of the screen and
+   marked for a moment. If the heading is no longer in the note, the note
+   opens at the top and a message says so. A link to a heading of
+   the same note (its target starts with ~*~ or ~#~) goes there in place. A
+   ~file:~ link to a note in the folder opens that note; other ~file:~ links
+   are shown but not opened.
 3. Under the text, *Links* lists this note's ~id:~ links and *Backlinks*
    lists every link to this note, with where in the linking note it is.
    Tap an entry to open that note.
