@@ -28,6 +28,11 @@ From top to bottom:
 - *Sections when a note opens*: *Collapsed* (the top headings only),
   *Headings* (all headings, no text), or *Expanded* (everything). A note's
   own ~#+STARTUP:~ line comes first.
+- *Subscripts and superscripts*: *Only with braces* (the default: ~H_{2}O~
+  and ~x^{2}~ are small, ~real_time_streaming~ shows as typed), *As typed*
+  (~_~ and ~^~ never make small text), or *Always* (the text after every ~_~
+  or ~^~ is small). A note's own ~#+OPTIONS: ^:{}~, ~^:nil~ or ~^:t~ line
+  comes first, as in Emacs. LaTeX, verbatim text and code are not changed.
 - *Graph layout at start*: *Force-directed*, *Circular (circo)*, *Radial*,
   *Grouped by communities*, *Hierarchical (dot)*, or *Last used*, the
   layout chosen last in the graph's *View* menu. The *View* menu still

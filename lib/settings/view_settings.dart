@@ -19,6 +19,7 @@ import '../ai/ai_settings.dart';
 import '../graph/graph_layout.dart';
 import '../graph/roam_graph.dart';
 import '../main.dart' show appVersion;
+import '../node_view/scripts.dart' show ScriptMode;
 import '../node_view/web_links.dart' show UrlOpener, openUrlOnDevice;
 import '../platform/desktop.dart';
 import '../platform/error_text.dart';
@@ -89,6 +90,7 @@ class ViewSettings {
     this.startLayout = StartLayout.force,
     this.lastLayout = LayoutKind.force,
     this.theme = AppTheme.system,
+    this.scripts = ScriptMode.braces,
     this.imageFolder = defaultImageFolder,
     this.emacsClient = '',
   });
@@ -120,6 +122,10 @@ class ViewSettings {
   /// Light, dark, or as Android is set (#90).
   final AppTheme theme;
 
+  /// When `_` and `^` make a subscript or superscript (#213); only with
+  /// braces by default, as Org's `^:{}`.
+  final ScriptMode scripts;
+
   /// The folder for images the AI makes (#112), relative to `roam/`, as
   /// [cleanImageFolder] gives it.
   final String imageFolder;
@@ -149,6 +155,7 @@ class ViewSettings {
     StartLayout? startLayout,
     LayoutKind? lastLayout,
     AppTheme? theme,
+    ScriptMode? scripts,
     String? imageFolder,
     String? emacsClient,
   }) =>
@@ -159,6 +166,7 @@ class ViewSettings {
         startLayout: startLayout ?? this.startLayout,
         lastLayout: lastLayout ?? this.lastLayout,
         theme: theme ?? this.theme,
+        scripts: scripts ?? this.scripts,
         imageFolder: imageFolder ?? this.imageFolder,
         emacsClient: emacsClient ?? this.emacsClient,
       );
@@ -170,6 +178,7 @@ class ViewSettings {
         'startLayout': startLayout.name,
         'lastLayout': lastLayout.name,
         'theme': theme.name,
+        'scripts': scripts.name,
         'imageFolder': imageFolder,
         'emacsClient': emacsClient,
       };
@@ -201,6 +210,10 @@ class ViewSettings {
               .where((value) => value.name == json['theme'])
               .firstOrNull ??
           defaults.theme,
+      scripts: ScriptMode.values
+              .where((value) => value.name == json['scripts'])
+              .firstOrNull ??
+          defaults.scripts,
       imageFolder: switch (json['imageFolder']) {
         final String folder => cleanImageFolder(folder) ?? defaults.imageFolder,
         _ => defaults.imageFolder,
@@ -221,12 +234,13 @@ class ViewSettings {
       other.startLayout == startLayout &&
       other.lastLayout == lastLayout &&
       other.theme == theme &&
+      other.scripts == scripts &&
       other.imageFolder == imageFolder &&
       other.emacsClient == emacsClient;
 
   @override
   int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
-      startLayout, lastLayout, theme, imageFolder, emacsClient);
+      startLayout, lastLayout, theme, scripts, imageFolder, emacsClient);
 }
 
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
@@ -743,6 +757,31 @@ class ViewSettingsScreen extends StatelessWidget {
                 for (final value in SectionsOnOpen.values)
                   RadioListTile<SectionsOnOpen>(
                     key: ValueKey('sections-${value.name}'),
+                    value: value,
+                    title: Text(value.label),
+                    subtitle: Text(value.description),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(),
+          const ListTile(
+            title: Text('Subscripts and superscripts'),
+            subtitle: Text("A note's own #+OPTIONS: ^: line comes first, as "
+                'in Emacs.'),
+          ),
+          RadioGroup<ScriptMode>(
+            groupValue: settings.scripts,
+            onChanged: (value) {
+              if (value != null) {
+                _saveSettings(context, settings.copyWith(scripts: value));
+              }
+            },
+            child: Column(
+              children: [
+                for (final value in ScriptMode.values)
+                  RadioListTile<ScriptMode>(
+                    key: ValueKey('scripts-${value.name}'),
                     value: value,
                     title: Text(value.label),
                     subtitle: Text(value.description),

@@ -3547,6 +3547,27 @@ dropped the search option. Org goes to the heading.
   goes there twice). Search results and the other callers of `onOpenNode`
   are unchanged.
 
+## 116. Subscripts and superscripts: only with braces by default (#213)
+
+The note view drew the text after every `_` or `^` small, so
+`real_time_streaming` showed as "real" and a small "time_streaming". Emacs
+shows it as typed (`org-pretty-entities` is off).
+- **The setting:** Settings → View → "Subscripts and superscripts" has three
+  values, stored as `scripts` in the View settings: `braces` (default; Org's
+  `^:{}`), `never` (`^:nil`) and `always` (`^:t`, how `org_parser` reads a
+  note). A settings file without the key gets `braces`.
+- **The note wins:** a `#+OPTIONS:` line of the file with a `^:` item of `t`,
+  `nil` or `{}` chooses the mode for that note, also for a heading node, as
+  Org's export does. The last such item wins; other items and other values
+  are ignored (`scriptModeOf` in `lib/node_view/scripts.dart`).
+- **How:** the parsed document is changed, in the same place as
+  `withDisplayFormulas` (`withScripts`). Each `OrgSubscript` or
+  `OrgSuperscript` that the mode does not allow becomes plain text with its
+  own markup, so `_`, `^` and braces show as written and the file text is
+  not touched. With `braces`, a script stays when its markup starts with
+  `_{` or `^{`. LaTeX fragments, verbatim and code are other nodes and are
+  not changed.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

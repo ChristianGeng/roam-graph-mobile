@@ -32,6 +32,7 @@ import '../settings/view_settings.dart';
 import 'folding.dart';
 import 'heading_link.dart';
 import 'quick_edits.dart';
+import 'scripts.dart';
 import 'latex.dart';
 import 'mermaid.dart';
 import 'src_languages.dart';
@@ -1484,9 +1485,13 @@ class _NodeScreenState extends State<NodeScreen> {
     final files = widget.files;
     // Source blocks coloured as Emacs colours them (#45); display formulas
     // in display mode (#50); mermaid blocks without a result image drawn
-    // (#49).
+    // (#49); sub- and superscripts as the mode says (#213).
     final document = withMermaidDrawings(
-      withDisplayFormulas(withHighlightLanguages(parseNote(text))),
+      withScripts(
+        withDisplayFormulas(withHighlightLanguages(parseNote(text))),
+        // The note's own #+OPTIONS: ^: wins over the setting (#213).
+        scriptModeOf(text) ?? ViewSettingsScope.of(context).scripts,
+      ),
       showsImage: (location) {
         final path = linkedImagePath(node.file, location);
         return files != null &&
