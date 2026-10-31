@@ -3589,7 +3589,7 @@ a note's *Ask AI* opened a new chat with the list hidden behind it.
   the chat screen closes and a request under way goes on in the store, as
   with Back.
 
-## 118. Filled paragraphs shown with their lines joined (#219)
+## 119. Filled paragraphs shown with their lines joined (#219)
 
 Paragraphs filled in Emacs (`M-q`, `auto-fill-mode`) showed their line
 breaks, so on a phone the text was ragged. Org reads a single line break

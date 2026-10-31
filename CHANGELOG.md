@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-11-01: Filled paragraphs wrap at the screen width ([#222](https://github.com/ChristianGeng/roam-graph-mobile/pull/222))
+## 2026-11-01: Filled paragraphs wrap at the screen width ([#223](https://github.com/ChristianGeng/roam-graph-mobile/pull/223))
 
 - Changed: a single line break inside a paragraph or a list item shows as a space, so a paragraph filled in Emacs (`M-q`) wraps at the screen width instead of looking ragged. Empty lines, `\\` at the end of a line, blocks, tables and fixed-width lines keep their lines. The file keeps its line breaks.
 - Added: Settings → View → "Join lines of a paragraph", on by default; off shows the lines as written.
