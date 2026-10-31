@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -271,7 +272,9 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
             val intent = Intent(Intent.ACTION_VIEW)
                 .setDataAndType(uri, type)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            if (activity.packageManager.queryIntentActivities(intent, 0).isEmpty()) {
+            val apps = activity.packageManager
+                .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            if (apps.isEmpty()) {
                 continue
             }
             // createChooser copies the read grant and the URI (as ClipData)

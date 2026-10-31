@@ -3600,9 +3600,10 @@ Decisions 6, 28 and the others that name Orgro stay as history.
   `ACTION_VIEW` for the file with `FLAG_GRANT_READ_URI_PERMISSION` through
   `Intent.createChooser`, not to one package; `orgroPackage` and the
   Orgro-only path are gone. The chooser starts even when no app takes the
-  file, so the apps are looked up first with `queryIntentActivities` (the
-  manifest's `<queries>` lists `ACTION_VIEW` for `text/x-org` and
-  `text/plain`).
+  file, so the apps are looked up first with `queryIntentActivities` and
+  `MATCH_DEFAULT_ONLY` (only apps an implicit intent can start); the
+  manifest's `<queries>` lists `ACTION_VIEW` for `content:` and any MIME
+  type, so apps for whatever type the provider reports are visible.
 - **The MIME type:** the content resolver's, else `text/x-org`; if no app
   takes that, `text/plain`, so plain text editors are offered too.
   `application/octet-stream`, which providers often report for an unknown
