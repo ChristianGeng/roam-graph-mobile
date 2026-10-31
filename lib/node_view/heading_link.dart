@@ -103,8 +103,11 @@ List<(OrgSection, OrgVisibilityState)>? headingFolding(
         (section, OrgVisibilityState.contents),
     // Each section shows by its own state, so the sections under the
     // target open too.
+    // A section a search has hidden stays hidden.
     for (final section in sectionsOf(target))
-      (section, OrgVisibilityState.subtree),
+      if (identical(section, target) ||
+          stateOf(section) != OrgVisibilityState.hidden)
+        (section, OrgVisibilityState.subtree),
   ];
 }
 
@@ -116,6 +119,9 @@ bool unfoldHeading(BuildContext context, OrgSection target) {
       (section) => controller.nodeFor(section).visibility.value);
   if (changes == null) return false;
   for (final (section, state) in changes) {
+    // Each change walks the whole note, so only the ones that change
+    // something.
+    if (controller.nodeFor(section).visibility.value == state) continue;
     controller.setVisibilityOf(section, (_) => state);
   }
   return true;

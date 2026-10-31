@@ -141,6 +141,17 @@ void main() {
       expect(changes.last.$2, OrgVisibilityState.subtree);
     });
 
+    test('sections a search has hidden stay hidden', () {
+      final changes = headingFolding(
+          doc,
+          named('Caveats'),
+          (section) => identical(section, named('Detail'))
+              ? OrgVisibilityState.hidden
+              : OrgVisibilityState.folded)!;
+      expect([for (final (section, _) in changes) section],
+          [named('Method'), named('Caveats')]);
+    });
+
     test('a target that is not in the note', () {
       final other = OrgDocument.parse('* Else\n');
       expect(
