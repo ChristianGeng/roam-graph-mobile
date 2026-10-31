@@ -224,6 +224,8 @@ class _ShowHeadingState extends State<ShowHeading> {
       if (shown != null) {
         revealHeading(context, shown);
       } else {
+        // The note opens at the top, also if it was scrolled down.
+        Scrollable.ensureVisible(context, alignment: 0);
         widget.onMissing();
       }
     });
