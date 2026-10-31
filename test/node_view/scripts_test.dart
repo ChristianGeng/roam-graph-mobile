@@ -71,6 +71,24 @@ void main() {
           ScriptMode.never);
     });
 
+    test('#+OPTIONS: inside a block is only an example', () {
+      const text = '#+begin_src org\n#+OPTIONS: ^:t\n#+end_src\n$_body';
+      expect(scriptModeOf(text), isNull);
+      expect(scriptModeOf('$text#+OPTIONS: ^:nil\n'), ScriptMode.never);
+    });
+
+    test('text around a converted script is one piece of text', () {
+      final document =
+          _shown('See real_time_streaming now.\n', ScriptMode.braces);
+      var pieces = 0;
+      document.visit<OrgPlainText>((text) {
+        if (text.content.contains('real_time_streaming')) pieces++;
+        return true;
+      });
+      expect(pieces, 1);
+      expect(document.toMarkup(), 'See real_time_streaming now.\n');
+    });
+
     test('a heading node reads the options of the whole file', () {
       const text = '#+OPTIONS: ^:nil\n* Heading\n:PROPERTIES:\n:ID: h\n:END:\n'
           'Text a_{b} here.\n';

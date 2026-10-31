@@ -23,15 +23,29 @@ enum ScriptMode {
 }
 
 final _optionsLine =
-    RegExp(r'^[ \t]*#\+OPTIONS:(.*)$', caseSensitive: false, multiLine: true);
+    RegExp(r'^[ \t]*#\+OPTIONS:(.*)$', caseSensitive: false);
+final _blockStart = RegExp(r'^[ \t]*#\+BEGIN_', caseSensitive: false);
+final _blockEnd = RegExp(r'^[ \t]*#\+END_', caseSensitive: false);
 
 /// The mode that the `^:` item of the `#+OPTIONS:` lines of [text] gives,
 /// or null when there is none or its value is not `t`, `nil` or `{}`. The
-/// last item wins, as in Org. Other items are ignored.
+/// last item wins, as in Org. Other items are ignored, and so are lines
+/// inside blocks (a source block that shows an example `#+OPTIONS:` line).
 ScriptMode? scriptModeOf(String text) {
   ScriptMode? mode;
-  for (final line in _optionsLine.allMatches(text)) {
-    for (final item in line.group(1)!.trim().split(RegExp(r'\s+'))) {
+  var inBlock = false;
+  for (final line in text.split('\n')) {
+    if (inBlock) {
+      if (_blockEnd.hasMatch(line)) inBlock = false;
+      continue;
+    }
+    if (_blockStart.hasMatch(line)) {
+      inBlock = true;
+      continue;
+    }
+    final match = _optionsLine.firstMatch(line);
+    if (match == null) continue;
+    for (final item in match.group(1)!.trim().split(RegExp(r'\s+'))) {
       if (!item.startsWith('^:')) continue;
       final value = item.substring(2);
       for (final candidate in ScriptMode.values) {
@@ -62,5 +76,42 @@ OrgDocument withScripts(OrgDocument document, ScriptMode mode) {
     }
     return (true, null);
   });
+  if (!changed) return document;
+  return _joinedText(edited.commit<OrgDocument>());
+}
+
+/// [document] with neighbouring plain text nodes joined into one, so that
+/// `real_time_streaming` is one piece of text again for the search and its
+/// marks, not three.
+OrgDocument _joinedText(OrgDocument document) {
+  var changed = false;
+  final edited = document.edit().visit((location) {
+    final node = location.node;
+    if (node is OrgContent && _hasNeighbourText(node.children)) {
+      final children = <OrgNode>[];
+      for (final child in node.children) {
+        if (child is OrgPlainText &&
+            children.isNotEmpty &&
+            children.last is OrgPlainText) {
+          final last = children.removeLast() as OrgPlainText;
+          children.add(OrgPlainText(last.content + child.content));
+        } else {
+          children.add(child);
+        }
+      }
+      changed = true;
+      return (true, location.replace(OrgContent(children)));
+    }
+    return (true, null);
+  });
   return changed ? edited.commit<OrgDocument>() : document;
+}
+
+bool _hasNeighbourText(List<OrgNode> children) {
+  for (var i = 1; i < children.length; i++) {
+    if (children[i] is OrgPlainText && children[i - 1] is OrgPlainText) {
+      return true;
+    }
+  }
+  return false;
 }
