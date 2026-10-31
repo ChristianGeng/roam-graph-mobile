@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-10-31: Reach saved chats from a note and from the chat ([#216](https://github.com/ChristianGeng/roam-graph-mobile/pull/216))
+
+- Changed: a note's AI menu has "New chat about this note" and "Chats" instead of "Ask AI". "Chats" lists the chats about this note first, under "About this note".
+- Added: a "Chats" button in the bar of a chat goes back to the chat list.
+- Closes #215.
+
 ## 2026-10-31: Subscripts and superscripts only with braces ([#214](https://github.com/ChristianGeng/roam-graph-mobile/pull/214))
 
 - Changed: `real_time_streaming` and `x^2` show as typed. `H_{2}O` and `x^{2}` still show small text.

@@ -848,14 +848,17 @@ class _NodeScreenState extends State<NodeScreen> {
     }
   }
 
-  /// Opens the AI chat about [node] (#60).
-  Future<void> _askAi(RoamNode node) => ChatListScreen.open(
+  /// Opens the chat list about [node] (#215): with a new chat above it
+  /// that starts with this note ([newChat], #60), or the list only. The
+  /// chats about this note come first.
+  Future<void> _askAi(RoamNode node, {required bool newChat}) =>
+      ChatListScreen.open(
         context,
         graph: widget.graph,
         readNote: widget.readNote,
         startNode: node,
-        // A new chat that starts with this note, as before (#201).
-        openNewChat: true,
+        openNewChat: newChat,
+        aboutStartNode: true,
         writer: widget.writer,
         searchText: widget.files?.searchText,
         // On a page above the chat, also from the side pane (#16).
@@ -1282,11 +1285,15 @@ class _NodeScreenState extends State<NodeScreen> {
               tooltip: 'AI',
               icon: const Icon(Icons.auto_awesome_outlined),
               onSelected: (action) => switch (action) {
-                _AiAction.ask => _askAi(node),
+                _AiAction.newChat => _askAi(node, newChat: true),
+                _AiAction.chats => _askAi(node, newChat: false),
                 _AiAction.share => _shareWithAi(node),
               },
               itemBuilder: (_) => const [
-                PopupMenuItem(value: _AiAction.ask, child: Text('Ask AI')),
+                PopupMenuItem(
+                    value: _AiAction.newChat,
+                    child: Text('New chat about this note')),
+                PopupMenuItem(value: _AiAction.chats, child: Text('Chats')),
                 PopupMenuItem(
                     value: _AiAction.share, child: Text('Share with AI')),
               ],
@@ -1599,7 +1606,7 @@ class _NodeScreenState extends State<NodeScreen> {
 }
 
 /// The actions of the node view's AI menu.
-enum _AiAction { ask, share }
+enum _AiAction { newChat, chats, share }
 
 /// The edits of an existing note (v4).
 enum _EditAction { append, edit, meta, ai, image, share, history, delete }

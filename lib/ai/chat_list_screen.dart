@@ -24,7 +24,9 @@ class ChatListScreen extends StatefulWidget {
     required this.readNote,
     this.startNode,
     this.openNewChat = false,
+    this.aboutStartNode = false,
     this.openChatId,
+    this.store,
     this.writer,
     this.openNode,
     this.post = postWithDartIo,
@@ -42,6 +44,13 @@ class ChatListScreen extends StatefulWidget {
 
   /// Starts a new chat with [startNode] at once, as from a note's AI menu.
   final bool openNewChat;
+
+  /// Puts the chats that started from [startNode] first, under "About this
+  /// note", as from a note's AI menu (#215).
+  final bool aboutStartNode;
+
+  /// The store of the chats; by default the app's, from [ChatStoreScope].
+  final ChatStore? store;
 
   /// The chat to open at once, after a tap on its notification (#202);
   /// empty or null opens the list only.
@@ -61,6 +70,7 @@ class ChatListScreen extends StatefulWidget {
     required NoteTextReader readNote,
     RoamNode? startNode,
     bool openNewChat = false,
+    bool aboutStartNode = false,
     String? openChatId,
     NoteWriter? writer,
     OpenNode? openNode,
@@ -74,6 +84,7 @@ class ChatListScreen extends StatefulWidget {
         readNote: readNote,
         startNode: startNode,
         openNewChat: openNewChat,
+        aboutStartNode: aboutStartNode,
         openChatId: openChatId,
         writer: writer,
         openNode: openNode,
@@ -88,8 +99,9 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen> {
-  late final ChatStore _store =
-      ChatStoreScope.maybeOf(context) ?? ChatStore(MemoryChatStorage());
+  late final ChatStore _store = widget.store ??
+      ChatStoreScope.maybeOf(context) ??
+      ChatStore(MemoryChatStorage());
 
   /// Waits for the saved chats to be read, to open a chat from a tap; and
   /// the chat it opens (the last one asked for).
@@ -174,6 +186,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
         store: _store,
         chat: chat,
         startNode: chat == null ? widget.startNode : null,
+        // The chat's "Chats" button goes back to this list (#215).
+        listBelow: true,
         writer: widget.writer,
         openNode: widget.openNode,
         post: widget.post,
@@ -242,6 +256,13 @@ class _ChatListScreenState extends State<ChatListScreen> {
   Widget _list(BuildContext context) {
     final chats = _store.chats;
     final theme = Theme.of(context);
+    final noteId = widget.aboutStartNode ? widget.startNode?.id : null;
+    final about = noteId == null
+        ? const <Chat>[]
+        : [for (final chat in chats) if (chat.startNodeId == noteId) chat];
+    final others = about.isEmpty
+        ? chats
+        : [for (final chat in chats) if (chat.startNodeId != noteId) chat];
     return ListView(
       key: const ValueKey('chat-overview'),
       padding: const EdgeInsets.only(bottom: 88),
@@ -271,8 +292,28 @@ class _ChatListScreenState extends State<ChatListScreen> {
               ),
             ),
           ),
-        for (final chat in chats) _row(context, chat),
+        if (about.isNotEmpty) ...[
+          _heading(context, 'About this note', 'chat-about-note'),
+          for (final chat in about) _row(context, chat),
+          if (others.isNotEmpty)
+            _heading(context, 'All chats', 'chat-all-chats'),
+        ],
+        for (final chat in others) _row(context, chat),
       ],
+    );
+  }
+
+  Widget _heading(BuildContext context, String text, String key) {
+    final theme = Theme.of(context);
+    return Padding(
+      key: ValueKey(key),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Text(
+        text,
+        style: theme.textTheme.titleSmall?.copyWith(
+          color: theme.colorScheme.primary,
+        ),
+      ),
     );
   }
 
