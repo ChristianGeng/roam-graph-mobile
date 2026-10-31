@@ -3568,6 +3568,27 @@ shows it as typed (`org-pretty-entities` is off).
   `_{` or `^{`. LaTeX fragments, verbatim and code are other nodes and are
   not changed.
 
+## 117. Saved chats from a note and from the chat (#215)
+
+Saved chats (#201) were only reachable from the graph's *More* → *Ask AI*;
+a note's *Ask AI* opened a new chat with the list hidden behind it.
+- **A note's AI menu:** *New chat about this note* does what *Ask AI* did:
+  the chat list opens with a new chat above it, started from the note.
+  *Chats* opens the list only. Both pass `aboutStartNode` to
+  `ChatListScreen`, so the list below the new chat also has the section.
+- **The section:** with `aboutStartNode`, the chats whose
+  `Chat.startNodeId` is the note's ID come first under "About this note",
+  the others under "All chats"; each group keeps the store's order (last
+  used first). Without such a chat there are no headings, and "All chats"
+  is left out when every chat is about the note. The graph's *Ask AI*
+  does not set it: the graph's centre is not a note I chose.
+- **The chat's "Chats" button:** `ChatListScreen` opens a chat with
+  `listBelow: true`, and the button then pops back to that list. Without
+  the list below, it replaces the chat screen with a list (same store,
+  `ChatListScreen.store`), so chat and list do not stack up. In both cases
+  the chat screen closes and a request under way goes on in the store, as
+  with Back.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

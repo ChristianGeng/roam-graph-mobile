@@ -86,6 +86,8 @@ void main() {
     AiSettings settings = const AiSettings(),
     String? openChatId,
     AnswerNotifier notifier = const NoAnswerNotifier(),
+    String? startNodeId,
+    bool aboutStartNode = false,
   }) async {
     // Made here, in the test's zone, so its writes run when frames are pumped.
     store = ChatStore(storage, notifier: notifier);
@@ -101,6 +103,8 @@ void main() {
             readNote: (path) async => notes[path],
             writer: writer,
             openChatId: openChatId,
+            startNode: startNodeId == null ? null : graph.nodes[startNodeId],
+            aboutStartNode: aboutStartNode,
             post: server.post,
             agentLog: MemoryAgentLog(),
             getModels: (url, headers) async => const HttpReply(404, ''),
@@ -305,6 +309,87 @@ void main() {
     await settle(tester);
     expect(find.text('It is done.', findRichText: true), findsOneWidget);
     expect(chat.unseen, isFalse);
+  });
+
+  group('the chats about a note (#215)', () {
+    testWidgets('come first under "About this note", the others under '
+        '"All chats", the last used first', (tester) async {
+      storage.files['early'] = chatFile('Early chat about Ideas',
+          lastUsed: '2026-09-01T10:00:00.000Z', startTitle: 'Ideas');
+      await openList(tester, FakeServer([]),
+          startNodeId: 'ideas', aboutStartNode: true);
+      double top(String text) => tester.getTopLeft(find.text(text)).dy;
+      final about = tester
+          .getTopLeft(find.byKey(const ValueKey('chat-about-note')))
+          .dy;
+      final all =
+          tester.getTopLeft(find.byKey(const ValueKey('chat-all-chats'))).dy;
+      expect(find.text('About this note'), findsOneWidget);
+      expect(find.text('All chats'), findsOneWidget);
+      expect(about, lessThan(top('Older chat')));
+      expect(top('Older chat'), lessThan(top('Early chat about Ideas')));
+      expect(top('Early chat about Ideas'), lessThan(all));
+      expect(all, lessThan(top('Fresh chat')));
+      expect(top('Fresh chat'), lessThan(top('Newer chat')));
+    });
+
+    testWidgets('no chat about the note: no headings, the order as before',
+        (tester) async {
+      await openList(tester, FakeServer([]),
+          startNodeId: 'plan', aboutStartNode: true);
+      expect(find.text('About this note'), findsNothing);
+      expect(find.text('All chats'), findsNothing);
+      final fresh = tester.getTopLeft(find.text('Fresh chat')).dy;
+      final newer = tester.getTopLeft(find.text('Newer chat')).dy;
+      final older = tester.getTopLeft(find.text('Older chat')).dy;
+      expect(fresh, lessThan(newer));
+      expect(newer, lessThan(older));
+    });
+
+    testWidgets('only chats about the note: no "All chats"', (tester) async {
+      storage.files
+        ..remove('newer')
+        ..remove('fresh');
+      await openList(tester, FakeServer([]),
+          startNodeId: 'ideas', aboutStartNode: true);
+      expect(find.text('About this note'), findsOneWidget);
+      expect(find.text('All chats'), findsNothing);
+    });
+
+    testWidgets('the graph\'s list has no headings', (tester) async {
+      await openList(tester, FakeServer([]), startNodeId: 'ideas');
+      expect(find.text('About this note'), findsNothing);
+      expect(find.text('All chats'), findsNothing);
+    });
+  });
+
+  testWidgets('"Chats" in a chat goes back to the list below; a working '
+      'chat goes on (#215)', (tester) async {
+    storage.files.clear();
+    final server = GatedServer([answer('It is done.')]);
+    await openList(tester, server);
+    await tester.tap(find.byKey(const ValueKey('chat-new')));
+    await settle(tester);
+    await tester.enterText(
+        find.byKey(const ValueKey('chat-input')), 'Slow question');
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pump();
+    expect(server.arrived, 1);
+
+    await tester.tap(find.byTooltip('Chats'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(ChatScreen), findsNothing);
+    // The same list, not a second one above the chat.
+    expect(find.byType(ChatListScreen, skipOffstage: false), findsOneWidget);
+    expect(find.text('Slow question'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    server.gate.complete();
+    await settle(tester);
+    final chat = store.chats.single;
+    expect(chat.sending, isFalse);
+    expect(find.byKey(ValueKey('chat-dot-${chat.id}')), findsOneWidget);
   });
 
   testWidgets('"Save chat as note" opens "New node" with the chat',

@@ -27,6 +27,7 @@ import '../edit/note_editor_test.dart' show MemoryNoteStore;
 import 'ai_chat_test.dart' show FakeServer, anthropicReply;
 import 'ai_settings_test.dart' show MemoryAiSettingsStore, MemoryKeyStore;
 import 'ai_visibility_test.dart' show graphOf, notes;
+import 'chat_store_test.dart' show GatedServer;
 
 final graph = graphOf(notes);
 
@@ -1072,11 +1073,18 @@ void main() {
     expect(find.byType(NodeScreen), findsOneWidget);
     await tester.tap(find.byTooltip('AI'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Ask AI'));
+    expect(find.text('Ask AI'), findsNothing);
+    await tester.tap(find.text('New chat about this note'));
     await tester.pumpAndSettle();
-    // From a note, a new chat starts with that note at once.
+    // From a note, a new chat starts with that note at once, above the
+    // list of the chats about this note (#215).
     final chat = tester.widget<ChatScreen>(find.byType(ChatScreen));
     expect(chat.startNode?.id, 'plan');
+    expect(chat.listBelow, isTrue);
+    final below = tester.widget<ChatListScreen>(
+        find.byType(ChatListScreen, skipOffstage: false));
+    expect(below.aboutStartNode, isTrue);
+    expect(below.startNode?.id, 'plan');
     // A link in an answer opens the node on a page above the chat, not in
     // the side pane behind it.
     chat.openNode!(tester.element(find.byType(ChatScreen)), 'ideas');
@@ -1086,6 +1094,68 @@ void main() {
         find.descendant(
             of: find.byType(AppBar), matching: find.text('Ideas')),
         findsOneWidget);
+  });
+
+  testWidgets('"Chats" in a note\'s AI menu opens the list only (#215)',
+      (tester) async {
+    await tester.pumpWidget(AiSettingsHost(
+      store: MemoryAiSettingsStore(),
+      keys: keysWithAnthropic(),
+      child: MaterialApp(
+        home: NodeScreen(
+          graph: ValueNotifier<RoamGraph>(graph),
+          id: 'plan',
+          readNote: (path) async => notes[path],
+          nodeMemory: MemoryNodeMemory('plan'),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('AI'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Chats'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChatScreen), findsNothing);
+    final list = tester.widget<ChatListScreen>(find.byType(ChatListScreen));
+    expect(list.openNewChat, isFalse);
+    expect(list.aboutStartNode, isTrue);
+    expect(list.startNode?.id, 'plan');
+  });
+
+  group('the "Chats" button (#215)', () {
+    testWidgets('without a list below, it opens the list in place of the '
+        'chat; a working chat goes on', (tester) async {
+      final store = ChatStore(MemoryChatStorage());
+      final server = GatedServer([anthropicReply([
+        {'type': 'text', 'text': 'Late answer.'},
+      ])]);
+      await openChat(tester, server, store: store);
+      await tester.enterText(
+          find.byKey(const ValueKey('chat-input')), 'Slow question');
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pump();
+      expect(server.arrived, 1);
+
+      await tester.tap(find.byTooltip('Chats'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(ChatScreen), findsNothing);
+      expect(find.byType(ChatListScreen), findsOneWidget);
+      // The list shows the chat of the app's store, still working.
+      expect(find.text('Slow question'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      // The chat was replaced, not covered: nothing to go back to.
+      expect(tester.state<NavigatorState>(find.byType(Navigator)).canPop(),
+          isFalse);
+
+      server.gate.complete();
+      await tester.pumpAndSettle();
+      final chat = store.chats.single;
+      expect(chat.sending, isFalse);
+      expect(find.byKey(ValueKey('chat-row-${chat.id}')), findsOneWidget);
+      expect(chat.unseen, isTrue);
+      expect(find.byKey(ValueKey('chat-dot-${chat.id}')), findsOneWidget);
+    });
   });
 
   group('review of #67', () {

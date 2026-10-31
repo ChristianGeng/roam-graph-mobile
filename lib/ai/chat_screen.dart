@@ -29,6 +29,7 @@ import 'ai_providers.dart';
 import 'ai_settings.dart';
 import 'ai_tools.dart';
 import 'chart.dart' show defaultChartColors;
+import 'chat_list_screen.dart';
 import 'chat_note.dart';
 import 'chat_store.dart';
 import 'edit_tools.dart';
@@ -57,6 +58,7 @@ class ChatScreen extends StatefulWidget {
     this.chat,
     this.store,
     this.startNode,
+    this.listBelow = false,
     this.writer,
     this.openNode,
     this.post = postWithDartIo,
@@ -72,6 +74,10 @@ class ChatScreen extends StatefulWidget {
 
   /// Opens web, mail and phone links in answers in another app (#108).
   final UrlOpener openUrl;
+
+  /// The chat list is the page below this screen, so "Chats" goes back to
+  /// it (#215).
+  final bool listBelow;
 
   /// The app's full-text index, for the AI's text search (#98).
   final Future<List<TextHit>> Function(String query, {int limit})? searchText;
@@ -851,6 +857,33 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_defaultModel.isNotEmpty && !_sending) _setModel(_defaultModel);
   }
 
+  /// "Chats" (#215): back to the chat list below, or the list in place of
+  /// this screen. The chat goes on working, as when the screen is closed.
+  void _openChats() {
+    if (widget.listBelow) {
+      Navigator.pop(context);
+      return;
+    }
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => ChatListScreen(
+          graph: widget.graph,
+          readNote: widget.readNote,
+          store: _store,
+          startNode: _startNode,
+          writer: widget.writer,
+          openNode: widget.openNode,
+          post: widget.post,
+          agentLog: widget.agentLog,
+          searchText: widget.searchText,
+          openUrl: widget.openUrl,
+          getModels: widget.getModels,
+        ),
+      ),
+    );
+  }
+
   /// A new chat in this screen; the chat left stays in the chat list and
   /// goes on working.
   void _newChat() {
@@ -921,6 +954,11 @@ class _ChatScreenState extends State<ChatScreen> {
               onPressed: () => RecentChangesScreen.open(context,
                   writer: writer, log: widget.agentLog),
             ),
+          IconButton(
+            tooltip: 'Chats',
+            icon: const Icon(Icons.forum_outlined),
+            onPressed: _openChats,
+          ),
           IconButton(
             tooltip: 'New chat',
             icon: const Icon(Icons.add_comment_outlined),

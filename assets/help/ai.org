@@ -18,9 +18,10 @@ them, and images. This page is about the chat and the agent. See also:
    first screen and in the chat), or *Settings*, *AI* in the graph's
    *More* menu. Open *Chat*, then go back and tap the check mark to save. See
    [[id:roam-graph-help-settings][Settings]].
-2. Open the chat list: *Ask AI* in the graph's *More* menu, or in a note's
-   *AI* menu (the sparkle icon). From a note, a new chat starts with that
-   note. In the list, *New chat* starts a chat.
+2. Open the chat list: *Ask AI* in the graph's *More* menu, or *Chats* in
+   a note's *AI* menu (the sparkle icon). *New chat about this note* in the
+   same menu starts a new chat with that note, above the list. In the
+   list, *New chat* starts a chat.
 3. Type the question and send it.
 
 The AI reads the notes itself, with the tools of my org-roam MCP server:
@@ -38,6 +39,8 @@ In the bar of the chat:
   says "Model changed to …" where the model changed. *Use the default
   model* in the same menu goes back to the model of the AI settings.
 - *Recent AI changes* shows what the AI changed.
+- *Chats* (the speech bubbles icon) goes back to the chat list. A chat that
+  works goes on working.
 - *New chat* starts another chat. The chat I leave stays in the list.
 - *Chat menu*, *Save chat as note*: see
   [[id:roam-graph-help-continue-chat][Continue an earlier chat]].
@@ -59,10 +62,16 @@ its title, the times, the provider and model, the note it started from and
 the conversation. It never holds an API key, and the images the AI made are
 not kept in it, only a line that says there was one.
 
+The list opens from the graph's *More* menu (*Ask AI*), from a note's *AI*
+menu (*Chats*, or *New chat about this note* and Back), and from the
+*Chats* button in the bar of a chat.
+
 The list shows the chats, the last used first: the title (the first message,
 or a name I gave), the note it started from, the provider and model, and
-when it was last used. Tap a chat to read it and go on; the whole
-conversation is sent again with the next message.
+when it was last used. From a note, the chats that started from that note
+come first, under *About this note*, and the others follow under *All
+chats*. Tap a chat to read it and go on; the whole conversation is sent
+again with the next message.
 - A spinner shows that the chat is working. A dot shows that a new answer
   came since I last opened the chat.
 - *Rename* is in the row's menu.
