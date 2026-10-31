@@ -31,6 +31,7 @@ import '../platform/error_text.dart';
 import '../settings/view_settings.dart';
 import 'folding.dart';
 import 'heading_link.dart';
+import 'join_lines.dart';
 import 'quick_edits.dart';
 import 'scripts.dart';
 import 'latex.dart';
@@ -1488,13 +1489,16 @@ class _NodeScreenState extends State<NodeScreen> {
     final files = widget.files;
     // Source blocks coloured as Emacs colours them (#45); display formulas
     // in display mode (#50); mermaid blocks without a result image drawn
-    // (#49); sub- and superscripts as the mode says (#213).
+    // (#49); sub- and superscripts as the mode says (#213); the lines of
+    // a paragraph joined, if the setting says so (#219).
+    final view = ViewSettingsScope.of(context);
+    final scripted = withScripts(
+      withDisplayFormulas(withHighlightLanguages(parseNote(text))),
+      // The note's own #+OPTIONS: ^: wins over the setting (#213).
+      scriptModeOf(text) ?? view.scripts,
+    );
     final document = withMermaidDrawings(
-      withScripts(
-        withDisplayFormulas(withHighlightLanguages(parseNote(text))),
-        // The note's own #+OPTIONS: ^: wins over the setting (#213).
-        scriptModeOf(text) ?? ViewSettingsScope.of(context).scripts,
-      ),
+      view.joinLines ? withJoinedLines(scripted) : scripted,
       showsImage: (location) {
         final path = linkedImagePath(node.file, location);
         return files != null &&
@@ -1515,7 +1519,7 @@ class _NodeScreenState extends State<NodeScreen> {
     // Sections open as the setting says, or as the file's #+STARTUP: says
     // (#63).
     final state =
-        startupState(document, ViewSettingsScope.of(context).sectionsOnOpen);
+        startupState(document, view.sectionsOnOpen);
     final writer = _editWriter;
     // The folding before a quick edit, when this is the same note after it.
     List<OrgVisibilityState>? folding;

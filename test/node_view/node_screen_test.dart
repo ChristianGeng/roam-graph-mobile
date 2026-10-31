@@ -52,11 +52,13 @@ Future<MemoryNodeMemory> open(
   // folding has its own tests.
   SectionsOnOpen sections = SectionsOnOpen.expanded,
   ScriptMode scripts = ScriptMode.braces,
+  bool joinLines = true,
 }) async {
   final memory = MemoryNodeMemory();
   await tester.pumpWidget(MaterialApp(
     builder: (context, child) => ViewSettingsHost(
-      store: MemoryViewSettingsStore(ViewSettings(sectionsOnOpen: sections, scripts: scripts)),
+      store: MemoryViewSettingsStore(ViewSettings(
+          sectionsOnOpen: sections, scripts: scripts, joinLines: joinLines)),
       child: child!,
     ),
     home: Builder(

@@ -3620,6 +3620,38 @@ Decisions 6, 28 and the others that name Orgro stay as history.
   `openElsewhereLabel` is "Open in another app…" (the chooser follows) or
   "Open in Emacs", which is unchanged.
 
+## 119. Filled paragraphs shown with their lines joined (#219)
+
+Paragraphs filled in Emacs (`M-q`, `auto-fill-mode`) showed their line
+breaks, so on a phone the text was ragged. Org reads a single line break
+inside a paragraph as a space; Emacs shows it only because the buffer is
+the source.
+- **The setting:** Settings → View → "Join lines of a paragraph", stored as
+  `joinLines` in the View settings, on by default. A settings file without
+  the key, or with a value that is not `true` or `false`, gets on. Off
+  shows the lines as written, as before.
+- **Not `org_flutter`'s `reflowText`:** it joins the lines only in the text
+  drawn, so the search, which opens sections and folds them for "Only
+  matching sections" on the parsed text, would not find a match across a
+  line break; it also joins a line ending with `\\`, and it changes how
+  headings with tags are laid out. So the app changes the parsed document
+  shown, in the same place as `withDisplayFormulas` and `withScripts`
+  (`withJoinedLines` in `lib/node_view/join_lines.dart`): the search, its
+  marks and "Next match" then see the joined text.
+- **What is joined:** the text of paragraphs (also in quote blocks), of list
+  items (each item on its own, its lines joined) and of footnote
+  definitions, also inside emphasis and link descriptions. A line break
+  with the spaces and tabs around it becomes one space.
+- **What is kept, as in Org:** an empty line (a new paragraph), a line
+  ending with `\\` (the `\\` still shows), a line break before or after an
+  element inside a list item (a list in an item), and everything that is
+  no paragraph: source, example and verse blocks, tables, fixed-width
+  lines, drawers, keywords and LaTeX environments.
+- **Quick edits:** the document keeps its sections and list items in the
+  same order, and the quick edits find the node by its place, so a ticked
+  checkbox or a new TODO state still changes the right line of the file.
+  The file's text is never changed by the setting.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

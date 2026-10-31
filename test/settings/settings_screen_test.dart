@@ -170,6 +170,18 @@ void main() {
       expect(store.settings.sectionsOnOpen, SectionsOnOpen.headings);
     });
 
+    testWidgets('"Join lines of a paragraph" is on and saves off (#219)',
+        (tester) async {
+      final store = await pumpView(tester);
+      final join = find.byKey(const ValueKey('settings-join-lines'));
+      expect(find.text('Join lines of a paragraph'), findsOneWidget);
+      expect(tester.widget<SwitchListTile>(join).value, isTrue);
+      await tester.tap(join);
+      await tester.pumpAndSettle();
+      expect(store.settings.joinLines, isFalse);
+      expect(tester.widget<SwitchListTile>(join).value, isFalse);
+    });
+
     testWidgets('saves the graph layout at start', (tester) async {
       final store = await pumpView(tester);
       await tester.tap(find.byKey(const ValueKey('start-layout-radial')));

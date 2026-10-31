@@ -23,7 +23,8 @@ const tasks = ':PROPERTIES:\n:ID: t\n:END:\n#+title: Tasks\n'
 
 const other = ':PROPERTIES:\n:ID: o\n:END:\n#+title: Other\nOther text.\n';
 
-FakeFolderAccess withTasks({ChosenFolder saved = writableOrg}) =>
+FakeFolderAccess withTasks(
+        {ChosenFolder saved = writableOrg, String text = tasks}) =>
     FakeFolderAccess(
       saved: saved,
       files: [
@@ -31,7 +32,7 @@ FakeFolderAccess withTasks({ChosenFolder saved = writableOrg}) =>
         const FolderFile(path: 'roam/t.org', uri: 'content://t', modified: 1),
         const FolderFile(path: 'roam/o.org', uri: 'content://o', modified: 1),
       ],
-      texts: {'roam/t.org': tasks, 'roam/o.org': other},
+      texts: {'roam/t.org': text, 'roam/o.org': other},
     );
 
 /// Opens the node view of the note above the graph view.
@@ -115,6 +116,22 @@ void main() {
       expect(note(access), tasks);
       expect(find.text('Undone.'), findsOneWidget);
       expect(undo, findsNothing);
+    });
+
+    testWidgets('a checkbox of an item with joined lines changes its own line',
+        (tester) async {
+      // Filled items, shown joined (#219); the file keeps its lines.
+      const filled = ':PROPERTIES:\n:ID: t\n:END:\n#+title: Tasks\n'
+          '#+STARTUP: showall\n'
+          'A filled paragraph\nabove the list.\n'
+          '- [ ] bread from the\n  baker\n- [ ] milk from the\n  shop\n';
+      final access = withTasks(text: filled);
+      await openTasks(tester, access);
+      expect(rich('milk from the shop'), findsOneWidget);
+      await tester.tap(rich('milk from the shop').last);
+      await tester.pumpAndSettle();
+      expect(note(access),
+          filled.replaceFirst('- [ ] milk', '- [X] milk'));
     });
 
     testWidgets('a long press offers the states; the chosen one is saved',
