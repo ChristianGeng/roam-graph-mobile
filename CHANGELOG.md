@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-10-31: Subscripts and superscripts only with braces ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-10-31: Subscripts and superscripts only with braces ([#214](https://github.com/ChristianGeng/roam-graph-mobile/pull/214))
 
 - Changed: `real_time_streaming` and `x^2` show as typed. `H_{2}O` and `x^{2}` still show small text.
 - Added: Settings → View → "Subscripts and superscripts" (only with braces, as typed, always), and a note's own `#+OPTIONS: ^:t`, `^:{}` or `^:nil` line wins.
