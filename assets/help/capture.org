@@ -54,13 +54,48 @@ the fields.
   top, so org-roam takes it as a node. A file of that name that is already
   there is never replaced; the import then stops with a message.
 
+* Voice memos
+A voice memo shared from a recorder app or a messenger (MP3, M4A/AAC, WAV,
+FLAC, OGG/Opus or WebM) is turned into text and opens the capture screen.
+Live dictation is not part of this: the keyboard's microphone works in
+every text field.
+
+- *Set up once:* AI → Speech to text. Mistral (Voxtral, about 0.003 USD per
+  minute, processed in the EU) is the default when a Mistral key is set;
+  OpenAI is the other choice and has its own key field there. The model,
+  the language and the speaker labels are set there too.
+- *The first time* for a provider, a question says where the recording
+  goes and that the provider gets the recording itself. The recording is
+  sent only after I agree, and only for the file I shared.
+- *While it works* a screen shows the file name, its length and *Cancel*.
+  I can leave the app: Android keeps it going with an ongoing notification
+  and shows *Voice memo ready* when the text is there.
+- *Review:* the text opens in the capture screen, editable. The title is
+  proposed as ~Voice memo 2026-11-01 09:14~, and the first line of the text
+  says ~Transcribed from <file> (<length>) with <provider> <model>.~ Nothing
+  is saved before I save. The other uses of the text work as for shared
+  text: add to a node, Ask AI, add to a chat.
+- *Keep the recording with the note* (off by default) copies the audio file
+  next to the note in ~roam/~, named like the note, and links it with a
+  ~file:~ link. Without it the audio is not copied into the notes.
+- *Speakers* (AI → Speech to text, Mistral only) labels the text
+  ~Speaker 1:~, ~Speaker 2:~. With labels Mistral is not given a language.
+- *At most 30 minutes*, sent whole in one request, and at most 25 MB for
+  OpenAI. A longer recording is refused with its length. Transcribe
+  meetings and talks on the computer, for example with Whisper, and share
+  the text as a text file.
+- *An error* from the provider is shown in plain words with *Try again*.
+  Without a key the message names AI → Speech to text.
+
 * On the desktop
 - Drop text or text files on the window: they open the capture screen as
   above. Dropped on a chat, they go into its message field instead.
 - *New note from clipboard* in the graph's *More* menu, or Ctrl+Shift+V
   (Cmd+Shift+V on macOS): the text on the clipboard opens the capture
   screen.
-- *Open files…* in the graph's *More* menu chooses text files to bring in.
+- *Open files…* in the graph's *More* menu chooses text files and voice
+  memos to bring in. Audio files dropped on the window are transcribed as
+  above.
 
 * The first time
 Android may let the app only read the folder. Saving then asks to choose

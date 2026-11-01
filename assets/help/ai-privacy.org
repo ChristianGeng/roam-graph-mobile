@@ -30,6 +30,11 @@ A note that is hidden can still be deleted by hand, see
   provider, only when I send a message. Each provider's note in AI settings (AI → Chat)
   says where the data goes; some keep it in the EU. "EU only" limits some
   providers to their EU processing.
+- A *voice memo* (a shared or dropped audio file) is sent whole to the
+  provider of AI → Speech to text, Mistral (EU) or OpenAI (outside the EU),
+  only after I agree the first time for that provider and only for the file
+  I shared. The provider gets the recording itself; the text comes back to
+  the capture screen and nothing is saved before I save.
 - *Create image* sends the description and, if ticked, the note's title to
   the image provider.
 - In agent mode, an image or infographic asked for in the chat is made from

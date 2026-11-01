@@ -3755,6 +3755,71 @@ only in Edit text.
   Ctrl+Z (Cmd+Z) undoes the last quick edit. While a text field has the
   focus (the search), the keys go to the text field.
 
+## 122. Voice memos: transcribe a shared or dropped audio file (#221)
+
+A recorded voice memo can come into the graph: it is shared from a
+recorder or a messenger, or dropped on the desktop window, transcribed by
+a speech provider, and reviewed in the capture screen of decision 120.
+Live dictation stays with the keyboard's microphone.
+- **One recording, whole, up to 30 minutes.** It is sent in one request.
+  Longer recordings (meetings, talks) are transcribed on the computer, for
+  example with Whisper, and brought in as text files: splitting, resuming
+  and long-transcript structure are a later issue if they are needed. The
+  length is read from the file's headers (`lib/capture/audio_info.dart`:
+  WAV, MP3, M4A/MP4, FLAC, Ogg Opus and Vorbis, WebM) without a decoder, so
+  the same check works on Android and the desktop; where the headers do
+  not tell, the length Android's `MediaMetadataRetriever` gave is used. A
+  file whose length is unknown is not refused by length, only by size.
+  The size limits are 25 MB for OpenAI (its limit for one request) and
+  100 MB for Mistral and for reading a file into memory at all.
+- **Providers.** Mistral `voxtral-mini-latest` (about 0.003 USD per minute,
+  EU) and OpenAI `gpt-4o-mini-transcribe`, both `POST <base>/audio/transcriptions`
+  as multipart form data (`lib/ai/speech.dart`). Mistral uses the key the
+  user saved for the chat provider of that name. OpenAI is no chat preset
+  of the app, so it has its own key field in AI → Speech to text (stored
+  as `openai-speech` in the key store). "Automatic" takes Mistral when its
+  key is set, else OpenAI when its key is set.
+- **Speaker labels** only for Mistral (`diarize=true` with segment
+  timestamps); the text then has `Speaker 1:` lines, numbered in the order
+  the speakers first talk. Mistral is not sent a language together with
+  timestamps, so the language is left out when speakers are on. If the
+  answer names no speaker, the plain text is used.
+- **Language:** by default the language of new notes, as two letters; or
+  automatic (nothing sent); or a code.
+- **Consent.** The recording leaves the phone, and it is more personal
+  than a note, so the first time for each provider a dialog says where it
+  goes and that the provider gets the recording. The answer is kept per
+  provider in the AI settings file (`speechConsent`). Nothing is sent
+  before the user agrees, and only the file shared is sent.
+- **Android intake.** The intent filters take `SEND` and `SEND_MULTIPLE`
+  with `audio/*`. Audio is copied by `IncomingFiles` to the cache folder
+  `voice` (at most five files and 100 MB each, copies older than a day
+  deleted at the next share), not read into memory and sent over the
+  method channel: a 30-minute WAV file is far too large for that. Dart
+  reads the copy when the file is used and deletes it afterwards. The same
+  `content://` rule as for text files applies.
+- **Background.** The progress screen (`VoiceMemoScreen`) shows the file
+  name, length, a progress line and Cancel. It uses the foreground service
+  of decision 113 (#202) with its own text ("Transcribing a voice memo")
+  and a notification when the text is ready or failed, shown only when the
+  app is not on screen. A tap opens the app, not a chat. Cancel closes the
+  connection. If a chat and a memo work at the same time, the service stops
+  when the first of them ends; the work goes on in the app's process
+  either way, and only the protection of the process is lost.
+- **Review.** The text opens in the capture screen with the title `Voice
+  memo <date> <time>` (the file's change time on the desktop, the time of
+  the share on Android, which does not give it) and a first line
+  `Transcribed from <file> (<length>) with <provider> <model>.` in the text.
+  The other uses of the text (add to a node, Ask AI, add to a chat) work
+  as for shared text.
+- **Keep the recording** is off by default: the note is the product, and
+  the audio is large. When on, the file is written next to the note under
+  the note's name with the audio's ending, through `NoteWriter.createFile`
+  as images are, and linked with `[[file:<name>][Recording]]`.
+- **Errors:** the provider's error in plain words with the HTTP status,
+  and Try again; a missing key names AI → Speech to text; a recording over
+  the limit is refused before the question and before anything is sent.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
