@@ -90,11 +90,21 @@ object IncomingFiles {
             } catch (e: RuntimeException) {
                 // No name and size from the provider; the URI's last part is the name.
             }
-            val mimeType = try {
+            val providerType = try {
                 resolver.getType(uri)
             } catch (e: RuntimeException) {
                 null
-            } ?: sentType
+            }
+            // A provider that only says application/octet-stream knows less
+            // than a sender that says text.
+            val mimeType = if (
+                providerType?.substringBefore(';')?.trim()?.lowercase() == "application/octet-stream" &&
+                isText(name, sentType)
+            ) {
+                sentType
+            } else {
+                providerType ?: sentType
+            }
             val file = mutableMapOf<String, Any?>("name" to name, "mimeType" to mimeType)
             val known = size
             when {
