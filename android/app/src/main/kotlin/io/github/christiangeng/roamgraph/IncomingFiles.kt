@@ -177,7 +177,13 @@ object IncomingFiles {
         var copy: File? = null
         try {
             voiceDir.mkdirs()
-            copy = File(voiceDir, "${System.currentTimeMillis()}-$number-${name.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
+            val safe = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
+            // Keep the whole file name under the 255-byte limit: shorten the
+            // name from the front of its stem, and keep the extension.
+            val dot = safe.lastIndexOf('.')
+            val ext = if (dot > 0 && safe.length - dot <= 10) safe.substring(dot) else ""
+            val stem = safe.substring(0, safe.length - ext.length).take(120)
+            copy = File(voiceDir, "${System.currentTimeMillis()}-$number-$stem$ext")
             var total = 0L
             val input = resolver.openInputStream(uri) ?: throw IllegalStateException("the file could not be opened")
             input.use {
