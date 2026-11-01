@@ -51,6 +51,14 @@ example ~/opt/homebrew/bin/emacsclient~.
   [[id:roam-graph-help-search-in-note][Search inside a note]].
 - In the graph, *right click* on a node opens the menu that a long press
   opens on a phone.
+- In a note, *right click* on a heading opens its menu, with the keys.
+  Click a heading to make it the current one (it is lightly marked); then:
+  Alt+Shift+Left promotes it, Alt+Shift+Right demotes it, Alt+Up and
+  Alt+Down move it, Shift+Left and Shift+Right change its TODO state,
+  Delete deletes it, and Ctrl+Z (Cmd+Z on macOS) undoes the last change.
+  The keys do nothing while the search field has the cursor. Swipes on
+  headings are off on the desktop; turn on *Swipe actions on headings* in
+  Settings → View to drag a heading with the mouse.
 - Web links open in the web browser.
 - *Share with AI* copies the text to the clipboard. Text cannot be shared
   into the app.

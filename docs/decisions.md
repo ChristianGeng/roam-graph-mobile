@@ -3652,6 +3652,44 @@ the source.
   checkbox or a new TODO state still changes the right line of the file.
   The file's text is never changed by the setting.
 
+## 121. Heading actions in the note view: menu, swipes and keys (#217)
+
+The note view could only change a heading's TODO state. Org's structure
+commands (`org-promote-subtree`, `org-demote-subtree`,
+`org-move-subtree-up`, `org-move-subtree-down`, `org-cut-subtree`) were
+only in Edit text.
+- **One menu:** a long press on a heading, or a right click on the
+  desktop, opens Promote, Demote, Move up, Move down, TODO state… and
+  Delete heading, in that order, with the Emacs keys beside them. The
+  structure actions call `applyStructureAction` in
+  `lib/edit/structure_edits.dart` with the cursor on the heading, so they
+  refuse in the same cases as in Edit text; a refused action is greyed out
+  with its reason. The menu code is in `lib/node_view/heading_actions.dart`.
+- **Quick edits:** every change is saved like a ticked checkbox, without
+  the diff, and is a step of *Undo the last change*; the message also has
+  an *Undo* button.
+- **Swipes, not the Slidable pane:** `org_flutter`'s `onSectionSlide` has
+  one action pane on one side, and a slide anywhere on the section moves
+  it. The app instead draws a horizontal drag recognizer over the rendered
+  headings (`HeadingGestures`): a drag must start on a heading's line and
+  not within 24 pixels of the screen edge (the system's back gesture); it
+  acts once it passes 40% of the width. Right: the next TODO state (as
+  `org-shiftright`). Left: delete the heading with its subtree, on a red
+  background that says Delete. A short drag does nothing.
+- **Deleting a node:** when the heading or a heading below it has an
+  `:ID:` of a node, the shared deletion dialog (`confirmDeleteNotes`) asks
+  first and names the nodes with their link counts; the lines of a plain
+  heading above the nodes are removed with them (`alsoLines` in
+  `NodeDeleter.prepare`). Its Undo is the deletion's Undo, as for a note.
+- **The setting:** Settings → View → "Swipe actions on headings", stored as
+  `swipeHeadings`. Without the key it follows the platform: on on Android,
+  off on Linux, Windows and macOS, where a mouse drag also selects text.
+- **Keys on the desktop:** a click on a heading makes it the current one,
+  lightly marked. Alt+Shift+Left/Right promote and demote it, Alt+Up/Down
+  move it, Shift+Left/Right change its TODO state, Delete deletes it, and
+  Ctrl+Z (Cmd+Z) undoes the last quick edit. While a text field has the
+  focus (the search), the keys go to the text field.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
