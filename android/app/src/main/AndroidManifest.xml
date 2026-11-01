@@ -50,6 +50,7 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="text/markdown"/>
                 <data android:mimeType="text/x-markdown"/>
+                <data android:mimeType="text/org"/>
                 <data android:mimeType="text/x-org"/>
                 <data android:mimeType="application/octet-stream"/>
             </intent-filter>
