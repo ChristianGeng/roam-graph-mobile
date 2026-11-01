@@ -24,6 +24,8 @@ object ChatNotifications {
     private const val CHANNEL_ANSWER = "chat_answer"
     const val WORK_ID = 2020
     private const val ANSWER_ID = 2021
+    private const val VOICE_ID = 2022
+    const val WHAT_VOICE = "voice"
 
     /**
      * True when the app may show notifications: the permission on Android 13
@@ -82,14 +84,45 @@ object ChatNotifications {
         return builder.setSmallIcon(R.drawable.ic_stat_chat)
     }
 
+    /** A tap opens the app where it was, with no chat (#221). */
+    private fun appIntent(context: Context): PendingIntent {
+        val open = Intent(context, MainActivity::class.java)
+            .setAction(Intent.ACTION_MAIN)
+            .addCategory(Intent.CATEGORY_LAUNCHER)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(
+            context,
+            1,
+            open,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
+    /** A voice memo's text is ready, or its transcription failed (#221). */
+    fun voice(context: Context, title: String, text: String) {
+        if (!answersAllowed(context)) return
+        val notification = builder(context, CHANNEL_ANSWER)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setContentIntent(appIntent(context))
+            .build()
+        manager(context).notify(VOICE_ID, notification)
+    }
+
     /** The ongoing, low-priority notification of the service. */
-    fun working(context: Context, chats: Int): Notification {
-        val text = if (chats == 1) "AI is working on 1 chat" else "AI is working on $chats chats"
+    fun working(context: Context, chats: Int, what: String? = null): Notification {
+        val text = when {
+            what == WHAT_VOICE -> "Transcribing a voice memo"
+            chats == 1 -> "AI is working on 1 chat"
+            else -> "AI is working on $chats chats"
+        }
         return builder(context, CHANNEL_WORK)
             .setContentTitle(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setContentIntent(tapIntent(context, ""))
+            .setContentIntent(if (what == WHAT_VOICE) appIntent(context) else tapIntent(context, ""))
             .build()
     }
 
@@ -107,9 +140,9 @@ object ChatNotifications {
         manager(context).notify(chatId, ANSWER_ID, notification)
     }
 
-    fun update(context: Context, chats: Int) {
+    fun update(context: Context, chats: Int, what: String? = null) {
         if (!allowed(context)) return
-        manager(context).notify(WORK_ID, working(context, chats))
+        manager(context).notify(WORK_ID, working(context, chats, what))
     }
 }
 
@@ -124,7 +157,7 @@ class ChatWorkService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val chats = intent?.getIntExtra(EXTRA_CHATS, 1) ?: 1
         running = true
-        val notification = ChatNotifications.working(this, chats)
+        val notification = ChatNotifications.working(this, chats, intent?.getStringExtra(EXTRA_WHAT))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 ChatNotifications.WORK_ID,
@@ -149,17 +182,20 @@ class ChatWorkService : Service() {
 
     companion object {
         const val EXTRA_CHATS = "chats"
+        const val EXTRA_WHAT = "what"
 
         /** True while the service runs; then the notification is updated in place. */
         @Volatile
         var running = false
 
-        fun start(context: Context, chats: Int) {
+        fun start(context: Context, chats: Int, what: String? = null) {
             if (running) {
-                ChatNotifications.update(context, chats)
+                ChatNotifications.update(context, chats, what)
                 return
             }
-            val intent = Intent(context, ChatWorkService::class.java).putExtra(EXTRA_CHATS, chats)
+            val intent = Intent(context, ChatWorkService::class.java)
+                .putExtra(EXTRA_CHATS, chats)
+                .putExtra(EXTRA_WHAT, what)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {

@@ -308,7 +308,12 @@ Future<Transcript> transcribeAudio(
       cleanAnswer(raw, secrets: [config.apiKey]);
   HttpReply reply;
   try {
-    reply = await post(url, headers, body, token);
+    // Cancelling ends the wait at once, also for a POST that does not
+    // notice it.
+    reply = await Future.any([
+      post(url, headers, body, token),
+      token.whenCancelled.then<HttpReply>((_) => throw const SpeechCancelled()),
+    ]);
   } on SpeechCancelled {
     rethrow;
   } on SocketException catch (e) {

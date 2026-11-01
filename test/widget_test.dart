@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roam_graph_mobile/ai/ai_settings.dart';
+import 'package:roam_graph_mobile/ai/speech.dart';
 import 'package:roam_graph_mobile/capture/capture_screen.dart';
 import 'package:roam_graph_mobile/capture/share_inbox.dart';
 import 'package:roam_graph_mobile/edit/note_editor.dart';
@@ -17,6 +19,7 @@ import 'package:roam_graph_mobile/graph/roam_db.dart';
 import 'package:roam_graph_mobile/graph/roam_graph.dart';
 import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
 import 'package:roam_graph_mobile/node_view/note_images.dart';
+import 'package:roam_graph_mobile/platform/voice_work.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 import 'package:roam_graph_mobile/main.dart';
 
@@ -305,6 +308,10 @@ Future<TestGraphIndex> start(
   EditHistory? history,
   ViewSettingsStore? viewSettings,
   Future<List<String>> Function()? pickTextFiles,
+  AiSettingsStore? aiSettings,
+  ApiKeyStore? apiKeys,
+  AudioPost? speechPost,
+  VoiceWork? voiceWork,
 }) async {
   final index = TestGraphIndex();
   final nodeMemory = memory ?? MemoryNodeMemory();
@@ -317,6 +324,10 @@ Future<TestGraphIndex> start(
       editHistory: history ?? MemoryEditHistory(),
       viewSettings: viewSettings ?? MemoryViewSettingsStore(),
       pickTextFiles: pickTextFiles ?? () async => const [],
+      aiSettings: aiSettings ?? const FileAiSettingsStore(),
+      apiKeys: apiKeys ?? const SecureApiKeyStore(),
+      speechPost: speechPost ?? postBytesWithDartIo,
+      voiceWork: voiceWork,
       graphScreen: (graph, readNote, openElsewhere, writer, files, folder) {
         lastWriter = writer;
         lastGraph = graph;

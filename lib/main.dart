@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'ai/ai_settings.dart';
 import 'ai/chat_store.dart';
+import 'ai/speech.dart';
 import 'capture/share_inbox.dart';
 import 'capture/share_out.dart';
 import 'edit/note_editor.dart';
@@ -14,6 +15,7 @@ import 'node_view/sclang_language.dart';
 import 'platform/chat_background.dart';
 import 'platform/desktop.dart';
 import 'platform/text_drop.dart';
+import 'platform/voice_work.dart';
 import 'settings/view_settings.dart';
 
 /// The version the release workflow builds, passed in with
@@ -46,7 +48,17 @@ class RoamGraphApp extends StatelessWidget {
     this.backgroundService,
     this.answerNotifier,
     this.pickTextFiles = pickTextFilesOnDesktop,
+    this.apiKeys = const SecureApiKeyStore(),
+    this.speechPost = postBytesWithDartIo,
+    this.voiceWork,
   });
+
+  /// Where the API keys are kept; tests replace it.
+  final ApiKeyStore apiKeys;
+
+  /// How a voice memo is sent (#221); tests replace it.
+  final AudioPost speechPost;
+  final VoiceWork? voiceWork;
 
   /// "Open files…" on the desktop (#220); tests replace it.
   final Future<List<String>> Function() pickTextFiles;
@@ -73,6 +85,7 @@ class RoamGraphApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return AiSettingsHost(
       store: aiSettings,
+      keys: apiKeys,
       // Above the app, so every screen reads the same settings, and the
       // app reads its theme from them (#90).
       child: ChatStoreHost(
@@ -107,6 +120,8 @@ class RoamGraphApp extends StatelessWidget {
                 nodeMemory: nodeMemory,
                 editHistory: editHistory,
                 pickTextFiles: pickTextFiles,
+                speechPost: speechPost,
+                voiceWork: voiceWork,
               ),
             ),
           ),

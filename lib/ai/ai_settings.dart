@@ -510,6 +510,46 @@ Future<ProviderConfig> providerConfig(
   );
 }
 
+/// What a transcription needs (#221): the provider, its model and key,
+/// the language and the speaker labels, from [settings]. The provider is
+/// the chosen one; for "Automatic", Mistral when its key is set, else
+/// OpenAI when its key is set, else Mistral. The key is empty when none
+/// is saved.
+Future<SpeechConfig> speechConfig(
+    AiSettings settings, ApiKeyStore keys) async {
+  Future<String> keyOf(SpeechProvider provider) async {
+    try {
+      return (await keys.read(provider.keyId))?.trim() ?? '';
+    } on Exception {
+      return '';
+    }
+  }
+
+  var provider = speechProviderById(settings.speechProvider);
+  var key = await keyOf(provider);
+  if (settings.speechProvider.isEmpty && key.isEmpty) {
+    final other = speechProviderById('openai');
+    final otherKey = await keyOf(other);
+    if (otherKey.isNotEmpty) {
+      provider = other;
+      key = otherKey;
+    }
+  }
+  final language = switch (settings.speechLanguage) {
+    '' => settings.newNoteLanguage,
+    speechLanguageAuto => null,
+    final code => code,
+  };
+  return SpeechConfig(
+    provider: provider,
+    model: settings.speechModel(provider.id),
+    apiKey: key,
+    // The API takes the two letters: pt-BR is pt.
+    language: language?.substring(0, 2),
+    speakers: settings.speechSpeakers && provider.speakers,
+  );
+}
+
 /// Whether [kind] uses "Infographics with:" (#183): an infographic, when
 /// a provider is chosen there; else "Images with:".
 bool _ownInfographics(AiSettings settings, ImageKind kind) =>

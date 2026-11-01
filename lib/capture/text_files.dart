@@ -38,7 +38,22 @@ class IncomingFile {
     this.bytes,
     this.size,
     this.error,
+    this.path,
+    this.durationMs,
+    this.modified,
   });
+
+  /// Where an audio file is on this device (#221): the app's copy of a
+  /// shared file, or the dropped file. Audio is read from there when it
+  /// is used, not with the share.
+  final String? path;
+
+  /// The length in milliseconds, where the sending side could tell it.
+  final int? durationMs;
+
+  /// When the file was changed, where known: the recording time of a
+  /// voice memo.
+  final DateTime? modified;
 
   /// The file name, without folders.
   final String name;

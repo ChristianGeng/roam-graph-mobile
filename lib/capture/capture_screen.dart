@@ -94,6 +94,15 @@ enum ShareUse {
   importAsIs,
 }
 
+/// The audio file of a voice memo (#221), which the note can keep.
+class KeptRecording {
+  const KeptRecording({required this.extension, required this.bytes});
+
+  /// The file name extension, without the dot.
+  final String extension;
+  final Uint8List bytes;
+}
+
 /// Creates a new node (#11), as org-roam's default capture template does
 /// on the laptop: `roam/<%Y%m%d%H%M%S>-<slug>.org`, with a new `:ID:`,
 /// `#+title:` and `#+filetags:`. Returns the new node's ID.
@@ -112,7 +121,12 @@ class CaptureScreen extends StatefulWidget {
     this.uses = const {ShareUse.append, ShareUse.replace},
     this.notice,
     this.graph,
+    this.recording,
   });
+
+  /// For a voice memo (#221): offers to keep the recording next to the
+  /// note, linked with a `file:` link.
+  final KeptRecording? recording;
 
   final NoteWriter writer;
 
@@ -166,6 +180,7 @@ class CaptureScreen extends StatefulWidget {
     Set<ShareUse> uses = const {ShareUse.append, ShareUse.replace},
     String? notice,
     RoamGraph? graph,
+    KeptRecording? recording,
   }) =>
       Navigator.push<String>(
         context,
@@ -182,6 +197,7 @@ class CaptureScreen extends StatefulWidget {
             uses: uses,
             notice: notice,
             graph: graph,
+            recording: recording,
           ),
         ),
       );
@@ -197,6 +213,12 @@ class _CaptureScreenState extends State<CaptureScreen> {
   late final _body = TextEditingController(text: widget.initialBody);
   bool _saving = false;
   late bool _link = widget.linkByDefault;
+
+  /// "Keep the recording with the note" (#221).
+  bool _keepRecording = false;
+
+  /// The recording's file name once it is written, so it is written once.
+  String? _recordingFile;
 
   /// True once the file is written, so it is not written twice.
   bool _written = false;
@@ -240,11 +262,20 @@ class _CaptureScreenState extends State<CaptureScreen> {
     });
     final id = newOrgId();
     final fileName = nodeFileName(widget.now(), title);
+    final recordingFile = await _writeRecording(fileName);
+    if (!mounted) return;
+    if (_problem != null) {
+      setState(() => _saving = false);
+      return;
+    }
     final text = nodeFileText(
       id: id,
       title: title,
       tags: _tags.tags,
-      body: _body.text,
+      body: recordingFile == null
+          ? _body.text
+          : '${_body.text.trimRight()}\n\n'
+              '[[file:$recordingFile][Recording]]',
       linkTo: _link ? widget.linkTo : null,
       language: widget.language,
     );
@@ -270,6 +301,33 @@ class _CaptureScreenState extends State<CaptureScreen> {
         _problem = 'Could not write $fileName: $message';
     }
     setState(() => _saving = false);
+  }
+
+  /// Writes the recording next to the note, named like it, when the user
+  /// chose to keep it (#221); returns its file name, or null when it is
+  /// not kept. On a failure, sets [_problem] and nothing is saved.
+  Future<String?> _writeRecording(String noteFile) async {
+    final recording = widget.recording;
+    final createFile = widget.writer.createFile;
+    if (!_keepRecording || recording == null || createFile == null) {
+      return null;
+    }
+    if (_recordingFile case final written?) return written;
+    final name =
+        noteFile.replaceFirst(RegExp(r'\.org$'), '.${recording.extension}');
+    switch (await createFile(name, recording.bytes)) {
+      case Created() || WrittenNotIndexed():
+        return _recordingFile = name;
+      case NoWriteAccess():
+        _problem = 'The app may only read the folder. Choose it again and '
+            'allow access, then save.';
+        _needsWriteAccess = true;
+      case FileExists():
+        _problem = '$name exists already. Wait a second and save again.';
+      case CreateFailed(:final message):
+        _problem = 'Could not write the recording $name: $message';
+    }
+    return null;
   }
 
   /// The choices of the "Other uses of the text" menu, in its order.
@@ -376,6 +434,16 @@ class _CaptureScreenState extends State<CaptureScreen> {
               onChanged: (on) => setState(() => _link = on ?? false),
               title: Text('Link to ${linkTo.title}'),
               subtitle: const Text('In the new file; it shows as a backlink.'),
+            ),
+          if (widget.recording != null && widget.writer.createFile != null)
+            CheckboxListTile(
+              key: const ValueKey('capture-keep-recording'),
+              contentPadding: EdgeInsets.zero,
+              value: _keepRecording,
+              onChanged: (on) => setState(() => _keepRecording = on ?? false),
+              title: const Text('Keep the recording with the note'),
+              subtitle: const Text('The audio file is copied next to the '
+                  'note and linked from it.'),
             ),
           const SizedBox(height: 16),
           TextField(

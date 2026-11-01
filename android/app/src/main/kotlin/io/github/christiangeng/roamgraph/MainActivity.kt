@@ -11,6 +11,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     private var folderAccess: FolderAccess? = null
@@ -87,7 +88,7 @@ class MainActivity : FlutterActivity() {
                         // Reading may be slow (a cloud file): not on the main thread.
                         val type = next.getString("type")
                         Thread {
-                            val files = IncomingFiles.read(contentResolver, uris.map(Uri::parse), type)
+                            val files = IncomingFiles.read(contentResolver, File(cacheDir, "voice"), uris.map(Uri::parse), type)
                             runOnUiThread { result.success(mapOf("files" to files)) }
                         }.start()
                     }
@@ -175,7 +176,7 @@ class MainActivity : FlutterActivity() {
         when (call.method) {
             "working" -> {
                 try {
-                    ChatWorkService.start(this, call.argument<Int>("chats") ?: 1)
+                    ChatWorkService.start(this, call.argument<Int>("chats") ?: 1, call.argument<String>("what"))
                     result.success(null)
                 } catch (e: RuntimeException) {
                     // Android does not let the app start the service now (IllegalStateException), or the permission is missing (SecurityException).
@@ -204,6 +205,15 @@ class MainActivity : FlutterActivity() {
                     result.error("bad_args", "chatId or title is missing", null)
                 } else {
                     ChatNotifications.answer(this, chatId, title, call.argument<String>("text") ?: "")
+                    result.success(null)
+                }
+            }
+            "notifyVoice" -> {
+                val title = call.argument<String>("title")
+                if (title == null) {
+                    result.error("bad_args", "title is missing", null)
+                } else {
+                    ChatNotifications.voice(this, title, call.argument<String>("text") ?: "")
                     result.success(null)
                 }
             }
