@@ -13,6 +13,7 @@ import 'graph_view/node_memory.dart';
 import 'node_view/sclang_language.dart';
 import 'platform/chat_background.dart';
 import 'platform/desktop.dart';
+import 'platform/text_drop.dart';
 import 'settings/view_settings.dart';
 
 /// The version the release workflow builds, passed in with
@@ -44,7 +45,11 @@ class RoamGraphApp extends StatelessWidget {
     this.chatStorage = const FileChatStorage(),
     this.backgroundService,
     this.answerNotifier,
+    this.pickTextFiles = pickTextFilesOnDesktop,
   });
+
+  /// "Open files…" on the desktop (#220); tests replace it.
+  final Future<List<String>> Function() pickTextFiles;
 
   /// The notes folder: Android's, or a plain folder on the desktop (#116).
   final FolderAccess? folderAccess;
@@ -87,6 +92,9 @@ class RoamGraphApp extends StatelessWidget {
                 colorSchemeSeed: Colors.indigo,
                 brightness: Brightness.dark,
               ),
+              // Drops onto the window on the desktop (#220).
+              builder: (context, child) =>
+                  WindowDropTarget(child: child ?? const SizedBox()),
               home: FolderScreen(
                 folderAccess: folderAccess ??
                     (isDesktop
@@ -98,6 +106,7 @@ class RoamGraphApp extends StatelessWidget {
                 shareInbox: shareInbox,
                 nodeMemory: nodeMemory,
                 editHistory: editHistory,
+                pickTextFiles: pickTextFiles,
               ),
             ),
           ),

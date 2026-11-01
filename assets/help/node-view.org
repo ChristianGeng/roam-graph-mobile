@@ -72,12 +72,31 @@ confirms the change, and closes after about two seconds.
 - *Checkboxes*: tap a list item with a checkbox to tick or untick it, as
   Org's C-c C-c does; ~[-]~ becomes ~[X]~. The boxes and progress cookies
   (~[1/3]~, ~[33%]~) above it follow.
-- *TODO states*: slide a heading to the left for its next state, or
-  long-press it for the list of states: the note's ~#+TODO:~ keywords, or
-  TODO and DONE. With ~#+STARTUP: logdone~, a heading that becomes done
+- *TODO states*: swipe a heading to the right for its next state, or
+  choose *TODO state…* in its menu for the list of states: the note's
+  ~#+TODO:~ keywords, or TODO and DONE. With ~#+STARTUP: logdone~, a heading that becomes done
   gets a ~CLOSED:~ time, and loses it when it is no longer done. If the note
   changed in Emacs since it was shown, nothing is saved and the note is
   shown again.
+
+** Change a heading
+Long-press a heading for its menu:
+- *Promote* and *Demote*: the heading and its subtree go one level up or
+  down, as ~M-S-left~ and ~M-S-right~ in Emacs.
+- *Move up* and *Move down*: the heading and its subtree swap places with
+  the heading of the same level above or below, as ~M-up~ and ~M-down~.
+- *TODO state…*: the list of states.
+- *Delete heading*: the heading and its subtree are removed.
+An action that is not possible is grey, with the reason; for example, a
+heading at level 1 cannot be promoted.
+
+With *Swipe actions on headings* on (Settings → View; on by default on
+Android), swipe a heading to the right for its next TODO state, or to the
+left to delete it: a red background says *Delete*. Start the swipe on the
+heading's line, not at the edge of the screen; a short swipe does nothing.
+If the heading or a heading below it is a node (it has an ~:ID:~), the app
+asks first, names the nodes and how many notes link to them, as when you
+delete a note; see [[id:roam-graph-help-delete-note][Delete a note]].
 
 To undo, tap *Undo the last change* (the undo arrow in the bar). Each tap
 undoes one quick edit, newest first, for as long as you stay in this note.

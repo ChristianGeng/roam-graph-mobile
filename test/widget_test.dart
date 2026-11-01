@@ -201,18 +201,18 @@ class FakeFolderAccess implements FolderAccess {
 /// A [ShareInbox] without Android, for tests: a queue, as in
 /// MainActivity.kt.
 class FakeShareInbox implements ShareInbox {
-  final queue = <SharedText>[];
+  final queue = <Share>[];
   void Function()? onArrived;
 
   @override
-  Future<SharedText?> take() async =>
+  Future<Share?> take() async =>
       queue.isEmpty ? null : queue.removeAt(0);
 
   @override
   void listen(void Function() onArrived) => this.onArrived = onArrived;
 
   /// Text shared while the app runs.
-  void share(SharedText shared) {
+  void share(Share shared) {
     queue.add(shared);
     onArrived?.call();
   }
@@ -304,6 +304,7 @@ Future<TestGraphIndex> start(
   MemoryNodeMemory? memory,
   EditHistory? history,
   ViewSettingsStore? viewSettings,
+  Future<List<String>> Function()? pickTextFiles,
 }) async {
   final index = TestGraphIndex();
   final nodeMemory = memory ?? MemoryNodeMemory();
@@ -315,6 +316,7 @@ Future<TestGraphIndex> start(
       nodeMemory: nodeMemory,
       editHistory: history ?? MemoryEditHistory(),
       viewSettings: viewSettings ?? MemoryViewSettingsStore(),
+      pickTextFiles: pickTextFiles ?? () async => const [],
       graphScreen: (graph, readNote, openElsewhere, writer, files, folder) {
         lastWriter = writer;
         lastGraph = graph;
@@ -1251,7 +1253,7 @@ void main() {
       await start(tester, access,
           shares: shares, memory: MemoryNodeMemory('a'));
       final before = access.texts['roam/a.org']!;
-      await tester.tap(find.byTooltip('Use for an existing node'));
+      await tester.tap(find.byTooltip('Other uses of the text'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Add to a node'));
       await tester.pumpAndSettle();
@@ -1279,7 +1281,7 @@ void main() {
       final access = withNotes(saved: writableOrg);
       await start(tester, access,
           shares: shares, memory: MemoryNodeMemory('a'));
-      await tester.tap(find.byTooltip('Use for an existing node'));
+      await tester.tap(find.byTooltip('Other uses of the text'));
       await tester.pumpAndSettle();
       await tester.tap(find.text("Replace a node's text"));
       await tester.pumpAndSettle();

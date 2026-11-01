@@ -7,6 +7,7 @@ import 'package:org_flutter/org_flutter.dart';
 
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
+import '../capture/text_files.dart';
 import '../edit/agent_changes.dart';
 import '../edit/change_set.dart';
 import '../edit/change_set_screen.dart';
@@ -20,6 +21,7 @@ import '../graph/roam_graph.dart';
 import '../node_view/web_links.dart';
 import '../platform/error_text.dart';
 import '../platform/screen_awake.dart';
+import '../platform/text_drop.dart';
 import '../settings/view_settings.dart';
 import 'agent_tools.dart';
 import 'ai_chat.dart';
@@ -59,6 +61,7 @@ class ChatScreen extends StatefulWidget {
     this.store,
     this.startNode,
     this.listBelow = false,
+    this.initialInput,
     this.writer,
     this.openNode,
     this.post = postWithDartIo,
@@ -95,6 +98,10 @@ class ChatScreen extends StatefulWidget {
   /// The node a new chat is started from; the first message names it.
   final RoamNode? startNode;
 
+  /// Text put in the message field, such as shared text (#220); nothing
+  /// is sent until the user sends it.
+  final String? initialInput;
+
   /// Writes new nodes; without it, there is no "Save as new node".
   final NoteWriter? writer;
 
@@ -112,7 +119,11 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final _input = TextEditingController();
+  late final _input = TextEditingController(text: widget.initialInput);
+
+  /// The message field's focus: a drop focuses it, so the field scrolls to
+  /// the dropped text, which may be below its five visible lines (#220).
+  final _inputFocus = FocusNode();
   final _scroll = ScrollController();
   late final ChatStore _store;
   late Chat _chat;
@@ -165,6 +176,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ChatStoreScope.maybeOf(context) ??
         ChatStore(MemoryChatStorage());
     _chat = widget.chat ?? _newChatOf(_store);
+    TextDrop.add(_takeDrop);
     _show(_chat);
     widget.graph.addListener(_refreshTools);
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
@@ -223,6 +235,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    TextDrop.remove(_takeDrop);
+    _inputFocus.dispose();
     widget.graph.removeListener(_refreshTools);
     // A request under way goes on: the chat belongs to the store (#201).
     _leave(_chat);
@@ -230,6 +244,43 @@ class _ChatScreenState extends State<ChatScreen> {
     _scroll.dispose();
     super.dispose();
   }
+
+  /// Text or text files dropped onto the chat on the desktop (#220): into
+  /// the message field, marked as shared text, after the shared text that
+  /// is there already and before the user's own words. Only while this
+  /// chat is the screen on top.
+  bool _takeDrop(Share share) {
+    if (!mounted || !(ModalRoute.of(context)?.isCurrent ?? true)) {
+      return false;
+    }
+    final String added;
+    switch (share) {
+      case SharedText(:final text):
+        added = sharedTextMessage(text);
+      case SharedFiles(:final files):
+        final read = readTextFiles(files);
+        if (read.notes.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(read.notes.join('\n'))));
+        }
+        added = [
+          for (final file in read.files)
+            sharedTextMessage(file.text, name: file.name),
+        ].join();
+    }
+    if (added.isEmpty) return true;
+    final text = _input.text;
+    final at = _sharedBlocks.matchAsPrefix(text)?.end ?? 0;
+    _input.value = TextEditingValue(
+      text: text.substring(0, at) + added + text.substring(at),
+      selection: TextSelection.collapsed(offset: at + added.length),
+    );
+    _inputFocus.requestFocus();
+    return true;
+  }
+
+  static final _sharedBlocks =
+      RegExp(r'(?:Shared text[^\n]*:\n(?:>[^\n]*\n)*\n)*');
 
   RoamTools _tools(AiSettings settings) => RoamTools(
     widget.graph.value,
@@ -1524,6 +1575,7 @@ class _ChatScreenState extends State<ChatScreen> {
               child: TextField(
                 key: const ValueKey('chat-input'),
                 controller: _input,
+                focusNode: _inputFocus,
                 minLines: 1,
                 maxLines: 5,
                 textInputAction: TextInputAction.newline,

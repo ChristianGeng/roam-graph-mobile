@@ -3,6 +3,7 @@ package io.github.christiangeng.roamgraph
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -26,10 +27,12 @@ class MainActivity : FlutterActivity() {
     private var permissionResult: MethodChannel.Result? = null
 
     /**
-     * Texts shared with the app through Android's share menu (#15), oldest
-     * first, until the Dart side takes them, one at a time. The app is a
-     * share target for plain text (ACTION_SEND, text/plain, in
-     * AndroidManifest.xml). Each is a bundle with "text" and "subject".
+     * Texts and text files shared with the app through Android's share
+     * menu (#15, #220), oldest first, until the Dart side takes them, one
+     * at a time. The intent filters are in AndroidManifest.xml. Each is a
+     * bundle with "text" and "subject", or with "uris" (the EXTRA_STREAM
+     * content: URIs) and "type"; the files are read when the share is
+     * taken (IncomingFiles).
      * They are kept in the saved state, so a share is not lost when Android
      * recreates the activity before the app took it.
      */
@@ -61,8 +64,9 @@ class MainActivity : FlutterActivity() {
         folderAccess = access
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FolderAccess.CHANNEL)
             .setMethodCallHandler(access)
-        // Methods: takeShare() -> {text, subject} of the oldest share not
-        // taken yet, or null; shareText({text, subject}) opens Android's share
+        // Methods: takeShare() -> {text, subject} or {files: [{name,
+        // mimeType, bytes, size, error}]} of the oldest share not taken
+        // yet, or null; shareText({text, subject}) opens Android's share
         // menu to send text to another app, such as an AI app (#40);
         // shareFiles({paths, mimeTypes, text, subject}) shares copies of files
         // from cacheDir/share/ through the FileProvider (#209). Calls to
@@ -72,11 +76,21 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "takeShare" -> {
                     val next = pendingShares.removeFirstOrNull()
-                    result.success(
-                        next?.let {
-                            mapOf("text" to it.getString("text"), "subject" to it.getString("subject"))
-                        },
-                    )
+                    val uris = next?.getStringArrayList("uris")
+                    if (uris == null) {
+                        result.success(
+                            next?.let {
+                                mapOf("text" to it.getString("text"), "subject" to it.getString("subject"))
+                            },
+                        )
+                    } else {
+                        // Reading may be slow (a cloud file): not on the main thread.
+                        val type = next.getString("type")
+                        Thread {
+                            val files = IncomingFiles.read(contentResolver, uris.map(Uri::parse), type)
+                            runOnUiThread { result.success(mapOf("files" to files)) }
+                        }.start()
+                    }
                 }
                 "shareText" -> {
                     val text = call.argument<String>("text")
@@ -222,17 +236,32 @@ class MainActivity : FlutterActivity() {
         permissionResult = null
     }
 
-    /** Queues the text of a share intent; true if [intent] was one. */
+    /**
+     * Queues the files (EXTRA_STREAM) or else the text of a share intent;
+     * true if [intent] was one. Only the URIs are kept: the read permission
+     * the sending app granted lasts as long as this activity's task.
+     */
     private fun keepShare(intent: Intent?): Boolean {
-        if (intent?.action != Intent.ACTION_SEND) return false
-        if (intent.type?.startsWith("text/") != true) return false
-        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return false
-        pendingShares.addLast(
-            Bundle().apply {
-                putString("text", text)
-                putString("subject", intent.getStringExtra(Intent.EXTRA_SUBJECT))
-            },
-        )
+        if (intent?.action != Intent.ACTION_SEND && intent?.action != Intent.ACTION_SEND_MULTIPLE) return false
+        val uris = IncomingFiles.streams(intent)
+        if (uris.isNotEmpty()) {
+            pendingShares.addLast(
+                Bundle().apply {
+                    putStringArrayList("uris", ArrayList(uris.map(Uri::toString)))
+                    putString("type", intent.type)
+                },
+            )
+        } else {
+            if (intent.action != Intent.ACTION_SEND) return false
+            if (intent.type?.startsWith("text/") != true) return false
+            val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return false
+            pendingShares.addLast(
+                Bundle().apply {
+                    putString("text", text)
+                    putString("subject", intent.getStringExtra(Intent.EXTRA_SUBJECT))
+                },
+            )
+        }
         // Queued: a recreated activity must not queue it again.
         setIntent(Intent(Intent.ACTION_MAIN))
         return true

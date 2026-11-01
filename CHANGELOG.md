@@ -12,6 +12,20 @@ each entry.
 
 Changed: the warning icon in the graph's top bar opens the sheet scrolled to the first problem list. "More, Folder and index" still opens it at the top. Each problem list has its count in the heading, for example "Unreadable files (2)". Closes #199.
 
+## 2026-11-01: Bring text in: shared files, chats and the desktop ([#224](https://github.com/ChristianGeng/roam-graph-mobile/pull/224))
+
+- Added: text files (.txt, .md, .markdown, .org) shared on Android open the capture screen; several files become one note per file or one note; an .org file can be imported as it is.
+- Added: "Ask AI" and "Add to a chat…" on the capture screen put the shared text into a chat's message field, without sending it.
+- Added: on the desktop, drop text or files on the window or a chat, "New note from clipboard" (Ctrl+Shift+V) and "Open files…" in the More menu.
+- Closes #220.
+
+## 2026-11-01: Change headings from the note view ([#225](https://github.com/ChristianGeng/roam-graph-mobile/pull/225))
+
+- Added: a long press on a heading (a right click on the desktop) opens a menu: Promote, Demote, Move up, Move down, TODO state… and Delete heading. Each change is a quick edit with Undo.
+- Added: swipe a heading to the right for its next TODO state, to the left to delete it; a heading node asks first. Settings → View → "Swipe actions on headings" (on on Android, off on the desktop).
+- Added: on the desktop, Alt+Shift+Left/Right, Alt+Up/Down, Shift+Left/Right, Delete and Ctrl+Z work on the heading clicked last.
+- Closes #217.
+
 ## 2026-11-01: "Open in another app…" instead of "Open in Orgro" ([#222](https://github.com/ChristianGeng/roam-graph-mobile/pull/222))
 
 - Changed: on Android, a note's "Open in Orgro" is now "Open in another app…". It shows Android's app chooser, so Orgro, Markor, a text editor or any other app that opens the file can be chosen; the app gets read access only.
