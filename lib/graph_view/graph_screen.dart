@@ -64,7 +64,11 @@ double tapReach(double scale) => _nodeRadius + 16 / scale;
 /// (#196): the number of problems the last scan found, and how to open the
 /// sheet that lists them.
 class FolderControls {
-  const FolderControls({required this.problems, required this.open});
+  const FolderControls({
+    required this.problems,
+    required this.open,
+    required this.openAtProblems,
+  });
 
   /// Skipped files, unreadable files and conflict copies; the app bar shows
   /// a warning icon while it is above 0.
@@ -72,6 +76,10 @@ class FolderControls {
 
   /// Opens the sheet "Folder and index".
   final VoidCallback open;
+
+  /// Opens the same sheet scrolled to the first problem list (#199); for
+  /// the warning icon.
+  final VoidCallback openAtProblems;
 }
 
 /// The node graph in the style of `org-roam-graph` (#6): nodes labelled
@@ -909,7 +917,7 @@ class _GraphScreenState extends State<GraphScreen> {
                   : IconButton(
                       tooltip: 'Problems in the folder: $problems',
                       icon: const Icon(Icons.warning_amber),
-                      onPressed: folder.open,
+                      onPressed: folder.openAtProblems,
                     ),
             ),
           IconButton(

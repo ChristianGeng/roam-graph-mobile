@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-01: The warning icon opens "Folder and index" at the problems ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+Changed: the warning icon in the graph's top bar opens the sheet scrolled to the first problem list. "More, Folder and index" still opens it at the top. Each problem list has its count in the heading, for example "Unreadable files (2)". Closes #199.
+
 ## 2026-11-01: "Open in another app…" instead of "Open in Orgro" ([#222](https://github.com/ChristianGeng/roam-graph-mobile/pull/222))
 
 - Changed: on Android, a note's "Open in Orgro" is now "Open in another app…". It shows Android's app chooser, so Orgro, Markor, a text editor or any other app that opens the file can be chosen; the app gets read access only.

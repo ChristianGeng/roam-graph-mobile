@@ -140,6 +140,11 @@ class _FolderScreenState extends State<FolderScreen>
   /// longer indexed.
   bool _sheetClosing = false;
 
+  /// Whether the open sheet still has to scroll to its first problem list
+  /// (#199), and the key of that list.
+  bool _scrollToProblems = false;
+  final _problemsKey = GlobalKey();
+
   /// Counts operations; only the latest one may change what is shown, so a
   /// slow, older scan cannot replace a newer result.
   int _generation = 0;
@@ -740,8 +745,11 @@ class _FolderScreenState extends State<FolderScreen>
   }
 
   /// The controls the graph gets for "Folder and index" (#196).
-  late final _controls =
-      FolderControls(problems: _problems, open: _showFolderSheet);
+  late final _controls = FolderControls(
+    problems: _problems,
+    open: _showFolderSheet,
+    openAtProblems: () => _showFolderSheet(atProblems: true),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -793,10 +801,14 @@ class _FolderScreenState extends State<FolderScreen>
   /// Opens the sheet "Folder and index" (#196): what the scan found, and
   /// "Scan again", "Rebuild index" and "Change folder". It follows the
   /// scan, so it shows progress while one runs.
-  Future<void> _showFolderSheet() async {
+  ///
+  /// With [atProblems] (the warning icon, #199) the sheet is tall and
+  /// scrolled to the first problem list; otherwise it opens at the top.
+  Future<void> _showFolderSheet({bool atProblems = false}) async {
     if (_sheetOpen) return;
     _sheetOpen = true;
     _sheetClosing = false;
+    _scrollToProblems = atProblems;
     try {
       await showModalBottomSheet<void>(
         context: context,
@@ -804,7 +816,7 @@ class _FolderScreenState extends State<FolderScreen>
         showDragHandle: true,
         builder: (sheetContext) => DraggableScrollableSheet(
           expand: false,
-          initialChildSize: 0.7,
+          initialChildSize: atProblems ? 0.95 : 0.7,
           minChildSize: 0.3,
           maxChildSize: 0.95,
           builder: (context, controller) => ListenableBuilder(
@@ -815,6 +827,7 @@ class _FolderScreenState extends State<FolderScreen>
       );
     } finally {
       _sheetOpen = false;
+      _scrollToProblems = false;
     }
   }
 
@@ -837,6 +850,14 @@ class _FolderScreenState extends State<FolderScreen>
       }
       return const SizedBox.shrink();
     }
+    if (_scrollToProblems) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final target = _problemsKey.currentContext;
+        if (target == null || !target.mounted) return;
+        _scrollToProblems = false;
+        Scrollable.ensureVisible(target);
+      });
+    }
     return SingleChildScrollView(
       controller: controller,
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
@@ -849,6 +870,7 @@ class _FolderScreenState extends State<FolderScreen>
               graph: graph,
               unreadable: _result.unreadable,
               conflicts: _result.conflicts,
+              problemsKey: _problemsKey,
             ),
             Text('Folder: ${_folder?.name}'),
             OutlinedButton(

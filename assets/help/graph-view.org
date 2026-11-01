@@ -70,6 +70,7 @@ buttons:
 - *Change folder*: picks another org folder.
 
 When the scan found problems, a warning icon is in the top bar; its tooltip
-says how many problems there are. It opens the same sheet. Without problems there is no
-icon. If the folder cannot be read (access lost, no ~roam/~ folder, a failed
+says how many problems there are. It opens the same sheet, scrolled to the
+first list of problems; *More*, then *Folder and index* opens it at the top.
+Without problems there is no icon. If the folder cannot be read (access lost, no ~roam/~ folder, a failed
 scan), the app shows its first page again, with the reason.
