@@ -1472,10 +1472,22 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       ? languageCode(_speechLanguage.text) ?? _speechLanguage.text.trim()
       : _speechLanguageMode;
 
+  /// The speech provider in use: the chosen one, else Mistral when its key
+  /// is set, else OpenAI when its key is set, else Mistral.
+  String _effectiveSpeechProvider() {
+    if (_speechProvider.isNotEmpty) return _speechProvider;
+    final mistral = _drafts['mistral'];
+    final mistralKey = mistral != null &&
+        (mistral.key.text.trim().isNotEmpty ||
+            (mistral.hasKey && !mistral.removeKey));
+    final openAiKey = _openAiKey.text.trim().isNotEmpty ||
+        (_openAiKeySaved && !_openAiKeyRemove);
+    return mistralKey || !openAiKey ? 'mistral' : 'openai';
+  }
+
   /// The line under "Speech to text".
   String _speechLine() {
-    final id = _speechProvider.isEmpty ? 'mistral' : _speechProvider;
-    final name = speechProviderById(id).name;
+    final name = speechProviderById(_effectiveSpeechProvider()).name;
     return _speechProvider.isEmpty ? '$name (automatic)' : name;
   }
 
@@ -1487,12 +1499,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final mistralKey = mistralDraft != null &&
         (mistralDraft.key.text.trim().isNotEmpty ||
             (mistralDraft.hasKey && !mistralDraft.removeKey));
-    final openAiKey =
-        _openAiKey.text.trim().isNotEmpty || (_openAiKeySaved && !_openAiKeyRemove);
-    final effective = _speechProvider.isNotEmpty
-        ? _speechProvider
-        : (mistralKey || !openAiKey ? 'mistral' : 'openai');
-    final provider = speechProviderById(effective);
+    final provider = speechProviderById(_effectiveSpeechProvider());
     return [
       Text(
           'A voice memo shared with the app is sent whole to the provider, '

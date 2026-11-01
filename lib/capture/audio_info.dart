@@ -67,7 +67,8 @@ Duration? audioDuration(Uint8List bytes) {
   try {
     final seconds = _seconds(bytes);
     if (seconds == null || seconds.isNaN || seconds.isInfinite) return null;
-    if (seconds < 0) return null;
+    // A zero length is no length: a fragmented MP4 says 0 in its header.
+    if (seconds <= 0) return null;
     return Duration(microseconds: (seconds * 1000000).round());
   } on RangeError {
     return null;
