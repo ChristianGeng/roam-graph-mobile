@@ -69,6 +69,7 @@ class FolderControls {
   const FolderControls({
     required this.problems,
     required this.open,
+    required this.openAtProblems,
     this.newFromClipboard,
     this.openFiles,
   });
@@ -85,6 +86,10 @@ class FolderControls {
 
   /// Opens the sheet "Folder and index".
   final VoidCallback open;
+
+  /// Opens the same sheet scrolled to the first problem list (#199); for
+  /// the warning icon.
+  final VoidCallback openAtProblems;
 }
 
 /// The node graph in the style of `org-roam-graph` (#6): nodes labelled
@@ -935,7 +940,7 @@ class _GraphScreenState extends State<GraphScreen> {
                   : IconButton(
                       tooltip: 'Problems in the folder: $problems',
                       icon: const Icon(Icons.warning_amber),
-                      onPressed: folder.open,
+                      onPressed: folder.openAtProblems,
                     ),
             ),
           IconButton(

@@ -522,6 +522,9 @@ void main() {
     await openFolderSheet(tester);
 
     expectSomeNotes(tester);
+    // The sheet opens at the top, also when there is a problem (#199).
+    expect(find.byKey(const ValueKey('stat-files')).hitTestable(),
+        findsOneWidget);
     expect(find.text('Folder: org'), findsOneWidget);
     expect(find.text('Scan again'), findsOneWidget);
     expect(find.text('Rebuild index'), findsOneWidget);
@@ -587,6 +590,40 @@ void main() {
       await tester.pumpAndSettle();
       expect(stat(tester, 'unreadable'), '1');
       expect(find.text('b.org'), findsOneWidget);
+    });
+
+    testWidgets('opens the sheet at the unreadable files, without scrolling',
+        (tester) async {
+      await start(
+        tester,
+        FakeFolderAccess(
+          saved: org,
+          files: someFiles()
+              .where((f) => !f.path.contains('.sync-conflict-'))
+              .toList(),
+          texts: {'roam/a.org': someTexts['roam/a.org']!},
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.warning_amber));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Unreadable files (1)').hitTestable(), findsOneWidget);
+      expect(find.text('b.org').hitTestable(), findsOneWidget);
+    });
+
+    testWidgets('opens the sheet at the conflict copies', (tester) async {
+      // someFiles() has roam/b.sync-conflict-1.org next to roam/b.org.
+      await start(tester, withNotes(saved: org));
+
+      await tester.tap(find.byIcon(Icons.warning_amber));
+      await tester.pumpAndSettle();
+
+      expect(
+          find
+              .textContaining('Syncthing conflict copies (1)')
+              .hitTestable(),
+          findsOneWidget);
     });
 
     testWidgets('is shown with a conflict copy', (tester) async {

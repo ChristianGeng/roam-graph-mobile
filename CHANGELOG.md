@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-01: The warning icon opens "Folder and index" at the problems ([#226](https://github.com/ChristianGeng/roam-graph-mobile/pull/226))
+
+Changed: the warning icon in the graph's top bar opens the sheet scrolled to the first problem list. "More, Folder and index" still opens it at the top. Each problem list has its count in the heading, for example "Unreadable files (2)". Closes #199.
+
 ## 2026-11-01: Bring text in: shared files, chats and the desktop ([#224](https://github.com/ChristianGeng/roam-graph-mobile/pull/224))
 
 - Added: text files (.txt, .md, .markdown, .org) shared on Android open the capture screen; several files become one note per file or one note; an .org file can be imported as it is.

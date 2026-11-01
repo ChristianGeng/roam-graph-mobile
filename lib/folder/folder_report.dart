@@ -12,6 +12,7 @@ class FolderReport extends StatelessWidget {
     required this.graph,
     required this.unreadable,
     required this.conflicts,
+    this.problemsKey,
   });
 
   final RoamGraph graph;
@@ -21,6 +22,10 @@ class FolderReport extends StatelessWidget {
 
   /// The Syncthing conflict copies in the folder (#13).
   final List<String> conflicts;
+
+  /// Put on the first problem list, so the sheet can scroll to it when the
+  /// warning icon opened it (#199).
+  final Key? problemsKey;
 
   @override
   Widget build(BuildContext context) {
@@ -35,15 +40,26 @@ class FolderReport extends StatelessWidget {
         ),
         if (graph.failedFiles.isNotEmpty)
           FileList(
-            title: 'Files org-roam skips',
+            key: problemsKey,
+            title: 'Files org-roam skips (${graph.failedFiles.length})',
             files: [
               for (final entry in graph.failedFiles.entries)
                 '${entry.key}: ${entry.value}',
             ],
           ),
         if (unreadable.isNotEmpty)
-          FileList(title: 'Unreadable files', files: unreadable),
-        if (conflicts.isNotEmpty) ConflictList(conflicts: conflicts),
+          FileList(
+            key: graph.failedFiles.isEmpty ? problemsKey : null,
+            title: 'Unreadable files (${unreadable.length})',
+            files: unreadable,
+          ),
+        if (conflicts.isNotEmpty)
+          ConflictList(
+            key: graph.failedFiles.isEmpty && unreadable.isEmpty
+                ? problemsKey
+                : null,
+            conflicts: conflicts,
+          ),
       ],
     );
   }
@@ -161,7 +177,8 @@ class ConflictList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FileList(
-        title: 'Syncthing conflict copies: resolve them in Emacs',
+        title: 'Syncthing conflict copies (${conflicts.length}): '
+            'resolve them in Emacs',
         files: conflicts,
         shown: null,
       );
