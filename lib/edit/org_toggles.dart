@@ -294,6 +294,20 @@ String? nextKeyword(List<OrgTodoStates> states, String? current) {
   return allKeywords(states).firstOrNull;
 }
 
+/// The state before [current], as `org-shiftleft` cycles: the keyword
+/// before [current] in its sequence, no state before the first one; from
+/// no state, the last keyword.
+String? previousKeyword(List<OrgTodoStates> states, String? current) {
+  if (current == null) return allKeywords(states).lastOrNull;
+  for (final s in states) {
+    final keywords = [...s.todo, ...s.done];
+    final i = keywords.indexOf(current);
+    if (i < 0) continue;
+    return i > 0 ? keywords[i - 1] : null;
+  }
+  return allKeywords(states).lastOrNull;
+}
+
 /// Whether the file asks for a `CLOSED:` time when a heading is done:
 /// `#+STARTUP: logdone` (or `org-log-done` in its local variables). Org's
 /// default is no logging.

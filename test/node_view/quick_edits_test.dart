@@ -80,9 +80,16 @@ String note(FakeFolderAccess access) => access.texts['roam/t.org']!;
 
 Finder get undo => find.byTooltip('Undo the last change');
 
-Future<void> chooseDone(WidgetTester tester) async {
-  await tester.longPress(rich('Write letter').last);
+/// A long press on [heading], then "TODO state…" in its menu (#217).
+Future<void> openStates(WidgetTester tester, String heading) async {
+  await tester.longPress(rich(heading).last);
   await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const ValueKey('heading-todo')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> chooseDone(WidgetTester tester) async {
+  await openStates(tester, 'Write letter');
   await tester.tap(find.byKey(const ValueKey('todo-state-DONE')));
   await tester.pumpAndSettle();
 }
@@ -134,12 +141,11 @@ void main() {
           filled.replaceFirst('- [ ] milk', '- [X] milk'));
     });
 
-    testWidgets('a long press offers the states; the chosen one is saved',
+    testWidgets('a long press offers the states in the menu; the chosen one is saved',
         (tester) async {
       final access = withTasks();
       await openTasks(tester, access);
-      await tester.longPress(rich('Write letter').last);
-      await tester.pumpAndSettle();
+      await openStates(tester, 'Write letter');
       expect(find.byKey(const ValueKey('todo-state--')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('todo-state-DONE')));
       await tester.pumpAndSettle();
@@ -158,9 +164,8 @@ void main() {
       await openTasks(tester, access);
       await chooseDone(tester);
       final first = note(access);
-      await tester.drag(rich('Call back').last, const Offset(-400, 0));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('todo-next-1')));
+      // A swipe to the right gives the next state (#217).
+      await tester.drag(rich('Call back').last, const Offset(400, 0));
       await tester.pumpAndSettle();
       expect(note(access), contains('* TODO Call back\n'));
 
@@ -395,7 +400,9 @@ void main() {
         (tester) async {
       final access = withTasks();
       await openTasks(tester, access);
-      await chooseDone(tester);
+      // A checkbox; the heading actions add an Undo to the bar (#217).
+      await tester.tap(rich('bread').last);
+      await tester.pumpAndSettle();
       final confirmation = tester.widget<SnackBar>(find.byType(SnackBar));
       expect(confirmation.action, isNull);
       expect(confirmation.persist, isFalse);
@@ -415,12 +422,11 @@ void main() {
       expect(find.byType(SnackBar), findsNothing);
     });
 
-    testWidgets('a slide offers the next state', (tester) async {
+    testWidgets('a swipe to the right gives the next state', (tester) async {
       final access = withTasks();
       await openTasks(tester, access);
-      await tester.drag(rich('Call back').last, const Offset(-400, 0));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('todo-next-1')));
+      // A swipe to the right gives the next state (#217).
+      await tester.drag(rich('Call back').last, const Offset(400, 0));
       await tester.pumpAndSettle();
       expect(note(access), contains('* TODO Call back\n'));
     });

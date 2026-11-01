@@ -92,9 +92,10 @@ class ViewSettings {
     this.theme = AppTheme.system,
     this.scripts = ScriptMode.braces,
     this.joinLines = true,
+    bool? swipeHeadings,
     this.imageFolder = defaultImageFolder,
     this.emacsClient = '',
-  });
+  }) : _swipeHeadings = swipeHeadings;
 
   /// Where new images go (#112), relative to `roam/`.
   static const defaultImageFolder = 'img';
@@ -131,6 +132,14 @@ class ViewSettings {
   /// filled paragraphs wrap at the screen's width (#219); on by default.
   final bool joinLines;
 
+  /// Whether a swipe on a heading changes its TODO state or deletes it
+  /// (#217), as the user set it; null for the platform's default.
+  final bool? _swipeHeadings;
+
+  /// Whether a swipe on a heading acts (#217): on by default on Android,
+  /// off on the desktop, where a mouse drag selects text.
+  bool get swipeHeadings => _swipeHeadings ?? !isDesktop;
+
   /// The folder for images the AI makes (#112), relative to `roam/`, as
   /// [cleanImageFolder] gives it.
   final String imageFolder;
@@ -162,6 +171,7 @@ class ViewSettings {
     AppTheme? theme,
     ScriptMode? scripts,
     bool? joinLines,
+    bool? swipeHeadings,
     String? imageFolder,
     String? emacsClient,
   }) =>
@@ -174,6 +184,7 @@ class ViewSettings {
         theme: theme ?? this.theme,
         scripts: scripts ?? this.scripts,
         joinLines: joinLines ?? this.joinLines,
+        swipeHeadings: swipeHeadings ?? _swipeHeadings,
         imageFolder: imageFolder ?? this.imageFolder,
         emacsClient: emacsClient ?? this.emacsClient,
       );
@@ -187,6 +198,7 @@ class ViewSettings {
         'theme': theme.name,
         'scripts': scripts.name,
         'joinLines': joinLines,
+        'swipeHeadings': ?_swipeHeadings,
         'imageFolder': imageFolder,
         'emacsClient': emacsClient,
       };
@@ -226,6 +238,10 @@ class ViewSettings {
         final bool join => join,
         _ => defaults.joinLines,
       },
+      swipeHeadings: switch (json['swipeHeadings']) {
+        final bool swipe => swipe,
+        _ => null,
+      },
       imageFolder: switch (json['imageFolder']) {
         final String folder => cleanImageFolder(folder) ?? defaults.imageFolder,
         _ => defaults.imageFolder,
@@ -248,13 +264,14 @@ class ViewSettings {
       other.theme == theme &&
       other.scripts == scripts &&
       other.joinLines == joinLines &&
+      other._swipeHeadings == _swipeHeadings &&
       other.imageFolder == imageFolder &&
       other.emacsClient == emacsClient;
 
   @override
   int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
-      startLayout, lastLayout, theme, scripts, joinLines, imageFolder,
-      emacsClient);
+      startLayout, lastLayout, theme, scripts, joinLines, _swipeHeadings,
+      imageFolder, emacsClient);
 }
 
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
@@ -813,6 +830,16 @@ class ViewSettingsScreen extends StatelessWidget {
             value: settings.joinLines,
             onChanged: (value) =>
                 _saveSettings(context, settings.copyWith(joinLines: value)),
+          ),
+          SwitchListTile(
+            key: const ValueKey('settings-swipe-headings'),
+            title: const Text('Swipe actions on headings'),
+            subtitle: const Text('Swipe a heading to the right for its '
+                'next TODO state, to the left to delete it. On by default '
+                'on Android, off on the desktop.'),
+            value: settings.swipeHeadings,
+            onChanged: (value) => _saveSettings(
+                context, settings.copyWith(swipeHeadings: value)),
           ),
           const Divider(),
           const ListTile(

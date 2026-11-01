@@ -42,6 +42,10 @@ From top to bottom:
   fixed-width lines (~: ~), drawers and LaTeX environments show their lines
   as written. Search finds words across a joined line break. Off: the lines
   show as they are in the file. The file itself is never changed.
+- *Swipe actions on headings*: on by default on Android, off on Linux,
+  Windows and macOS. Swipe a heading to the right for its next TODO state,
+  to the left to delete it; see
+  [[id:roam-graph-help-todo][Tick a TODO or a checkbox, and undo]].
 - *Graph layout at start*: *Force-directed*, *Circular (circo)*, *Radial*,
   *Grouped by communities*, *Hierarchical (dot)*, or *Last used*, the
   layout chosen last in the graph's *View* menu. The *View* menu still

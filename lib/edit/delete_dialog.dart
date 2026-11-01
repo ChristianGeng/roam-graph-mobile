@@ -25,6 +25,8 @@ Future<HandDeletion?> confirmDeleteNotes(
   required RoamGraph graph,
   required List<RoamNode> nodes,
   required NoteWriter writer,
+  Map<String, (int, int)> alsoLines = const {},
+  String? heading,
 }) async {
   final editor = writer.editor;
   if (editor == null || nodes.isEmpty) return null;
@@ -62,7 +64,7 @@ Future<HandDeletion?> confirmDeleteNotes(
   );
   final DeletePlan plan;
   try {
-    plan = await deleter.prepare(graph, nodes);
+    plan = await deleter.prepare(graph, nodes, alsoLines: alsoLines);
   } on DeleteError catch (e) {
     if (context.mounted) {
       showErrorSnackBar(ScaffoldMessenger.of(context), e.message);
@@ -73,7 +75,8 @@ Future<HandDeletion?> confirmDeleteNotes(
   return showDialog<HandDeletion>(
     context: context,
     builder: (_) =>
-        _DeleteDialog(plan: plan, deleter: deleter, changes: changes),
+        _DeleteDialog(
+            plan: plan, deleter: deleter, changes: changes, heading: heading),
   );
 }
 
@@ -82,8 +85,13 @@ class _DeleteDialog extends StatefulWidget {
     required this.plan,
     required this.deleter,
     required this.changes,
+    this.heading,
   });
   final DeletePlan plan;
+
+  /// The heading without an ID that is deleted with the nodes in its
+  /// subtree (#217), if any.
+  final String? heading;
   final NodeDeleter deleter;
   final AgentChanges changes;
 
@@ -124,13 +132,16 @@ class _DeleteDialogState extends State<_DeleteDialog> {
   Widget build(BuildContext context) {
     final plan = widget.plan;
     final nodes = plan.targets;
-    final only = nodes.length == 1 ? nodes.single : null;
+    final heading = widget.heading;
+    final only = nodes.length == 1 && heading == null ? nodes.single : null;
     final headings = only != null && only.isFile ? plan.gone.length - 1 : 0;
     return PopScope(
       canPop: !_busy,
       child: AlertDialog(
         title: Text(
-          only == null
+          heading != null
+              ? "Delete the heading '$heading'?"
+              : only == null
               ? 'Delete ${nodes.length} notes?'
               : "Delete '${only.displayTitle}'?",
         ),
@@ -148,6 +159,12 @@ class _DeleteDialogState extends State<_DeleteDialog> {
                 Text(
                   '$headings ${headings == 1 ? 'heading node' : 'heading nodes'} '
                   'in this file will also be deleted.',
+                ),
+              if (heading != null)
+                Text(
+                  'The heading and its subtree will be removed from '
+                  '${nodes.first.file}, with '
+                  '${nodes.length == 1 ? 'this note' : 'these ${nodes.length} notes'}:',
                 ),
               if (only == null) ...[
                 for (final node in nodes.take(10)) Text(node.displayTitle),
