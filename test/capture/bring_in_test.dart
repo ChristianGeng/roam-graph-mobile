@@ -307,6 +307,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(chatInput(tester), 'Shared text (notes.txt):\n> From a file.\n\n'
           'My question?');
+      // Focused, so the field scrolls to the dropped text.
+      final field = tester.widget<TextField>(
+          find.byKey(const ValueKey('chat-input')));
+      expect(field.focusNode!.hasFocus, isTrue);
+      expect(field.controller!.selection.baseOffset,
+          'Shared text (notes.txt):\n> From a file.\n\n'.length);
       // No capture screen opened for it.
       expect(find.text('New node'), findsNothing);
     }, variant: linux);

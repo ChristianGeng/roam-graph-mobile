@@ -120,6 +120,10 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   late final _input = TextEditingController(text: widget.initialInput);
+
+  /// The message field's focus: a drop focuses it, so the field scrolls to
+  /// the dropped text, which may be below its five visible lines (#220).
+  final _inputFocus = FocusNode();
   final _scroll = ScrollController();
   late final ChatStore _store;
   late Chat _chat;
@@ -232,6 +236,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     TextDrop.remove(_takeDrop);
+    _inputFocus.dispose();
     widget.graph.removeListener(_refreshTools);
     // A request under way goes on: the chat belongs to the store (#201).
     _leave(_chat);
@@ -270,6 +275,7 @@ class _ChatScreenState extends State<ChatScreen> {
       text: text.substring(0, at) + added + text.substring(at),
       selection: TextSelection.collapsed(offset: at + added.length),
     );
+    _inputFocus.requestFocus();
     return true;
   }
 
@@ -1569,6 +1575,7 @@ class _ChatScreenState extends State<ChatScreen> {
               child: TextField(
                 key: const ValueKey('chat-input'),
                 controller: _input,
+                focusNode: _inputFocus,
                 minLines: 1,
                 maxLines: 5,
                 textInputAction: TextInputAction.newline,
