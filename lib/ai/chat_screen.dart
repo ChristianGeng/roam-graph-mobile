@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 
+import '../capture/audio_info.dart';
 import '../capture/capture_screen.dart';
 import '../capture/share_inbox.dart';
 import '../capture/text_files.dart';
@@ -258,6 +259,9 @@ class _ChatScreenState extends State<ChatScreen> {
       case SharedText(:final text):
         added = sharedTextMessage(text);
       case SharedFiles(:final files):
+        // A voice memo (#221) is transcribed and reviewed in the capture
+        // screen, not put into the message field.
+        if (files.any((f) => isAudioFile(f.name, f.mimeType))) return false;
         final read = readTextFiles(files);
         if (read.notes.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(

@@ -16,6 +16,7 @@ import 'model_picker.dart';
 import 'note_language.dart';
 import 'ai_providers.dart';
 import 'ai_visibility.dart';
+import 'speech.dart';
 import 'chat_store.dart' show ChatStoreScope;
 
 /// One provider's values (#59), where they differ from its preset
@@ -174,7 +175,37 @@ class AiSettings {
     this.maxParallelChats = 3,
     this.keepChatsDays = 90,
     this.notifyAnswers = true,
+    this.speechProvider = '',
+    this.speechModels = const {},
+    this.speechLanguage = '',
+    this.speechSpeakers = false,
+    this.speechConsent = const [],
   });
+
+  /// "Speech to text: provider" (#221): the ID of a [speechProviders]
+  /// entry; empty for automatic: Mistral when its key is set, else OpenAI
+  /// when its key is set.
+  final String speechProvider;
+
+  /// The model for each speech provider, by ID; a provider not in it has
+  /// its default.
+  final Map<String, String> speechModels;
+
+  /// "Speech to text: language": empty for the language of new notes,
+  /// [speechLanguageAuto] to let the provider detect it, or a code.
+  final String speechLanguage;
+
+  /// "Speakers" (#221): ask for speaker labels where the provider has them.
+  final bool speechSpeakers;
+
+  /// The IDs of the speech providers the user agreed to send recordings to.
+  final List<String> speechConsent;
+
+  /// The model of the speech provider [id].
+  String speechModel(String id) {
+    final saved = speechModels[id]?.trim() ?? '';
+    return saved.isEmpty ? speechProviderById(id).defaultModel : saved;
+  }
 
   /// "Most chats working at the same time" (#201): a further send waits.
   final int maxParallelChats;
@@ -274,6 +305,11 @@ class AiSettings {
     int? maxParallelChats,
     int? keepChatsDays,
     bool? notifyAnswers,
+    String? speechProvider,
+    Map<String, String>? speechModels,
+    String? speechLanguage,
+    bool? speechSpeakers,
+    List<String>? speechConsent,
   }) =>
       AiSettings(
         hiddenTags: hiddenTags ?? this.hiddenTags,
@@ -294,6 +330,11 @@ class AiSettings {
         maxParallelChats: maxParallelChats ?? this.maxParallelChats,
         keepChatsDays: keepChatsDays ?? this.keepChatsDays,
         notifyAnswers: notifyAnswers ?? this.notifyAnswers,
+        speechProvider: speechProvider ?? this.speechProvider,
+        speechModels: speechModels ?? this.speechModels,
+        speechLanguage: speechLanguage ?? this.speechLanguage,
+        speechSpeakers: speechSpeakers ?? this.speechSpeakers,
+        speechConsent: speechConsent ?? this.speechConsent,
       );
 
   Map<String, Object?> toJson() => {
@@ -318,6 +359,11 @@ class AiSettings {
         'maxParallelChats': maxParallelChats,
         'keepChatsDays': keepChatsDays,
         'notifyAnswers': notifyAnswers,
+        'speechProvider': speechProvider,
+        'speechModels': speechModels,
+        'speechLanguage': speechLanguage,
+        'speechSpeakers': speechSpeakers,
+        'speechConsent': speechConsent,
       };
 
   /// Settings from [json]; a missing or unreadable value keeps its default.
@@ -387,9 +433,37 @@ class AiSettings {
       notifyAnswers: json['notifyAnswers'] is bool
           ? json['notifyAnswers'] as bool
           : defaults.notifyAnswers,
+      speechProvider: switch (json['speechProvider']) {
+        final String id when speechProviders.any((p) => p.id == id) => id,
+        _ => defaults.speechProvider,
+      },
+      speechModels: {
+        if (json['speechModels'] case final Map models)
+          for (final MapEntry(:key, :value) in models.entries)
+            if (key is String &&
+                speechProviders.any((p) => p.id == key) &&
+                value is String &&
+                value.trim().isNotEmpty)
+              key: value.trim(),
+      },
+      speechLanguage: switch (json['speechLanguage']) {
+        final String code when code == speechLanguageAuto => code,
+        final String code => languageCode(code) ?? defaults.speechLanguage,
+        _ => defaults.speechLanguage,
+      },
+      speechSpeakers: json['speechSpeakers'] == true,
+      speechConsent: [
+        if (json['speechConsent'] case final List ids)
+          for (final id in ids)
+            if (id is String && speechProviders.any((p) => p.id == id)) id,
+      ],
     );
   }
 }
+
+/// The value of [AiSettings.speechLanguage] for "let the provider detect
+/// the language".
+const speechLanguageAuto = 'auto';
 
 /// The choices of "Keep chats for" (#201): days, 0 for always.
 const keepChatsChoices = [
@@ -433,6 +507,46 @@ Future<ProviderConfig> providerConfig(
     maxOutputTokens: settings.maxOutputTokens,
     // A local server such as Ollama needs no key.
     keyRequired: preset.id != 'custom',
+  );
+}
+
+/// What a transcription needs (#221): the provider, its model and key,
+/// the language and the speaker labels, from [settings]. The provider is
+/// the chosen one; for "Automatic", Mistral when its key is set, else
+/// OpenAI when its key is set, else Mistral. The key is empty when none
+/// is saved.
+Future<SpeechConfig> speechConfig(
+    AiSettings settings, ApiKeyStore keys) async {
+  Future<String> keyOf(SpeechProvider provider) async {
+    try {
+      return (await keys.read(provider.keyId))?.trim() ?? '';
+    } on Exception {
+      return '';
+    }
+  }
+
+  var provider = speechProviderById(settings.speechProvider);
+  var key = await keyOf(provider);
+  if (settings.speechProvider.isEmpty && key.isEmpty) {
+    final other = speechProviderById('openai');
+    final otherKey = await keyOf(other);
+    if (otherKey.isNotEmpty) {
+      provider = other;
+      key = otherKey;
+    }
+  }
+  final language = switch (settings.speechLanguage) {
+    '' => settings.newNoteLanguage,
+    speechLanguageAuto => null,
+    final code => code,
+  };
+  return SpeechConfig(
+    provider: provider,
+    model: settings.speechModel(provider.id),
+    apiKey: key,
+    // The API takes the two letters: pt-BR is pt.
+    language: language?.substring(0, 2),
+    speakers: settings.speechSpeakers && provider.speakers,
   );
 }
 
@@ -828,6 +942,21 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   int _keepChats = 90;
   bool _webAccess = false;
   bool _notifyAnswers = true;
+
+  /// "Speech to text" (#221): '' for automatic, else a provider ID.
+  String _speechProvider = '';
+  final _speechMistralModel = TextEditingController();
+  final _speechOpenAiModel = TextEditingController();
+
+  /// '' for the language of new notes, [speechLanguageAuto], or 'code'.
+  String _speechLanguageMode = '';
+  final _speechLanguage = TextEditingController();
+  bool _speechSpeakers = false;
+
+  /// A new OpenAI key typed in, and whether one is saved or to be removed.
+  final _openAiKey = TextEditingController();
+  bool _openAiKeySaved = false;
+  bool _openAiKeyRemove = false;
   AiEditMode _editMode = AiEditMode.agent;
   AiSettings? _loaded;
   String? _problem;
@@ -947,7 +1076,27 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _keepChats = settings.keepChatsDays;
       _webAccess = settings.webAccess;
       _notifyAnswers = settings.notifyAnswers;
+      _speechProvider = settings.speechProvider;
+      _speechMistralModel.text = settings.speechModel('mistral');
+      _speechOpenAiModel.text = settings.speechModel('openai');
+      _speechLanguageMode = switch (settings.speechLanguage) {
+        '' => '',
+        speechLanguageAuto => speechLanguageAuto,
+        _ => 'code',
+      };
+      _speechLanguage.text = _speechLanguageMode == 'code'
+          ? settings.speechLanguage
+          : settings.newNoteLanguage;
+      _speechSpeakers = settings.speechSpeakers;
+      try {
+        final saved = await AiSettingsScope.keysOf(context)
+            ?.read(speechProviderById('openai').keyId);
+        _openAiKeySaved = saved != null && saved.isNotEmpty;
+      } on Exception {
+        _openAiKeySaved = false;
+      }
       _editMode = settings.editMode;
+      await _draft('mistral');
       await _draft(_provider);
       if (_imageProvider.isNotEmpty) await _draft(_imageProvider);
       if (_infographicProvider.isNotEmpty) await _draft(_infographicProvider);
@@ -998,6 +1147,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _webSearches.dispose();
     _language.dispose();
     _parallel.dispose();
+    _speechMistralModel.dispose();
+    _speechOpenAiModel.dispose();
+    _speechLanguage.dispose();
+    _openAiKey.dispose();
     for (final d in _drafts.values) {
       d.dispose();
     }
@@ -1056,7 +1209,18 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           'be at least 1, and tokens per answer at least 256.');
       return;
     }
+    final speechCode = languageCode(_speechLanguage.text);
+    if (_speechLanguageMode == 'code' && speechCode == null) {
+      setState(() => _problem = 'The language for speech to text must be a '
+          'language code such as en or de.');
+      return;
+    }
     final settings = AiSettingsScope.of(context).copyWith(
+      speechProvider: _speechProvider,
+      speechModels: _speechModels(),
+      speechLanguage:
+          _speechLanguageMode == 'code' ? speechCode : _speechLanguageMode,
+      speechSpeakers: _speechSpeakers,
       hiddenTags: tags.tags,
       provider: _provider,
       imageProvider: _imageProvider,
@@ -1085,6 +1249,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _problem = null;
     });
     try {
+      final openAiKey = _openAiKey.text.trim();
+      if (openAiKey.isNotEmpty) {
+        await keys?.write(speechProviderById('openai').keyId, openAiKey);
+      } else if (_openAiKeyRemove) {
+        await keys?.write(speechProviderById('openai').keyId, '');
+      }
       for (final MapEntry(key: id, value: draft) in _drafts.entries) {
         final key = draft.key.text.trim();
         if (key.isNotEmpty) {
@@ -1116,6 +1286,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         _infographicProvider != saved.infographicProvider ||
         _webAccess != saved.webAccess ||
         _notifyAnswers != saved.notifyAnswers ||
+        _speechProvider != saved.speechProvider ||
+        jsonEncode(_speechModels()) != jsonEncode(saved.speechModels) ||
+        _speechLanguageValue != saved.speechLanguage ||
+        _speechSpeakers != saved.speechSpeakers ||
+        _openAiKey.text.trim().isNotEmpty ||
+        _openAiKeyRemove ||
         _editMode != saved.editMode ||
         _rounds.text.trim() != '${saved.maxToolRounds}' ||
         _tokens.text.trim() != '${saved.maxOutputTokens}' ||
@@ -1267,6 +1443,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                       _agentSection),
                   _row('ai-web', Icons.public, 'Web access', web!,
                       _webSection),
+                  _row('ai-speech', Icons.mic_none, 'Speech to text',
+                      _speechLine(), _speechSection),
                   _row('ai-notes', Icons.translate, 'Notes', notes!,
                       _notesSection),
                   _row('ai-privacy', Icons.lock_outline, 'Privacy', privacy!,
@@ -1275,6 +1453,167 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               ),
       ),
     );
+  }
+
+  /// The models typed on the speech page, those that differ from the
+  /// provider's default.
+  Map<String, String> _speechModels() => {
+        for (final (id, field) in [
+          ('mistral', _speechMistralModel),
+          ('openai', _speechOpenAiModel),
+        ])
+          if (field.text.trim().isNotEmpty &&
+              field.text.trim() != speechProviderById(id).defaultModel)
+            id: field.text.trim(),
+      };
+
+  /// What [AiSettings.speechLanguage] would be now.
+  String get _speechLanguageValue => _speechLanguageMode == 'code'
+      ? languageCode(_speechLanguage.text) ?? _speechLanguage.text.trim()
+      : _speechLanguageMode;
+
+  /// The speech provider in use: the chosen one, else Mistral when its key
+  /// is set, else OpenAI when its key is set, else Mistral.
+  String _effectiveSpeechProvider() {
+    if (_speechProvider.isNotEmpty) return _speechProvider;
+    final mistral = _drafts['mistral'];
+    final mistralKey = mistral != null &&
+        (mistral.key.text.trim().isNotEmpty ||
+            (mistral.hasKey && !mistral.removeKey));
+    final openAiKey = _openAiKey.text.trim().isNotEmpty ||
+        (_openAiKeySaved && !_openAiKeyRemove);
+    return mistralKey || !openAiKey ? 'mistral' : 'openai';
+  }
+
+  /// The line under "Speech to text".
+  String _speechLine() {
+    final name = speechProviderById(_effectiveSpeechProvider()).name;
+    return _speechProvider.isEmpty ? '$name (automatic)' : name;
+  }
+
+  /// "Speech to text" (#221): the provider that turns a shared voice memo
+  /// into text, its model, the language and the speaker labels.
+  List<Widget> _speechSection(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final mistralDraft = _drafts['mistral'];
+    final mistralKey = mistralDraft != null &&
+        (mistralDraft.key.text.trim().isNotEmpty ||
+            (mistralDraft.hasKey && !mistralDraft.removeKey));
+    final provider = speechProviderById(_effectiveSpeechProvider());
+    return [
+      Text(
+          'A voice memo shared with the app is sent whole to the provider, '
+          'after you agree once for the provider. Recordings of up to 30 '
+          'minutes.',
+          style: text.bodySmall),
+      const SizedBox(height: 8),
+      DropdownButtonFormField<String>(
+        key: ValueKey('speech-provider-$_speechProvider'),
+        initialValue: _speechProvider,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Provider'),
+        items: [
+          const DropdownMenuItem(
+              value: '',
+              child: Text('Automatic (Mistral when its key is set)')),
+          for (final p in speechProviders)
+            DropdownMenuItem(value: p.id, child: Text(p.name)),
+        ],
+        onChanged: (id) => setState(() => _speechProvider = id ?? ''),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text('${provider.name}: ${provider.where} '
+            'Price: ${provider.price}.'),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        key: const ValueKey('speech-model-mistral'),
+        controller: _speechMistralModel,
+        decoration: const InputDecoration(
+          labelText: 'Mistral model',
+          helperText: 'Voxtral; the preset is voxtral-mini-latest. The key '
+              'is the one of Mistral under Chat.',
+          helperMaxLines: 2,
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+            mistralKey
+                ? 'A Mistral key is set.'
+                : 'No Mistral key is set. Set one under Chat → Mistral.',
+            key: const ValueKey('speech-mistral-key'),
+            style: text.bodySmall),
+      ),
+      const SizedBox(height: 16),
+      TextField(
+        key: const ValueKey('speech-model-openai'),
+        controller: _speechOpenAiModel,
+        decoration: const InputDecoration(
+          labelText: 'OpenAI model',
+          helperText: 'For example gpt-4o-mini-transcribe or whisper-1.',
+        ),
+      ),
+      TextField(
+        key: const ValueKey('speech-key-openai'),
+        controller: _openAiKey,
+        obscureText: true,
+        autocorrect: false,
+        enableSuggestions: false,
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          labelText: 'OpenAI API key (for speech to text only)',
+          helperText: _openAiKeySaved && !_openAiKeyRemove
+              ? 'A key is saved. Type a new one to replace it.'
+              : "Kept in Android's secure storage, never in the notes.",
+          helperMaxLines: 2,
+        ),
+      ),
+      if (_openAiKeySaved && !_openAiKeyRemove)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: () => setState(() => _openAiKeyRemove = true),
+            child: const Text('Remove the saved key'),
+          ),
+        ),
+      const SizedBox(height: 16),
+      DropdownButtonFormField<String>(
+        key: ValueKey('speech-language-$_speechLanguageMode'),
+        initialValue: _speechLanguageMode,
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Language'),
+        items: [
+          DropdownMenuItem(
+              value: '',
+              child: Text('Language of new notes (${_languageLine()})',
+                  overflow: TextOverflow.ellipsis)),
+          const DropdownMenuItem(
+              value: speechLanguageAuto, child: Text('Automatic')),
+          const DropdownMenuItem(value: 'code', child: Text('A language code')),
+        ],
+        onChanged: (mode) =>
+            setState(() => _speechLanguageMode = mode ?? ''),
+      ),
+      if (_speechLanguageMode == 'code')
+        TextField(
+          key: const ValueKey('speech-language-code'),
+          controller: _speechLanguage,
+          decoration: const InputDecoration(
+              labelText: 'Language code', helperText: 'For example en or de.'),
+        ),
+      SwitchListTile(
+        key: const ValueKey('speech-speakers'),
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Speakers'),
+        subtitle: const Text('Label the speakers in the text (Speaker 1: …), '
+            'where the provider can: Mistral. With labels, Mistral is not '
+            'given a language.'),
+        value: _speechSpeakers,
+        onChanged: (on) => setState(() => _speechSpeakers = on),
+      ),
+    ];
   }
 
   /// "Privacy": the tags that hide notes from AI (#57).

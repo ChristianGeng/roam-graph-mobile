@@ -59,6 +59,10 @@ example ~/opt/homebrew/bin/emacsclient~.
   The keys do nothing while the search field has the cursor. Swipes on
   headings are off on the desktop; turn on *Swipe actions on headings* in
   Settings → View to drag a heading with the mouse.
+- Audio files dropped on the window, or chosen with *Open files…*, are
+  transcribed as a voice memo, see
+  [[id:roam-graph-help-capture][Capture and shared text]]. There is no
+  notification on the desktop.
 - Web links open in the web browser.
 - *Share with AI* copies the text to the clipboard.
 - Instead of sharing text into the app: drop text or text files on the

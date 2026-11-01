@@ -12,6 +12,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/widgets.dart';
 
+import '../capture/audio_info.dart';
 import '../capture/share_inbox.dart';
 import '../capture/text_files.dart';
 import 'desktop.dart';
@@ -48,12 +49,20 @@ Future<SharedFiles> readLocalFiles(List<String> paths) async =>
 
 Future<IncomingFile> _readLocalFile(String path, bool read) async {
   final name = fileBaseName(path);
-  if (!read || !hasTextExtension(name)) return IncomingFile(name);
+  final audio = hasAudioExtension(name);
+  if (!read || !(hasTextExtension(name) || audio)) return IncomingFile(name);
   try {
     if (await FileSystemEntity.isDirectory(path)) {
       return IncomingFile(name, error: 'it is a folder');
     }
     final file = File(path);
+    // Audio is read when it is used (#221).
+    if (audio) {
+      return IncomingFile(name,
+          path: path,
+          size: await file.length(),
+          modified: await file.lastModified());
+    }
     final size = await file.length();
     if (size > maxFileBytes) return IncomingFile(name, size: size);
     return IncomingFile(name, bytes: await file.readAsBytes());
@@ -62,10 +71,12 @@ Future<IncomingFile> _readLocalFile(String path, bool read) async {
   }
 }
 
-/// "Open files…" (#220): the text files the user chooses.
+/// "Open files…" (#220): the text files and voice memos (#221) the user
+/// chooses.
 Future<List<String>> pickTextFilesOnDesktop() async {
   final files = await openFiles(acceptedTypeGroups: const [
     XTypeGroup(label: 'Text files', extensions: textFileExtensions),
+    XTypeGroup(label: 'Voice memos', extensions: audioFileExtensions),
   ]);
   return [for (final file in files) file.path];
 }

@@ -8,11 +8,15 @@ import 'package:flutter/services.dart';
 
 import '../ai/ai_settings.dart';
 import '../ai/chat_list_screen.dart';
+import '../ai/speech.dart';
 import '../help/help.dart';
+import '../capture/audio_info.dart';
 import '../capture/capture_screen.dart';
 import '../capture/new_node.dart' show newOrgId;
 import '../capture/share_inbox.dart';
 import '../capture/text_files.dart';
+import '../capture/voice_memo.dart';
+import '../capture/voice_memo_screen.dart';
 import '../edit/append_screen.dart';
 import '../edit/edit_proposal.dart';
 import '../edit/edit_screen.dart';
@@ -28,6 +32,7 @@ import '../node_view/node_screen.dart';
 import '../node_view/note_images.dart';
 import '../platform/desktop.dart';
 import '../platform/text_drop.dart';
+import '../platform/voice_work.dart';
 import '../settings/view_settings.dart';
 import 'folder_access.dart';
 import 'folder_report.dart';
@@ -60,7 +65,17 @@ class FolderScreen extends StatefulWidget {
     this.editHistory = const FileEditHistory(),
     this.startProcess = startDetached,
     this.pickTextFiles = pickTextFilesOnDesktop,
+    this.speechPost = postBytesWithDartIo,
+    this.voiceWork,
   });
+
+  /// How a voice memo is sent to the speech provider (#221); tests replace
+  /// it.
+  final AudioPost speechPost;
+
+  /// The service and notifications that keep a transcription going in the
+  /// background (#221); by default those of the platform.
+  final VoiceWork? voiceWork;
 
   /// "Open files…" on the desktop (#220): the paths the user chose; tests
   /// replace it.
@@ -359,10 +374,157 @@ class _FolderScreenState extends State<FolderScreen>
       case SharedText(:final text):
         await _captureText(notifier, text, proposeNode(share));
       case SharedFiles(:final files):
-        await _captureFiles(notifier, readTextFiles(files));
+        // Voice memos (#221) first, one after the other; then the text
+        // files (#220).
+        final audio = [
+          for (final f in files)
+            if (isAudioFile(f.name, f.mimeType)) f,
+        ];
+        for (final file in audio) {
+          if (!mounted) return true;
+          await _captureVoice(notifier, file);
+        }
+        final others = [
+          for (final f in files)
+            if (!isAudioFile(f.name, f.mimeType)) f,
+        ];
+        if (others.isNotEmpty && mounted) {
+          await _captureFiles(notifier, readTextFiles(others));
+        }
     }
     return true;
   }
+
+  /// A voice memo (#221): checks the key and the limits, asks once where
+  /// the audio goes, transcribes it (with the progress screen), and opens
+  /// the capture screen with the text.
+  Future<void> _captureVoice(
+      ValueNotifier<RoamGraph> notifier, IncomingFile file) async {
+    try {
+      await _transcribeAndCapture(notifier, file);
+    } finally {
+      // The app's copy of the audio goes on every way out.
+      await discardCopy(file);
+    }
+  }
+
+  Future<void> _transcribeAndCapture(
+      ValueNotifier<RoamGraph> notifier, IncomingFile file) async {
+    final keys = AiSettingsScope.keysOf(context);
+    final settings = await AiSettingsScope.current(context);
+    if (!mounted) return;
+    final config = keys == null ? null : await speechConfig(settings, keys);
+    if (!mounted) return;
+    if (config == null || config.apiKey.isEmpty) {
+      await _voiceProblem(
+          noSpeechKey(config?.provider ?? speechProviderById('')));
+      return;
+    }
+    final loaded = await loadRecording(file);
+    // Read into memory: the app's copy is not needed any more.
+    await discardCopy(file);
+    if (!mounted) return;
+    final audio = loaded.audio;
+    final problem = loaded.problem ?? refuseRecording(audio!, config.provider);
+    if (problem != null) {
+      await _voiceProblem(problem);
+      return;
+    }
+    final recording = audio!;
+    if (!settings.speechConsent.contains(config.provider.id)) {
+      final agreed = await _askToSend(recording, config.provider);
+      if (!agreed || !mounted) return;
+      try {
+        await AiSettingsScope.change(context,
+            settings.copyWith(speechConsent: [
+              ...settings.speechConsent,
+              config.provider.id,
+            ]));
+      } on Exception {
+        // Not saved: the question comes again next time.
+      }
+      if (!mounted) return;
+    }
+    final transcript = await Navigator.push<Transcript>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VoiceMemoScreen(
+          config: config,
+          audio: recording,
+          post: widget.speechPost,
+          work: widget.voiceWork ?? platformVoiceWork(),
+        ),
+      ),
+    );
+    if (transcript == null || !mounted) return;
+    final body = voiceMemoBody(
+      fileName: recording.name,
+      length: recording.length,
+      config: config,
+      text: transcript.text,
+    );
+    final dot = recording.name.lastIndexOf('.');
+    await _captureText(
+      notifier,
+      body,
+      (title: voiceMemoTitle(loaded.time), body: body),
+      name: recording.name,
+      recording: KeptRecording(
+        extension: dot > 0 ? recording.name.substring(dot + 1) : 'audio',
+        bytes: recording.bytes,
+      ),
+    );
+  }
+
+  /// The question before the first recording goes to [provider]: where it
+  /// goes, and that the provider gets it.
+  Future<bool> _askToSend(SpeechAudio audio, SpeechProvider provider) async {
+    final length = audio.length;
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const ValueKey('voice-consent'),
+        title: Text('Send the recording to ${provider.name}?'),
+        content: Text(
+            '${audio.name} (${[
+              if (length != null) formatLength(length),
+              formatSize(audio.bytes.length),
+            ].join(', ')}) goes whole to ${provider.name} to be turned into '
+            'text. ${provider.where} The provider gets the recording itself, '
+            'not only the text. This question is not asked again for '
+            '${provider.name}; the recording is sent only when you share a '
+            'file. Nothing is saved before you save the note.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const ValueKey('voice-consent-send'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    return agreed == true;
+  }
+
+  /// A voice memo that cannot be transcribed, and why.
+  Future<void> _voiceProblem(String message) => showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          key: const ValueKey('voice-problem'),
+          title: const Text('Voice memo'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
 
   /// Text files shared or brought in (#220): one file as shared text with
   /// the file name as the proposed title; for several files, the user
@@ -449,6 +611,7 @@ class _FolderScreenState extends State<FolderScreen>
     String? name,
     TextFile? orgFile,
     String? notice,
+    KeptRecording? recording,
   }) async {
     final last = notifier.value.nodes[await widget.nodeMemory.lastNode()];
     if (!mounted) return;
@@ -466,6 +629,7 @@ class _FolderScreenState extends State<FolderScreen>
       linkTo: last == null ? null : (id: last.id, title: last.displayTitle),
       linkByDefault: false,
       notice: notice,
+      recording: recording,
       uses: {
         ShareUse.append,
         ShareUse.replace,

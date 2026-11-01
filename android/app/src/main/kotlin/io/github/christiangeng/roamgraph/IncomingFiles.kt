@@ -2,10 +2,13 @@ package io.github.christiangeng.roamgraph
 
 import android.content.ContentResolver
 import android.content.Intent
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 
 /**
  * Text files shared with the app (#220): ACTION_SEND or ACTION_SEND_MULTIPLE
@@ -20,6 +23,16 @@ object IncomingFiles {
 
     /** The most files taken at once; the others are only named. */
     const val MAX_FILES = 20
+
+    /**
+     * The largest audio file taken (100 MB), and the most audio files copied
+     * at once (#221). Audio is copied to the cache folder "voice", not read
+     * into memory: the Dart side reads the copy when it is used.
+     */
+    const val MAX_AUDIO_BYTES = 100L * 1024 * 1024
+    const val MAX_AUDIO_FILES = 5
+
+    private val audioExtensions = setOf("mp3", "m4a", "aac", "mp4", "wav", "flac", "ogg", "oga", "opus", "webm", "weba")
 
     private val extensions = setOf("txt", "md", "markdown", "org")
     private val mimeTypes = setOf("text/plain", "text/markdown", "text/x-markdown", "text/x-org", "text/org")
@@ -57,14 +70,29 @@ object IncomingFiles {
         return mimeType?.substringBefore(';')?.trim()?.lowercase() in mimeTypes
     }
 
+    /** True if the file is taken as audio, by its MIME type or its name (#221). */
+    fun isAudio(name: String, mimeType: String?): Boolean {
+        val type = mimeType?.substringBefore(';')?.trim()?.lowercase() ?: ""
+        if (type.startsWith("audio/") || type == "video/webm" || type == "video/mp4") return true
+        val dot = name.lastIndexOf('.')
+        return dot > 0 && name.substring(dot + 1).lowercase() in audioExtensions
+    }
+
     /**
      * Each file as a map for the Dart side: name, mimeType, and bytes (at
      * most MAX_BYTES + 1), size when it is larger, or error. Files after
      * the first MAX_FILES and files that are not text are not read.
      * Runs off the main thread: reading may be slow.
      */
-    fun read(resolver: ContentResolver, uris: List<Uri>, sentType: String?): List<Map<String, Any?>> =
-        uris.mapIndexed { index, uri ->
+    fun read(
+        resolver: ContentResolver,
+        voiceDir: File,
+        uris: List<Uri>,
+        sentType: String?,
+    ): List<Map<String, Any?>> {
+        clearOldVoice(voiceDir)
+        var audioCount = 0
+        return uris.mapIndexed { index, uri ->
             // Only content:// URIs are opened: a file:// URI would be opened
             // with the app's own rights, so a sender could make it read the
             // app's private files. The others are named with the reason.
@@ -99,7 +127,7 @@ object IncomingFiles {
             // than a sender that says text.
             val mimeType = if (
                 providerType?.substringBefore(';')?.trim()?.lowercase() == "application/octet-stream" &&
-                isText(name, sentType)
+                (isText(name, sentType) || isAudio(name, sentType))
             ) {
                 sentType
             } else {
@@ -108,6 +136,13 @@ object IncomingFiles {
             val file = mutableMapOf<String, Any?>("name" to name, "mimeType" to mimeType)
             val known = size
             when {
+                isAudio(name, mimeType) -> {
+                    // Audio is copied, up to MAX_AUDIO_FILES of it (#221).
+                    if (audioCount < MAX_AUDIO_FILES) {
+                        audioCount++
+                        copyAudio(resolver, uri, voiceDir, audioCount, name, size, file)
+                    }
+                }
                 index >= MAX_FILES || !isText(name, mimeType) -> {}
                 known != null && known > MAX_BYTES -> file["size"] = known
                 else -> try {
@@ -119,6 +154,85 @@ object IncomingFiles {
             }
             file
         }
+    }
+
+    /**
+     * Copies the audio at [uri] to [voiceDir], and puts its "path" and, if
+     * Android can tell, its "durationMs" into [file]; a file over
+     * MAX_AUDIO_BYTES is not copied and gets its "size" instead.
+     */
+    private fun copyAudio(
+        resolver: ContentResolver,
+        uri: Uri,
+        voiceDir: File,
+        number: Int,
+        name: String,
+        size: Long?,
+        file: MutableMap<String, Any?>,
+    ) {
+        if (size != null && size > MAX_AUDIO_BYTES) {
+            file["size"] = size
+            return
+        }
+        var copy: File? = null
+        try {
+            voiceDir.mkdirs()
+            val safe = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
+            // Keep the whole file name under the 255-byte limit: shorten the
+            // name from the front of its stem, and keep the extension.
+            val dot = safe.lastIndexOf('.')
+            val ext = if (dot > 0 && safe.length - dot <= 10) safe.substring(dot) else ""
+            val stem = safe.substring(0, safe.length - ext.length).take(120)
+            copy = File(voiceDir, "${System.currentTimeMillis()}-$number-$stem$ext")
+            var total = 0L
+            val input = resolver.openInputStream(uri) ?: throw IllegalStateException("the file could not be opened")
+            input.use {
+                FileOutputStream(copy!!).use { out ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (total <= MAX_AUDIO_BYTES) {
+                        val n = it.read(buffer)
+                        if (n < 0) break
+                        out.write(buffer, 0, n)
+                        total += n
+                    }
+                }
+            }
+            if (total > MAX_AUDIO_BYTES) {
+                copy!!.delete()
+                file["size"] = total
+                return
+            }
+            file["path"] = copy!!.absolutePath
+            // The app's own copy, which the Dart side may delete.
+            file["copy"] = true
+            file["size"] = total
+            durationMs(copy!!)?.let { file["durationMs"] = it }
+        } catch (e: Exception) {
+            // A partial copy is of no use to Dart, which never learns its path.
+            copy?.delete()
+            // SecurityException, FileNotFoundException, IOException and the like.
+            file["error"] = e.message ?: e.javaClass.simpleName
+        }
+    }
+
+    /** The length of the audio file, or null if Android cannot tell. */
+    private fun durationMs(file: File): Int? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?.toInt()
+        } catch (e: Exception) {
+            null
+        } finally {
+            retriever.release()
+        }
+    }
+
+    /** Deletes copies from earlier shares that are more than a day old. */
+    private fun clearOldVoice(voiceDir: File) {
+        val limit = System.currentTimeMillis() - 24L * 60 * 60 * 1000
+        voiceDir.listFiles()?.forEach { if (it.lastModified() < limit) it.delete() }
+    }
 
     private fun readAtMost(resolver: ContentResolver, uri: Uri, limit: Int): ByteArray {
         val stream = resolver.openInputStream(uri) ?: throw IllegalStateException("the file could not be opened")

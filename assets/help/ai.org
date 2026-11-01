@@ -101,6 +101,13 @@ screen stays on while any chat works.
 If two chats change the same note, the second change is refused with the
 message that the note changed meanwhile, and nothing is lost.
 
+** Voice memos
+A shared audio file is transcribed and reviewed in the capture screen, see
+[[id:roam-graph-help-capture][Capture and shared text]]. It works in the
+background like a chat: an ongoing notification while it runs, and *Voice
+memo ready* or *Voice memo failed* when it ends and the app is not on
+screen.
+
 ** Work in the background and notifications
 :PROPERTIES:
 :ID:       roam-graph-help-chat-notifications

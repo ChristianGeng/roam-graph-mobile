@@ -24,6 +24,8 @@ object ChatNotifications {
     private const val CHANNEL_ANSWER = "chat_answer"
     const val WORK_ID = 2020
     private const val ANSWER_ID = 2021
+    private const val VOICE_ID = 2022
+    const val WHAT_VOICE = "voice"
 
     /**
      * True when the app may show notifications: the permission on Android 13
@@ -82,14 +84,48 @@ object ChatNotifications {
         return builder.setSmallIcon(R.drawable.ic_stat_chat)
     }
 
+    /** A tap opens the app where it was, with no chat (#221). */
+    private fun appIntent(context: Context): PendingIntent {
+        val open = Intent(context, MainActivity::class.java)
+            .setAction(Intent.ACTION_MAIN)
+            .addCategory(Intent.CATEGORY_LAUNCHER)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        return PendingIntent.getActivity(
+            context,
+            1,
+            open,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
+    /** A voice memo's text is ready, or its transcription failed (#221). */
+    fun voice(context: Context, title: String, text: String) {
+        if (!answersAllowed(context)) return
+        val notification = builder(context, CHANNEL_ANSWER)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setAutoCancel(true)
+            .setContentIntent(appIntent(context))
+            .build()
+        manager(context).notify(VOICE_ID, notification)
+    }
+
     /** The ongoing, low-priority notification of the service. */
-    fun working(context: Context, chats: Int): Notification {
-        val text = if (chats == 1) "AI is working on 1 chat" else "AI is working on $chats chats"
+    fun working(context: Context): Notification {
+        val chats = WorkCounts.chats
+        val voice = WorkCounts.voice > 0
+        val chatText = if (chats == 1) "1 chat" else "$chats chats"
+        val text = when {
+            chats > 0 && voice -> "AI is working on $chatText and a voice memo"
+            voice -> "Transcribing a voice memo"
+            else -> "AI is working on $chatText"
+        }
         return builder(context, CHANNEL_WORK)
             .setContentTitle(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setContentIntent(tapIntent(context, ""))
+            .setContentIntent(if (chats == 0) appIntent(context) else tapIntent(context, ""))
             .build()
     }
 
@@ -107,9 +143,9 @@ object ChatNotifications {
         manager(context).notify(chatId, ANSWER_ID, notification)
     }
 
-    fun update(context: Context, chats: Int) {
+    fun update(context: Context) {
         if (!allowed(context)) return
-        manager(context).notify(WORK_ID, working(context, chats))
+        manager(context).notify(WORK_ID, working(context))
     }
 }
 
@@ -122,9 +158,8 @@ class ChatWorkService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val chats = intent?.getIntExtra(EXTRA_CHATS, 1) ?: 1
         running = true
-        val notification = ChatNotifications.working(this, chats)
+        val notification = ChatNotifications.working(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 ChatNotifications.WORK_ID,
@@ -148,18 +183,22 @@ class ChatWorkService : Service() {
     }
 
     companion object {
-        const val EXTRA_CHATS = "chats"
 
         /** True while the service runs; then the notification is updated in place. */
         @Volatile
         var running = false
 
-        fun start(context: Context, chats: Int) {
+        /**
+         * Work of one kind ([what] is "voice" for a voice memo, else AI chats)
+         * runs: [count] chats, or a memo. The service runs while any kind works.
+         */
+        fun start(context: Context, count: Int, what: String? = null) {
+            WorkCounts.set(what, count)
             if (running) {
-                ChatNotifications.update(context, chats)
+                ChatNotifications.update(context)
                 return
             }
-            val intent = Intent(context, ChatWorkService::class.java).putExtra(EXTRA_CHATS, chats)
+            val intent = Intent(context, ChatWorkService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -167,9 +206,32 @@ class ChatWorkService : Service() {
             }
         }
 
+        /** The work of one kind ended; the service stops when none is left. */
+        fun finish(context: Context, what: String? = null) {
+            WorkCounts.set(what, 0)
+            if (WorkCounts.chats == 0 && WorkCounts.voice == 0) {
+                stop(context)
+            } else if (running) {
+                ChatNotifications.update(context)
+            }
+        }
+
         fun stop(context: Context) {
             running = false
             context.stopService(Intent(context, ChatWorkService::class.java))
         }
+    }
+}
+
+/** What works now, by kind, so the service stops only when both are done (#221). */
+object WorkCounts {
+    @Volatile
+    var chats = 0
+
+    @Volatile
+    var voice = 0
+
+    fun set(what: String?, count: Int) {
+        if (what == ChatNotifications.WHAT_VOICE) voice = count else chats = count
     }
 }

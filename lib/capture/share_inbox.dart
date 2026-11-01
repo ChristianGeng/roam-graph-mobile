@@ -97,6 +97,9 @@ class PlatformShareInbox implements ShareInbox {
             bytes: file['bytes'] as Uint8List?,
             size: file['size'] as int?,
             error: file['error'] as String?,
+            path: file['path'] as String?,
+            durationMs: file['durationMs'] as int?,
+            isCopy: file['copy'] == true,
           ),
       ]);
     }

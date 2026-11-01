@@ -139,6 +139,20 @@ first)" orders per-image prices first, then token prices by output price,
 and unknown prices last. A token price cannot be compared with a price
 per image; this does not tell what an actual request will cost.
 
+* Speech to text
+Voice memos (up to 30 minutes) are transcribed by a separate model, set in
+AI settings → Speech to text.
+
+- *Mistral voxtral-mini-latest* (cheap): about 0.003 USD per minute of
+  audio, processed in the EU, can label speakers. The default when a
+  Mistral key is set; it uses the key of Mistral under Chat.
+- *OpenAI gpt-4o-mini-transcribe* (cheap): about 0.003 USD per minute,
+  processed outside the EU, at most 25 MB per recording, no speaker
+  labels in the app. The model whisper-1 also works. It has its own key field.
+
+A recording of 10 minutes costs about 3 cents. The model list of the chat
+does not include these models.
+
 * EU only
 These statements follow the provider notes in the app's settings.
 
