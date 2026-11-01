@@ -9,8 +9,8 @@ shows its counts, and draws the graph like `org-roam-graph`, as a whole or
 around one node, with a circular (`circo`) or a force-directed layout (#6).
 A tap on a node opens it as formatted Org, with tappable `id:` links and its
 backlinks (#8). Search finds nodes by title, alias and tag as you type (#9).
-A button opens the node's file in Orgro, read-only (#10). On a tablet in
-landscape, graph and node view are side by side (#16). Graph views show
+A button opens the node's file in another app, chosen in Android's app
+chooser, read-only (#10, #218). On a tablet in landscape, graph and node view are side by side (#16). Graph views show
 communities, importance and shortest paths, as my org-roam MCP server
 computes them (#7). A "New node" button creates a node as org-roam's
 capture would, in a file Syncthing brings to the laptop (#11); captured
@@ -63,7 +63,7 @@ are shown, and follow-ups work (#79). Search also finds the words inside notes, 
 
 Flutter (decided in #1). `org_parser` and `org_flutter` are the parser and
 renderer that Orgro uses, so my files are already known to parse and render
-correctly; Flutter can also hand a file to Orgro with `ACTION_VIEW`. The full
+correctly; Flutter can also hand a file to another app with `ACTION_VIEW`. The full
 reasoning, including the comparison with a PWA, is in
 [docs/decisions.md](docs/decisions.md).
 

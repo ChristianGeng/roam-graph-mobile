@@ -179,12 +179,16 @@ desktop, *As text* copies the text ("Copied") and files are saved; see
 [[id:roam-graph-help-share-picture][Share a picture]].
 
 * Other buttons in the bar
-- *Open in Orgro* hands the file to Orgro, to read or edit it there; on the
-  desktop it is *Open in Emacs*, see
+- *Open in another app…* shows Android's app chooser, to read the file in
+  another app, such as Orgro, Markor or a text editor: for Org that this
+  app does not show, or to see the raw file. The other app opens the file
+  at the top, and it gets read access only: to edit the file there, that
+  app needs its own access to the folder. If no app opens Org files, the
+  app says so. On the desktop it is *Open in Emacs*, see
   [[id:roam-graph-help-desktop][The desktop app]].
 - *New node from here* writes a new note linking to this one; see
   [[id:roam-graph-help-capture][Capture]].
-- On a narrow screen, *New node from here* and *Open in Orgro* are in
+- On a narrow screen, *New node from here* and *Open in another app…* are in
   *More for this note* (…).
 - The *AI* menu has *Ask AI* and *Share with AI*; see
   [[id:roam-graph-help-ai][AI]].

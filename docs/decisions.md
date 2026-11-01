@@ -3589,6 +3589,37 @@ a note's *Ask AI* opened a new chat with the list hidden behind it.
   the chat screen closes and a request under way goes on in the store, as
   with Back.
 
+## 118. "Open in another app…" instead of "Open in Orgro" on Android (#218)
+
+The app shows and edits notes itself now, so Orgro is no longer the main
+way to read a note. A way out to another app is still useful: for Org the
+app does not show (for example encrypted sections), to see the raw file in
+an independent app, and as a fallback if the app shows a note wrongly.
+Decisions 6, 28 and the others that name Orgro stay as history.
+- **The chooser:** `openElsewhere` in `FolderAccess.kt` sends
+  `ACTION_VIEW` for the file with `FLAG_GRANT_READ_URI_PERMISSION` through
+  `Intent.createChooser`, not to one package; `orgroPackage` and the
+  Orgro-only path are gone. The chooser starts even when no app takes the
+  file, so the apps are looked up first with `queryIntentActivities` and
+  `MATCH_DEFAULT_ONLY` (only apps an implicit intent can start); the
+  manifest's `<queries>` lists `ACTION_VIEW` for `content:` and any MIME
+  type, so apps for whatever type the provider reports are visible.
+- **The MIME type:** the content resolver's, else `text/x-org`; if no app
+  takes that, `text/plain`, so plain text editors are offered too.
+  `application/octet-stream`, which providers often report for an unknown
+  extension such as .org, counts as unknown. No app at all: "No app on this
+  phone opens Org files."
+- **Read access only:** the other app could write the file through a write
+  grant, but such a write would skip the checks of the app's own safe save
+  (#35). The help says that edits in the other app need that app's own
+  access to the folder.
+- **A heading node:** the other app opens the file at the top, and the
+  message says so in general words: "Other apps open the file at the top."
+- **Names:** `openInOrgro` became `openElsewhere`; `noteAppName` is
+  "another app" on Android and "Emacs" on the desktop, and the entry
+  `openElsewhereLabel` is "Open in another app…" (the chooser follows) or
+  "Open in Emacs", which is unchanged.
+
 ## 119. Filled paragraphs shown with their lines joined (#219)
 
 Paragraphs filled in Emacs (`M-q`, `auto-fill-mode`) showed their line

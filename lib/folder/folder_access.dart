@@ -44,9 +44,10 @@ abstract interface class FolderAccess {
   /// could not be read.
   Future<List<Uint8List?>> readFiles(List<FolderFile> files);
 
-  /// Shows [file] in the app [packageName], with Android's `ACTION_VIEW`
-  /// (#10). False if that app is not installed.
-  Future<bool> openWith(FolderFile file, String packageName);
+  /// Shows [file] in another app, chosen in Android's app chooser
+  /// (`ACTION_VIEW`, #218). The app gets read access to the file only.
+  /// False if no app opens it.
+  Future<bool> openElsewhere(FolderFile file);
 
   /// Writes [bytes] as the new file [name] in the directory with the URI
   /// [dir] (from [listFiles], or the folder's own URI), and returns the new
@@ -125,10 +126,10 @@ class PlatformFolderAccess implements FolderAccess {
   }
 
   @override
-  Future<bool> openWith(FolderFile file, String packageName) async =>
+  Future<bool> openElsewhere(FolderFile file) async =>
       await _channel.invokeMethod<bool>(
-        'openWith',
-        {'uri': file.uri, 'package': packageName},
+        'openElsewhere',
+        {'uri': file.uri},
       ) ??
       false;
 

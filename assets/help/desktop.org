@@ -34,7 +34,7 @@ the same files as Emacs. Emacs reloads a changed file with
 ~global-auto-revert-mode~, else it asks.
 
 * Open in Emacs
-The note's button is *Open in Emacs* instead of *Open in Orgro*. It runs
+The note's button is *Open in Emacs* instead of *Open in another app…*. It runs
 ~emacsclient~ at the note's heading, so Emacs needs ~(server-start)~;
 without a running server, Emacs itself starts. If the app cannot start
 the command at all, it says so and names *Settings*; it does not see a

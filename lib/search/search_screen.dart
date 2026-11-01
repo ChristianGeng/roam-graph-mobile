@@ -26,7 +26,7 @@ class SearchScreen extends StatefulWidget {
     this.files,
     required this.nodeMemory,
     this.onShowInGraph,
-    this.openInOrgro,
+    this.openElsewhere,
     this.onOpenNode,
     this.writer,
     this.shareText = shareTextOut,
@@ -43,8 +43,8 @@ class SearchScreen extends StatefulWidget {
   /// Shows a node in the graph; the action is hidden when null.
   final void Function(BuildContext context, String id)? onShowInGraph;
 
-  /// Opens a node's file in Orgro, for the node view.
-  final NoteOpener? openInOrgro;
+  /// Opens a node's file in another app, for the node view.
+  final NoteOpener? openElsewhere;
 
   /// Opens a result. When null, the node view opens on a new page; the
   /// tablet layout (#16) closes the search and shows it in its side pane.
@@ -64,7 +64,7 @@ class SearchScreen extends StatefulWidget {
     NoteFiles? files,
     required NodeMemory nodeMemory,
     void Function(BuildContext context, String id)? onShowInGraph,
-    NoteOpener? openInOrgro,
+    NoteOpener? openElsewhere,
     void Function(BuildContext context, String id)? onOpenNode,
     NoteWriter? writer,
     TextSharer shareText = shareTextOut,
@@ -78,7 +78,7 @@ class SearchScreen extends StatefulWidget {
             files: files,
             nodeMemory: nodeMemory,
             onShowInGraph: onShowInGraph,
-            openInOrgro: openInOrgro,
+            openElsewhere: openElsewhere,
             onOpenNode: onOpenNode,
             writer: writer,
             shareText: shareText,
@@ -254,7 +254,7 @@ class _SearchScreenState extends State<SearchScreen> {
         files: widget.files,
         nodeMemory: widget.nodeMemory,
         onShowInGraph: widget.onShowInGraph,
-        openInOrgro: widget.openInOrgro,
+        openElsewhere: widget.openElsewhere,
         writer: widget.writer,
         shareText: widget.shareText,
       );

@@ -11,7 +11,8 @@ void main() {
 
   test('the desktop is told by the target platform', () {
     expect(isDesktop, isFalse);
-    expect(noteAppName, 'Orgro');
+    expect(noteAppName, 'another app');
+    expect(openElsewhereLabel, 'Open in another app…');
     for (final platform in [
       TargetPlatform.linux,
       TargetPlatform.windows,
@@ -20,6 +21,7 @@ void main() {
       debugDefaultTargetPlatformOverride = platform;
       expect(isDesktop, isTrue);
       expect(noteAppName, 'Emacs');
+      expect(openElsewhereLabel, 'Open in Emacs');
     }
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     expect(defaultEmacsClient, 'emacsclientw.exe');

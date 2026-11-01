@@ -33,7 +33,7 @@ import 'org_files.dart';
 typedef GraphScreenBuilder = Widget Function(
   ValueListenable<RoamGraph> graph,
   NoteReader readNote,
-  NoteOpener openInOrgro,
+  NoteOpener openElsewhere,
   NoteWriter writer,
   NoteFiles files,
   FolderControls folder,
@@ -69,7 +69,7 @@ class FolderScreen extends StatefulWidget {
 
   /// Builds the graph view; tests replace it. The graph it gets follows
   /// the index, also while the graph view is open; [NoteReader] reads the
-  /// notes of the chosen folder, and [NoteOpener] opens them in Orgro;
+  /// notes of the chosen folder, and [NoteOpener] opens them in another app;
   /// [NoteFiles] reads the folder's other files, for images (#46).
   final GraphScreenBuilder graphScreen;
 
@@ -82,7 +82,7 @@ class FolderScreen extends StatefulWidget {
   static Widget defaultGraphScreen(
     ValueListenable<RoamGraph> graph,
     NoteReader readNote,
-    NoteOpener openInOrgro,
+    NoteOpener openElsewhere,
     NoteWriter writer,
     NoteFiles files,
     FolderControls folder,
@@ -91,7 +91,7 @@ class FolderScreen extends StatefulWidget {
         graph: graph,
         readNote: readNote,
         files: files,
-        openInOrgro: openInOrgro,
+        openElsewhere: openElsewhere,
         writer: writer,
         folder: folder,
       );
@@ -330,7 +330,7 @@ class _FolderScreenState extends State<FolderScreen>
         readNote: _readNote,
         files: _files,
         nodeMemory: widget.nodeMemory,
-        openInOrgro: _openInOrgro,
+        openElsewhere: _openElsewhere,
         writer: _writer,
       );
     }
@@ -424,9 +424,10 @@ class _FolderScreenState extends State<FolderScreen>
     return Created(clean);
   }
 
-  /// Opens the note at [path], relative to roam/, in Orgro; on the
-  /// desktop in Emacs, at [line] (#116).
-  Future<OpenResult> _openInOrgro(String path, {int line = 1}) async {
+  /// Opens the note at [path], relative to roam/, in an app chosen in
+  /// Android's app chooser (#218); on the desktop in Emacs, at [line]
+  /// (#116).
+  Future<OpenResult> _openElsewhere(String path, {int line = 1}) async {
     final file = _roamFiles[path];
     if (file == null) return OpenResult.noFile;
     if (isDesktop) {
@@ -439,7 +440,7 @@ class _FolderScreenState extends State<FolderScreen>
       }
     }
     try {
-      return await widget.folderAccess.openWith(file, orgroPackage)
+      return await widget.folderAccess.openElsewhere(file)
           ? OpenResult.opened
           : OpenResult.noApp;
     } on PlatformException {
@@ -751,7 +752,7 @@ class _FolderScreenState extends State<FolderScreen>
         (_status == _Status.indexed ||
             (_status == _Status.loading && _settled == _Status.indexed))) {
       return widget.graphScreen(
-          notifier, _readNote, _openInOrgro, _writer, _files, _controls);
+          notifier, _readNote, _openElsewhere, _writer, _files, _controls);
     }
     return Scaffold(
       appBar: AppBar(

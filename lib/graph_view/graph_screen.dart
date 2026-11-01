@@ -91,7 +91,7 @@ class GraphScreen extends StatefulWidget {
     required this.graph,
     required this.readNote,
     this.files,
-    this.openInOrgro,
+    this.openElsewhere,
     this.writer,
     this.nodeMemory = const FileNodeMemory(),
     this.computeLayout = layoutOnIsolate,
@@ -109,8 +109,8 @@ class GraphScreen extends StatefulWidget {
   /// them, image links are shown as text.
   final NoteFiles? files;
 
-  /// Opens a note in Orgro, for the node view.
-  final NoteOpener? openInOrgro;
+  /// Opens a note in another app, for the node view.
+  final NoteOpener? openElsewhere;
 
   /// Writes new notes (#11); without it, there is no "New node" button.
   final NoteWriter? writer;
@@ -724,7 +724,7 @@ class _GraphScreenState extends State<GraphScreen> {
         files: widget.files,
         nodeMemory: widget.nodeMemory,
         onShowInGraph: _showInGraph,
-        openInOrgro: widget.openInOrgro,
+        openElsewhere: widget.openElsewhere,
         writer: widget.writer,
         shareText: widget.shareText,
       );
@@ -922,7 +922,7 @@ class _GraphScreenState extends State<GraphScreen> {
               files: widget.files,
               nodeMemory: widget.nodeMemory,
               onShowInGraph: _showInGraph,
-              openInOrgro: widget.openInOrgro,
+              openElsewhere: widget.openElsewhere,
               onOpenNode: _openNode,
               writer: widget.writer,
               shareText: widget.shareText,
@@ -1055,7 +1055,7 @@ class _GraphScreenState extends State<GraphScreen> {
                     files: widget.files,
                     nodeMemory: widget.nodeMemory,
                     onShowInGraph: _showInGraph,
-                    openInOrgro: widget.openInOrgro,
+                    openElsewhere: widget.openElsewhere,
                     onOpenNode: _openNode,
                     onOpenHeading: _openNodeAt,
                     heading: _paneHeading,

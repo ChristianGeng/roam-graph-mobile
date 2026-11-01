@@ -45,7 +45,7 @@ Future<MemoryNodeMemory> open(
   ValueNotifier<RoamGraph>? graph,
   Map<String, String> texts = notes,
   void Function(BuildContext, String)? onShowInGraph,
-  NoteOpener? openInOrgro,
+  NoteOpener? openElsewhere,
   TextSharer? shareText,
   UrlOpener? openUrl,
   // Expanded, so the tests below see the text under headings; the
@@ -72,7 +72,7 @@ Future<MemoryNodeMemory> open(
               readNote: (path) async => texts[path],
               nodeMemory: memory,
               onShowInGraph: onShowInGraph,
-              openInOrgro: openInOrgro,
+              openElsewhere: openElsewhere,
               shareText: shareText ?? (text, {subject}) async {},
               openUrl: openUrl ?? (uri) async => true,
             ),
@@ -304,15 +304,15 @@ void main() {
     expect(find.byTooltip('Show in graph'), findsNothing);
   });
 
-  group('"Open in Orgro"', () {
+  group('"Open in another app…" (#218)', () {
     testWidgets('a file node opens its file, without a message',
         (tester) async {
       final opened = <String>[];
-      await open(tester, 'b', openInOrgro: (path, {line = 1}) async {
+      await open(tester, 'b', openElsewhere: (path, {line = 1}) async {
         opened.add(path);
         return OpenResult.opened;
       });
-      await tester.tap(find.byTooltip('Open in Orgro'));
+      await tester.tap(find.byTooltip('Open in another app…'));
       await tester.pump();
       expect(opened, ['b.org']);
       expect(find.byType(SnackBar), findsNothing);
@@ -321,23 +321,29 @@ void main() {
     testWidgets('a heading node opens its file at the top, and says so',
         (tester) async {
       final opened = <String>[];
-      await open(tester, 'p', openInOrgro: (path, {line = 1}) async {
+      await open(tester, 'p', openElsewhere: (path, {line = 1}) async {
         opened.add(path);
         return OpenResult.opened;
       });
-      await tester.tap(find.byTooltip('Open in Orgro'));
+      await tester.tap(find.byTooltip('Open in another app…'));
       await tester.pump();
       expect(opened, ['b.org']);
       expect(
-          find.text('Orgro opens b.org at the top; '
-              'it cannot jump to the heading.'),
-          findsOneWidget);
+          find.text('Other apps open the file at the top.'), findsOneWidget);
+    });
+
+    testWidgets('no app opens the file', (tester) async {
+      await open(tester, 'a',
+          openElsewhere: (path, {line = 1}) async => OpenResult.noApp);
+      await tester.tap(find.byTooltip('Open in another app…'));
+      await tester.pump();
+      expect(find.text('No app on this phone opens Org files.'), findsOneWidget);
     });
 
     testWidgets('a file that is not in the folder', (tester) async {
       await open(tester, 'a',
-          openInOrgro: (path, {line = 1}) async => OpenResult.noFile);
-      await tester.tap(find.byTooltip('Open in Orgro'));
+          openElsewhere: (path, {line = 1}) async => OpenResult.noFile);
+      await tester.tap(find.byTooltip('Open in another app…'));
       await tester.pump();
       expect(find.text('Could not find a.org in the folder.'), findsOneWidget);
     });
@@ -346,11 +352,11 @@ void main() {
         (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.linux;
       final opened = <(String, int)>[];
-      await open(tester, 'p', openInOrgro: (path, {line = 1}) async {
+      await open(tester, 'p', openElsewhere: (path, {line = 1}) async {
         opened.add((path, line));
         return OpenResult.opened;
       });
-      expect(find.byTooltip('Open in Orgro'), findsNothing);
+      expect(find.byTooltip('Open in another app…'), findsNothing);
       await tester.tap(find.byTooltip('Open in Emacs'));
       await tester.pump();
       debugDefaultTargetPlatformOverride = null;
@@ -363,7 +369,7 @@ void main() {
 
     testWidgets('no button without a way to open files', (tester) async {
       await open(tester, 'a');
-      expect(find.byTooltip('Open in Orgro'), findsNothing);
+      expect(find.byTooltip('Open in another app…'), findsNothing);
     });
   });
 

@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-01: "Open in another app…" instead of "Open in Orgro" ([#222](https://github.com/ChristianGeng/roam-graph-mobile/pull/222))
+
+- Changed: on Android, a note's "Open in Orgro" is now "Open in another app…". It shows Android's app chooser, so Orgro, Markor, a text editor or any other app that opens the file can be chosen; the app gets read access only.
+- Changed: without such an app, the message is "No app on this phone opens Org files."; on the desktop, "Open in Emacs" is unchanged.
+- Closes #218.
+
 ## 2026-11-01: Filled paragraphs wrap at the screen width ([#223](https://github.com/ChristianGeng/roam-graph-mobile/pull/223))
 
 - Changed: a single line break inside a paragraph or a list item shows as a space, so a paragraph filled in Emacs (`M-q`) wraps at the screen width instead of looking ragged. Empty lines, `\\` at the end of a line, blocks, tables and fixed-width lines keep their lines. The file keeps its line breaks.
