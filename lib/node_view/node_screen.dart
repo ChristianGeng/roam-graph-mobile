@@ -14,6 +14,7 @@ import '../edit/add_link.dart';
 import '../edit/ai_edit_screen.dart';
 import '../edit/append_screen.dart';
 import '../edit/edit_screen.dart';
+import '../edit/structure_edits.dart';
 import '../edit/delete_dialog.dart';
 import '../edit/history_screen.dart';
 import '../edit/image_screen.dart';
@@ -30,6 +31,7 @@ import '../graph_view/node_memory.dart';
 import '../platform/error_text.dart';
 import '../settings/view_settings.dart';
 import 'folding.dart';
+import 'heading_actions.dart';
 import 'heading_link.dart';
 import 'join_lines.dart';
 import 'quick_edits.dart';
@@ -217,6 +219,15 @@ class _NodeScreenState extends State<NodeScreen> {
   final _undoSteps = <_QuickUndoStep>[];
   var _visit = 0;
 
+  /// The note as last drawn, for the actions on its headings (#217); null
+  /// when it cannot be changed here.
+  _Headings? _headings;
+
+  /// The number of the current heading (#217): the one last clicked or
+  /// pressed, which the desktop's shortcuts change.
+  final _current = ValueNotifier<int?>(null);
+  final _keysFocus = FocusNode(debugLabel: 'note');
+
   // Search inside the note (#152).
   var _searching = false;
   final _searchText = TextEditingController();
@@ -256,6 +267,8 @@ class _NodeScreenState extends State<NodeScreen> {
     _searchFocus.dispose();
     _hits.dispose();
     _selectedHit.dispose();
+    _current.dispose();
+    _keysFocus.dispose();
     super.dispose();
   }
 
@@ -416,6 +429,11 @@ class _NodeScreenState extends State<NodeScreen> {
       _foldingBeforeSearch = shown == null || folding == null
           ? null
           : (text: shown, states: folding);
+    });
+    // The note may hold the focus (#217); autofocus only takes an empty
+    // one.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _searching) _searchFocus.requestFocus();
     });
   }
 
@@ -888,49 +906,291 @@ class _NodeScreenState extends State<NodeScreen> {
         done: () => description ?? 'Changed the checkbox.');
   }
 
-  /// What a slide on a heading reveals (#150): its next TODO state, and
-  /// the list of states.
-  List<Widget> _todoActions(NoteWriter writer, RoamNode node, String shown,
-      OrgDocument document, OrgSection section) {
-    final index = sectionIndex(document, section);
-    if (index == null) return const [];
-    final states = todoStatesOf(document);
-    final next = nextKeyword(states, section.headline.keyword?.value);
-    return [
-      TodoSlideAction(
-        key: ValueKey('todo-next-$index'),
-        icon: Icons.repeat,
-        label: next ?? 'No state',
-        onPressed: () => _setTodo(writer, node, shown, index, next),
-      ),
-      TodoSlideAction(
-        key: ValueKey('todo-states-$index'),
-        icon: Icons.list,
-        label: 'States',
-        onPressed: () => _chooseTodo(writer, node, shown, document, section),
-      ),
-    ];
-  }
-
-  /// A long press on a heading (#150): the list of TODO states to choose.
-  Future<void> _chooseTodo(NoteWriter writer, RoamNode node, String shown,
-      OrgDocument document, OrgSection section) async {
-    final index = sectionIndex(document, section);
-    if (index == null) return;
+  /// A long press on a heading (#150), or a TODO action of its menu
+  /// (#217): the list of TODO states to choose.
+  Future<void> _chooseTodo(int index) async {
+    final h = _headings;
+    if (h == null || index >= h.sections.length) return;
     final chosen = await chooseTodoState(context,
-        states: todoStatesOf(document),
-        current: section.headline.keyword?.value);
-    if (chosen == null || !mounted) return;
-    await _setTodo(writer, node, shown, index, chosen.keyword);
+        states: todoStatesOf(h.document),
+        current: h.sections[index].headline.keyword?.value);
+    if (chosen == null || !mounted || !h.matches(_headings)) return;
+    await _setTodo(h.writer, h.node, h.text, index, chosen.keyword);
   }
 
   Future<void> _setTodo(NoteWriter writer, RoamNode node, String shown,
       int index, String? keyword) async {
     String? description;
     await _quickChange(writer, node, shown,
+        undoInBar: true,
         change: (text) => setTodo(text, index, keyword,
             now: DateTime.now(), describe: (d) => description = d),
         done: () => description ?? 'Changed the TODO state.');
+  }
+
+  /// The number of [headline] among the note's headings.
+  int? _indexOf(OrgHeadline headline) {
+    for (final (i, section) in (_headings?.sections ?? const []).indexed) {
+      if (identical(section.headline, headline)) return i;
+    }
+    return null;
+  }
+
+  OrgHeadline? _currentHeadline() {
+    final index = _current.value;
+    final sections = _headings?.sections ?? const <OrgSection>[];
+    return index != null && index < sections.length
+        ? sections[index].headline
+        : null;
+  }
+
+  /// Why [action] cannot be done on the heading number [index], or null.
+  String? _refusal(_Headings h, HeadingAction action, int index) {
+    final structure = switch (action) {
+      HeadingAction.todo => StructureAction.todo,
+      HeadingAction.delete => null,
+      _ => action.structure,
+    };
+    if (structure == null) return null;
+    return switch (headingStructure(structure, h.text, h.sections, index,
+        topLevel: h.topLevel, todoStates: todoStatesOf(h.document))) {
+      StructureRefused(:final reason) => reason,
+      StructureChanged() => null,
+    };
+  }
+
+  /// The menu of a heading (#217), from a long press or a right click at
+  /// [at] on the screen.
+  Future<void> _headingMenu(int index, {Offset? at}) async {
+    final h = _headings;
+    if (h == null || index >= h.sections.length) return;
+    _current.value = index;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    var position = at;
+    if (position == null) {
+      final orgContext = _orgContext;
+      final box = orgContext != null && orgContext.mounted
+          ? headlineBox(orgContext, h.sections[index].headline)
+          : null;
+      position = box?.localToGlobal(box.size.bottomLeft(Offset.zero)) ??
+          overlay.size.center(Offset.zero);
+    }
+    final local = overlay.globalToLocal(position);
+    final chosen = await showMenu<HeadingAction>(
+      context: context,
+      position: RelativeRect.fromRect(
+          local & Size.zero, Offset.zero & overlay.size),
+      items: [
+        for (final action in HeadingAction.values)
+          if (_refusal(h, action, index) case final reason)
+            PopupMenuItem(
+              key: ValueKey('heading-${action.name}'),
+              value: action,
+              enabled: reason == null,
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                enabled: reason == null,
+                title: Text(action.label),
+                subtitle: reason == null ? null : Text(reason),
+                trailing: isDesktop ? Text(action.shortcut) : null,
+              ),
+            ),
+      ],
+    );
+    if (chosen == null || !mounted || !h.matches(_headings)) return;
+    await _onHeading(chosen, index);
+  }
+
+  Future<void> _onHeading(HeadingAction action, int index) async {
+    switch (action) {
+      case HeadingAction.todo:
+        await _chooseTodo(index);
+      case HeadingAction.delete:
+        await _deleteHeading(index);
+      case _:
+        await _structureHeading(action, index);
+    }
+  }
+
+  /// Promote, Demote, Move up or Move down on the heading number [index]
+  /// and its subtree (#217), saved as a quick edit.
+  Future<void> _structureHeading(HeadingAction action, int index) async {
+    final h = _headings, structure = action.structure;
+    if (h == null || structure == null) return;
+    if (_refusal(h, action, index) case final reason?) {
+      _tell(reason);
+      return;
+    }
+    int? moved;
+    await _quickChange(h.writer, h.node, h.text,
+        undoInBar: true,
+        change: (text) {
+          final document = parseNote(text);
+          switch (headingStructure(structure, text, sectionsOf(document),
+              index,
+              topLevel: h.topLevel, todoStates: todoStatesOf(document))) {
+            case StructureChanged(:final text, :final start):
+              moved = headingIndexAt(text, start);
+              return text;
+            case StructureRefused(:final reason):
+              throw NoteChangeError(reason);
+          }
+        },
+        done: () => switch (action) {
+              HeadingAction.promote => 'Promoted the heading.',
+              HeadingAction.demote => 'Demoted the heading.',
+              HeadingAction.moveUp => 'Moved the heading up.',
+              _ => 'Moved the heading down.',
+            });
+    if (mounted && moved != null) _current.value = moved;
+  }
+
+  /// The next TODO state of the heading number [index] (Shift+Right, a
+  /// swipe to the right), or the one before ([forward] false, Shift+Left).
+  Future<void> _cycleTodo(int index, {bool forward = true}) async {
+    final h = _headings;
+    if (h == null || index >= h.sections.length) return;
+    if (_refusal(h, HeadingAction.todo, index) case final reason?) {
+      _tell(reason);
+      return;
+    }
+    final states = todoStatesOf(h.document);
+    final current = h.sections[index].headline.keyword?.value;
+    await _setTodo(h.writer, h.node, h.text, index,
+        forward
+            ? nextKeyword(states, current)
+            : previousKeyword(states, current));
+  }
+
+  /// Deletes the heading number [index] with its subtree (#217): at once,
+  /// as a quick edit, when no node is in it; after the question of
+  /// "Delete note" (#93) when the heading or a heading below it has an
+  /// `:ID:`.
+  Future<void> _deleteHeading(int index) async {
+    final h = _headings;
+    if (h == null || _quickBusy || index >= h.sections.length) return;
+    if (h.sections[index].level < h.topLevel) {
+      // The heading of this heading node: the note itself.
+      await _deleteNote(h.writer, h.node);
+      return;
+    }
+    final cut = withoutHeading(h.text, h.sections, index);
+    if (cut == null) {
+      _tell('The headings of this note could not be matched to its lines; '
+          'use Edit text.');
+      return;
+    }
+    final graph = widget.graph.value;
+    final nodes = [
+      for (final id in idsIn(cut.removed))
+        if (graph.nodes[id] case final node?
+            when node.file == h.node.file && !node.isFile)
+          node,
+    ];
+    if (nodes.isEmpty) {
+      await _quickChange(h.writer, h.node, h.text,
+          undoInBar: true,
+          change: (text) =>
+              withoutHeading(text, sectionsOf(parseNote(text)), index)
+                  ?.after ??
+              (throw const NoteChangeError('That heading is no longer in '
+                  'the note.')),
+          done: () => 'Deleted the heading.');
+      if (mounted) _current.value = null;
+      return;
+    }
+    final at = headingOffset(h.text, h.sections, index)!;
+    final ownLines = headingOffsets(cut.removed);
+    final own = idsIn(ownLines.length > 1
+            ? cut.removed.substring(0, ownLines[1])
+            : cut.removed)
+        .any((id) => nodes.any((node) => node.id == id));
+    final lines = '\n'.allMatches(h.text);
+    int lineOf(int offset) => lines.where((m) => m.start < offset).length;
+    final end = at + cut.removed.length;
+    _endVisit();
+    // The lines to delete are counted in the text on screen: only while
+    // the file is still that text.
+    final current = await h.writer.editor?.read(h.node.file);
+    if (!mounted) return;
+    if (current == null || current.text != h.text) {
+      _readAgain();
+      _tell('${h.node.file} changed since the app showed it, so nothing '
+          'was changed. It is shown again now.',
+          error: true);
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final deletion = await confirmDeleteNotes(context,
+        graph: graph,
+        nodes: nodes,
+        writer: h.writer,
+        alsoLines: own
+            ? const {}
+            : {
+                h.node.file: (
+                  lineOf(at),
+                  end == h.text.length ? lines.length + 1 : lineOf(end),
+                ),
+              },
+        alsoText: own ? const {} : {h.node.file: h.text},
+        heading: own ? null : h.sections[index].headline.rawTitle ?? '');
+    if (deletion == null || !mounted) return;
+    _current.value = null;
+    _readAgain();
+    if (messenger.mounted) showDeleted(messenger, deletion, h.writer);
+  }
+
+  /// The desktop's keys on the current heading (#217), as in Org; none
+  /// while a text field has the focus.
+  KeyEventResult _headingKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final focused = FocusManager.instance.primaryFocus?.context;
+    if (focused != null &&
+        (focused.widget is EditableText ||
+            focused.findAncestorWidgetOfExactType<EditableText>() != null)) {
+      return KeyEventResult.ignored;
+    }
+    final keys = HardwareKeyboard.instance;
+    bool pressed(SingleActivator activator) => activator.accepts(event, keys);
+    if (pressed(const SingleActivator(LogicalKeyboardKey.keyZ, control: true)) ||
+        pressed(const SingleActivator(LogicalKeyboardKey.keyZ, meta: true))) {
+      if (_editWriter == null || _undoSteps.isEmpty) {
+        return KeyEventResult.ignored;
+      }
+      _undoQuick();
+      return KeyEventResult.handled;
+    }
+    final index = _current.value;
+    if (_headings == null || index == null) return KeyEventResult.ignored;
+    const left = LogicalKeyboardKey.arrowLeft,
+        right = LogicalKeyboardKey.arrowRight;
+    final Future<void> Function()? run = switch (null) {
+      _ when pressed(const SingleActivator(left, alt: true, shift: true)) =>
+        () => _structureHeading(HeadingAction.promote, index),
+      _ when pressed(const SingleActivator(right, alt: true, shift: true)) =>
+        () => _structureHeading(HeadingAction.demote, index),
+      _ when pressed(
+          const SingleActivator(LogicalKeyboardKey.arrowUp, alt: true)) =>
+        () => _structureHeading(HeadingAction.moveUp, index),
+      _ when pressed(
+          const SingleActivator(LogicalKeyboardKey.arrowDown, alt: true)) =>
+        () => _structureHeading(HeadingAction.moveDown, index),
+      _ when pressed(const SingleActivator(left, shift: true)) =>
+        () => _cycleTodo(index, forward: false),
+      _ when pressed(const SingleActivator(right, shift: true)) =>
+        () => _cycleTodo(index),
+      _ when pressed(const SingleActivator(LogicalKeyboardKey.delete)) =>
+        () => _deleteHeading(index),
+      _ => null,
+    };
+    if (run == null) return KeyEventResult.ignored;
+    run();
+    return KeyEventResult.handled;
   }
 
   /// Runs [save] unless another quick edit is being saved; then says so,
@@ -975,6 +1235,7 @@ class _NodeScreenState extends State<NodeScreen> {
     String shown, {
     required String Function(String text) change,
     required String Function() done,
+    bool undoInBar = false,
   }) =>
       _oneAtATime(() async {
         final visit = _visit, id = widget.id;
@@ -1037,7 +1298,8 @@ class _NodeScreenState extends State<NodeScreen> {
               after: after,
             ));
           });
-          _tell(saveMessage(result, node.file) ?? done(), short: true);
+          _tell(saveMessage(result, node.file) ?? done(),
+              short: true, undo: undoInBar);
         } else {
           _keptFolding = null;
           if (result is ChangedMeanwhile || result is NoteGone) _endVisit();
@@ -1165,7 +1427,10 @@ class _NodeScreenState extends State<NodeScreen> {
   }
 
   /// An [error] has a "Copy" action (#180), and stays until dismissed.
-  void _tell(String message, {bool short = false, bool error = false}) {
+  /// With [undo], it has an "Undo" action for the newest quick edit
+  /// (#217).
+  void _tell(String message,
+      {bool short = false, bool error = false, bool undo = false}) {
     final messenger = ScaffoldMessenger.of(context);
     if (error) {
       showErrorSnackBar(messenger, message);
@@ -1175,9 +1440,16 @@ class _NodeScreenState extends State<NodeScreen> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content: Text(message),
-        duration:
-            short ? const Duration(seconds: 2) : const Duration(seconds: 4),
+        duration: short && !undo
+            ? const Duration(seconds: 2)
+            : const Duration(seconds: 4),
         persist: false,
+        action: undo
+            ? SnackBarAction(
+                key: const ValueKey('snack-undo'),
+                label: 'Undo',
+                onPressed: _undoQuick)
+            : null,
       ));
   }
 
@@ -1196,7 +1468,9 @@ class _NodeScreenState extends State<NodeScreen> {
         const SingleActivator(LogicalKeyboardKey.escape): _closeSearch,
       },
       child: Focus(
+        focusNode: _keysFocus,
         autofocus: true,
+        onKeyEvent: _headingKey,
         child: PopScope(
           canPop: !_searching,
           onPopInvokedWithResult: (didPop, _) {
@@ -1527,6 +1801,23 @@ class _NodeScreenState extends State<NodeScreen> {
       _keptFolding = null;
       if (kept.states.length == sectionsOf(tree).length) folding = kept.states;
     }
+    final headings = writer == null
+        ? null
+        : _Headings(
+            writer: writer,
+            node: node,
+            text: text,
+            document: document,
+            sections: sectionsOf(document),
+            topLevel: tree is OrgSection ? tree.level + 1 : 1,
+          );
+    // A quick edit sets the current heading itself, after the note is
+    // drawn again.
+    if (_headings?.node.id != node.id ||
+        (_current.value ?? 0) >= (headings?.sections.length ?? 0)) {
+      _current.value = null;
+    }
+    _headings = headings;
     final body = KeepFolding(
       tree: tree,
       states: folding,
@@ -1555,6 +1846,41 @@ class _NodeScreenState extends State<NodeScreen> {
             },
             child: body,
           );
+    final gestures = headings == null
+        ? shown
+        : HeadingGestures(
+            orgContext: () => _orgContext,
+            current: _currentHeadline,
+            currentChanged: _current,
+            showCurrent: isDesktop,
+            swipes: view.swipeHeadings,
+            onPointerDown: (headline) {
+              if (headline == null) return;
+              if (_indexOf(headline) case final index?) {
+                _current.value = index;
+                _keysFocus.requestFocus();
+              }
+            },
+            onSecondaryTap: (headline, at) {
+              if (_indexOf(headline) case final index?) {
+                _headingMenu(index, at: at);
+              }
+            },
+            swipeLabel: (headline, {required bool right}) {
+              if (!right) return 'Delete';
+              final states = todoStatesOf(document);
+              if (allKeywords(states).isEmpty) return 'No TODO states';
+              return nextKeyword(states, headline.keyword?.value) ??
+                  'No state';
+            },
+            onSwipe: (headline, {required bool right}) {
+              final index = _indexOf(headline);
+              if (index == null) return;
+              _current.value = index;
+              right ? _cycleTodo(index) : _deleteHeading(index);
+            },
+            child: shown,
+          );
     return OrgController(
       // A new controller for new text or a new setting, so the folding
       // starts again.
@@ -1575,14 +1901,14 @@ class _NodeScreenState extends State<NodeScreen> {
         onListItemTap: writer == null
             ? null
             : (item) => _toggleCheckbox(writer, node, text, document, item),
-        onSectionSlide: writer == null
-            ? null
-            : (section) =>
-                _todoActions(writer, node, text, document, section),
+        // The menu of a heading (#217).
         onSectionLongPress: writer == null
             ? null
-            : (section) =>
-                _chooseTodo(writer, node, text, document, section),
+            : (section) {
+                if (sectionIndex(document, section) case final index?) {
+                  _headingMenu(index);
+                }
+              },
         loadImage: (link) =>
             loadMermaidDrawing(link) ??
             switch (files) {
@@ -1597,9 +1923,10 @@ class _NodeScreenState extends State<NodeScreen> {
         child: tree is OrgSection
             ? Padding(
                 padding: const EdgeInsets.all(16),
-                child: OpenSection(section: tree, state: state, child: shown),
+                child: OpenSection(
+                    section: tree, state: state, child: gestures),
               )
-            : shown,
+            : gestures,
       ),
     );
   }
@@ -1610,3 +1937,31 @@ enum _AiAction { newChat, chats, share }
 
 /// The edits of an existing note (v4).
 enum _EditAction { append, edit, meta, ai, image, share, history, delete }
+
+/// The note as last drawn, with what its heading actions need (#217).
+class _Headings {
+  _Headings({
+    required this.writer,
+    required this.node,
+    required this.text,
+    required this.document,
+    required this.sections,
+    required this.topLevel,
+  });
+  final NoteWriter writer;
+  final RoamNode node;
+
+  /// The text the note was drawn from; every change is made over it.
+  final String text;
+  final OrgDocument document;
+  final List<OrgSection> sections;
+
+  /// The highest level a heading may get: 1 in a file node, one below the
+  /// node's own heading in a heading node.
+  final int topLevel;
+
+  /// Whether [other] was drawn from the same text of the same node: a
+  /// rebuild makes a new object for the same text.
+  bool matches(_Headings? other) =>
+      other != null && other.node.id == node.id && other.text == text;
+}

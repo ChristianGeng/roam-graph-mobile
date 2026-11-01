@@ -15,6 +15,13 @@ each entry.
 - Added: on the desktop, drop text or files on the window or a chat, "New note from clipboard" (Ctrl+Shift+V) and "Open files…" in the More menu.
 - Closes #220.
 
+## 2026-11-01: Change headings from the note view ([#225](https://github.com/ChristianGeng/roam-graph-mobile/pull/225))
+
+- Added: a long press on a heading (a right click on the desktop) opens a menu: Promote, Demote, Move up, Move down, TODO state… and Delete heading. Each change is a quick edit with Undo.
+- Added: swipe a heading to the right for its next TODO state, to the left to delete it; a heading node asks first. Settings → View → "Swipe actions on headings" (on on Android, off on the desktop).
+- Added: on the desktop, Alt+Shift+Left/Right, Alt+Up/Down, Shift+Left/Right, Delete and Ctrl+Z work on the heading clicked last.
+- Closes #217.
+
 ## 2026-11-01: "Open in another app…" instead of "Open in Orgro" ([#222](https://github.com/ChristianGeng/roam-graph-mobile/pull/222))
 
 - Changed: on Android, a note's "Open in Orgro" is now "Open in another app…". It shows Android's app chooser, so Orgro, Markor, a text editor or any other app that opens the file can be chosen; the app gets read access only.

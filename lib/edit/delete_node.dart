@@ -114,7 +114,16 @@ class NodeDeleter {
   }
 
   /// One removal per file, including overlapping selections only once.
-  Future<DeletePlan> prepare(RoamGraph graph, List<RoamNode> nodes) async {
+  /// [alsoLines] adds lines of a file to remove with its heading nodes,
+  /// from a start line to an end line (not included): a heading without
+  /// an ID whose subtree holds the nodes (#217). [alsoText] is the text
+  /// those lines were counted in: a file that differs now is refused.
+  Future<DeletePlan> prepare(
+    RoamGraph graph,
+    List<RoamNode> nodes, {
+    Map<String, (int, int)> alsoLines = const {},
+    Map<String, String> alsoText = const {},
+  }) async {
     final groups = <String, List<RoamNode>>{};
     for (final node in nodes) {
       if (node.file.contains('/') || node.file.contains('\\')) {
@@ -144,6 +153,17 @@ class NodeDeleter {
         // The final newline stays when a subtree ends the file (#93).
         if (end == found.lines.length && found.lines[end - 1].isEmpty) end--;
         ranges.add((found.start, end));
+      }
+      if (alsoLines[node.file] case (final start, var end)) {
+        if (alsoText[node.file] case final expected?
+            when base.text != expected) {
+          throw const DeleteError('The heading changed.');
+        }
+        if (start < 0 || end > lines.lines.length || start >= end) {
+          throw const DeleteError('The heading changed.');
+        }
+        if (end == lines.lines.length && lines.lines[end - 1].isEmpty) end--;
+        ranges.add((start, end));
       }
       ranges.sort((a, b) => a.$1.compareTo(b.$1));
       final merged = <(int, int)>[];
