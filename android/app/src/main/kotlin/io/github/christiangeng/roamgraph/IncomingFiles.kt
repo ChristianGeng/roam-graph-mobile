@@ -26,8 +26,8 @@ object IncomingFiles {
 
     /**
      * The URIs of EXTRA_STREAM in a share intent; empty if there are none.
-     * Only content:// URIs: a file:// URI would be opened with the app's
-     * own rights, so a sender could make it read the app's private files.
+     * Other URIs than content:// are kept too, so that [read] names them as
+     * refused; they are never opened.
      */
     fun streams(intent: Intent): List<Uri> {
         @Suppress("DEPRECATION")
@@ -47,7 +47,7 @@ object IncomingFiles {
                 } ?: emptyList()
             else -> emptyList()
         }
-        return uris.filterNotNull().filter { it.scheme == ContentResolver.SCHEME_CONTENT }
+        return uris.filterNotNull()
     }
 
     /** True if the file is taken as a text file, by its name or MIME type. */
@@ -65,6 +65,16 @@ object IncomingFiles {
      */
     fun read(resolver: ContentResolver, uris: List<Uri>, sentType: String?): List<Map<String, Any?>> =
         uris.mapIndexed { index, uri ->
+            // Only content:// URIs are opened: a file:// URI would be opened
+            // with the app's own rights, so a sender could make it read the
+            // app's private files. The others are named with the reason.
+            if (uri.scheme != ContentResolver.SCHEME_CONTENT) {
+                return@mapIndexed mapOf<String, Any?>(
+                    "name" to (uri.lastPathSegment?.substringAfterLast('/') ?: uri.toString()),
+                    "mimeType" to sentType,
+                    "error" to "only files shared by an app (content:) are read, not ${uri.scheme ?: "this"}: links",
+                )
+            }
             var name = uri.lastPathSegment?.substringAfterLast('/') ?: "file"
             var size: Long? = null
             try {
