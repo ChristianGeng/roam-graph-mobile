@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart' show SingleActivator;
 
 /// True on Linux, Windows and macOS. Read from [defaultTargetPlatform],
 /// so widget tests, which run as Android, can set it.
@@ -19,6 +20,15 @@ bool get isDesktop => switch (defaultTargetPlatform) {
     };
 
 bool get _isWindows => defaultTargetPlatform == TargetPlatform.windows;
+
+bool get _isMacOS => defaultTargetPlatform == TargetPlatform.macOS;
+
+/// The keys of "New note from clipboard" on the desktop (#220).
+SingleActivator get pasteShortcut => SingleActivator(LogicalKeyboardKey.keyV,
+    shift: true, control: !_isMacOS, meta: _isMacOS);
+
+/// [pasteShortcut] as the menu shows it.
+String get pasteKeys => _isMacOS ? 'Cmd+Shift+V' : 'Ctrl+Shift+V';
 
 /// The app notes open in outside this one: Emacs on the desktop, an app
 /// chosen in Android's app chooser on Android (#218).

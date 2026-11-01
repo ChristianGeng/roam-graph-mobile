@@ -76,13 +76,22 @@ class NoteWriter {
   final AgentLog changeLog;
 }
 
-/// What shared text can do instead of becoming a new node (#39).
+/// What shared text can do instead of becoming a new node (#39, #220).
 enum ShareUse {
   /// Add it at the end of an existing node.
   append,
 
   /// Replace an existing node's text with it, after a diff.
   replace,
+
+  /// Start a new AI chat with it in the message field (#220).
+  askAi,
+
+  /// Put it in the message field of a chat the user chooses (#220).
+  addToChat,
+
+  /// Copy an Org file into the notes folder as it is (#220).
+  importAsIs,
 }
 
 /// Creates a new node (#11), as org-roam's default capture template does
@@ -100,6 +109,8 @@ class CaptureScreen extends StatefulWidget {
     this.initialTags = const [],
     this.language,
     this.useForExisting,
+    this.uses = const {ShareUse.append, ShareUse.replace},
+    this.notice,
     this.graph,
   });
 
@@ -111,6 +122,13 @@ class CaptureScreen extends StatefulWidget {
   /// For shared text (#39): offers to use it for an existing node instead.
   /// The capture closes, then this runs.
   final Future<void> Function(ShareUse use)? useForExisting;
+
+  /// The choices [useForExisting] offers. "Add to a node" and "Replace a
+  /// node's text" are only offered where notes can be edited.
+  final Set<ShareUse> uses;
+
+  /// A note above the fields, such as files that were not taken (#220).
+  final String? notice;
 
   /// The node the capture starts from (#12): the new file can link to it,
   /// so it shows the new node as a backlink. The existing file is never
@@ -145,6 +163,8 @@ class CaptureScreen extends StatefulWidget {
     List<String> initialTags = const [],
     String? language,
     Future<void> Function(ShareUse use)? useForExisting,
+    Set<ShareUse> uses = const {ShareUse.append, ShareUse.replace},
+    String? notice,
     RoamGraph? graph,
   }) =>
       Navigator.push<String>(
@@ -159,6 +179,8 @@ class CaptureScreen extends StatefulWidget {
             initialTags: initialTags,
             language: language,
             useForExisting: useForExisting,
+            uses: uses,
+            notice: notice,
             graph: graph,
           ),
         ),
@@ -250,6 +272,23 @@ class _CaptureScreenState extends State<CaptureScreen> {
     setState(() => _saving = false);
   }
 
+  /// The choices of the "Other uses of the text" menu, in its order.
+  List<ShareUse> get _offered => [
+        for (final use in ShareUse.values)
+          if (widget.uses.contains(use) &&
+              (widget.writer.editor != null ||
+                  (use != ShareUse.append && use != ShareUse.replace)))
+            use,
+      ];
+
+  static String _useLabel(ShareUse use) => switch (use) {
+        ShareUse.append => 'Add to a node',
+        ShareUse.replace => "Replace a node's text",
+        ShareUse.askAi => 'Ask AI',
+        ShareUse.addToChat => 'Add to a chat…',
+        ShareUse.importAsIs => 'Import as a note as it is',
+      };
+
   @override
   Widget build(BuildContext context) {
     final title = oneLine(_title.text);
@@ -258,20 +297,17 @@ class _CaptureScreenState extends State<CaptureScreen> {
         title: const Text('New node'),
         actions: [
           if (widget.useForExisting case final use?
-              when widget.writer.editor != null && !_written)
+              when _offered.isNotEmpty && !_written)
             PopupMenuButton<ShareUse>(
-              tooltip: 'Use for an existing node',
+              tooltip: 'Other uses of the text',
               icon: const Icon(Icons.edit_note_outlined),
               onSelected: (choice) {
                 Navigator.of(context).pop();
                 use(choice);
               },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                    value: ShareUse.append, child: Text('Add to a node')),
-                PopupMenuItem(
-                    value: ShareUse.replace,
-                    child: Text("Replace a node's text")),
+              itemBuilder: (_) => [
+                for (final choice in _offered)
+                  PopupMenuItem(value: choice, child: Text(_useLabel(choice))),
               ],
             ),
           IconButton(
@@ -284,6 +320,12 @@ class _CaptureScreenState extends State<CaptureScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (widget.notice case final notice?)
+            Padding(
+              key: const ValueKey('capture-notice'),
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(notice),
+            ),
           if (_problem case final problem?)
             Padding(
               padding: const EdgeInsets.only(bottom: 16),

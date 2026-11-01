@@ -1214,7 +1214,7 @@ void main() {
       await start(tester, access,
           shares: shares, memory: MemoryNodeMemory('a'));
       final before = access.texts['roam/a.org']!;
-      await tester.tap(find.byTooltip('Use for an existing node'));
+      await tester.tap(find.byTooltip('Other uses of the text'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Add to a node'));
       await tester.pumpAndSettle();
@@ -1242,7 +1242,7 @@ void main() {
       final access = withNotes(saved: writableOrg);
       await start(tester, access,
           shares: shares, memory: MemoryNodeMemory('a'));
-      await tester.tap(find.byTooltip('Use for an existing node'));
+      await tester.tap(find.byTooltip('Other uses of the text'));
       await tester.pumpAndSettle();
       await tester.tap(find.text("Replace a node's text"));
       await tester.pumpAndSettle();

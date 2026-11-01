@@ -7,9 +7,12 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../ai/ai_settings.dart';
+import '../ai/chat_list_screen.dart';
 import '../help/help.dart';
 import '../capture/capture_screen.dart';
+import '../capture/new_node.dart' show newOrgId;
 import '../capture/share_inbox.dart';
+import '../capture/text_files.dart';
 import '../edit/append_screen.dart';
 import '../edit/edit_proposal.dart';
 import '../edit/edit_screen.dart';
@@ -24,6 +27,7 @@ import '../graph_view/node_memory.dart';
 import '../node_view/node_screen.dart';
 import '../node_view/note_images.dart';
 import '../platform/desktop.dart';
+import '../platform/text_drop.dart';
 import '../settings/view_settings.dart';
 import 'folder_access.dart';
 import 'folder_report.dart';
@@ -55,7 +59,12 @@ class FolderScreen extends StatefulWidget {
     this.nodeMemory = const FileNodeMemory(),
     this.editHistory = const FileEditHistory(),
     this.startProcess = startDetached,
+    this.pickTextFiles = pickTextFilesOnDesktop,
   });
+
+  /// "Open files…" on the desktop (#220): the paths the user chose; tests
+  /// replace it.
+  final Future<List<String>> Function() pickTextFiles;
 
   final FolderAccess folderAccess;
 
@@ -149,6 +158,7 @@ class _FolderScreenState extends State<FolderScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.shareInbox.listen(_takeShare);
+    TextDrop.add(_takeDrop);
     _start();
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     if (lifecycle == null || lifecycle == AppLifecycleState.resumed) {
@@ -292,37 +302,190 @@ class _FolderScreenState extends State<FolderScreen>
     }
   }
 
+  /// Shares from the desktop itself (#220): drops onto the window, "New
+  /// note from clipboard" and "Open files…". They are taken before those
+  /// of [FolderScreen.shareInbox], in the same queue.
+  final _localShares = <Share>[];
+
+  /// Brings [share] in as if another app had shared it (#220).
+  void _bringIn(Share share) {
+    _localShares.add(share);
+    _takeShare();
+  }
+
+  /// A drop onto the window that no chat took (#220).
+  bool _takeDrop(Share share) {
+    _bringIn(share);
+    return true;
+  }
+
+  /// "New note from clipboard" and its keys on the desktop (#220).
+  Future<void> _newFromClipboard() async {
+    final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
+    if (!mounted) return;
+    if (text == null || text.trim().isEmpty) {
+      _tell('The clipboard has no text.');
+      return;
+    }
+    _bringIn(SharedText(text));
+  }
+
+  /// "Open files…" on the desktop (#220).
+  Future<void> _openFiles() async {
+    final paths = await widget.pickTextFiles();
+    if (paths.isEmpty || !mounted) return;
+    _bringIn(await readLocalFiles(paths));
+  }
+
+  void _tell(String message) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
+
   /// Takes one share and lets the user capture it; false if there was none
   /// to take, or the folder is not indexed yet.
   Future<bool> _captureShare() async {
     final notifier = _graph;
     if (_status != _Status.indexed || notifier == null) return false;
-    final shared = await widget.shareInbox.take();
-    if (shared == null || !mounted) return false;
-    final proposal = proposeNode(shared);
+    final share = _localShares.isNotEmpty
+        ? _localShares.removeAt(0)
+        : await widget.shareInbox.take();
+    if (share == null || !mounted) return false;
+    switch (share) {
+      case SharedText(:final text):
+        await _captureText(notifier, text, proposeNode(share));
+      case SharedFiles(:final files):
+        await _captureFiles(notifier, readTextFiles(files));
+    }
+    return true;
+  }
+
+  /// Text files shared or brought in (#220): one file as shared text with
+  /// the file name as the proposed title; for several files, the user
+  /// chooses one note per file or one note.
+  Future<void> _captureFiles(
+      ValueNotifier<RoamGraph> notifier, TextFiles read) async {
+    final notes = read.notes;
+    final files = read.files;
+    if (files.isEmpty) {
+      _tell(notes.isEmpty ? 'No files.' : notes.join('\n'));
+      return;
+    }
+    if (files.length == 1) {
+      await _captureFile(notifier, files.single,
+          notice: notes.isEmpty ? null : notes.join('\n'));
+      return;
+    }
+    final choice = await showDialog<_SeveralFiles>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${files.length} text files'),
+        content: Text([
+          ...notes,
+          'Make one note per file, or one note with a heading for each '
+              'file?',
+        ].join('\n\n')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, _SeveralFiles.oneNote),
+            child: const Text('One note'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, _SeveralFiles.perFile),
+            child: const Text('One note per file'),
+          ),
+        ],
+      ),
+    );
+    switch (choice) {
+      case null:
+        return;
+      case _SeveralFiles.perFile:
+        // One after the other: the next opens when a capture closes.
+        for (final (i, file) in files.indexed) {
+          if (!mounted) return;
+          await _captureFile(notifier, file,
+              notice: 'File ${i + 1} of ${files.length}: ${file.name}');
+        }
+      case _SeveralFiles.oneNote:
+        final text = joinFiles(files);
+        await _captureText(notifier, text, (
+          title: [for (final file in files) file.baseName].join(', '),
+          body: text,
+        ));
+    }
+  }
+
+  Future<void> _captureFile(ValueNotifier<RoamGraph> notifier, TextFile file,
+      {String? notice}) {
+    final proposal = proposeFromFile(file);
+    return _captureText(
+      notifier,
+      file.text,
+      (title: proposal.title, body: proposal.body),
+      tags: proposal.tags,
+      name: file.name,
+      orgFile: file.isOrg ? file : null,
+      notice: notice,
+    );
+  }
+
+  /// Opens the capture screen for shared [text], or a choice of its
+  /// "Other uses of the text" menu: an existing node (#39), a chat, or,
+  /// for [orgFile], an import as it is (#220).
+  Future<void> _captureText(
+    ValueNotifier<RoamGraph> notifier,
+    String text,
+    ({String title, String body}) proposal, {
+    List<String> tags = const [],
+    String? name,
+    TextFile? orgFile,
+    String? notice,
+  }) async {
     final last = notifier.value.nodes[await widget.nodeMemory.lastNode()];
-    if (!mounted) return false;
-    // Set when the share goes to an existing node instead; the next share
-    // waits until that is done.
-    Future<void>? intoNode;
+    if (!mounted) return;
+    // Set when the share goes elsewhere; the next share waits until that
+    // is done.
+    Future<void>? instead;
     final id = await CaptureScreen.open(
       context,
       _writer,
       graph: notifier.value,
       initialTitle: proposal.title,
       initialBody: proposal.body,
+      initialTags: tags,
       // Offered, not on: a shared text is often about something else.
       linkTo: last == null ? null : (id: last.id, title: last.displayTitle),
       linkByDefault: false,
-      // Or the share changes an existing node (#39).
-      useForExisting: (use) =>
-          intoNode = _shareIntoNode(use, shared.text, last),
+      notice: notice,
+      uses: {
+        ShareUse.append,
+        ShareUse.replace,
+        ShareUse.askAi,
+        ShareUse.addToChat,
+        if (orgFile != null) ShareUse.importAsIs,
+      },
+      useForExisting: (use) => instead = switch (use) {
+        ShareUse.append ||
+        ShareUse.replace =>
+          _shareIntoNode(use, text, last),
+        ShareUse.askAi || ShareUse.addToChat => _shareIntoChat(
+            sharedTextMessage(text, name: name),
+            newChat: use == ShareUse.askAi),
+        ShareUse.importAsIs => _importAsIs(orgFile!),
+      },
     );
-    if (intoNode != null) {
-      await intoNode;
-      return true;
+    if (instead case final instead?) {
+      await instead;
+      return;
     }
-    if (id != null && mounted) {
+    if (id != null && mounted) _openNode(notifier, id);
+  }
+
+  void _openNode(ValueNotifier<RoamGraph> notifier, String id) =>
       NodeScreen.open(
         context,
         graph: notifier,
@@ -333,8 +496,51 @@ class _FolderScreenState extends State<FolderScreen>
         openElsewhere: _openElsewhere,
         writer: _writer,
       );
+
+  /// "Ask AI" (a new chat) or "Add to a chat…" (a chat the user chooses)
+  /// for shared text (#220): [message] goes into the message field, and
+  /// nothing is sent until the user sends it.
+  Future<void> _shareIntoChat(String message, {required bool newChat}) async {
+    final notifier = _graph;
+    if (notifier == null || !mounted) return;
+    await ChatListScreen.open(
+      context,
+      graph: notifier,
+      readNote: _readNote,
+      openNewChat: newChat,
+      initialInput: message,
+      writer: _writer,
+      searchText: _files.searchText,
+      openNode: (_, id) {
+        widget.nodeMemory.remember(id);
+        _openNode(notifier, id);
+      },
+    );
+  }
+
+  /// "Import as a note as it is" for an Org file (#220): the file goes
+  /// into roam/ under its own name, unchanged, with a new ID at the top if
+  /// it has none, as a new node gets. An existing file is never replaced.
+  Future<void> _importAsIs(TextFile file) async {
+    final (:id, :text) = importText(file.text, newOrgId());
+    final result = await _writer.create(file.name, text);
+    if (!mounted) return;
+    switch (result) {
+      case Created():
+        final notifier = _graph;
+        if (notifier != null) _openNode(notifier, id);
+        _tell('Imported ${file.name}.');
+      case FileExists():
+        _tell('Not imported: roam/${file.name} exists already. Rename the '
+            'file, or use "New node".');
+      case NoWriteAccess():
+        _tell('Not imported: the app may not write to this folder. Choose '
+            'it again in "Folder and index" to allow writing.');
+      case WrittenNotIndexed(:final message):
+        _tell('Imported ${file.name}, but it is not indexed: $message');
+      case CreateFailed(:final message):
+        _tell('Not imported: $message');
     }
-    return true;
   }
 
   /// Shared text added to, or replacing the text of, a node the user
@@ -463,6 +669,7 @@ class _FolderScreenState extends State<FolderScreen>
 
   @override
   void dispose() {
+    TextDrop.remove(_takeDrop);
     WidgetsBinding.instance.removeObserver(this);
     _stopChecking();
     _graph?.dispose();
@@ -740,8 +947,12 @@ class _FolderScreenState extends State<FolderScreen>
   }
 
   /// The controls the graph gets for "Folder and index" (#196).
-  late final _controls =
-      FolderControls(problems: _problems, open: _showFolderSheet);
+  late final _controls = FolderControls(
+    problems: _problems,
+    open: _showFolderSheet,
+    newFromClipboard: _newFromClipboard,
+    openFiles: _openFiles,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -751,8 +962,13 @@ class _FolderScreenState extends State<FolderScreen>
     if (notifier != null &&
         (_status == _Status.indexed ||
             (_status == _Status.loading && _settled == _Status.indexed))) {
-      return widget.graphScreen(
+      final graph = widget.graphScreen(
           notifier, _readNote, _openElsewhere, _writer, _files, _controls);
+      if (!isDesktop) return graph;
+      return CallbackShortcuts(
+        bindings: {pasteShortcut: _newFromClipboard},
+        child: Focus(autofocus: true, child: graph),
+      );
     }
     return Scaffold(
       appBar: AppBar(
@@ -1058,3 +1274,6 @@ class _FolderNoteStore implements NoteStore {
   @override
   String historyKey(String path) => '${_state._folder?.uri ?? ''}\n$path';
 }
+
+/// The choice for several text files (#220).
+enum _SeveralFiles { perFile, oneNote }
