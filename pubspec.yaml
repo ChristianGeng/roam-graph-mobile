@@ -37,6 +37,7 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   # The notes folder on the desktop (#116): the system's folder picker.
   file_selector: ^1.0.3
+  desktop_drop: ^0.8.4
 dev_dependencies:
   flutter_test:
     sdk: flutter

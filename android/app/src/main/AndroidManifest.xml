@@ -39,6 +39,26 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="text/plain"/>
             </intent-filter>
+            <!-- Shared text files (#220): EXTRA_STREAM with one file (SEND)
+                 or several (SEND_MULTIPLE). Some apps send .org and .md
+                 files as application/octet-stream; the app takes those by
+                 the file name (.txt, .md, .markdown, .org). For several
+                 files, Android sends the type they have in common, so
+                 text/markdown and text/plain together come as text/*. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/markdown"/>
+                <data android:mimeType="text/x-markdown"/>
+                <data android:mimeType="text/x-org"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/*"/>
+                <data android:mimeType="application/octet-stream"/>
+            </intent-filter>
         </activity>
         <!-- Pictures and files shared with other apps (#209): copies in the
              cache folder "share" only, never the notes folder. -->
