@@ -274,7 +274,17 @@ class FolderAccess(private val activity: Activity) : MethodChannel.MethodCallHan
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             val apps = activity.packageManager
                 .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
-            if (apps.isEmpty()) {
+            // The chooser leaves out apps this app may not start: not
+            // exported, or behind a permission it lacks.
+            val startable = apps.any { resolveInfo ->
+                val info = resolveInfo.activityInfo
+                info.applicationInfo.uid == android.os.Process.myUid() ||
+                    (info.exported &&
+                        (info.permission == null ||
+                            activity.checkSelfPermission(info.permission) ==
+                            PackageManager.PERMISSION_GRANTED))
+            }
+            if (!startable) {
                 continue
             }
             // createChooser copies the read grant and the URI (as ClipData)
