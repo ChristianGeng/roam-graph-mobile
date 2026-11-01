@@ -69,15 +69,14 @@ void main() {
     });
 
     testWidgets('a language code is checked', (tester) async {
-      final store = MemoryAiSettingsStore();
+      final store = MemoryAiSettingsStore(const AiSettings(
+        speechLanguage: 'fr',
+      ));
       await openAiPage(tester, store: store, keys: MemoryKeyStore());
       await openRow(tester, 'speech');
-      await tester.tap(find.byKey(const ValueKey('speech-language-')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('A language code').last);
-      await tester.pumpAndSettle();
-      await tester.enterText(
-          find.byKey(const ValueKey('speech-language-code')), 'nonsense!');
+      final field = find.byKey(const ValueKey('speech-language-code'));
+      await scrollTo(tester, field);
+      await tester.enterText(field, 'nonsense!');
       await backToAi(tester);
       await tester.tap(find.byTooltip('Save'));
       await tester.pumpAndSettle();
