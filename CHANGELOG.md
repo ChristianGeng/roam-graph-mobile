@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-01: Bring text in: shared files, chats and the desktop ([#224](https://github.com/ChristianGeng/roam-graph-mobile/pull/224))
+
+- Added: text files (.txt, .md, .markdown, .org) shared on Android open the capture screen; several files become one note per file or one note; an .org file can be imported as it is.
+- Added: "Ask AI" and "Add to a chat…" on the capture screen put the shared text into a chat's message field, without sending it.
+- Added: on the desktop, drop text or files on the window or a chat, "New note from clipboard" (Ctrl+Shift+V) and "Open files…" in the More menu.
+- Closes #220.
+
 ## 2026-11-01: "Open in another app…" instead of "Open in Orgro" ([#222](https://github.com/ChristianGeng/roam-graph-mobile/pull/222))
 
 - Changed: on Android, a note's "Open in Orgro" is now "Open in another app…". It shows Android's app chooser, so Orgro, Markor, a text editor or any other app that opens the file can be chosen; the app gets read access only.

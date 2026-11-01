@@ -201,18 +201,18 @@ class FakeFolderAccess implements FolderAccess {
 /// A [ShareInbox] without Android, for tests: a queue, as in
 /// MainActivity.kt.
 class FakeShareInbox implements ShareInbox {
-  final queue = <SharedText>[];
+  final queue = <Share>[];
   void Function()? onArrived;
 
   @override
-  Future<SharedText?> take() async =>
+  Future<Share?> take() async =>
       queue.isEmpty ? null : queue.removeAt(0);
 
   @override
   void listen(void Function() onArrived) => this.onArrived = onArrived;
 
   /// Text shared while the app runs.
-  void share(SharedText shared) {
+  void share(Share shared) {
     queue.add(shared);
     onArrived?.call();
   }
@@ -304,6 +304,7 @@ Future<TestGraphIndex> start(
   MemoryNodeMemory? memory,
   EditHistory? history,
   ViewSettingsStore? viewSettings,
+  Future<List<String>> Function()? pickTextFiles,
 }) async {
   final index = TestGraphIndex();
   final nodeMemory = memory ?? MemoryNodeMemory();
@@ -315,6 +316,7 @@ Future<TestGraphIndex> start(
       nodeMemory: nodeMemory,
       editHistory: history ?? MemoryEditHistory(),
       viewSettings: viewSettings ?? MemoryViewSettingsStore(),
+      pickTextFiles: pickTextFiles ?? () async => const [],
       graphScreen: (graph, readNote, openElsewhere, writer, files, folder) {
         lastWriter = writer;
         lastGraph = graph;

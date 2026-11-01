@@ -133,6 +133,14 @@ AI app. On the desktop it copies the text to the clipboard.
 An AI app's answer can come back as a new note: share it to Roam Graph
 ([[id:roam-graph-help-capture][Capture and shared text]]).
 
+** Ask about shared text
+Text or a text file shared to Roam Graph can go into a chat instead of a
+note: *Other uses of the text* on the capture screen, then *Ask AI* (a new
+chat) or *Add to a chat…* (choose a chat). The text goes into the message
+field as a block that starts with ~Shared text:~; nothing is sent before I
+send it. On the desktop, text or files dropped on a chat go into its
+message field in the same way.
+
 * Let the AI edit notes
 :PROPERTIES:
 :ID:       roam-graph-help-ai-edit

@@ -45,7 +45,11 @@ class RoamGraphApp extends StatelessWidget {
     this.chatStorage = const FileChatStorage(),
     this.backgroundService,
     this.answerNotifier,
+    this.pickTextFiles = pickTextFilesOnDesktop,
   });
+
+  /// "Open files…" on the desktop (#220); tests replace it.
+  final Future<List<String>> Function() pickTextFiles;
 
   /// The notes folder: Android's, or a plain folder on the desktop (#116).
   final FolderAccess? folderAccess;
@@ -102,6 +106,7 @@ class RoamGraphApp extends StatelessWidget {
                 shareInbox: shareInbox,
                 nodeMemory: nodeMemory,
                 editHistory: editHistory,
+                pickTextFiles: pickTextFiles,
               ),
             ),
           ),

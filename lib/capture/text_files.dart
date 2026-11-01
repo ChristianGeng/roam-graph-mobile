@@ -216,7 +216,8 @@ List<String> _withoutIds(List<String> lines) {
   var i = 0;
   for (; i < lines.length; i++) {
     final line = lines[i];
-    if (line.trim().isEmpty || _comment.hasMatch(line)) {
+    // `# text` is a comment in Org, but a heading in Markdown.
+    if (line.trim().isEmpty || (file.isOrg && _comment.hasMatch(line))) {
       if (line.trim().isNotEmpty) kept.add(line);
       continue;
     }

@@ -52,6 +52,9 @@ example ~/opt/homebrew/bin/emacsclient~.
 - In the graph, *right click* on a node opens the menu that a long press
   opens on a phone.
 - Web links open in the web browser.
-- *Share with AI* copies the text to the clipboard. Text cannot be shared
-  into the app.
+- *Share with AI* copies the text to the clipboard.
+- Instead of sharing text into the app: drop text or text files on the
+  window (or on a chat), *New note from clipboard* (Ctrl+Shift+V, Cmd+Shift+V
+  on macOS) or *Open files…* in the graph's *More* menu. See
+  [[id:roam-graph-help-capture][Capture and shared text]].
 - On Linux, API keys are kept in the system keyring.
