@@ -914,7 +914,7 @@ class _NodeScreenState extends State<NodeScreen> {
     final chosen = await chooseTodoState(context,
         states: todoStatesOf(h.document),
         current: h.sections[index].headline.keyword?.value);
-    if (chosen == null || !mounted || !identical(h, _headings)) return;
+    if (chosen == null || !mounted || !h.matches(_headings)) return;
     await _setTodo(h.writer, h.node, h.text, index, chosen.keyword);
   }
 
@@ -999,7 +999,7 @@ class _NodeScreenState extends State<NodeScreen> {
             ),
       ],
     );
-    if (chosen == null || !mounted || !identical(h, _headings)) return;
+    if (chosen == null || !mounted || !h.matches(_headings)) return;
     await _onHeading(chosen, index);
   }
 
@@ -1111,6 +1111,17 @@ class _NodeScreenState extends State<NodeScreen> {
     int lineOf(int offset) => lines.where((m) => m.start < offset).length;
     final end = at + cut.removed.length;
     _endVisit();
+    // The lines to delete are counted in the text on screen: only while
+    // the file is still that text.
+    final current = await h.writer.editor?.read(h.node.file);
+    if (!mounted) return;
+    if (current == null || current.text != h.text) {
+      _readAgain();
+      _tell('${h.node.file} changed since the app showed it, so nothing '
+          'was changed. It is shown again now.',
+          error: true);
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
     final deletion = await confirmDeleteNotes(context,
         graph: graph,
@@ -1947,4 +1958,9 @@ class _Headings {
   /// The highest level a heading may get: 1 in a file node, one below the
   /// node's own heading in a heading node.
   final int topLevel;
+
+  /// Whether [other] was drawn from the same text of the same node: a
+  /// rebuild makes a new object for the same text.
+  bool matches(_Headings? other) =>
+      other != null && other.node.id == node.id && other.text == text;
 }

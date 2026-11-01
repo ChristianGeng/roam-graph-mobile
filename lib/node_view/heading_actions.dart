@@ -91,7 +91,10 @@ StructureResult headingStructure(
 }) {
   final at = headingOffset(text, sections, index);
   if (at == null) return const StructureRefused(_noMatch);
-  if (index < sections.length && sections[index].level < topLevel) {
+  // The TODO state of the note's own heading may change, as before (#150).
+  if (action != StructureAction.todo &&
+      index < sections.length &&
+      sections[index].level < topLevel) {
     return const StructureRefused(
         "The note's own heading changes in Emacs or in its parent note.");
   }
