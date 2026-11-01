@@ -16,6 +16,7 @@ import 'model_picker.dart';
 import 'note_language.dart';
 import 'ai_providers.dart';
 import 'ai_visibility.dart';
+import 'speech.dart';
 import 'chat_store.dart' show ChatStoreScope;
 
 /// One provider's values (#59), where they differ from its preset
@@ -174,7 +175,37 @@ class AiSettings {
     this.maxParallelChats = 3,
     this.keepChatsDays = 90,
     this.notifyAnswers = true,
+    this.speechProvider = '',
+    this.speechModels = const {},
+    this.speechLanguage = '',
+    this.speechSpeakers = false,
+    this.speechConsent = const [],
   });
+
+  /// "Speech to text: provider" (#221): the ID of a [speechProviders]
+  /// entry; empty for automatic: Mistral when its key is set, else OpenAI
+  /// when its key is set.
+  final String speechProvider;
+
+  /// The model for each speech provider, by ID; a provider not in it has
+  /// its default.
+  final Map<String, String> speechModels;
+
+  /// "Speech to text: language": empty for the language of new notes,
+  /// [speechLanguageAuto] to let the provider detect it, or a code.
+  final String speechLanguage;
+
+  /// "Speakers" (#221): ask for speaker labels where the provider has them.
+  final bool speechSpeakers;
+
+  /// The IDs of the speech providers the user agreed to send recordings to.
+  final List<String> speechConsent;
+
+  /// The model of the speech provider [id].
+  String speechModel(String id) {
+    final saved = speechModels[id]?.trim() ?? '';
+    return saved.isEmpty ? speechProviderById(id).defaultModel : saved;
+  }
 
   /// "Most chats working at the same time" (#201): a further send waits.
   final int maxParallelChats;
@@ -274,6 +305,11 @@ class AiSettings {
     int? maxParallelChats,
     int? keepChatsDays,
     bool? notifyAnswers,
+    String? speechProvider,
+    Map<String, String>? speechModels,
+    String? speechLanguage,
+    bool? speechSpeakers,
+    List<String>? speechConsent,
   }) =>
       AiSettings(
         hiddenTags: hiddenTags ?? this.hiddenTags,
@@ -294,6 +330,11 @@ class AiSettings {
         maxParallelChats: maxParallelChats ?? this.maxParallelChats,
         keepChatsDays: keepChatsDays ?? this.keepChatsDays,
         notifyAnswers: notifyAnswers ?? this.notifyAnswers,
+        speechProvider: speechProvider ?? this.speechProvider,
+        speechModels: speechModels ?? this.speechModels,
+        speechLanguage: speechLanguage ?? this.speechLanguage,
+        speechSpeakers: speechSpeakers ?? this.speechSpeakers,
+        speechConsent: speechConsent ?? this.speechConsent,
       );
 
   Map<String, Object?> toJson() => {
@@ -318,6 +359,11 @@ class AiSettings {
         'maxParallelChats': maxParallelChats,
         'keepChatsDays': keepChatsDays,
         'notifyAnswers': notifyAnswers,
+        'speechProvider': speechProvider,
+        'speechModels': speechModels,
+        'speechLanguage': speechLanguage,
+        'speechSpeakers': speechSpeakers,
+        'speechConsent': speechConsent,
       };
 
   /// Settings from [json]; a missing or unreadable value keeps its default.
@@ -387,9 +433,37 @@ class AiSettings {
       notifyAnswers: json['notifyAnswers'] is bool
           ? json['notifyAnswers'] as bool
           : defaults.notifyAnswers,
+      speechProvider: switch (json['speechProvider']) {
+        final String id when speechProviders.any((p) => p.id == id) => id,
+        _ => defaults.speechProvider,
+      },
+      speechModels: {
+        if (json['speechModels'] case final Map models)
+          for (final MapEntry(:key, :value) in models.entries)
+            if (key is String &&
+                speechProviders.any((p) => p.id == key) &&
+                value is String &&
+                value.trim().isNotEmpty)
+              key: value.trim(),
+      },
+      speechLanguage: switch (json['speechLanguage']) {
+        final String code when code == speechLanguageAuto => code,
+        final String code => languageCode(code) ?? defaults.speechLanguage,
+        _ => defaults.speechLanguage,
+      },
+      speechSpeakers: json['speechSpeakers'] == true,
+      speechConsent: [
+        if (json['speechConsent'] case final List ids)
+          for (final id in ids)
+            if (id is String && speechProviders.any((p) => p.id == id)) id,
+      ],
     );
   }
 }
+
+/// The value of [AiSettings.speechLanguage] for "let the provider detect
+/// the language".
+const speechLanguageAuto = 'auto';
 
 /// The choices of "Keep chats for" (#201): days, 0 for always.
 const keepChatsChoices = [
