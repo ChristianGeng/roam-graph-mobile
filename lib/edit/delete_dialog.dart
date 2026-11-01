@@ -26,6 +26,7 @@ Future<HandDeletion?> confirmDeleteNotes(
   required List<RoamNode> nodes,
   required NoteWriter writer,
   Map<String, (int, int)> alsoLines = const {},
+  Map<String, String> alsoText = const {},
   String? heading,
 }) async {
   final editor = writer.editor;
@@ -64,7 +65,8 @@ Future<HandDeletion?> confirmDeleteNotes(
   );
   final DeletePlan plan;
   try {
-    plan = await deleter.prepare(graph, nodes, alsoLines: alsoLines);
+    plan = await deleter.prepare(graph, nodes,
+        alsoLines: alsoLines, alsoText: alsoText);
   } on DeleteError catch (e) {
     if (context.mounted) {
       showErrorSnackBar(ScaffoldMessenger.of(context), e.message);

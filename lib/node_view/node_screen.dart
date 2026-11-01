@@ -1135,6 +1135,7 @@ class _NodeScreenState extends State<NodeScreen> {
                   end == h.text.length ? lines.length + 1 : lineOf(end),
                 ),
               },
+        alsoText: own ? const {} : {h.node.file: h.text},
         heading: own ? null : h.sections[index].headline.rawTitle ?? '');
     if (deletion == null || !mounted) return;
     _current.value = null;
