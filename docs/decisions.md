@@ -3680,7 +3680,9 @@ desktop no text could come in at all.
   (`takeShare`), on a background thread, through the `ContentResolver`: the
   name and size from `OpenableColumns`, then at most 1 MB and one byte, so
   a large file is refused without reading it whole. The URIs are read
-  while the activity still has the sender's read grant.
+  while the activity still has the sender's read grant. Only `content://`
+  URIs are taken: a `file://` URI would be opened with the app's own
+  rights, so a sender could make it read the app's private files.
 - **The title of one file:** a title line first (`#+title:`, an Org
   heading, a Markdown heading), otherwise the file name without its ending:
   a file is usually named for what is in it. The `:ID:`s of a shared Org

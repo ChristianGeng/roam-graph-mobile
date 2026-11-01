@@ -24,7 +24,11 @@ object IncomingFiles {
     private val extensions = setOf("txt", "md", "markdown", "org")
     private val mimeTypes = setOf("text/plain", "text/markdown", "text/x-markdown", "text/x-org", "text/org")
 
-    /** The URIs of EXTRA_STREAM in a share intent; empty if there are none. */
+    /**
+     * The URIs of EXTRA_STREAM in a share intent; empty if there are none.
+     * Only content:// URIs: a file:// URI would be opened with the app's
+     * own rights, so a sender could make it read the app's private files.
+     */
     fun streams(intent: Intent): List<Uri> {
         @Suppress("DEPRECATION")
         val uris: List<Uri?> = when (intent.action) {
@@ -43,7 +47,7 @@ object IncomingFiles {
                 } ?: emptyList()
             else -> emptyList()
         }
-        return uris.filterNotNull()
+        return uris.filterNotNull().filter { it.scheme == ContentResolver.SCHEME_CONTENT }
     }
 
     /** True if the file is taken as a text file, by its name or MIME type. */
