@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-01: The full release runs again ([#228](https://github.com/ChristianGeng/roam-graph-mobile/pull/228))
+
+- Fixed: the full release stopped at "live-check" when more than 30 commits came since the previous full release: later pages of GitHub's comparison have no file list. The check now reads the first page only.
+
 ## 2026-11-01: Voice memos: transcribe a shared or dropped audio file ([#227](https://github.com/ChristianGeng/roam-graph-mobile/pull/227))
 
 - Added: an audio file shared with the app (a recorder, a voice message) or dropped on the desktop window is transcribed with Mistral Voxtral or OpenAI and opens the capture screen as a new note to review; "Keep the recording with the note" copies the audio next to it.
