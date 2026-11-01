@@ -3663,8 +3663,10 @@ desktop no text could come in at all.
   bytes or the error). `readTextFiles` (`lib/capture/text_files.dart`)
   checks and decodes the files for Android and the desktop alike, so the
   limits and the messages are the same everywhere.
-- **Which files:** names ending in `.txt`, `.md`, `.markdown` or `.org`, or a
-  `text/*` MIME type. Many apps send Org and Markdown files as
+- **Which files:** names ending in `.txt`, `.md`, `.markdown` or `.org`, or
+  one of the MIME types `text/plain`, `text/markdown`, `text/x-markdown`,
+  `text/org` and `text/x-org` (not every `text/*`: CSV, HTML or code files
+  are not notes). Many apps send Org and Markdown files as
   `application/octet-stream`, so the name decides for those; a binary file
   with a text name would show as odd text, and nothing is written before
   Save. At most 20 files and 1 MB per file, so a mistaken share of a folder
