@@ -536,8 +536,10 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          gh api --paginate "repos/$GH_REPO/compare/$PREVIOUS...$GITHUB_SHA" \
-            --jq '.files[].filename' > "$RUNNER_TEMP/changed-files.txt"
+          # Only the first page of a comparison lists the files; later pages
+          # (more commits) have none, so no --paginate.
+          gh api "repos/$GH_REPO/compare/$PREVIOUS...$GITHUB_SHA" \
+            --jq '.files[]?.filename' > "$RUNNER_TEMP/changed-files.txt"
           # The compare API names at most 300 files: a longer list may be
           # cut, so then the tests run.
           if [ "$(wc -l < "$RUNNER_TEMP/changed-files.txt")" -ge 300 ]; then
