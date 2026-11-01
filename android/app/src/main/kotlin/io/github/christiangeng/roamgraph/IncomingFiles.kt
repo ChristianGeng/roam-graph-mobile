@@ -174,13 +174,14 @@ object IncomingFiles {
             file["size"] = size
             return
         }
+        var copy: File? = null
         try {
             voiceDir.mkdirs()
-            val copy = File(voiceDir, "${System.currentTimeMillis()}-$number-${name.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
+            copy = File(voiceDir, "${System.currentTimeMillis()}-$number-${name.replace(Regex("[^A-Za-z0-9._-]"), "_")}")
             var total = 0L
             val input = resolver.openInputStream(uri) ?: throw IllegalStateException("the file could not be opened")
             input.use {
-                FileOutputStream(copy).use { out ->
+                FileOutputStream(copy!!).use { out ->
                     val buffer = ByteArray(64 * 1024)
                     while (total <= MAX_AUDIO_BYTES) {
                         val n = it.read(buffer)
@@ -191,16 +192,18 @@ object IncomingFiles {
                 }
             }
             if (total > MAX_AUDIO_BYTES) {
-                copy.delete()
+                copy!!.delete()
                 file["size"] = total
                 return
             }
-            file["path"] = copy.absolutePath
+            file["path"] = copy!!.absolutePath
             // The app's own copy, which the Dart side may delete.
             file["copy"] = true
             file["size"] = total
-            durationMs(copy)?.let { file["durationMs"] = it }
+            durationMs(copy!!)?.let { file["durationMs"] = it }
         } catch (e: Exception) {
+            // A partial copy is of no use to Dart, which never learns its path.
+            copy?.delete()
             // SecurityException, FileNotFoundException, IOException and the like.
             file["error"] = e.message ?: e.javaClass.simpleName
         }

@@ -62,6 +62,10 @@ class _VoiceMemoScreenState extends State<VoiceMemoScreen>
     final token = _token;
     if (_error != null) setState(() => _error = null);
     await widget.work.started();
+    if (token.cancelled) {
+      await widget.work.finished();
+      return;
+    }
     try {
       final transcript = await transcribeAudio(widget.config, widget.audio,
           post: widget.post, cancel: token);
