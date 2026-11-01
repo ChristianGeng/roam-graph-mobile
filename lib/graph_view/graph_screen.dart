@@ -18,6 +18,7 @@ import '../graph/graph_scope.dart';
 import '../graph/roam_graph.dart';
 import '../node_view/heading_link.dart';
 import '../node_view/node_screen.dart';
+import '../platform/desktop.dart';
 import '../search/search_screen.dart';
 import '../settings/view_settings.dart';
 import 'node_memory.dart';
@@ -62,9 +63,21 @@ double tapReach(double scale) => _nodeRadius + 16 / scale;
 
 /// What the graph needs from the folder screen for "Folder and index"
 /// (#196): the number of problems the last scan found, and how to open the
-/// sheet that lists them.
+/// sheet that lists them. On the desktop also "New note from clipboard"
+/// and "Open files…" (#220).
 class FolderControls {
-  const FolderControls({required this.problems, required this.open});
+  const FolderControls({
+    required this.problems,
+    required this.open,
+    this.newFromClipboard,
+    this.openFiles,
+  });
+
+  /// Opens the capture screen with the text on the clipboard (#220).
+  final VoidCallback? newFromClipboard;
+
+  /// Lets the user choose text files to bring in (#220).
+  final VoidCallback? openFiles;
 
   /// Skipped files, unreadable files and conflict copies; the app bar shows
   /// a warning icon while it is above 0.
@@ -152,7 +165,16 @@ enum _ScopeChoice {
 }
 
 /// The actions of the graph's "More" menu.
-enum _MoreAction { centre, askAi, recent, folder, settings, help }
+enum _MoreAction {
+  centre,
+  askAi,
+  recent,
+  fromClipboard,
+  openFiles,
+  folder,
+  settings,
+  help,
+}
 
 enum _NodeAction { open, edit, delete }
 
@@ -806,6 +828,10 @@ class _GraphScreenState extends State<GraphScreen> {
         if (widget.writer case final writer?) {
           RecentChangesScreen.open(context, writer: writer, log: writer.changeLog);
         }
+      case _MoreAction.fromClipboard:
+        widget.folder?.newFromClipboard?.call();
+      case _MoreAction.openFiles:
+        widget.folder?.openFiles?.call();
       case _MoreAction.folder:
         widget.folder?.open();
       case _MoreAction.settings:
@@ -996,6 +1022,23 @@ class _GraphScreenState extends State<GraphScreen> {
               if (widget.writer?.editor != null)
                 const PopupMenuItem(
                     value: _MoreAction.recent, child: Text('Recent changes')),
+              if (isDesktop && widget.folder?.newFromClipboard != null)
+                PopupMenuItem(
+                  value: _MoreAction.fromClipboard,
+                  child: Row(
+                    spacing: 16,
+                    children: [
+                      const Expanded(child: Text('New note from clipboard')),
+                      Text(pasteKeys,
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ),
+              if (isDesktop && widget.folder?.openFiles != null)
+                const PopupMenuItem(
+                  value: _MoreAction.openFiles,
+                  child: Text('Open files…'),
+                ),
               if (widget.folder != null)
                 const PopupMenuItem(
                   value: _MoreAction.folder,

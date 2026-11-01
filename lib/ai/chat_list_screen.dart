@@ -26,6 +26,7 @@ class ChatListScreen extends StatefulWidget {
     this.openNewChat = false,
     this.aboutStartNode = false,
     this.openChatId,
+    this.initialInput,
     this.store,
     this.writer,
     this.openNode,
@@ -56,6 +57,11 @@ class ChatListScreen extends StatefulWidget {
   /// empty or null opens the list only.
   final String? openChatId;
 
+  /// Text for the message field of the chat that opens first (#220):
+  /// shared text, which the user sends with a question. While it waits,
+  /// the list says to choose a chat.
+  final String? initialInput;
+
   final NoteWriter? writer;
   final OpenNode? openNode;
   final HttpPost post;
@@ -72,6 +78,7 @@ class ChatListScreen extends StatefulWidget {
     bool openNewChat = false,
     bool aboutStartNode = false,
     String? openChatId,
+    String? initialInput,
     NoteWriter? writer,
     OpenNode? openNode,
     Future<List<TextHit>> Function(String query, {int limit})? searchText,
@@ -86,6 +93,7 @@ class ChatListScreen extends StatefulWidget {
         openNewChat: openNewChat,
         aboutStartNode: aboutStartNode,
         openChatId: openChatId,
+        initialInput: initialInput,
         writer: writer,
         openNode: openNode,
         searchText: searchText,
@@ -176,8 +184,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 
+  /// [ChatListScreen.initialInput] until a chat took it.
+  late String? _input = widget.initialInput;
+
   /// Opens [chat], or a new chat.
-  Future<void> _open(Chat? chat) => Navigator.push(
+  Future<void> _open(Chat? chat) {
+    final input = _input;
+    if (input != null) setState(() => _input = null);
+    return Navigator.push(
     context,
     MaterialPageRoute<void>(
       builder: (_) => ChatScreen(
@@ -185,6 +199,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         readNote: widget.readNote,
         store: _store,
         chat: chat,
+        initialInput: input,
         startNode: chat == null ? widget.startNode : null,
         // The chat's "Chats" button goes back to this list (#215).
         listBelow: true,
@@ -198,6 +213,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       ),
     ),
   );
+  }
 
   void _delete(Chat chat) {
     _store.remove(chat);
@@ -242,13 +258,27 @@ class _ChatListScreenState extends State<ChatListScreen> {
         icon: const Icon(Icons.add_comment_outlined),
         label: const Text('New chat'),
       ),
-      body: ListenableBuilder(
-        listenable: _store,
-        // The rows follow their chats: a spinner, a dot, a new title.
-        builder: (context, _) => ListenableBuilder(
-          listenable: Listenable.merge(_store.chats),
-          builder: (context, _) => _list(context),
-        ),
+      body: Column(
+        children: [
+          if (_input != null)
+            const Padding(
+              key: ValueKey('chat-choose'),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text('Choose a chat for the shared text, or start a '
+                  'new chat. It goes into the message field; nothing is '
+                  'sent before you send it.'),
+            ),
+          Expanded(
+            child: ListenableBuilder(
+              listenable: _store,
+              // The rows follow their chats: a spinner, a dot, a new title.
+              builder: (context, _) => ListenableBuilder(
+                listenable: Listenable.merge(_store.chats),
+                builder: (context, _) => _list(context),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

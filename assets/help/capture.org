@@ -20,15 +20,47 @@ the old note gets a backlink and is never changed.
 * Shared text
 Text shared to Roam Graph from another app, such as an AI app, opens the
 same capture screen, with a title and text proposed from it. Nothing is
-written until I save (the check mark). Text cannot be shared into the app
-on the desktop.
+written until I save (the check mark).
 
-Instead of a new node, the shared text can go into an existing one: tap
-*Use for an existing node* in the bar of the capture screen, then *Add to a
-node* (the text goes to the end of the node you choose) or *Replace a
-node's text* (shown as a diff first). The capture screen closes and the
-original shared text is used, so choose this before you edit the text
-there; edit it on the next screen.
+Instead of a new node, the shared text can be used in other ways: tap
+*Other uses of the text* in the bar of the capture screen, then
+- *Add to a node*: the text goes to the end of the node you choose.
+- *Replace a node's text*: shown as a diff first.
+- *Ask AI*: a new chat opens with the text in the message field, as a
+  block that starts with ~Shared text:~. Nothing is sent before I send it;
+  I can write my question below the block first.
+- *Add to a chat…*: the list of chats opens; the chat I choose (or a new
+  chat) gets the text in its message field in the same way.
+- *Import as a note as it is*: only for one ~.org~ file, see below.
+The capture screen closes and the original shared text is used, so choose
+this before you edit the text there; edit it on the next screen.
+
+* Shared text files
+Files shared from a file manager or another app are read as text: files
+ending in ~.txt~, ~.md~, ~.markdown~ or ~.org~, or sent as text. At most 20
+files at a time and 1 MB per file; other files are not taken, and a message
+names them. A file that is not UTF-8 is read as Latin-1, with a note above
+the fields.
+
+- *One file* opens the capture screen like shared text. Its first line is
+  the title when it is a title line (~#+title:~, an Org heading ~* ...~ or a
+  Markdown heading ~# ...~); otherwise the title is the file name without
+  its ending. The tags of an Org file (~#+filetags:~) are proposed too.
+- *Several files* ask first: *One note per file* opens one capture screen
+  after the other, or *One note* puts all files in one note, each under a
+  heading with its file name.
+- *Import as a note as it is* (one ~.org~ file) copies the file into
+  ~roam/~ with its name, unchanged. A file without an ~:ID:~ gets one at the
+  top, so org-roam takes it as a node. A file of that name that is already
+  there is never replaced; the import then stops with a message.
+
+* On the desktop
+- Drop text or text files on the window: they open the capture screen as
+  above. Dropped on a chat, they go into its message field instead.
+- *New note from clipboard* in the graph's *More* menu, or Ctrl+Shift+V
+  (Cmd+Shift+V on macOS): the text on the clipboard opens the capture
+  screen.
+- *Open files…* in the graph's *More* menu chooses text files to bring in.
 
 * The first time
 Android may let the app only read the folder. Saving then asks to choose
