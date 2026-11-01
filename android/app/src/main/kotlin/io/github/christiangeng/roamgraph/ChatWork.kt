@@ -112,17 +112,20 @@ object ChatNotifications {
     }
 
     /** The ongoing, low-priority notification of the service. */
-    fun working(context: Context, chats: Int, what: String? = null): Notification {
+    fun working(context: Context): Notification {
+        val chats = WorkCounts.chats
+        val voice = WorkCounts.voice > 0
+        val chatText = if (chats == 1) "1 chat" else "$chats chats"
         val text = when {
-            what == WHAT_VOICE -> "Transcribing a voice memo"
-            chats == 1 -> "AI is working on 1 chat"
-            else -> "AI is working on $chats chats"
+            chats > 0 && voice -> "AI is working on $chatText and a voice memo"
+            voice -> "Transcribing a voice memo"
+            else -> "AI is working on $chatText"
         }
         return builder(context, CHANNEL_WORK)
             .setContentTitle(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setContentIntent(if (what == WHAT_VOICE) appIntent(context) else tapIntent(context, ""))
+            .setContentIntent(if (chats == 0) appIntent(context) else tapIntent(context, ""))
             .build()
     }
 
@@ -140,9 +143,9 @@ object ChatNotifications {
         manager(context).notify(chatId, ANSWER_ID, notification)
     }
 
-    fun update(context: Context, chats: Int, what: String? = null) {
+    fun update(context: Context) {
         if (!allowed(context)) return
-        manager(context).notify(WORK_ID, working(context, chats, what))
+        manager(context).notify(WORK_ID, working(context))
     }
 }
 
@@ -155,9 +158,8 @@ class ChatWorkService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val chats = intent?.getIntExtra(EXTRA_CHATS, 1) ?: 1
         running = true
-        val notification = ChatNotifications.working(this, chats, intent?.getStringExtra(EXTRA_WHAT))
+        val notification = ChatNotifications.working(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 ChatNotifications.WORK_ID,
@@ -181,21 +183,22 @@ class ChatWorkService : Service() {
     }
 
     companion object {
-        const val EXTRA_CHATS = "chats"
-        const val EXTRA_WHAT = "what"
 
         /** True while the service runs; then the notification is updated in place. */
         @Volatile
         var running = false
 
-        fun start(context: Context, chats: Int, what: String? = null) {
+        /**
+         * Work of one kind ([what] is "voice" for a voice memo, else AI chats)
+         * runs: [count] chats, or a memo. The service runs while any kind works.
+         */
+        fun start(context: Context, count: Int, what: String? = null) {
+            WorkCounts.set(what, count)
             if (running) {
-                ChatNotifications.update(context, chats, what)
+                ChatNotifications.update(context)
                 return
             }
             val intent = Intent(context, ChatWorkService::class.java)
-                .putExtra(EXTRA_CHATS, chats)
-                .putExtra(EXTRA_WHAT, what)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -203,9 +206,32 @@ class ChatWorkService : Service() {
             }
         }
 
+        /** The work of one kind ended; the service stops when none is left. */
+        fun finish(context: Context, what: String? = null) {
+            WorkCounts.set(what, 0)
+            if (WorkCounts.chats == 0 && WorkCounts.voice == 0) {
+                stop(context)
+            } else if (running) {
+                ChatNotifications.update(context)
+            }
+        }
+
         fun stop(context: Context) {
             running = false
             context.stopService(Intent(context, ChatWorkService::class.java))
         }
+    }
+}
+
+/** What works now, by kind, so the service stops only when both are done (#221). */
+object WorkCounts {
+    @Volatile
+    var chats = 0
+
+    @Volatile
+    var voice = 0
+
+    fun set(what: String?, count: Int) {
+        if (what == ChatNotifications.WHAT_VOICE) voice = count else chats = count
     }
 }

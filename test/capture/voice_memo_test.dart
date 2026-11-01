@@ -373,17 +373,18 @@ void main() {
           startsWith('gone.mp3 could not be read:'));
     });
 
-    test('discardCopy deletes only the app\'s copies', () async {
+    test("discardCopy deletes only the app's own copies", () async {
       final dir = Directory.systemTemp.createTempSync('voice_copy');
       addTearDown(() => dir.deleteSync(recursive: true));
       final ours = File('${dir.path}/cache/voice/1-a.wav')
         ..createSync(recursive: true);
-      final other = File('${dir.path}/Music/a.wav')
+      // A dropped file in a folder that is also called "voice".
+      final dropped = File('${dir.path}/cache/voice/b.wav')
         ..createSync(recursive: true);
-      await discardCopy(IncomingFile('a.wav', path: ours.path));
-      await discardCopy(IncomingFile('a.wav', path: other.path));
+      await discardCopy(IncomingFile('a.wav', path: ours.path, isCopy: true));
+      await discardCopy(IncomingFile('b.wav', path: dropped.path));
       expect(ours.existsSync(), isFalse);
-      expect(other.existsSync(), isTrue);
+      expect(dropped.existsSync(), isTrue);
     });
   });
 }

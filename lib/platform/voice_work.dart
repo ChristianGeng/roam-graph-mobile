@@ -61,7 +61,7 @@ class AndroidVoiceWork implements VoiceWork {
   }
 
   @override
-  Future<void> finished() => _call('idle');
+  Future<void> finished() => _call('idle', {'what': 'voice'});
 
   @override
   Future<void> notify({required String title, required String text}) =>

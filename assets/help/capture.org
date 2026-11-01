@@ -81,7 +81,9 @@ every text field.
 - *Speakers* (AI → Speech to text, Mistral only) labels the text
   ~Speaker 1:~, ~Speaker 2:~. With labels Mistral is not given a language.
 - *At most 30 minutes*, sent whole in one request, and at most 25 MB for
-  OpenAI. A longer recording is refused with its length. Transcribe
+  OpenAI. A longer recording is refused with its length. The length is
+  read from the file; if the app cannot read it from a file, only the size
+  is checked (at most 100 MB), and the provider charges for what it gets. Transcribe
   meetings and talks on the computer, for example with Whisper, and share
   the text as a text file.
 - *An error* from the provider is shown in plain words with *Try again*.

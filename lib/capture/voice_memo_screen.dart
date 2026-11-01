@@ -88,6 +88,7 @@ class _VoiceMemoScreenState extends State<VoiceMemoScreen>
             title: 'Voice memo failed',
             text: error.message.split('\n').first);
       }
+      if (!mounted || token.cancelled) return;
       setState(() => _error = error);
     }
   }

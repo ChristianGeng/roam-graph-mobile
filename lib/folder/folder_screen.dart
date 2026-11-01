@@ -400,6 +400,16 @@ class _FolderScreenState extends State<FolderScreen>
   /// the capture screen with the text.
   Future<void> _captureVoice(
       ValueNotifier<RoamGraph> notifier, IncomingFile file) async {
+    try {
+      await _transcribeAndCapture(notifier, file);
+    } finally {
+      // The app's copy of the audio goes on every way out.
+      await discardCopy(file);
+    }
+  }
+
+  Future<void> _transcribeAndCapture(
+      ValueNotifier<RoamGraph> notifier, IncomingFile file) async {
     final keys = AiSettingsScope.keysOf(context);
     final settings = await AiSettingsScope.current(context);
     if (!mounted) return;
@@ -411,21 +421,19 @@ class _FolderScreenState extends State<FolderScreen>
       return;
     }
     final loaded = await loadRecording(file);
+    // Read into memory: the app's copy is not needed any more.
+    await discardCopy(file);
     if (!mounted) return;
     final audio = loaded.audio;
     final problem = loaded.problem ?? refuseRecording(audio!, config.provider);
     if (problem != null) {
       await _voiceProblem(problem);
-      await discardCopy(file);
       return;
     }
     final recording = audio!;
     if (!settings.speechConsent.contains(config.provider.id)) {
       final agreed = await _askToSend(recording, config.provider);
-      if (!agreed || !mounted) {
-        await discardCopy(file);
-        return;
-      }
+      if (!agreed || !mounted) return;
       try {
         await AiSettingsScope.change(context,
             settings.copyWith(speechConsent: [
@@ -448,7 +456,6 @@ class _FolderScreenState extends State<FolderScreen>
         ),
       ),
     );
-    await discardCopy(file);
     if (transcript == null || !mounted) return;
     final body = voiceMemoBody(
       fileName: recording.name,

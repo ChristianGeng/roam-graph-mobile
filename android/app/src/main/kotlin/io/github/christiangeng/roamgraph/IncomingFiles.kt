@@ -127,7 +127,7 @@ object IncomingFiles {
             // than a sender that says text.
             val mimeType = if (
                 providerType?.substringBefore(';')?.trim()?.lowercase() == "application/octet-stream" &&
-                isText(name, sentType)
+                (isText(name, sentType) || isAudio(name, sentType))
             ) {
                 sentType
             } else {
@@ -196,6 +196,8 @@ object IncomingFiles {
                 return
             }
             file["path"] = copy.absolutePath
+            // The app's own copy, which the Dart side may delete.
+            file["copy"] = true
             file["size"] = total
             durationMs(copy)?.let { file["durationMs"] = it }
         } catch (e: Exception) {

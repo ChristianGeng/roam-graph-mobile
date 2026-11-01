@@ -99,6 +99,7 @@ class PlatformShareInbox implements ShareInbox {
             error: file['error'] as String?,
             path: file['path'] as String?,
             durationMs: file['durationMs'] as int?,
+            isCopy: file['copy'] == true,
           ),
       ]);
     }

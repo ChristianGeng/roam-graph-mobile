@@ -184,7 +184,7 @@ class MainActivity : FlutterActivity() {
                 }
             }
             "idle" -> {
-                ChatWorkService.stop(this)
+                ChatWorkService.finish(this, call.argument<String>("what"))
                 result.success(null)
             }
             "hasPermission" -> result.success(ChatNotifications.answersAllowed(this))

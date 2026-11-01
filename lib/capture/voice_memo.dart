@@ -85,20 +85,15 @@ Future<LoadedRecording> loadRecording(
   );
 }
 
-/// Deletes the app's copy of a shared recording on Android, in the cache
-/// folder `voice`; any other file is left alone.
+/// Deletes the app's copy of a shared recording on Android
+/// ([IncomingFile.isCopy]); a file the user dropped or chose is never
+/// deleted.
 Future<void> discardCopy(IncomingFile file) async {
   final path = file.path;
-  if (path == null) return;
-  final parts = path.split('/');
-  if (parts.length < 3 ||
-      parts[parts.length - 2] != 'voice' ||
-      !parts.contains('cache')) {
-    return;
-  }
+  if (path == null || !file.isCopy) return;
   try {
     await File(path).delete();
   } on FileSystemException {
-    // Gone already, or not ours to delete.
+    // Gone already.
   }
 }
