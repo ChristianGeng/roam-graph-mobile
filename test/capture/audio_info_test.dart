@@ -65,7 +65,7 @@ Uint8List m4a(int timescale, int duration) => join([
 /// A FLAC file with only the STREAMINFO block: 44.1 kHz, 3 seconds.
 Uint8List flac() {
   final info = Uint8List(34);
-  info.setAll(10, [0x0A, 0xC4, 0x40, 0x00, 0x00, 0x02, 0x07, 0x4C]);
+  info.setAll(10, [0x0A, 0xC4, 0x40, 0x00, 0x00, 0x02, 0x04, 0xCC]);
   return join([
     ascii.encode('fLaC'),
     [0x80, 0, 0, 34],

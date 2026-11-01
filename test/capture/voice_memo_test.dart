@@ -262,11 +262,23 @@ void main() {
       answer = Completer<HttpReply>();
       await begin(tester);
       await shareMemo(tester);
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
       answer!.complete(const HttpReply(200, '{"text":"Done."}'));
       await settle(tester);
       expect(work.events, contains('notify: Voice memo ready'));
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      for (final state in [
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
       await tester.pumpAndSettle();
     });
 
