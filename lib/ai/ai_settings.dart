@@ -1450,8 +1450,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
               '${presetById(_infographicProvider).name} (infographics)';
       agent = _editMode.shortLabel;
       web = _webAccess
-          ? 'On, at most ${_webSearches.text.trim()} searches; '
-              '${_webCapability()}'
+          ? 'On, at most ${_webSearches.text.trim()} searches'
           : 'Off';
       notes = _languageLine();
       final tags = _tags!.tags;
