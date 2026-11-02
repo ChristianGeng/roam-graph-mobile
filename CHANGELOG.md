@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-11-02: Desktop: API keys from environment variables ([#PR](PR_URL))
+## 2026-11-02: Desktop: API keys from environment variables ([#237](https://github.com/ChristianGeng/roam-graph-mobile/pull/237))
 
 Added: on Linux, Windows and macOS a provider's key is read from its
 environment variable (such as `MISTRAL_API_KEY`, `HF_TOKEN`,
