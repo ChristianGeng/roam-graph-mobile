@@ -318,7 +318,20 @@ class Chat extends ChangeNotifier {
     // The web access of the settings as they are now, also for a chat
     // whose screen is closed (#232).
     final session = this.session;
-    if (store.braveKeyRead case final read?) await read;
+    // A read of the Brave key under way, or a newer one started meanwhile.
+    for (var read = store.braveKeyRead;
+        read != null;
+        read = store.braveKeyRead) {
+      await read;
+    }
+    if (discarded) {
+      // Deleted while it waited for the key: the slot is free again.
+      store._release();
+      sending = false;
+      pendingText = null;
+      notifyListeners();
+      return;
+    }
     final webFor = store.webFor;
     if (session != null && webFor != null) session.web = webFor(session.config);
     store._askForNotifications();
