@@ -324,8 +324,9 @@ class Chat extends ChangeNotifier {
         read = store.braveKeyRead) {
       await read;
     }
-    if (discarded) {
-      // Deleted while it waited for the key: the slot is free again.
+    if (discarded || !identical(session, this.session)) {
+      // Deleted (or deleted and restored, with a new session) while it
+      // waited for the key: the slot is free again.
       store._release();
       sending = false;
       pendingText = null;
