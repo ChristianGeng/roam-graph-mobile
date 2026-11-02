@@ -95,6 +95,7 @@ class ViewSettings {
     bool? swipeHeadings,
     this.imageFolder = defaultImageFolder,
     this.emacsClient = '',
+    this.followEmacs = true,
   }) : _swipeHeadings = swipeHeadings;
 
   /// Where new images go (#112), relative to `roam/`.
@@ -148,6 +149,11 @@ class ViewSettings {
   /// empty for the system's default, see [emacsCommand].
   final String emacsClient;
 
+  /// Whether the graph follows the node at point in Emacs on the desktop
+  /// (#117); on by default. Emacs sends nothing unless
+  /// `roam-graph-follow-mode` is on there.
+  final bool followEmacs;
+
   /// The command to run: [emacsClient], or [defaultEmacsClient].
   String get emacsCommand =>
       emacsClient.trim().isEmpty ? defaultEmacsClient : emacsClient.trim();
@@ -174,6 +180,7 @@ class ViewSettings {
     bool? swipeHeadings,
     String? imageFolder,
     String? emacsClient,
+    bool? followEmacs,
   }) =>
       ViewSettings(
         sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
@@ -187,6 +194,7 @@ class ViewSettings {
         swipeHeadings: swipeHeadings ?? _swipeHeadings,
         imageFolder: imageFolder ?? this.imageFolder,
         emacsClient: emacsClient ?? this.emacsClient,
+        followEmacs: followEmacs ?? this.followEmacs,
       );
 
   Map<String, Object?> toJson() => {
@@ -201,6 +209,7 @@ class ViewSettings {
         'swipeHeadings': ?_swipeHeadings,
         'imageFolder': imageFolder,
         'emacsClient': emacsClient,
+        'followEmacs': followEmacs,
       };
 
   /// Settings from [json]; a missing or unknown value keeps its default.
@@ -250,6 +259,10 @@ class ViewSettings {
         final String command => command,
         _ => defaults.emacsClient,
       },
+      followEmacs: switch (json['followEmacs']) {
+        final bool follow => follow,
+        _ => defaults.followEmacs,
+      },
     );
   }
 
@@ -266,12 +279,13 @@ class ViewSettings {
       other.joinLines == joinLines &&
       other._swipeHeadings == _swipeHeadings &&
       other.imageFolder == imageFolder &&
-      other.emacsClient == emacsClient;
+      other.emacsClient == emacsClient &&
+      other.followEmacs == followEmacs;
 
   @override
   int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
       startLayout, lastLayout, theme, scripts, joinLines, _swipeHeadings,
-      imageFolder, emacsClient);
+      imageFolder, emacsClient, followEmacs);
 }
 
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
@@ -715,6 +729,18 @@ class SettingsScreen extends StatelessWidget {
               subtitle: Text('${settings.emacsCommand} · "Open in Emacs" runs '
                   'it with -n +LINE FILE'),
               onTap: () => _chooseEmacs(context, settings),
+            ),
+          if (isDesktop)
+            SwitchListTile(
+              key: const ValueKey('settings-follow-emacs'),
+              secondary: const Icon(Icons.my_location_outlined),
+              title: const Text('Follow Emacs'),
+              subtitle: const Text('The graph shows the node at point in '
+                  'Emacs, with roam-graph-follow-mode on there. See Help, '
+                  '"The desktop app".'),
+              value: settings.followEmacs,
+              onChanged: (value) =>
+                  _saveSettings(context, settings.copyWith(followEmacs: value)),
             ),
           const Divider(),
           ListTile(

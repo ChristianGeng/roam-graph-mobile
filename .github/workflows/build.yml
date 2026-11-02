@@ -537,6 +537,11 @@ jobs:
       - name: Rebuild the expected data with org-roam
         run: tool/org_roam_parity/build-fixture-expectations.sh
 
+      - name: Test the Emacs side of Follow Emacs (#117)
+        # Byte-compiles emacs/roam-graph-follow.el, warnings as errors, and
+        # runs its ERT tests with the same pinned org-roam.
+        run: emacs/run-tests.sh
+
       - name: Check it matches the committed data
         run: |
           git diff --exit-code test/fixtures/org_roam_expected.json \

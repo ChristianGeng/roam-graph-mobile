@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-02: Follow Emacs: the desktop graph shows the node at point in Emacs ([#231](https://github.com/ChristianGeng/roam-graph-mobile/pull/231))
+
+- Added: with `roam-graph-follow-mode` on in Emacs (the file `emacs/roam-graph-follow.el` in the repository), the desktop app shows the node you open or move to in Emacs, in the graph and beside it. It listens on 127.0.0.1 only, with a secret in a file only you can read. Help, "The desktop app", shows the Doom setup.
+- Added: Settings, *Follow Emacs* (desktop only, on by default) turns it off.
+- Closes [#117](https://github.com/ChristianGeng/roam-graph-mobile/issues/117).
+
 ## 2026-11-02: The Linux app runs on Ubuntu 22.04 ([#230](https://github.com/ChristianGeng/roam-graph-mobile/pull/230))
 
 - Fixed: the Linux app didn't start on Ubuntu 22.04 ("GLIBC_2.38 not found"), because it was built on Ubuntu 24.04. It is now built in Ubuntu 22.04 and runs on 22.04 and newer.

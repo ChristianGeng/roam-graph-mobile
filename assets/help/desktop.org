@@ -46,6 +46,36 @@ if Emacs is not on the ~PATH~, enter the full path. On macOS an app started
 from the Dock does not see the shell's ~PATH~, so enter the full path, for
 example ~/opt/homebrew/bin/emacsclient~.
 
+* Follow Emacs
+The graph can follow Emacs: when you open a note in Emacs, or move to
+another node there, the app shows that node in the graph and beside it,
+as a click on it would. A node the app does not know yet (a note saved a
+moment ago) is shown once the app has read the folder again. While a
+note, a chat or another page is open on top of the graph, the graph
+stays as it is.
+
+Emacs needs the small file ~emacs/roam-graph-follow.el~ from the app's
+repository, with ~roam-graph-follow-mode~ on. In Doom Emacs, for example
+in ~config.el~, with the file in ~~/src/roam-graph-mobile/emacs~:
+
+#+begin_src emacs-lisp
+(use-package! roam-graph-follow
+  :load-path "~/src/roam-graph-mobile/emacs"
+  :after org-roam
+  :config (roam-graph-follow-mode 1))
+#+end_src
+
+Without Doom: ~(add-to-list 'load-path "…/emacs")~, ~(require
+'roam-graph-follow)~ and ~(roam-graph-follow-mode 1)~ after org-roam.
+
+How it works: the app listens on 127.0.0.1 only, and writes the port and
+a random secret to ~follow.json~ in its own folder, readable only by
+you. Emacs reads that file and sends the secret with every message, so
+no other program and no web page can steer the app. A message carries
+only the node's ID; nothing is written. With the app closed, Emacs sends
+nothing and shows no error. *Follow Emacs* in Settings (desktop only)
+turns following off.
+
 * Other differences
 - Search inside a note: Ctrl+F (Cmd+F on macOS); Escape closes it. See
   [[id:roam-graph-help-search-in-note][Search inside a note]].
