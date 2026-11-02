@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-11-02: ~code~ and =verbatim= in a monospace font ([#PR](PR_URL))
+## 2026-11-02: ~code~ and =verbatim= in a monospace font ([#240](https://github.com/ChristianGeng/roam-graph-mobile/pull/240))
 
 Changed: inline `~code~` and `=verbatim=` are shown in a monospace font in
 notes, help pages and chat answers, as in Emacs. Source blocks and
