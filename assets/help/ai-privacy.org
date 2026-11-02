@@ -62,11 +62,19 @@ answer:
   the own network (the phone itself, the router, other devices at home;
   also not after a redirect), without cookies or logins, at most 20
   seconds and about 100,000 characters of text.
-- *web_search* is Anthropic's own search: the search words go to
-  Anthropic, which searches and reads the results. Mistral has a web
-  search only in another API than the one the chat uses, and Claude on
-  Amazon Bedrock has none; there the AI only reads pages whose address it
-  knows.
+- *web_search* searches the web. There are two, and only one is
+  offered at a time:
+  - Anthropic's own search (Anthropic only; the default there): the
+    search words go to Anthropic, which searches and reads the results.
+  - The app's search with *Brave Search*, for every provider, when a
+    *Brave Search API key* is set (AI settings → Web access). The app
+    sends the search words to Brave (api.search.brave.com) with your key,
+    from the phone; they do not go to the chat provider. Only the
+    results (title, address, short text) go to the chat provider, as
+    any tool result does. With Anthropic, *Search with* chooses between
+    the two. Without a Brave key, Mistral, OpenRouter, Vercel and the
+    others, and Claude on Amazon Bedrock, cannot search; the AI then only
+    reads pages whose address it knows.
 
 Searches and pages together are at most *Most web searches for one
 message* (5 by default). The AI names its sources as links, also in the

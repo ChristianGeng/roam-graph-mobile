@@ -626,7 +626,7 @@ void main() {
       await openRow(tester, 'web');
       final toggle = find.byKey(const ValueKey('web-access'));
       await scrollTo(tester, toggle);
-      expect(find.textContaining('Search words go to the provider'),
+      expect(find.textContaining('Search words go to Anthropic'),
           findsOneWidget);
       expect(find.textContaining('pages are fetched from this phone'),
           findsOneWidget);
@@ -640,6 +640,365 @@ void main() {
       await tester.pumpAndSettle();
       expect(store.settings.webAccess, isTrue);
       expect(store.settings.maxWebSearches, 3);
+    });
+  });
+
+  group('web_search with Brave', () {
+    const secret = 'brave-secret-key';
+
+    /// A fake Brave: keeps each request, answers with [status] and [body].
+    ({SearchGet get, List<(Uri, Map<String, String>)> asked}) fakeBrave(
+        int status, Object? body) {
+      final asked = <(Uri, Map<String, String>)>[];
+      return (
+        asked: asked,
+        get: (url, headers) async {
+          asked.add((url, headers));
+          return SearchReply(status, body is String ? body : jsonEncode(body));
+        },
+      );
+    }
+
+    final found = {
+      'web': {
+        'results': [
+          {
+            'title': 'Liquid <strong>news</strong> &amp; more',
+            'url': 'https://example.org/one',
+            'description': 'The <strong>first</strong> result.',
+          },
+          {
+            'title': 'Second',
+            'url': 'https://example.org/two',
+            'description': '',
+          },
+          for (var i = 3; i <= 12; i++)
+            {
+              'title': 'Result $i',
+              'url': 'https://example.org/$i',
+              'description': 'Text $i',
+            },
+        ],
+      },
+    };
+
+    RoamTools tools() => RoamTools(graphOf(notes),
+        readNote: (path) async => notes[path]);
+
+    test('the request: address, header, query and defaults', () async {
+      final brave = fakeBrave(200, found);
+      await braveSearch({'query': ' liquid news '},
+          key: secret, get: brave.get);
+      final (url, headers) = brave.asked.single;
+      expect(url.scheme, 'https');
+      expect(url.host, 'api.search.brave.com');
+      expect(url.path, '/res/v1/web/search');
+      expect(url.queryParameters, {'q': 'liquid news', 'count': '5'});
+      expect(headers['X-Subscription-Token'], secret);
+      expect(headers['Accept'], 'application/json');
+    });
+
+    test('count, freshness, country and language are passed on, checked',
+        () async {
+      final brave = fakeBrave(200, found);
+      await braveSearch({
+        'query': 'rain',
+        'count': 50,
+        'freshness': 'pw',
+        'country': 'de',
+        'search_lang': 'DE',
+      }, key: secret, get: brave.get);
+      await braveSearch({
+        'query': 'rain',
+        'count': 0,
+        'freshness': 'last week',
+        'country': 'Germany',
+        'search_lang': 'x',
+      }, key: secret, get: brave.get);
+      expect(brave.asked[0].$1.queryParameters, {
+        'q': 'rain',
+        'count': '10',
+        'freshness': 'pw',
+        'country': 'DE',
+        'search_lang': 'de',
+      });
+      expect(brave.asked[1].$1.queryParameters, {'q': 'rain', 'count': '1'});
+    });
+
+    test('the text for the model: numbered, plain, at most the count',
+        () async {
+      final brave = fakeBrave(200, found);
+      final text = await braveSearch({'query': 'liquid', 'count': 3},
+          key: secret, get: brave.get);
+      expect(
+          text,
+          [
+            'Results for "liquid":',
+            '',
+            '1. Liquid news & more',
+            '   https://example.org/one',
+            '   The first result.',
+            '',
+            '2. Second',
+            '   https://example.org/two',
+            '',
+            '3. Result 3',
+            '   https://example.org/3',
+            '   Text 3',
+          ].join('\n'));
+      final all = await braveSearch({'query': 'liquid', 'count': 10},
+          key: secret, get: brave.get);
+      expect(all, contains('10. Result 10'));
+      expect(all, isNot(contains('11. ')));
+    });
+
+    test('no results, and a missing query', () async {
+      final brave = fakeBrave(200, {
+        'web': {'results': []},
+      });
+      expect(await braveSearch({'query': 'zzz'}, key: secret, get: brave.get),
+          'No results for "zzz".');
+      await expectLater(braveSearch({}, key: secret, get: brave.get),
+          throwsA(isA<WebPageError>()));
+      expect(brave.asked, hasLength(1));
+    });
+
+    test('errors are said in plain words, without the key', () async {
+      Future<String> messageFor(int status, Object? body) async {
+        final brave = fakeBrave(status, body);
+        try {
+          await braveSearch({'query': 'x'}, key: secret, get: brave.get);
+        } on WebPageError catch (e) {
+          return e.message;
+        }
+        return 'no error';
+      }
+
+      expect(await messageFor(401, {'error': 'bad'}),
+          contains('did not accept the key'));
+      expect(await messageFor(403, ''), contains('HTTP 403'));
+      expect(await messageFor(429, ''), contains('rate or quota limit'));
+      expect(await messageFor(500, ''), contains('HTTP 500'));
+      expect(await messageFor(200, 'not json'), contains('cannot read'));
+      for (final status in [401, 403, 429, 500]) {
+        expect(await messageFor(status, ''), isNot(contains(secret)));
+      }
+      final network = await braveSearch({'query': 'x'},
+              key: secret,
+              get: (url, headers) async =>
+                  throw const SocketException('offline'))
+          .then((_) => 'no error', onError: (Object e) => '$e');
+      expect(network, contains('No connection to Brave Search'));
+      expect(network, isNot(contains(secret)));
+    });
+
+    test('offered with a key and the switch; Anthropic keeps its own', () {
+      // Other providers: a key gives Brave, no key gives pages only.
+      final withKey = makeWebAccess(
+          limit: 5,
+          providerSearch: false,
+          searchWith: anthropicSearch,
+          braveKey: secret);
+      expect(withKey.searchBrave, isNotNull);
+      expect(withKey.search, isFalse);
+      final noKey = makeWebAccess(
+          limit: 5,
+          providerSearch: false,
+          searchWith: braveSearchChoice,
+          braveKey: ' ');
+      expect(noKey.searchBrave, isNull);
+      expect(noKey.canSearch, isFalse);
+      // Anthropic: its own search is the default, even with a key.
+      final own = makeWebAccess(
+          limit: 5,
+          providerSearch: true,
+          searchWith: anthropicSearch,
+          braveKey: secret);
+      expect(own.search, isTrue);
+      expect(own.searchBrave, isNull);
+      // Brave chosen: only Brave. Brave chosen without a key: Anthropic's.
+      final chosen = makeWebAccess(
+          limit: 5,
+          providerSearch: true,
+          searchWith: braveSearchChoice,
+          braveKey: secret);
+      expect(chosen.search, isFalse);
+      expect(chosen.searchBrave, isNotNull);
+      final chosenNoKey = makeWebAccess(
+          limit: 5,
+          providerSearch: true,
+          searchWith: braveSearchChoice,
+          braveKey: '');
+      expect(chosenNoKey.search, isTrue);
+      expect(chosenNoKey.searchBrave, isNull);
+    });
+
+    test('Mistral: web_search is offered once, and the system text says so',
+        () async {
+      final brave = fakeBrave(200, found);
+      final server = FakeServer([
+        openAiReply({'role': 'assistant', 'content': 'Hello.'}),
+      ]);
+      final session = ChatSession(
+          tools: tools(),
+          config: mistral,
+          post: server.post,
+          web: makeWebAccess(
+              limit: 5,
+              providerSearch: false,
+              searchWith: anthropicSearch,
+              braveKey: secret,
+              get: brave.get));
+      await session.send('Hi');
+      final body = server.requests.single.body;
+      final names = toolNames(body);
+      expect(names, [
+        for (final tool in aiTools) tool.name,
+        'fetch_web_page',
+        'web_search',
+      ]);
+      expect(names.toSet(), hasLength(names.length));
+      expect(jsonEncode(body), isNot(contains('web_search_2')));
+      final system = (body['messages'] as List).first['content'] as String;
+      expect(system, contains('search the web with web_search'));
+      expect(system, contains('If the user gives a web address'));
+      expect(jsonEncode(body), isNot(contains(secret)));
+    });
+
+    test('Anthropic with Brave: the app tool, not the server tool', () async {
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Hello.'},
+        ]),
+      ]);
+      final session = ChatSession(
+          tools: tools(),
+          config: anthropic,
+          post: server.post,
+          web: makeWebAccess(
+              limit: 5,
+              providerSearch: true,
+              searchWith: braveSearchChoice,
+              braveKey: secret));
+      await session.send('Hi');
+      final body = server.requests.single.body;
+      expect(toolNames(body).where((n) => n == 'web_search'), hasLength(1));
+      final tool = (body['tools'] as List).last as Map;
+      expect(tool.containsKey('type'), isFalse);
+      expect(tool['input_schema']['required'], ['query']);
+      expect(jsonEncode(body), isNot(contains('web_search_2')));
+    });
+
+    test('a search counts against the limit, and a failure is a result',
+        () async {
+      Map<String, Object?> call(String id, String query) => {
+            'id': id,
+            'type': 'function',
+            'function': {
+              'name': 'web_search',
+              'arguments': jsonEncode({'query': query}),
+            },
+          };
+      final server = FakeServer([
+        openAiReply({
+          'role': 'assistant',
+          'content': null,
+          'tool_calls': [
+            call('a', 'one'),
+            call('b', 'two'),
+            call('c', 'three'),
+          ],
+        }, finish: 'tool_calls'),
+        openAiReply({'role': 'assistant', 'content': 'Done.'}),
+      ]);
+      final queries = <String>[];
+      final session = ChatSession(
+          tools: tools(),
+          config: mistral,
+          post: server.post,
+          web: WebAccess(
+              limit: 2,
+              searchBrave: (input) async {
+                queries.add(input['query'] as String);
+                if (queries.length == 2) {
+                  throw const WebPageError('Brave Search did not accept the '
+                      'key (HTTP 401).');
+                }
+                return 'Results for "${input['query']}":';
+              }));
+      await session.send('What is new about liquid.trade?');
+      expect(queries, ['one', 'two']);
+      expect(session.webLeft, 0);
+      final results = [
+        for (final m in server.requests[1].body['messages'] as List)
+          if (m['role'] == 'tool') m['content'] as String,
+      ];
+      expect(results[0], 'Results for "one":');
+      expect(results[1],
+          'Error: Brave Search did not accept the key (HTTP 401).');
+      expect(results[2], contains('limit of 2 web searches'));
+      expect((session.transcript.last as AssistantMessage).text, 'Done.');
+    });
+  });
+
+  group('Brave in the settings', () {
+    test('what the AI can do on the web, per provider', () {
+      String line(String name, bool own, String searchWith, bool key) =>
+          webCapabilityLine(name,
+              providerSearch: own, searchWith: searchWith, braveKey: key);
+      expect(line('Mistral', false, anthropicSearch, true),
+          'Mistral: read pages; search with Brave.');
+      expect(line('Mistral', false, anthropicSearch, false),
+          'Mistral: read pages only. Add a Brave key to search.');
+      expect(line('Anthropic', true, anthropicSearch, true),
+          'Anthropic: read pages; search with Anthropic.');
+      expect(line('Anthropic', true, braveSearchChoice, true),
+          'Anthropic: read pages; search with Brave.');
+      expect(line('Anthropic', true, braveSearchChoice, false),
+          'Anthropic: read pages; search with Anthropic.');
+    });
+
+    test('"Search with" is saved and read back; a wrong value is Anthropic',
+        () {
+      expect(const AiSettings().webSearchWith, anthropicSearch);
+      final saved = jsonDecode(jsonEncode(
+          const AiSettings(webSearchWith: braveSearchChoice).toJson()));
+      expect(AiSettings.fromJson(saved).webSearchWith, braveSearchChoice);
+      expect(AiSettings.fromJson({'webSearchWith': 'bing'}).webSearchWith,
+          anthropicSearch);
+      expect(AiSettings.fromJson({}).webSearchWith, anthropicSearch);
+    });
+
+    testWidgets('the Brave key is saved in the key store, not in the settings',
+        (tester) async {
+      final store = MemoryAiSettingsStore();
+      final keys = MemoryKeyStore();
+      await pumpIn(
+        tester,
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => AiSettingsScreen.open(context),
+            child: const Text('open'),
+          ),
+        ),
+        store: store,
+        keys: keys,
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      await openRow(tester, 'web');
+      final field = find.byKey(const ValueKey('brave-key'));
+      await scrollTo(tester, field);
+      expect(tester.widget<TextField>(field).obscureText, isTrue);
+      expect(find.byKey(const ValueKey('web-capability')), findsOneWidget);
+      await tester.enterText(field, 'brave-typed-key');
+      await tester.pumpAndSettle();
+      await backToAi(tester);
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(keys.keys[braveKeyId], 'brave-typed-key');
+      expect(jsonEncode(store.settings.toJson()),
+          isNot(contains('brave-typed-key')));
     });
   });
 
