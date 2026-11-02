@@ -353,6 +353,10 @@ jobs:
         clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
         libsecret-1-dev libstdc++-12-dev
         git curl ca-certificates unzip xz-utils zip binutils jq
+    defaults:
+      run:
+        # A container's steps run in sh by default; bash as on the runners.
+        shell: bash
     steps:
       # Without git in the container yet, checkout downloads the commit
       # through the API; nothing here needs the repository's git history.
@@ -391,6 +395,12 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+
+      - name: Let git read the Flutter SDK
+        # The SDK's checkout belongs to the runner's user, the container runs
+        # as root, and git then refuses it ("dubious ownership"). Only the
+        # SDK's folder is allowed.
+        run: git config --global --add safe.directory "$FLUTTER_ROOT"
 
       - name: Build the Linux app
         env:
