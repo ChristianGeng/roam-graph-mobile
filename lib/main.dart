@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui' show AppExitResponse;
+
 import 'package:material_ui/material_ui.dart';
 
 import 'ai/ai_settings.dart';
@@ -32,8 +35,16 @@ Future<void> main() async {
   // The app's own source-block grammar, before any note is shown (#147).
   registerSclang();
   // Emacs tells the graph which node is at point (#117); not awaited, so
-  // the window opens at once.
-  if (isDesktop) startFollowing();
+  // the window opens at once. Closing the window removes follow.json.
+  if (isDesktop) {
+    unawaited(startFollowing().then((server) {
+      if (server == null) return;
+      AppLifecycleListener(onExitRequested: () async {
+        await server.close();
+        return AppExitResponse.exit;
+      });
+    }));
+  }
   runApp(const RoamGraphApp());
 }
 

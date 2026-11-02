@@ -363,7 +363,11 @@ class _GraphScreenState extends State<GraphScreen> {
     }
     _pendingFollow = null;
     if (ModalRoute.of(context)?.isCurrent == false) return;
-    if (id == _centre) return;
+    if (id == _centre) {
+      // Selected already, but perhaps panned out of view.
+      _centreOnSelected();
+      return;
+    }
     widget.nodeMemory.remember(id);
     setState(() {
       _paneHeading = null;

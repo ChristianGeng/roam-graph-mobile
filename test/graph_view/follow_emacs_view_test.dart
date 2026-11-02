@@ -23,22 +23,26 @@ void main() {
   tearDown(() => emacs.close());
 
   /// The default test screen, 800 x 600: graph and note side by side.
-  Future<void> show(WidgetTester tester,
-      {ViewSettings settings = const ViewSettings()}) async {
-    await tester.pumpWidget(MaterialApp(
-      builder: (context, child) => ViewSettingsHost(
-        store: MemoryViewSettingsStore(settings),
-        child: child!,
+  Future<void> show(
+    WidgetTester tester, {
+    ViewSettings settings = const ViewSettings(),
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => ViewSettingsHost(
+          store: MemoryViewSettingsStore(settings),
+          child: child!,
+        ),
+        home: GraphScreen(
+          graph: notifier,
+          readNote: (path) async => 'Text of ${path.replaceAll('.org', '')}.',
+          nodeMemory: memory,
+          computeLayout: layoutHere,
+          computeAlgorithms: algorithmsHere,
+          followRequests: emacs.stream,
+        ),
       ),
-      home: GraphScreen(
-        graph: notifier,
-        readNote: (path) async => 'Text of ${path.replaceAll('.org', '')}.',
-        nodeMemory: memory,
-        computeLayout: layoutHere,
-        computeAlgorithms: algorithmsHere,
-        followRequests: emacs.stream,
-      ),
-    ));
+    );
     await tester.pumpAndSettle();
   }
 
@@ -47,8 +51,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the node at point in Emacs is shown beside the graph (#117)',
-      (tester) async {
+  testWidgets('the node at point in Emacs is shown beside the graph (#117)', (
+    tester,
+  ) async {
     await show(tester);
     expect(find.textContaining('Text of hub.'), findsOneWidget);
     await fromEmacs(tester, 'c');
@@ -77,12 +82,18 @@ void main() {
     expect(memory.id, 'hub');
   });
 
-  testWidgets('a page open on top of the graph is not taken away',
-      (tester) async {
+  testWidgets('a page open on top of the graph is not taken away', (
+    tester,
+  ) async {
     await show(tester);
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
-    unawaited(navigator.push(MaterialPageRoute<void>(
-        builder: (_) => const Scaffold(body: Text('Another page')))));
+    unawaited(
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const Scaffold(body: Text('Another page')),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     await fromEmacs(tester, 'c');
     expect(find.text('Another page'), findsOneWidget);

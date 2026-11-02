@@ -73,8 +73,11 @@ The app's support folder, as Flutter's path_provider names it."
 (defvar roam-graph-follow--timer nil
   "The idle timer of `roam-graph-follow-mode'.")
 
-(defvar roam-graph-follow--last-id nil
-  "The ID sent last, so the same node is not sent again.")
+(defvar roam-graph-follow--last nil
+  "The (PORT . ID) delivered last, so the same node is not sent again.
+Set only once the line is written to the app, so a node at point while
+the app was closed is sent once it runs, and again to an app started
+anew on another port.")
 
 (defun roam-graph-follow--read-config ()
   "The app's port and token as (PORT . TOKEN), or nil.
@@ -95,9 +98,10 @@ Nil when the file is missing or not as the app writes it."
   "The line sent for ID with TOKEN."
   (concat (json-encode `((token . ,token) (id . ,id))) "\n"))
 
-(defun roam-graph-follow--send (id)
+(defun roam-graph-follow--send (id &optional on-sent)
   "Send ID to the app, without waiting and without errors.
-Return non-nil when a connection was started."
+Call ON-SENT with the port once the line is written.  Return non-nil
+when a connection was started; that alone does not mean it arrives."
   (when-let* ((config (roam-graph-follow--read-config)))
     (let ((line (roam-graph-follow--message id (cdr config))))
       (condition-case nil
@@ -115,7 +119,8 @@ Return non-nil when a connection was started."
                     (if (string-prefix-p "open" event)
                         (condition-case nil
                             (progn (process-send-string process line)
-                                   (process-send-eof process))
+                                   (process-send-eof process)
+                                   (when on-sent (funcall on-sent (car config))))
                           (error (delete-process process)))
                       (when (memq (process-status process)
                                   '(closed failed exit signal))
@@ -139,16 +144,17 @@ Return non-nil when a connection was started."
       (error nil))))
 
 (defun roam-graph-follow--check ()
-  "Send the node at point if it is another one than the one sent last."
-  (when-let* ((id (roam-graph-follow--id-here)))
-    (unless (equal id roam-graph-follow--last-id)
-      (setq roam-graph-follow--last-id id)
-      (roam-graph-follow--send id))))
+  "Send the node at point unless it was delivered last, to this app."
+  (when-let* ((id (roam-graph-follow--id-here))
+              (config (roam-graph-follow--read-config)))
+    (unless (equal (cons (car config) id) roam-graph-follow--last)
+      (roam-graph-follow--send
+       id (lambda (port) (setq roam-graph-follow--last (cons port id)))))))
 
 (defun roam-graph-follow--visited ()
   "Send the node at point of a just visited org-roam file."
   ;; A file opened again shows its node again, also if it was sent last.
-  (setq roam-graph-follow--last-id nil)
+  (setq roam-graph-follow--last nil)
   (roam-graph-follow--check))
 
 ;;;###autoload
@@ -160,7 +166,7 @@ Return non-nil when a connection was started."
     (cancel-timer roam-graph-follow--timer)
     (setq roam-graph-follow--timer nil))
   (remove-hook 'org-roam-find-file-hook #'roam-graph-follow--visited)
-  (setq roam-graph-follow--last-id nil)
+  (setq roam-graph-follow--last nil)
   (when roam-graph-follow-mode
     (add-hook 'org-roam-find-file-hook #'roam-graph-follow--visited)
     (setq roam-graph-follow--timer

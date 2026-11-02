@@ -28,7 +28,8 @@ Future<FollowServer?> startFollowing() async {
   try {
     final folder = (await getApplicationSupportDirectory()).path;
     final server = await FollowServer.start(
-        file: File('$folder${Platform.pathSeparator}follow.json'));
+      file: File('$folder${Platform.pathSeparator}follow.json'),
+    );
     server.ids.listen(_requests.add);
     return server;
   } on Object {
@@ -67,7 +68,10 @@ class FollowServer {
 
   /// Listens on a free port of 127.0.0.1 and writes [file]. [random] is
   /// for tests; the token comes from a secure source otherwise.
-  static Future<FollowServer> start({required File file, Random? random}) async {
+  static Future<FollowServer> start({
+    required File file,
+    Random? random,
+  }) async {
     final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final server = FollowServer._(socket, file, _newToken(random));
     socket.listen(server._serve);
@@ -97,34 +101,51 @@ class FollowServer {
     return base64Url.encode(bytes).replaceAll('=', '');
   }
 
-  /// Writes the port and the token, readable only by the user: an empty
-  /// file first, made private, then the content, then renamed into place,
-  /// so the token is never readable by others and Emacs never reads half
-  /// a file.
+  /// Writes the port and the token, readable only by the user: a new
+  /// file, private from the moment it exists, then the content, then
+  /// renamed into place, so the token is never readable by others and
+  /// Emacs never reads half a file.
   Future<void> _writeFile() async {
     await file.parent.create(recursive: true);
-    final temporary = File('${file.path}.tmp');
-    await temporary.writeAsString('');
-    if (!Platform.isWindows) {
-      // Windows keeps the app's folder private to the user already.
-      final result = await Process.run('chmod', ['600', temporary.path]);
+    final temporary = File(
+      '${file.path}.${_newToken(null).substring(0, 8)}.tmp',
+    );
+    if (Platform.isWindows) {
+      // Windows keeps the user's %APPDATA% private already.
+      await temporary.writeAsString('');
+    } else {
+      // Dart cannot set the mode when it creates a file: the shell does,
+      // with umask 077, and refuses a name that exists (noclobber), so no
+      // one can have it open before.
+      final result = await Process.run('sh', [
+        '-c',
+        'umask 077 && set -C && : > "\$1"',
+        'sh',
+        temporary.path,
+      ]);
       if (result.exitCode != 0) {
-        throw FileSystemException('chmod 600 failed', temporary.path);
+        throw FileSystemException(
+          'cannot create a private file',
+          temporary.path,
+        );
       }
     }
     await temporary.writeAsString(
-        '${jsonEncode({'port': port, 'token': token})}\n',
-        flush: true);
+      '${jsonEncode({'port': port, 'token': token})}\n',
+      flush: true,
+    );
     await temporary.rename(file.path);
   }
 
   Future<void> _serve(Socket client) async {
     final bytes = <int>[];
     try {
-      await for (final chunk
-          in client.timeout(const Duration(seconds: 2), onTimeout: (sink) {
-        sink.close();
-      })) {
+      await for (final chunk in client.timeout(
+        const Duration(seconds: 2),
+        onTimeout: (sink) {
+          sink.close();
+        },
+      )) {
         bytes.addAll(chunk);
         if (bytes.contains(10) || bytes.length > _maxMessage) break;
       }
@@ -135,9 +156,12 @@ class FollowServer {
     if (bytes.length > _maxMessage) return;
     final newline = bytes.indexOf(10);
     final id = idOf(
-        utf8.decode(newline < 0 ? bytes : bytes.sublist(0, newline),
-            allowMalformed: true),
-        token);
+      utf8.decode(
+        newline < 0 ? bytes : bytes.sublist(0, newline),
+        allowMalformed: true,
+      ),
+      token,
+    );
     if (id != null && !_ids.isClosed) _ids.add(id);
   }
 }

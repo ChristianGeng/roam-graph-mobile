@@ -119,6 +119,7 @@ Text of an excluded heading.
 (ert-deftest roam-graph-follow-sends-to-the-app ()
   "The ID reaches a listener on the port in the file, with the token."
   (let* ((received "")
+         (delivered nil)
          (server (make-network-process
                   :name "roam-graph-follow-test-server" :server t
                   :host "127.0.0.1" :service t :family 'ipv4 :noquery t
@@ -130,14 +131,16 @@ Text of an excluded heading.
         (progn
           (with-temp-file roam-graph-follow-file
             (insert (format "{\"port\": %d, \"token\": \"secret\"}" port)))
-          (should (roam-graph-follow--send "an-id"))
+          (should (roam-graph-follow--send
+                   "an-id" (lambda (port) (setq delivered port))))
           (let ((deadline (+ (float-time) 5)))
             (while (and (not (string-suffix-p "\n" received))
                         (< (float-time) deadline))
               (accept-process-output nil 0.05)))
           (let ((json-object-type 'alist) (json-key-type 'symbol))
             (should (equal (json-read-from-string received)
-                           '((token . "secret") (id . "an-id"))))))
+                           '((token . "secret") (id . "an-id")))))
+          (should (equal delivered port)))
       (delete-process server)
       (delete-file roam-graph-follow-file))))
 
@@ -158,22 +161,68 @@ Text of an excluded heading.
           (accept-process-output nil 0.3))
       (delete-file roam-graph-follow-file))))
 
+(defmacro roam-graph-follow-test--sending (port delivered &rest body)
+  "Run BODY with the app on PORT; a send arrives when DELIVERED is non-nil.
+Return the IDs sent, in order."
+  (declare (indent 2))
+  `(let ((sent '())
+         (roam-graph-follow--last nil))
+     (cl-letf (((symbol-function 'roam-graph-follow--read-config)
+                (lambda () (cons ,port "secret")))
+               ((symbol-function 'roam-graph-follow--send)
+                (lambda (id &optional on-sent)
+                  (push id sent)
+                  (when (and ,delivered on-sent) (funcall on-sent ,port))
+                  t)))
+       ,@body)
+     (reverse sent)))
+
 (ert-deftest roam-graph-follow-sends-a-node-once ()
   "The idle check sends a node only when it differs from the last one."
-  (let ((sent '()))
-    (cl-letf (((symbol-function 'roam-graph-follow--send)
-               (lambda (id) (push id sent) t)))
-      (roam-graph-follow-test--in-note
-        (let ((roam-graph-follow--last-id nil))
-          (roam-graph-follow-test--id-at "Text of the file node")
-          (roam-graph-follow--check)
-          (roam-graph-follow--check)
-          (roam-graph-follow-test--id-at "Text of the heading node")
-          (roam-graph-follow--check)
-          ;; Visiting the file again sends its node again.
-          (roam-graph-follow--visited))))
-    (should (equal (reverse sent)
-                   '("file-node-id" "heading-node-id" "heading-node-id")))))
+  (should
+   (equal (roam-graph-follow-test--in-note
+            (roam-graph-follow-test--sending 4000 t
+              (roam-graph-follow-test--id-at "Text of the file node")
+              (roam-graph-follow--check)
+              (roam-graph-follow--check)
+              (roam-graph-follow-test--id-at "Text of the heading node")
+              (roam-graph-follow--check)
+              ;; Visiting the file again sends its node again.
+              (roam-graph-follow--visited)))
+          '("file-node-id" "heading-node-id" "heading-node-id"))))
+
+(ert-deftest roam-graph-follow-resends-what-did-not-arrive ()
+  "A node that did not arrive is sent again; so is one for a new app."
+  (should
+   (equal (roam-graph-follow-test--in-note
+            (roam-graph-follow-test--sending 4000 nil
+              (roam-graph-follow-test--id-at "Text of the file node")
+              (roam-graph-follow--check)
+              (roam-graph-follow--check)))
+          '("file-node-id" "file-node-id")))
+  (roam-graph-follow-test--in-note
+    (roam-graph-follow-test--id-at "Text of the file node")
+    (let ((port 4000) (sent '()) (roam-graph-follow--last nil))
+      (cl-letf (((symbol-function 'roam-graph-follow--read-config)
+                 (lambda () (cons port "secret")))
+                ((symbol-function 'roam-graph-follow--send)
+                 (lambda (id &optional on-sent)
+                   (push id sent) (funcall on-sent port) t)))
+        (roam-graph-follow--check)
+        (roam-graph-follow--check)
+        ;; The app started again, on another port.
+        (setq port 4001)
+        (roam-graph-follow--check))
+      (should (equal sent '("file-node-id" "file-node-id"))))))
+
+(ert-deftest roam-graph-follow-nothing-without-the-app ()
+  "Without the port file, nothing is sent and nothing is recorded."
+  (roam-graph-follow-test--in-note
+    (roam-graph-follow-test--id-at "Text of the file node")
+    (let ((roam-graph-follow-file "/nonexistent/follow.json")
+          (roam-graph-follow--last nil))
+      (roam-graph-follow--check)
+      (should-not roam-graph-follow--last))))
 
 (ert-deftest roam-graph-follow-mode-on-and-off ()
   "The mode adds and removes its hook and timer."

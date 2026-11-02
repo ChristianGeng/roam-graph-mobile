@@ -3885,11 +3885,17 @@ does. Emacs is the source; the app only shows.
   `~/Library/Application Support/io.github.christiangeng.roamgraph`, on
   Windows `%APPDATA%\io.github.christiangeng\Roam Graph`; the elisp
   computes the same path per system (`roam-graph-follow-file`). The file
-  is created empty, set to 0600, then filled and renamed into place, so
-  the token is never readable by others and Emacs never reads half a
-  file. On Windows the user's `%APPDATA%` is private already. Closing the
-  app removes the file; after a crash a stale file only points to a
-  closed port.
+  is created under a random name by `sh` with `umask 077` and noclobber
+  (Dart cannot set a mode when it creates a file), so it is private from
+  the moment it exists and no one can hold it open before; it is then
+  filled and renamed into place, so Emacs never reads half a file. On
+  Windows the user's `%APPDATA%` is private already. Closing the window
+  removes the file (`AppLifecycleListener.onExitRequested`); after a crash
+  or a kill, a file left behind only points to a closed port.
+- **Delivered, not just tried:** Emacs records a node as sent, with the
+  app's port, only once the line is written to an open connection. A
+  node at point while the app was closed is sent at the next idle check
+  after it starts, and again to an app started anew on another port.
 - **What the app accepts:** a message with the right token and an ID of
   1–256 characters without control characters. Anything else is dropped
   without an answer. Nothing is written: the ID only selects a node of

@@ -43,7 +43,9 @@ void main() {
     setUp(() async {
       folder = await Directory.systemTemp.createTemp('follow');
       server = await FollowServer.start(
-          file: File('${folder.path}/sub/follow.json'), random: Random(1));
+        file: File('${folder.path}/sub/follow.json'),
+        random: Random(1),
+      );
     });
 
     tearDown(() async {
@@ -52,7 +54,10 @@ void main() {
     });
 
     Future<void> send(String text) async {
-      final socket = await Socket.connect(InternetAddress.loopbackIPv4, server.port);
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        server.port,
+      );
       socket.write(text);
       await socket.flush();
       await socket.close();
@@ -71,7 +76,13 @@ void main() {
       if (!Platform.isWindows) {
         expect((await file.stat()).mode & 0x1ff, 0x180); // 0600
       }
-      expect(File('${file.path}.tmp').existsSync(), isFalse);
+      expect(
+        file.parent
+            .listSync()
+            .map((e) => e.path)
+            .where((p) => p.endsWith('.tmp')),
+        isEmpty,
+      );
     });
 
     test('passes on IDs with the right token, and only those', () async {
@@ -79,8 +90,7 @@ void main() {
       final sub = server.ids.listen(ids.add);
       await send('{"token": "wrong", "id": "refused"}\n');
       await send('not json\n');
-      await send(
-          '${jsonEncode({'token': server.token, 'id': 'node-1'})}\n');
+      await send('${jsonEncode({'token': server.token, 'id': 'node-1'})}\n');
       await send(jsonEncode({'token': server.token, 'id': 'node-2'}));
       await Future<void>.delayed(const Duration(milliseconds: 200));
       await sub.cancel();
