@@ -40,6 +40,7 @@ import 'model_picker.dart';
 import 'note_from_answer.dart';
 import 'note_language.dart';
 import 'web_access.dart';
+import '../node_view/org_fonts.dart';
 
 /// Opens a node by its ID, from a link in an answer.
 typedef OpenNode = void Function(BuildContext context, String id);
@@ -1228,7 +1229,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     // Selectable, as the Copy button copies it all (#94).
                     SelectionArea(
-                      child: OrgText(entry.text.trim(), onLinkTap: _openLink),
+                      // OrgText with ~code~ and =verbatim= in
+                      // monospace (#238).
+                      child: MonospaceOrgText(entry.text.trim(),
+                          onLinkTap: _openLink),
                     ),
                     Row(
                       children: [

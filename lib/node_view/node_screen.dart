@@ -42,6 +42,7 @@ import 'src_languages.dart';
 import '../search/search_screen.dart';
 import 'note_images.dart';
 import 'note_search.dart';
+import 'org_fonts.dart';
 import 'share_note.dart';
 import 'web_links.dart';
 import '../platform/desktop.dart';
@@ -1894,6 +1895,9 @@ class _NodeScreenState extends State<NodeScreen> {
         _ => null,
       },
       child: OrgRootWidget(
+        // ~code~ and =verbatim= in a monospace font (#238).
+        lightTheme: MonospaceOrgThemeData.light,
+        darkTheme: MonospaceOrgThemeData.dark,
         onLinkTap: _openLink,
         onLocalSectionLinkTap: _openSection,
         // Ticking a checkbox and changing a TODO state, saved at once
