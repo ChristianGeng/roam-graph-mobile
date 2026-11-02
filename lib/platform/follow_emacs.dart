@@ -40,6 +40,9 @@ Future<FollowServer?> startFollowing() async {
 /// The longest message read; an ID and a token are far shorter.
 const _maxMessage = 4096;
 
+/// How long a client may take to send its message.
+const _deadline = Duration(seconds: 2);
+
 /// The longest ID accepted. org-roam IDs are UUIDs, 36 characters.
 const _maxId = 256;
 
@@ -139,21 +142,25 @@ class FollowServer {
 
   Future<void> _serve(Socket client) async {
     final bytes = <int>[];
+    // One deadline for the whole message, not one per chunk, so a client
+    // that sends a byte now and then cannot hold the connection open.
+    var late = false;
+    final cutoff = Timer(_deadline, () {
+      late = true;
+      client.destroy();
+    });
     try {
-      await for (final chunk in client.timeout(
-        const Duration(seconds: 2),
-        onTimeout: (sink) {
-          sink.close();
-        },
-      )) {
+      await for (final chunk in client) {
         bytes.addAll(chunk);
         if (bytes.contains(10) || bytes.length > _maxMessage) break;
       }
     } on Object {
       // A broken connection: nothing to do.
+    } finally {
+      cutoff.cancel();
     }
     client.destroy();
-    if (bytes.length > _maxMessage) return;
+    if (late || bytes.length > _maxMessage) return;
     final newline = bytes.indexOf(10);
     final id = idOf(
       utf8.decode(

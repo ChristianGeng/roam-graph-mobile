@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -102,6 +103,31 @@ void main() {
       final sub = server.ids.listen(ids.add);
       await send('{"token": "${server.token}", "id": "${'x' * 5000}"}\n');
       await Future<void>.delayed(const Duration(milliseconds: 200));
+      await sub.cancel();
+      expect(ids, isEmpty);
+    });
+
+    test('closes a connection that takes too long', () async {
+      final ids = <String>[];
+      final sub = server.ids.listen(ids.add);
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        server.port,
+      );
+      final closed = socket.drain<void>().catchError((Object _) {});
+      final watch = Stopwatch()..start();
+      // A byte now and then, never a whole line.
+      final drip = Timer.periodic(const Duration(milliseconds: 500), (_) {
+        try {
+          socket.add([0x7b]);
+        } on Object {
+          // Closed by the app.
+        }
+      });
+      await closed.timeout(const Duration(seconds: 6));
+      drip.cancel();
+      socket.destroy();
+      expect(watch.elapsed, lessThan(const Duration(seconds: 4)));
       await sub.cancel();
       expect(ids, isEmpty);
     });
