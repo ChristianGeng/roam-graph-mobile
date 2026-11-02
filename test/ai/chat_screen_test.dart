@@ -1298,6 +1298,7 @@ void main() {
 
         // The setting changed while the chat was closed; its session is
         // kept in the store.
+        await tester.pumpWidget(const SizedBox());
         await openChat(tester, server,
             store: store,
             chat: store.chats.single,
