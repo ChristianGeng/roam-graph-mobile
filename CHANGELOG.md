@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-02: Web access set during a chat applies from its next message ([#234](https://github.com/ChristianGeng/roam-graph-mobile/pull/234))
+
+Fixed: turning on *Web access for the AI*, or changing *Most web searches for one message*, now reaches chats that already have messages, from their next message. Before, such a chat kept the setting it was started with. Closes #232.
+
 ## 2026-11-02: Web search for every provider with Brave Search ([#235](https://github.com/ChristianGeng/roam-graph-mobile/pull/235))
 
 - Added: the AI chat can search the web with every provider. Enter a Brave Search API key under AI → Web access; the AI then has `web_search` and reads the pages it picks with `fetch_web_page`. With Anthropic, "Search with" chooses between Anthropic's own search and Brave.

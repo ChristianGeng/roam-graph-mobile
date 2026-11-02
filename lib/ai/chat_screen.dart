@@ -39,7 +39,6 @@ import 'edit_tools.dart';
 import 'model_picker.dart';
 import 'note_from_answer.dart';
 import 'note_language.dart';
-import 'web_access.dart';
 
 /// Opens a node by its ID, from a link in an answer.
 typedef OpenNode = void Function(BuildContext context, String id);
@@ -139,6 +138,11 @@ class _ChatScreenState extends State<ChatScreen> {
   /// The hidden tags the tools were made with.
   Set<String>? _hiddenTags;
 
+  /// The web access the session was made with (#232).
+  bool? _webAccess;
+  int? _maxWebSearches;
+  String? _searchWith;
+
   /// Undo is running for this message.
   int? _undoing;
 
@@ -228,8 +232,14 @@ class _ChatScreenState extends State<ChatScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // New hidden tags apply to the next tool call of an open chat.
-    final tags = AiSettingsScope.of(context).hiddenTags.toSet();
-    if (_hiddenTags != null && !setEquals(tags, _hiddenTags)) {
+    final settings = AiSettingsScope.of(context);
+    final tags = settings.hiddenTags.toSet();
+    final tagsChanged = _hiddenTags != null && !setEquals(tags, _hiddenTags);
+    final webChanged = _webAccess != null &&
+        (settings.webAccess != _webAccess ||
+            settings.maxWebSearches != _maxWebSearches ||
+            settings.webSearchWith != _searchWith);
+    if (tagsChanged || webChanged) {
       _refreshTools();
     }
   }
@@ -302,6 +312,17 @@ class _ChatScreenState extends State<ChatScreen> {
     _hiddenTags = settings.hiddenTags.toSet();
     _chat.visibility = settings.visibility;
     session.tools = _tools(settings);
+    _setWeb(session, settings);
+  }
+
+  /// Gives [session] the web access of [settings]; a request under way is
+  /// not changed.
+  void _setWeb(ChatSession session, AiSettings settings) {
+    session.web = webAccessFor(settings, session.config,
+        braveKey: _chat.store.braveKey);
+    _webAccess = settings.webAccess;
+    _maxWebSearches = settings.maxWebSearches;
+    _searchWith = settings.webSearchWith;
   }
 
   /// Makes the session of the chat with the settings as they are now: for
@@ -323,6 +344,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final kept = chat.session;
     if (kept != null && !fresh) {
       kept.tools = _tools(settings);
+      _setWeb(kept, settings);
       chat.visibility = settings.visibility;
       setState(() {
         _config = kept.config;
@@ -439,6 +461,9 @@ class _ChatScreenState extends State<ChatScreen> {
       chat.maxFiles = settings.maxChangeSetFiles;
       chat.agent = agent;
       _hiddenTags = settings.hiddenTags.toSet();
+      _webAccess = settings.webAccess;
+      _maxWebSearches = settings.maxWebSearches;
+      _searchWith = settings.webSearchWith;
       _config = config;
       _defaultModel = values.defaultModel;
       _strongModel = values.strongModel;
@@ -473,14 +498,7 @@ class _ChatScreenState extends State<ChatScreen> {
               '${languagePrompt(language)}',
               DateTime.now()),
           toolImage: agent?.imageFor,
-          web: settings.webAccess
-              ? makeWebAccess(
-                  limit: settings.maxWebSearches,
-                  providerSearch: hasWebSearch(config),
-                  searchWith: settings.webSearchWith,
-                  braveKey: braveKey,
-                )
-              : null,
+          web: webAccessFor(settings, config, braveKey: braveKey),
           handlers: {
             if (mode == AiEditMode.review) ...{
               'propose_edit': (call) => _proposeEdit(chat, readNote, call),
@@ -501,7 +519,11 @@ class _ChatScreenState extends State<ChatScreen> {
   void _restart() {
     if (!mounted) return;
     _refreshDefaults();
-    if (_chat.transcript.isEmpty && !_chat.sending) _start(fresh: true);
+    if (_chat.transcript.isEmpty && !_chat.sending) {
+      _start(fresh: true);
+    } else {
+      _refreshTools();
+    }
   }
 
   /// The default and strong model of the chat's provider as the AI

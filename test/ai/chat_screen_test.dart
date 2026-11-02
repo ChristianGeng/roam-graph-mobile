@@ -1235,6 +1235,97 @@ void main() {
       final second = jsonEncode(server.requests[3].body['messages'].last);
       expect(second, isNot(contains('New plan')));
     });
+
+    group('web access set during a chat (#232)', () {
+      List<Object?> toolNamesOf(FakeServer server, int request) => [
+            for (final tool in server.requests[request].body['tools'] as List)
+              tool['name'],
+          ];
+
+      String systemOf(FakeServer server, int request) =>
+          server.requests[request].body['system'][0]['text'] as String;
+
+      FakeServer twoAnswers() => FakeServer([
+            anthropicReply([
+              {'type': 'text', 'text': 'First answer.'},
+            ]),
+            anthropicReply([
+              {'type': 'text', 'text': 'Second answer.'},
+            ]),
+          ]);
+
+      testWidgets('turned on, the next message offers fetch_web_page',
+          (tester) async {
+        final server = twoAnswers();
+        await openChat(tester, server);
+        await ask(tester, 'First question.');
+        expect(toolNamesOf(server, 0), isNot(contains('fetch_web_page')));
+        expect(systemOf(server, 0), isNot(contains('fetch_web_page')));
+
+        await AiSettingsScope.change(
+            tester.element(find.byType(ChatScreen)),
+            const AiSettings(webAccess: true));
+        await tester.pumpAndSettle();
+        await ask(tester, 'Second question.');
+        expect(toolNamesOf(server, 1), contains('fetch_web_page'));
+        expect(systemOf(server, 1), contains('fetch_web_page'));
+      });
+
+      testWidgets('turned off, the next message has no web tool',
+          (tester) async {
+        final server = twoAnswers();
+        await openChat(tester, server,
+            settings: const AiSettings(webAccess: true));
+        await ask(tester, 'First question.');
+        expect(toolNamesOf(server, 0), contains('fetch_web_page'));
+
+        await AiSettingsScope.change(
+            tester.element(find.byType(ChatScreen)), const AiSettings());
+        await tester.pumpAndSettle();
+        await ask(tester, 'Second question.');
+        expect(toolNamesOf(server, 1), isNot(contains('fetch_web_page')));
+        expect(toolNamesOf(server, 1), isNot(contains('web_search')));
+        expect(systemOf(server, 1), isNot(contains('fetch_web_page')));
+      });
+
+      testWidgets('a chat reopened from the list offers the tool',
+          (tester) async {
+        final server = twoAnswers();
+        final store = ChatStore(MemoryChatStorage());
+        await openChat(tester, server, store: store);
+        await ask(tester, 'First question.');
+        expect(toolNamesOf(server, 0), isNot(contains('fetch_web_page')));
+
+        // The setting changed while the chat was closed; its session is
+        // kept in the store.
+        await tester.pumpWidget(const SizedBox());
+        await openChat(tester, server,
+            store: store,
+            chat: store.chats.single,
+            settings: const AiSettings(webAccess: true));
+        await ask(tester, 'Second question.');
+        expect(toolNamesOf(server, 1), contains('fetch_web_page'));
+        expect(systemOf(server, 1), contains('fetch_web_page'));
+      });
+
+      testWidgets('a lower limit applies to the next message',
+          (tester) async {
+        final server = twoAnswers();
+        await openChat(tester, server,
+            settings: const AiSettings(webAccess: true, maxWebSearches: 5));
+        await ask(tester, 'First question.');
+        final first = server.requests[0].body['tools'] as List;
+        expect(first.last['max_uses'], 5);
+
+        await AiSettingsScope.change(
+            tester.element(find.byType(ChatScreen)),
+            const AiSettings(webAccess: true, maxWebSearches: 2));
+        await tester.pumpAndSettle();
+        await ask(tester, 'Second question.');
+        final second = server.requests[1].body['tools'] as List;
+        expect(second.last['max_uses'], 2);
+      });
+    });
   });
 }
 

@@ -766,17 +766,26 @@ class ChatSession {
   }) : _config = config;
 
   /// Web access (#137); null when "Web access for the AI" is off: then no
-  /// web tool is offered.
-  final WebAccess? web;
+  /// web tool is offered. Set again when the setting changes (#232); it
+  /// applies from the next request, the count of the current message stays.
+  WebAccess? web;
 
   /// The web searches and fetched pages of the current message.
   int _webUsed = 0;
 
+  /// The web access of the message under way: [web] as it was when the
+  /// message started, so a setting changed meanwhile applies from the
+  /// next message (#232). Null between messages.
+  ({WebAccess? web})? _turn;
+
+  WebAccess? get _activeWeb => _turn != null ? _turn!.web : web;
+
   /// The web searches and pages left for the current message.
-  int get webLeft => web == null ? 0 : max(0, web!.limit - _webUsed);
+  int get webLeft =>
+      _activeWeb == null ? 0 : max(0, _activeWeb!.limit - _webUsed);
 
   /// [system], with the sentences on web access when it is on.
-  String get _system => switch (web) {
+  String get _system => switch (_activeWeb) {
         null => system,
         final web => '$system ${webAccessPrompt(search: web.canSearch)}',
       };
@@ -848,6 +857,7 @@ class ChatSession {
     transcript.add(UserMessage(text, context: first ? context : null));
     _rounds = 0;
     _webUsed = 0;
+    _turn = (web: web);
     onUpdate?.call();
     await resume(onUpdate: onUpdate);
   }
@@ -864,11 +874,18 @@ class ChatSession {
   /// Continues after an error: sends the conversation again. The tool
   /// rounds of the message count on, so a retry gets no new rounds.
   Future<void> resume({void Function()? onUpdate}) async {
+    _turn ??= (web: web);
+    await _resume(onUpdate: onUpdate);
+    // The message is done (or stopped): a new setting applies to the next.
+    _turn = null;
+  }
+
+  Future<void> _resume({void Function()? onUpdate}) async {
     final offered = [
       ...toolList ?? aiTools,
-      if (web != null) fetchWebPageTool,
+      if (_activeWeb != null) fetchWebPageTool,
       // The app's own search (#233), never together with Anthropic's.
-      if (web?.searchBrave != null) braveSearchTool,
+      if (_activeWeb?.searchBrave != null) braveSearchTool,
     ];
     while (waiting && !_cancelled) {
       ApiReply reply;
@@ -968,11 +985,12 @@ class ChatSession {
       return 'Error: the arguments are not valid JSON: ${call.badArguments}';
     }
     try {
-      if (call.name == fetchWebPageTool.name && web != null) {
-        return await _fetchPage(web!, call);
+      if (call.name == fetchWebPageTool.name && _activeWeb != null) {
+        return await _fetchPage(_activeWeb!, call);
       }
-      if (call.name == braveSearchTool.name && web?.searchBrave != null) {
-        return await _searchWeb(web!, call);
+      if (call.name == braveSearchTool.name &&
+          _activeWeb?.searchBrave != null) {
+        return await _searchWeb(_activeWeb!, call);
       }
       if (handlers[call.name] case final handler?) return await handler(call);
       return await tools.call(call.name, call.input);
@@ -1047,7 +1065,7 @@ class ChatSession {
         : _api.request(config, offered, transcript,
             system: system ?? _system,
             images: _images,
-            webSearches: web?.search == true ? webLeft : 0);
+            webSearches: _activeWeb?.search == true ? webLeft : 0);
     if (request.url.scheme != 'https' && config.apiKey.isNotEmpty) {
       throw AiError('The app sends an API key only over HTTPS. Use an '
           'https:// base URL for ${config.name}, or remove the key for a '
