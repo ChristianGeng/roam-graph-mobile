@@ -16,6 +16,13 @@
 # folder, so the SHA256 check here is what makes a cached file safe.
 set -euo pipefail
 
+# Root in a container (the linux job builds in Ubuntu 22.04, decision 123)
+# has no sudo and needs none.
+sudo=sudo
+if [ "$(id -u)" -eq 0 ]; then
+  sudo=
+fi
+
 list() {
   local tmp
   tmp=$(mktemp)
@@ -77,11 +84,11 @@ install() {
     fi
   done
   echo "Taken from the cache: $kept of $(wc -l < "$wanted") files."
-  sudo apt-get install -y -q --no-install-recommends \
+  $sudo apt-get install -y -q --no-install-recommends \
     -o Dir::Cache::Archives="$folder" "$@"
   # apt's lock and partial folder belong to root; the cache needs only the
   # .deb files.
-  sudo rm -rf "$folder/partial" "$folder/lock"
+  $sudo rm -rf "$folder/partial" "$folder/lock"
 }
 
 command=$1

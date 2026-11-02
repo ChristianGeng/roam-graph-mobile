@@ -170,8 +170,9 @@ releases also carry the desktop app.
 
 ## Install on Linux (#116)
 
-Each release carries `roam-graph-<version>-linux-x64.tar.gz`, built on
-Ubuntu 24.04. It needs GTK 3 and libsecret, which Ubuntu has.
+Each release carries `roam-graph-<version>-linux-x64.tar.gz`, built in
+Ubuntu 22.04, so it runs on Ubuntu 22.04 and newer (decision 123). It
+needs GTK 3 and libsecret, which Ubuntu has.
 
 1. Download it from the release and unpack it anywhere, for example in
    Downloads: `tar -xzf roam-graph-*-linux-x64.tar.gz`

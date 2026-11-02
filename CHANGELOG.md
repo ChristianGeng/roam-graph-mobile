@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-02: The Linux app runs on Ubuntu 22.04 ([#230](https://github.com/ChristianGeng/roam-graph-mobile/pull/230))
+
+- Fixed: the Linux app didn't start on Ubuntu 22.04 ("GLIBC_2.38 not found"), because it was built on Ubuntu 24.04. It is now built in Ubuntu 22.04 and runs on 22.04 and newer.
+- Added: every build checks that no file of the Linux app needs a newer glibc than Ubuntu 22.04 has.
+- Closes [#229](https://github.com/ChristianGeng/roam-graph-mobile/issues/229).
+
 ## 2026-11-01: The full release runs again ([#228](https://github.com/ChristianGeng/roam-graph-mobile/pull/228))
 
 - Fixed: the full release stopped at "live-check" when more than 30 commits came since the previous full release: later pages of GitHub's comparison have no file list. The check now reads the first page only.

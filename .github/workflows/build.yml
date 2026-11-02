@@ -333,24 +333,36 @@ jobs:
     needs: version
     # Not for a pre-release, which carries the APK only (decision 100).
     if: needs.version.outputs.kind != 'prerelease'
-    # Pinned: the package names below are those of Ubuntu 24.04.
     runs-on: ubuntu-24.04
+    # Built inside Ubuntu 22.04, so the app needs no newer glibc than 22.04
+    # has and runs on 22.04 and newer; built on 24.04 it needed glibc 2.38
+    # and did not start on 22.04 (decision 123). A container, not the
+    # ubuntu-22.04 runner, so the build does not end when GitHub retires
+    # that runner. The image is pinned by its digest; the package names
+    # below are those of Ubuntu 22.04.
+    container:
+      image: ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11
     env:
+      DEBIAN_FRONTEND: noninteractive
       # GTK for the window, libsecret for the API keys
-      # (flutter_secure_storage).
+      # (flutter_secure_storage), libstdc++-12-dev so clang finds the C++
+      # library; the rest is what the runner image has and the plain
+      # container lacks: git, curl, unzip, xz and jq for Flutter, binutils for
+      # the glibc check.
       LINUX_PACKAGES: >-
         clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
-        libsecret-1-dev
+        libsecret-1-dev libstdc++-12-dev
+        git curl ca-certificates unzip xz-utils zip binutils jq
+    defaults:
+      run:
+        # A container's steps run in sh by default; bash as on the runners.
+        shell: bash
     steps:
+      # Without git in the container yet, checkout downloads the commit
+      # through the API; nothing here needs the repository's git history.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
-
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
-          cache: true
 
       - name: List the Linux build tools
         # The files apt would download, with their SHA256 from the signed
@@ -359,9 +371,9 @@ jobs:
         # the files are kept in the cache (#166, decision 99).
         id: apt
         run: |
-          sudo apt-get update -q
+          apt-get update -q
           tool/apt_cached.sh list $LINUX_PACKAGES > "$RUNNER_TEMP/apt-files.txt"
-          echo "key=apt-ubuntu-24.04-$(sha256sum < "$RUNNER_TEMP/apt-files.txt" | cut -c1-32)" >> "$GITHUB_OUTPUT"
+          echo "key=apt-ubuntu-22.04-$(sha256sum < "$RUNNER_TEMP/apt-files.txt" | cut -c1-32)" >> "$GITHUB_OUTPUT"
 
       - name: Restore the cached Linux build tools
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
@@ -369,13 +381,26 @@ jobs:
           path: ~/apt-debs
           key: ${{ steps.apt.outputs.key }}
           # A cache of older versions still has most files.
-          restore-keys: apt-ubuntu-24.04-
+          restore-keys: apt-ubuntu-22.04-
 
       - name: Install the Linux build tools
-        # A cached file is used only if its SHA256 is the index's.
+        # A cached file is used only if its SHA256 is the index's. Before
+        # Flutter, which needs git, curl, unzip and xz.
         run: |
           tool/apt_cached.sh install ~/apt-debs "$RUNNER_TEMP/apt-files.txt" \
             $LINUX_PACKAGES
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Let git read the Flutter SDK
+        # The SDK's checkout belongs to the runner's user, the container runs
+        # as root, and git then refuses it ("dubious ownership"). Only the
+        # SDK's folder is allowed.
+        run: git config --global --add safe.directory "$FLUTTER_ROOT"
 
       - name: Build the Linux app
         env:
@@ -398,6 +423,11 @@ jobs:
             echo "::error::The Linux package holds links; install.sh --update would refuse it."
             exit 1
           fi
+
+      - name: Check that the Linux app runs on Ubuntu 22.04
+        # No file may need a newer glibc or libstdc++ than 22.04 has
+        # (tool/glibc_check.dart, decision 123).
+        run: dart tool/glibc_check.dart build/linux/x64/release/bundle
 
       - name: Keep the Linux app as a build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

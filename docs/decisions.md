@@ -1892,7 +1892,7 @@ devices through Syncthing.
       shared into the app does not exist there.
     - **Which code runs** is told by `defaultTargetPlatform`, so widget
       tests, which run as Android, can test the desktop too.
-    - **Builds:** CI builds the Linux bundle on Ubuntu 24.04, the Windows
+    - **Builds:** CI builds the Linux bundle in Ubuntu 22.04 (decision 123), the Windows
       app on Windows and the macOS app on macOS, for every pull request,
       and attaches `roam-graph-<version>-linux-x64.tar.gz`,
       `-windows-x64.zip` and `-macos.zip` to each release, next to the
@@ -3819,6 +3819,38 @@ Live dictation stays with the keyboard's microphone.
 - **Errors:** the provider's error in plain words with the HTTP status,
   and Try again; a missing key names AI → Speech to text; a recording over
   the limit is refused before the question and before anything is sent.
+
+## 123. The Linux app is built in Ubuntu 22.04 (#229)
+
+The Linux bundle of v0.2.0, built on the `ubuntu-24.04` runner, didn't
+start on Ubuntu 22.04. `flutter build linux` compiles the plugins from
+source, and two of them (`flutter_secure_storage_linux` and
+`sqlite3_flutter_libs`) then needed `GLIBC_2.38`; 22.04 has glibc 2.35.
+- **Built in Ubuntu 22.04,** so it runs on 22.04 and newer: glibc keeps
+  the older symbol versions, so 24.04 runs a 22.04 build, not the other way
+  round. Decision 116's "Builds" line (Ubuntu 24.04) is replaced by this.
+- **In a container, not on the `ubuntu-22.04` runner.** The `linux` job
+  stays on `ubuntu-24.04` and runs its steps in `ubuntu:22.04`, pinned by
+  its image digest. GitHub retires runner images after a few years; an
+  image from Docker Hub stays. In the container the job runs as root,
+  without sudo (`tool/apt_cached.sh` uses sudo only when not root), and
+  installs what the runner image has but the plain container lacks (git,
+  curl, unzip, xz and jq for Flutter; binutils for the check) through the same
+  apt cache, now keyed `apt-ubuntu-22.04-`. Ubuntu's signed package index
+  for 22.04 gives the SHA256s, as in decision 99. Checkout runs before git
+  is installed and fetches the commit through the API; the build doesn't
+  need the history. `libstdc++-12-dev` is installed so clang finds the C++
+  library on 22.04.
+- **Checked on every build:** `tool/glibc_check.dart` runs `objdump -T`
+  on every ELF file in the bundle and fails the job if one needs more than
+  `GLIBC_2.35` or `GLIBCXX_3.4.30` (22.04's libstdc++, from GCC 12),
+  naming the file. A plugin update that raises the need fails the pull
+  request, not the user's start. The check found exactly the two
+  libraries above in the v0.2.0 bundle.
+- **Nothing changes for installing:** one asset, the same name
+  (`roam-graph-<version>-linux-x64.tar.gz`), so `install.sh --update`
+  keeps working; pull requests still build it, and pre-releases still
+  skip the desktop builds (decision 100).
 
 ## Recommended, not decided
 
