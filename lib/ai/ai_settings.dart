@@ -2274,7 +2274,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           child: const Text('Open Brave Search API page'),
         ),
       ),
-      if (_provider == 'anthropic')
+      if (_providerHasSearch)
         DropdownButtonFormField<String>(
           key: const ValueKey('web-search-with'),
           initialValue: _webSearchWith,
@@ -2300,17 +2300,23 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     ];
   }
 
+  /// Whether the chosen chat provider has a search of its own: the same
+  /// test as [hasWebSearch], with the API and base URL being edited.
+  bool get _providerHasSearch {
+    final draft = _drafts[_provider];
+    final preset = presetById(_provider);
+    final base = draft?.baseUrl.text.trim() ?? preset.baseUrl.trim();
+    return (draft?.api ?? preset.api) == ApiKind.anthropic &&
+        Uri.tryParse(base)?.host == 'api.anthropic.com';
+  }
+
   /// What the AI can do on the web with the chosen chat provider (#233).
   String _webCapability() {
     final name = presetById(_provider).name;
     final key = _braveKey.text.trim().isNotEmpty ||
         (_braveKeySaved && !_braveKeyRemove);
     return webCapabilityLine(name,
-        providerSearch: _provider == 'anthropic' &&
-            Uri.tryParse(_drafts['anthropic']?.baseUrl.text.trim() ??
-                        presetById('anthropic').baseUrl)
-                    ?.host ==
-                'api.anthropic.com',
+        providerSearch: _providerHasSearch,
         searchWith: _webSearchWith,
         braveKey: key);
   }
