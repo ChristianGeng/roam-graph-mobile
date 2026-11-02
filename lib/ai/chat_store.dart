@@ -318,6 +318,7 @@ class Chat extends ChangeNotifier {
     // The web access of the settings as they are now, also for a chat
     // whose screen is closed (#232).
     final session = this.session;
+    if (store.braveKeyRead case final read?) await read;
     final webFor = store.webFor;
     if (session != null && webFor != null) session.web = webFor(session.config);
     store._askForNotifications();
@@ -659,6 +660,10 @@ class ChatStore extends ChangeNotifier {
   /// The Brave Search key (#233) as the key store has it, for [webFor];
   /// read by [ChatStoreHost], empty without one.
   String braveKey = '';
+
+  /// The read of [braveKey] under way after a change of the settings, if
+  /// any: a request waits for it before it takes its web access.
+  Future<void>? braveKeyRead;
   set maxParallel(int value) {
     _maxParallel = max(1, value);
     _pump();
@@ -1038,15 +1043,30 @@ class _ChatStoreHostState extends State<ChatStoreHost>
 
   /// Reads the Brave key again: after a change of the AI settings, where
   /// it is saved too.
-  Future<void> _readBraveKey() async {
+  Future<void> _readBraveKey() {
     final keys = AiSettingsScope.keysOf(context);
-    if (keys == null) return;
-    try {
-      _store.braveKey = (await keys.read(braveKeyId))?.trim() ?? '';
-    } on Exception {
-      _store.braveKey = '';
-    }
+    if (keys == null) return Future.value();
+    final generation = ++_braveKeyReads;
+    final read = () async {
+      String value;
+      try {
+        value = (await keys.read(braveKeyId))?.trim() ?? '';
+      } on Exception {
+        value = '';
+      }
+      // Only the newest read counts: an older one may end later.
+      if (generation == _braveKeyReads) {
+        _store.braveKey = value;
+        _store.braveKeyRead = null;
+      }
+    }();
+    _store.braveKeyRead = read;
+    return read;
   }
+
+  /// Counts the reads of the Brave key, so that an older read that ends
+  /// later does not overwrite a newer one.
+  int _braveKeyReads = 0;
 
   @override
   Widget build(BuildContext context) =>
