@@ -766,8 +766,9 @@ class ChatSession {
   }) : _config = config;
 
   /// Web access (#137); null when "Web access for the AI" is off: then no
-  /// web tool is offered.
-  final WebAccess? web;
+  /// web tool is offered. Set again when the setting changes (#232); it
+  /// applies from the next request, the count of the current message stays.
+  WebAccess? web;
 
   /// The web searches and fetched pages of the current message.
   int _webUsed = 0;

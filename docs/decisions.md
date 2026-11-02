@@ -3925,6 +3925,19 @@ does. Emacs is the source; the app only shows.
   a refused port without an error; sending a node once; the mode's hook
   and timer. The file byte-compiles with warnings as errors.
 
+## 125. Web access set during a chat applies from its next message (#232)
+
+*Web access for the AI* and *Most web searches for one message* applied
+only to a chat made after the change: a chat with messages kept the web
+access it was started with, and the model had no `fetch_web_page`.
+- **Every chat takes the setting at its next message.** `ChatSession.web`
+  can be set again. One helper in `chat_screen.dart` makes the `WebAccess`
+  from the settings and the chat's provider; `_start`, the kept session,
+  `_refreshTools` and `_restart` use it. `didChangeDependencies` reacts to
+  a change of the two settings as it does for hidden tags.
+- **A request under way is not changed,** and the count of web searches
+  of the current message stays.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

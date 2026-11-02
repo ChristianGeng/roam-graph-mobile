@@ -139,6 +139,10 @@ class _ChatScreenState extends State<ChatScreen> {
   /// The hidden tags the tools were made with.
   Set<String>? _hiddenTags;
 
+  /// The web access the session was made with (#232).
+  bool? _webAccess;
+  int? _maxWebSearches;
+
   /// Undo is running for this message.
   int? _undoing;
 
@@ -228,8 +232,13 @@ class _ChatScreenState extends State<ChatScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // New hidden tags apply to the next tool call of an open chat.
-    final tags = AiSettingsScope.of(context).hiddenTags.toSet();
-    if (_hiddenTags != null && !setEquals(tags, _hiddenTags)) {
+    final settings = AiSettingsScope.of(context);
+    final tags = settings.hiddenTags.toSet();
+    final tagsChanged = _hiddenTags != null && !setEquals(tags, _hiddenTags);
+    final webChanged = _webAccess != null &&
+        (settings.webAccess != _webAccess ||
+            settings.maxWebSearches != _maxWebSearches);
+    if (tagsChanged || webChanged) {
       _refreshTools();
     }
   }
@@ -302,6 +311,25 @@ class _ChatScreenState extends State<ChatScreen> {
     _hiddenTags = settings.hiddenTags.toSet();
     _chat.visibility = settings.visibility;
     session.tools = _tools(settings);
+    _setWeb(session, settings);
+  }
+
+  /// The web access of the settings as they are now, for the chat's
+  /// provider (#232).
+  WebAccess? _webFor(AiSettings settings, ProviderConfig config) =>
+      settings.webAccess
+          ? WebAccess(
+              limit: settings.maxWebSearches,
+              search: hasWebSearch(config),
+            )
+          : null;
+
+  /// Gives [session] the web access of [settings]; a request under way is
+  /// not changed.
+  void _setWeb(ChatSession session, AiSettings settings) {
+    session.web = _webFor(settings, session.config);
+    _webAccess = settings.webAccess;
+    _maxWebSearches = settings.maxWebSearches;
   }
 
   /// Makes the session of the chat with the settings as they are now: for
@@ -323,6 +351,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final kept = chat.session;
     if (kept != null && !fresh) {
       kept.tools = _tools(settings);
+      _setWeb(kept, settings);
       chat.visibility = settings.visibility;
       setState(() {
         _config = kept.config;
@@ -430,6 +459,8 @@ class _ChatScreenState extends State<ChatScreen> {
       chat.maxFiles = settings.maxChangeSetFiles;
       chat.agent = agent;
       _hiddenTags = settings.hiddenTags.toSet();
+      _webAccess = settings.webAccess;
+      _maxWebSearches = settings.maxWebSearches;
       _config = config;
       _defaultModel = values.defaultModel;
       _strongModel = values.strongModel;
@@ -464,12 +495,7 @@ class _ChatScreenState extends State<ChatScreen> {
               '${languagePrompt(language)}',
               DateTime.now()),
           toolImage: agent?.imageFor,
-          web: settings.webAccess
-              ? WebAccess(
-                  limit: settings.maxWebSearches,
-                  search: hasWebSearch(config),
-                )
-              : null,
+          web: _webFor(settings, config),
           handlers: {
             if (mode == AiEditMode.review) ...{
               'propose_edit': (call) => _proposeEdit(chat, readNote, call),
@@ -490,7 +516,11 @@ class _ChatScreenState extends State<ChatScreen> {
   void _restart() {
     if (!mounted) return;
     _refreshDefaults();
-    if (_chat.transcript.isEmpty && !_chat.sending) _start(fresh: true);
+    if (_chat.transcript.isEmpty && !_chat.sending) {
+      _start(fresh: true);
+    } else {
+      _refreshTools();
+    }
   }
 
   /// The default and strong model of the chat's provider as the AI
