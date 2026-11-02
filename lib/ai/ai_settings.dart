@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../edit/tag_field.dart';
 import '../graph/roam_graph.dart';
+import '../node_view/web_links.dart' show openExternalLink, openUrlOnDevice;
 import '../platform/desktop.dart' show isDesktop;
 import 'ai_chat.dart';
 import 'ai_images.dart';
@@ -17,6 +18,7 @@ import 'note_language.dart';
 import 'ai_providers.dart';
 import 'ai_visibility.dart';
 import 'speech.dart';
+import 'web_access.dart';
 import 'chat_store.dart' show ChatStoreScope;
 
 /// One provider's values (#59), where they differ from its preset
@@ -170,6 +172,7 @@ class AiSettings {
     this.infographicProvider = '',
     this.webAccess = false,
     this.maxWebSearches = 5,
+    this.webSearchWith = anthropicSearch,
     this.imageAgents = const {},
     this.newNoteLanguage = defaultNoteLanguage,
     this.maxParallelChats = 3,
@@ -239,6 +242,11 @@ class AiSettings {
   /// The most web searches and fetched pages for one message (#137).
   final int maxWebSearches;
 
+  /// "Search with" (#233): [anthropicSearch] or [braveSearchChoice]. It
+  /// matters only with Anthropic's own API, which has a search of its own;
+  /// every other provider searches with Brave when a key is set.
+  final String webSearchWith;
+
   /// The preset ID of the provider "Create image" uses (#127); empty for
   /// "Same as the chat".
   final String imageProvider;
@@ -300,6 +308,7 @@ class AiSettings {
     String? infographicProvider,
     bool? webAccess,
     int? maxWebSearches,
+    String? webSearchWith,
     Map<String, String>? imageAgents,
     String? newNoteLanguage,
     int? maxParallelChats,
@@ -325,6 +334,7 @@ class AiSettings {
         infographicProvider: infographicProvider ?? this.infographicProvider,
         webAccess: webAccess ?? this.webAccess,
         maxWebSearches: maxWebSearches ?? this.maxWebSearches,
+        webSearchWith: webSearchWith ?? this.webSearchWith,
         imageAgents: imageAgents ?? this.imageAgents,
         newNoteLanguage: newNoteLanguage ?? this.newNoteLanguage,
         maxParallelChats: maxParallelChats ?? this.maxParallelChats,
@@ -354,6 +364,7 @@ class AiSettings {
         'infographicProvider': infographicProvider,
         'webAccess': webAccess,
         'maxWebSearches': maxWebSearches,
+        'webSearchWith': webSearchWith,
         'imageAgents': imageAgents,
         'newNoteLanguage': newNoteLanguage,
         'maxParallelChats': maxParallelChats,
@@ -414,6 +425,9 @@ class AiSettings {
       },
       webAccess: json['webAccess'] == true,
       maxWebSearches: positive('maxWebSearches', defaults.maxWebSearches),
+      webSearchWith: json['webSearchWith'] == braveSearchChoice
+          ? braveSearchChoice
+          : anthropicSearch,
       imageAgents: {
         if (json['imageAgents'] case final Map agents)
           for (final MapEntry(:key, :value) in agents.entries)
@@ -600,6 +614,24 @@ String imageRegion(ProviderPreset preset, ImageConfig config) {
   if (preset.dataStaysInEu || config.provider.euOnly) return 'in the EU';
   if (preset.outsideEu || preset.euSwitch) return 'outside the EU';
   return 'region not known';
+}
+
+/// The name the Brave Search API key is kept under in the [ApiKeyStore]
+/// (#233).
+const braveKeyId = 'brave-search';
+
+/// What the AI can do on the web with provider [name], for the settings
+/// (#233).
+String webCapabilityLine(String name,
+    {required bool providerSearch,
+    required String searchWith,
+    required bool braveKey}) {
+  if (providerSearch && !(braveKey && searchWith == braveSearchChoice)) {
+    return '$name: read pages; search with $name.';
+  }
+  return braveKey
+      ? '$name: read pages; search with Brave.'
+      : '$name: read pages only. Add a Brave key to search.';
 }
 
 /// Keeps API keys, one per provider. An interface so screens can be
@@ -941,6 +973,13 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _parallel = TextEditingController();
   int _keepChats = 90;
   bool _webAccess = false;
+  String _webSearchWith = anthropicSearch;
+
+  /// "Brave Search API key" (#233): a new key typed in, and whether one is
+  /// saved or to be removed.
+  final _braveKey = TextEditingController();
+  bool _braveKeySaved = false;
+  bool _braveKeyRemove = false;
   bool _notifyAnswers = true;
 
   /// "Speech to text" (#221): '' for automatic, else a provider ID.
@@ -1075,6 +1114,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _parallel.text = '${settings.maxParallelChats}';
       _keepChats = settings.keepChatsDays;
       _webAccess = settings.webAccess;
+      _webSearchWith = settings.webSearchWith;
       _notifyAnswers = settings.notifyAnswers;
       _speechProvider = settings.speechProvider;
       _speechMistralModel.text = settings.speechModel('mistral');
@@ -1094,6 +1134,14 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         _openAiKeySaved = saved != null && saved.isNotEmpty;
       } on Exception {
         _openAiKeySaved = false;
+      }
+      if (!mounted) return;
+      try {
+        final saved =
+            await AiSettingsScope.keysOf(context)?.read(braveKeyId);
+        _braveKeySaved = saved != null && saved.trim().isNotEmpty;
+      } on Exception {
+        _braveKeySaved = false;
       }
       _editMode = settings.editMode;
       await _draft('mistral');
@@ -1151,6 +1199,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _speechOpenAiModel.dispose();
     _speechLanguage.dispose();
     _openAiKey.dispose();
+    _braveKey.dispose();
     for (final d in _drafts.values) {
       d.dispose();
     }
@@ -1238,6 +1287,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       maxImagesPerMessage: images,
       webAccess: _webAccess,
       maxWebSearches: webSearches,
+      webSearchWith: _webSearchWith,
       newNoteLanguage: language,
       maxParallelChats: parallel,
       keepChatsDays: _keepChats,
@@ -1249,6 +1299,12 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _problem = null;
     });
     try {
+      final braveKey = _braveKey.text.trim();
+      if (braveKey.isNotEmpty) {
+        await keys?.write(braveKeyId, braveKey);
+      } else if (_braveKeyRemove) {
+        await keys?.write(braveKeyId, '');
+      }
       final openAiKey = _openAiKey.text.trim();
       if (openAiKey.isNotEmpty) {
         await keys?.write(speechProviderById('openai').keyId, openAiKey);
@@ -1285,6 +1341,9 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         _imageProvider != saved.imageProvider ||
         _infographicProvider != saved.infographicProvider ||
         _webAccess != saved.webAccess ||
+        _webSearchWith != saved.webSearchWith ||
+        _braveKey.text.trim().isNotEmpty ||
+        _braveKeyRemove ||
         _notifyAnswers != saved.notifyAnswers ||
         _speechProvider != saved.speechProvider ||
         jsonEncode(_speechModels()) != jsonEncode(saved.speechModels) ||
@@ -2162,8 +2221,9 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         title: const Text('Web access for the AI'),
         subtitle: const Text(
             'The chat may search the web and read web pages. Search words '
-            'go to the provider (Anthropic searches itself); pages are '
-            'fetched from this phone, over https only, never from the '
+            'go to Anthropic (if it searches itself) or to Brave Search '
+            '(with a Brave key), never to the other chat providers; pages '
+            'are fetched from this phone, over https only, never from the '
             'own network. Notes hidden from AI stay hidden.'),
         value: _webAccess,
         onChanged: (on) => setState(() => _webAccess = on),
@@ -2177,7 +2237,88 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           helperText: 'Each page the AI reads counts as one too.',
         ),
       ),
+      TextField(
+        key: const ValueKey('brave-key'),
+        controller: _braveKey,
+        obscureText: true,
+        autocorrect: false,
+        enableSuggestions: false,
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          labelText: 'Brave Search API key',
+          helperText: _braveKeySaved && !_braveKeyRemove
+              ? 'A key is saved. Type a new one to replace it.'
+              : "Kept in Android's secure storage, never in the notes. "
+                  'Searching with Brave works for every provider.',
+          helperMaxLines: 3,
+        ),
+      ),
+      if (_braveKeySaved && !_braveKeyRemove)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            key: const ValueKey('brave-key-remove'),
+            onPressed: () => setState(() => _braveKeyRemove = true),
+            child: const Text('Remove the saved key'),
+          ),
+        ),
+      const Text('Brave has a free allowance each month; its API page '
+          'has the current limits.'),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton(
+          key: const ValueKey('brave-api-page'),
+          onPressed: () => openExternalLink(
+              context, Uri.parse('https://brave.com/search/api/'),
+              openUrlOnDevice),
+          child: const Text('Open Brave Search API page'),
+        ),
+      ),
+      if (_providerHasSearch)
+        DropdownButtonFormField<String>(
+          key: const ValueKey('web-search-with'),
+          initialValue: _webSearchWith,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Search with',
+            helperText: 'Anthropic can search itself. Brave is used only '
+                'when a Brave key is set.',
+            helperMaxLines: 2,
+          ),
+          items: const [
+            DropdownMenuItem(
+                value: anthropicSearch, child: Text("Anthropic's search")),
+            DropdownMenuItem(
+                value: braveSearchChoice, child: Text('Brave Search')),
+          ],
+          onChanged: (value) {
+            if (value != null) setState(() => _webSearchWith = value);
+          },
+        ),
+      if (_webAccess)
+        Text(_webCapability(), key: const ValueKey('web-capability')),
     ];
+  }
+
+  /// Whether the chosen chat provider has a search of its own: the same
+  /// test as [hasWebSearch], with the API and base URL being edited.
+  bool get _providerHasSearch {
+    final draft = _drafts[_provider];
+    final preset = presetById(_provider);
+    final base = draft?.baseUrl.text.trim() ?? preset.baseUrl.trim();
+    return (draft?.api ?? preset.api) == ApiKind.anthropic &&
+        Uri.tryParse(base)?.host == 'api.anthropic.com';
+  }
+
+  /// What the AI can do on the web with the chosen chat provider (#233).
+  String _webCapability() {
+    final name = presetById(_provider).name;
+    final key = _braveKey.text.trim().isNotEmpty ||
+        (_braveKeySaved && !_braveKeyRemove);
+    return webCapabilityLine(name,
+        providerSearch: _providerHasSearch,
+        searchWith: _webSearchWith,
+        braveKey: key);
   }
 
   /// "Agent and limits": what the AI may change, and the most it may do

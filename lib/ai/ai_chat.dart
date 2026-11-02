@@ -778,7 +778,7 @@ class ChatSession {
   /// [system], with the sentences on web access when it is on.
   String get _system => switch (web) {
         null => system,
-        final web => '$system ${webAccessPrompt(search: web.search)}',
+        final web => '$system ${webAccessPrompt(search: web.canSearch)}',
       };
 
   /// The waits before each new try of a request that failed for a passing
@@ -864,7 +864,12 @@ class ChatSession {
   /// Continues after an error: sends the conversation again. The tool
   /// rounds of the message count on, so a retry gets no new rounds.
   Future<void> resume({void Function()? onUpdate}) async {
-    final offered = [...toolList ?? aiTools, if (web != null) fetchWebPageTool];
+    final offered = [
+      ...toolList ?? aiTools,
+      if (web != null) fetchWebPageTool,
+      // The app's own search (#233), never together with Anthropic's.
+      if (web?.searchBrave != null) braveSearchTool,
+    ];
     while (waiting && !_cancelled) {
       ApiReply reply;
       try {
@@ -966,6 +971,9 @@ class ChatSession {
       if (call.name == fetchWebPageTool.name && web != null) {
         return await _fetchPage(web!, call);
       }
+      if (call.name == braveSearchTool.name && web?.searchBrave != null) {
+        return await _searchWeb(web!, call);
+      }
       if (handlers[call.name] case final handler?) return await handler(call);
       return await tools.call(call.name, call.input);
     } catch (e) {
@@ -984,6 +992,21 @@ class ChatSession {
     _webUsed++;
     try {
       return await web.fetch(url);
+    } on WebPageError catch (e) {
+      return 'Error: $e';
+    }
+  }
+
+  /// `web_search` with Brave (#233): counts against the message's web
+  /// searches. A failure is the tool's result, so the chat goes on.
+  Future<String> _searchWeb(WebAccess web, ToolCall call) async {
+    if (webLeft <= 0) {
+      return 'Error: the limit of ${web.limit} web searches and pages for '
+          'one message is reached. Answer with what you have.';
+    }
+    _webUsed++;
+    try {
+      return await web.searchBrave!(call.input);
     } on WebPageError catch (e) {
       return 'Error: $e';
     }

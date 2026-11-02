@@ -416,6 +416,15 @@ class _ChatScreenState extends State<ChatScreen> {
           )
         : null;
     final readNote = widget.readNote;
+    var braveKey = '';
+    if (settings.webAccess && keys != null) {
+      try {
+        braveKey = (await keys.read(braveKeyId))?.trim() ?? '';
+      } on Exception {
+        braveKey = '';
+      }
+      if (!mounted || !identical(chat, _chat)) return;
+    }
     setState(() {
       if (empty) {
         chat.proposals.clear();
@@ -465,9 +474,11 @@ class _ChatScreenState extends State<ChatScreen> {
               DateTime.now()),
           toolImage: agent?.imageFor,
           web: settings.webAccess
-              ? WebAccess(
+              ? makeWebAccess(
                   limit: settings.maxWebSearches,
-                  search: hasWebSearch(config),
+                  providerSearch: hasWebSearch(config),
+                  searchWith: settings.webSearchWith,
+                  braveKey: braveKey,
                 )
               : null,
           handlers: {

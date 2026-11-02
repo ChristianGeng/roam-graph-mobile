@@ -8,6 +8,11 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-02: Web search for every provider with Brave Search ([#235](https://github.com/ChristianGeng/roam-graph-mobile/pull/235))
+
+- Added: the AI chat can search the web with every provider. Enter a Brave Search API key under AI → Web access; the AI then has `web_search` and reads the pages it picks with `fetch_web_page`. With Anthropic, "Search with" chooses between Anthropic's own search and Brave.
+- Closes #233.
+
 ## 2026-11-02: Follow Emacs: the desktop graph shows the node at point in Emacs ([#231](https://github.com/ChristianGeng/roam-graph-mobile/pull/231))
 
 - Added: with `roam-graph-follow-mode` on in Emacs (the file `emacs/roam-graph-follow.el` in the repository), the desktop app shows the node you open or move to in Emacs, in the graph and beside it. It listens on 127.0.0.1 only, with a secret in a file only you can read. Help, "The desktop app", shows the Doom setup.
