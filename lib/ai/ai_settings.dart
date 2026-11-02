@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../edit/tag_field.dart';
 import '../graph/roam_graph.dart';
+import '../node_view/web_links.dart' show openExternalLink, openUrlOnDevice;
 import '../platform/desktop.dart' show isDesktop;
 import 'ai_chat.dart';
 import 'ai_images.dart';
@@ -2261,9 +2262,18 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             child: const Text('Remove the saved key'),
           ),
         ),
-      const SelectableText(
-          'Get a key at https://brave.com/search/api/ . Brave has a free '
-          'allowance each month; check its page for the current limits.'),
+      const Text('Brave has a free allowance each month; its API page '
+          'has the current limits.'),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton(
+          key: const ValueKey('brave-api-page'),
+          onPressed: () => openExternalLink(
+              context, Uri.parse('https://brave.com/search/api/'),
+              openUrlOnDevice),
+          child: const Text('Open Brave Search API page'),
+        ),
+      ),
       if (_provider == 'anthropic')
         DropdownButtonFormField<String>(
           key: const ValueKey('web-search-with'),
