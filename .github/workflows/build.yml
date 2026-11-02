@@ -347,12 +347,12 @@ jobs:
       # GTK for the window, libsecret for the API keys
       # (flutter_secure_storage), libstdc++-12-dev so clang finds the C++
       # library; the rest is what the runner image has and the plain
-      # container lacks: git, curl, unzip and xz for Flutter, binutils for
+      # container lacks: git, curl, unzip, xz and jq for Flutter, binutils for
       # the glibc check.
       LINUX_PACKAGES: >-
         clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
         libsecret-1-dev libstdc++-12-dev
-        git curl ca-certificates unzip xz-utils zip binutils
+        git curl ca-certificates unzip xz-utils zip binutils jq
     steps:
       # Without git in the container yet, checkout downloads the commit
       # through the API; nothing here needs the repository's git history.

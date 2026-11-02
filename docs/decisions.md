@@ -3835,7 +3835,7 @@ source, and two of them (`flutter_secure_storage_linux` and
   image from Docker Hub stays. In the container the job runs as root,
   without sudo (`tool/apt_cached.sh` uses sudo only when not root), and
   installs what the runner image has but the plain container lacks (git,
-  curl, unzip, xz for Flutter; binutils for the check) through the same
+  curl, unzip, xz and jq for Flutter; binutils for the check) through the same
   apt cache, now keyed `apt-ubuntu-22.04-`. Ubuntu's signed package index
   for 22.04 gives the SHA256s, as in decision 99. Checkout runs before git
   is installed and fetches the commit through the API; the build doesn't
