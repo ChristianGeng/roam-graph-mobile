@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:isolate';
 import 'dart:math';
 
@@ -19,6 +20,7 @@ import '../graph/roam_graph.dart';
 import '../node_view/heading_link.dart';
 import '../node_view/node_screen.dart';
 import '../platform/desktop.dart';
+import '../platform/follow_emacs.dart';
 import '../search/search_screen.dart';
 import '../settings/view_settings.dart';
 import 'node_memory.dart';
@@ -116,9 +118,14 @@ class GraphScreen extends StatefulWidget {
     this.computeAlgorithms = algorithmsOnIsolate,
     this.shareText = shareTextOut,
     this.folder,
+    this.followRequests,
   });
 
   final ValueListenable<RoamGraph> graph;
+
+  /// The node IDs Emacs sends (#117); by default [emacsFollowRequests],
+  /// which stay empty on Android. Tests pass their own.
+  final Stream<String>? followRequests;
 
   /// Reads a note for the node view.
   final NoteReader readNote;
@@ -332,7 +339,41 @@ class _GraphScreenState extends State<GraphScreen> {
       ?..openRequest.addListener(_chatRequested);
     // A tap on a notification that started the app.
     WidgetsBinding.instance.addPostFrameCallback((_) => _chatRequested());
+    _following =
+        (widget.followRequests ?? emacsFollowRequests).listen(_follow);
     _start();
+  }
+
+  StreamSubscription<String>? _following;
+
+  /// A node Emacs asked for that the index does not have yet; shown when
+  /// the graph next changes with it in.
+  String? _pendingFollow;
+
+  /// Shows the node [id] that Emacs is at (#117), as a click on it does:
+  /// marked, centred, and beside the graph when there is room. Nothing
+  /// happens while following is off, or while another page (a note, a
+  /// chat, the settings) is open on top of the graph: that page is not
+  /// taken away.
+  void _follow(String id) {
+    if (!mounted || !ViewSettingsScope.read(context).followEmacs) return;
+    if (!_graph.nodes.containsKey(id)) {
+      _pendingFollow = id;
+      return;
+    }
+    _pendingFollow = null;
+    if (ModalRoute.of(context)?.isCurrent == false) return;
+    if (id == _centre) return;
+    widget.nodeMemory.remember(id);
+    setState(() {
+      _paneHeading = null;
+      _select(id);
+    });
+    if (_choice == _ScopeChoice.whole) {
+      _centreOnSelected();
+    } else {
+      _update();
+    }
   }
 
   /// The store, to follow taps on notifications (#202).
@@ -384,6 +425,7 @@ class _GraphScreenState extends State<GraphScreen> {
 
   @override
   void dispose() {
+    _following?.cancel();
     widget.graph.removeListener(_graphChanged);
     _chatStore?.openRequest.removeListener(_chatRequested);
     _transform.dispose();
@@ -412,6 +454,11 @@ class _GraphScreenState extends State<GraphScreen> {
   void _graphChanged() {
     if (!mounted) return;
     final graph = _graph;
+    final pending = _pendingFollow;
+    if (pending != null && graph.nodes.containsKey(pending)) {
+      // After this change is drawn.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _follow(pending));
+    }
     // Nodes that are gone leave the history; the centre falls back to the
     // node selected before it, or to the node with the most links.
     _history.retainWhere(graph.nodes.containsKey);

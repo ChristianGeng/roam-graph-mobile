@@ -3852,6 +3852,73 @@ source, and two of them (`flutter_secure_storage_linux` and
   keeps working; pull requests still build it, and pre-releases still
   skip the desktop builds (decision 100).
 
+## 124. The desktop app follows Emacs (#117)
+
+When Emacs opens a note or point moves to another node, the desktop app
+shows that node in the graph and beside it, as org-roam-ui's "follow"
+does. Emacs is the source; the app only shows.
+- **Emacs side: `emacs/roam-graph-follow.el`,** a global minor mode
+  `roam-graph-follow-mode`. The node is `org-roam-id-at-point`'s, read
+  from org-roam's source (`org-roam-id.el`): the nearest heading at or
+  above point that `org-roam-db-node-p` accepts (an `:ID:`, no
+  `ROAM_EXCLUDE`, the include function), else the file node. It reads
+  only the buffer, not the database, so a note just written counts too.
+  It is sent on `org-roam-find-file-hook` (which org-roam runs for
+  org-roam files only) and from a repeating idle timer
+  (`roam-graph-follow-idle-delay`, 1 second): at most once per idle
+  period, and only when the ID differs from the one sent last. Other
+  buffers send nothing.
+- **Transport: TCP on 127.0.0.1, one line of JSON,
+  `{"token": "…", "id": "…"}`.** The app binds `InternetAddress.loopbackIPv4`
+  on a port the system chooses. Emacs connects with
+  `make-network-process :nowait t`, so it never waits; a refused
+  connection or a missing app ends in the sentinel without an error, and
+  a connection is dropped after 3 seconds at the latest. The app reads at
+  most 4 KB within 2 seconds, then closes.
+- **The token:** 24 random bytes (`Random.secure`), base64url, new at
+  every start, compared in constant time. The app writes
+  `{"port": …, "token": …}` to `follow.json` in its support folder
+  (`getApplicationSupportDirectory`), the folder the app already keeps its
+  settings in, rather than `~/.local/share/roam-graph/`, which holds the
+  installed program and is replaced by an update. On Linux that is
+  `$XDG_DATA_HOME/io.github.christiangeng.roamgraph`, on macOS
+  `~/Library/Application Support/io.github.christiangeng.roamgraph`, on
+  Windows `%APPDATA%\io.github.christiangeng\Roam Graph`; the elisp
+  computes the same path per system (`roam-graph-follow-file`). The file
+  is created empty, set to 0600, then filled and renamed into place, so
+  the token is never readable by others and Emacs never reads half a
+  file. On Windows the user's `%APPDATA%` is private already. Closing the
+  app removes the file; after a crash a stale file only points to a
+  closed port.
+- **What the app accepts:** a message with the right token and an ID of
+  1–256 characters without control characters. Anything else is dropped
+  without an answer. Nothing is written: the ID only selects a node of
+  the app's own index.
+- **What the app does:** the node is selected, remembered as the last
+  node, and centred (the whole graph), or the part around it is drawn
+  again, exactly as "Show in graph" does; beside the graph, the side pane
+  shows it. An ID the index doesn't have yet is kept and shown when the
+  graph next changes with it in, that is, after the next scan. While
+  another page (a note, a chat, the settings) is open above the graph,
+  nothing changes, so a note being edited isn't taken away; the next
+  move in Emacs shows the node once the graph is on top again.
+- **Setting:** *Follow Emacs* in Settings, desktop only, on by default:
+  nothing is sent unless the mode is on in Emacs. Off, the app ignores
+  what arrives; the listener still runs, which costs nothing.
+- **Desktop only:** the listener starts in `main` only on Linux, Windows
+  and macOS; on Android the stream stays empty.
+- **Tests:** Dart tests for the message check (right token, wrong or
+  missing token, malformed lines, too long), the listener on 127.0.0.1,
+  the file's content and mode 0600, and the graph's reaction (shown,
+  unknown then shown after a change, off, another page on top). ERT
+  tests (`emacs/run-tests.sh`, in CI's `org-roam` job with the pinned
+  org-roam of the parity test, now fetched by
+  `tool/org_roam_parity/fetch-deps.sh`) for the ID from a file node, a
+  heading node, a plain subheading and an excluded heading; nothing from
+  other buffers; the message; the port file; a real send to a listener;
+  a refused port without an error; sending a node once; the mode's hook
+  and timer. The file byte-compiles with warnings as errors.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

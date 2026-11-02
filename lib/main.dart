@@ -14,6 +14,7 @@ import 'graph_view/node_memory.dart';
 import 'node_view/sclang_language.dart';
 import 'platform/chat_background.dart';
 import 'platform/desktop.dart';
+import 'platform/follow_emacs.dart';
 import 'platform/text_drop.dart';
 import 'platform/voice_work.dart';
 import 'settings/view_settings.dart';
@@ -30,6 +31,9 @@ Future<void> main() async {
   await deleteShareCache();
   // The app's own source-block grammar, before any note is shown (#147).
   registerSclang();
+  // Emacs tells the graph which node is at point (#117); not awaited, so
+  // the window opens at once.
+  if (isDesktop) startFollowing();
   runApp(const RoamGraphApp());
 }
 
