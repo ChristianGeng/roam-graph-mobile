@@ -13,7 +13,13 @@ import 'package:roam_graph_mobile/ai/web_access.dart';
 
 import 'ai_chat_test.dart' show FakeServer, anthropic, anthropicReply, openAiReply;
 import 'ai_settings_test.dart'
-    show MemoryAiSettingsStore, backToAi, openRow, pumpIn, scrollTo;
+    show
+        MemoryAiSettingsStore,
+        MemoryKeyStore,
+        backToAi,
+        openRow,
+        pumpIn,
+        scrollTo;
 import 'ai_visibility_test.dart' show graphOf, notes;
 
 /// Names and the addresses they stand for, as DNS would answer.

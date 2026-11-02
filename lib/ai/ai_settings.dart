@@ -1134,6 +1134,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       } on Exception {
         _openAiKeySaved = false;
       }
+      if (!mounted) return;
       try {
         final saved =
             await AiSettingsScope.keysOf(context)?.read(braveKeyId);
