@@ -70,11 +70,15 @@ bool isElf(File file) {
 }
 
 /// The newest GLIBC_ and GLIBCXX_ versions in `objdump -T` output; null
-/// for a library the file does not use.
+/// for a library the file does not use. Only undefined symbols (`*UND*`)
+/// are needs; a symbol the file defines itself, with its own version, is
+/// not.
 ({List<int>? glibc, List<int>? glibcxx}) neededVersions(String objdump) {
   List<int>? glibc, glibcxx;
+  final undefined =
+      objdump.split('\n').where((line) => line.contains('*UND*')).join('\n');
   for (final match
-      in RegExp(r'\b(GLIBC|GLIBCXX)_(\d+(?:\.\d+)*)\b').allMatches(objdump)) {
+      in RegExp(r'\b(GLIBC|GLIBCXX)_(\d+(?:\.\d+)*)\b').allMatches(undefined)) {
     final version = match.group(2)!.split('.').map(int.parse).toList();
     if (match.group(1) == 'GLIBC') {
       if (glibc == null || compare(version, glibc) > 0) glibc = version;

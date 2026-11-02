@@ -25,16 +25,29 @@ DYNAMIC SYMBOL TABLE:
     expect(tooNew(neededVersions(objdump)), ['GLIBC_2.38']);
   });
 
+  String und(String version) =>
+      '0000000000000000      DF *UND*  0000000000000000 ($version) f\n';
+
   test('Ubuntu 22.04 versions pass, and a file without them too', () {
-    expect(
-        tooNew(neededVersions('(GLIBC_2.35) a\n(GLIBCXX_3.4.30) b\n')), isEmpty);
-    expect(tooNew(neededVersions('(GLIBC_2.34) a\n')), isEmpty);
+    expect(tooNew(neededVersions(und('GLIBC_2.35') + und('GLIBCXX_3.4.30'))),
+        isEmpty);
+    expect(tooNew(neededVersions(und('GLIBC_2.34'))), isEmpty);
     expect(neededVersions('no versions here').glibc, isNull);
     expect(tooNew(neededVersions('')), isEmpty);
   });
 
   test('a newer libstdc++ fails as well', () {
-    expect(tooNew(neededVersions('(GLIBCXX_3.4.32) a\n')), ['GLIBCXX_3.4.32']);
+    expect(tooNew(neededVersions(und('GLIBCXX_3.4.32'))), ['GLIBCXX_3.4.32']);
+  });
+
+  test('a version the file defines itself is not a need', () {
+    // A defined symbol (in .text, not *UND*) carries the file's own
+    // version; only undefined symbols are taken from glibc or libstdc++.
+    const defined = '00000000000a1b20 g    DF .text  0000000000000040 '
+        '(GLIBCXX_3.4.33) _ZNSt6thread'
+        '\n';
+    expect(neededVersions(defined).glibcxx, isNull);
+    expect(tooNew(neededVersions(defined + und('GLIBCXX_3.4.29'))), isEmpty);
   });
 
   test('versions compare by number, not as text', () {
