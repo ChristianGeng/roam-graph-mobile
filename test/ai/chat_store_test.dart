@@ -8,6 +8,7 @@ import 'package:roam_graph_mobile/ai/ai_tools.dart';
 import 'package:roam_graph_mobile/ai/ai_visibility.dart';
 import 'package:roam_graph_mobile/ai/chat_note.dart';
 import 'package:roam_graph_mobile/ai/chat_store.dart';
+import 'package:roam_graph_mobile/ai/web_access.dart';
 
 import 'ai_chat_test.dart' show FakeServer, anthropic, anthropicReply;
 import 'ai_visibility_test.dart' show graphOf, notes;
@@ -312,6 +313,37 @@ void main() {
       expect(jsonDecode(storage.files[chat.id]!)['unseen'], true);
       chat.markSeen();
       expect(chat.unseen, isFalse);
+    });
+
+    test('a chat with no screen takes the web access of the settings when '
+        'its request starts (#232)', () async {
+      final server = FakeServer([answer('Here it is.')]);
+      final chat = chatOn(server);
+      store.webFor = (config) => const WebAccess(limit: 3, search: false);
+      await chat.send('Question');
+      final names = [
+        for (final tool in server.requests.single.body['tools'] as List)
+          tool['name'],
+      ];
+      expect(names, contains('fetch_web_page'));
+    });
+
+    test('web access changed during a request waits for the next message '
+        '(#232)', () async {
+      final server = GatedServer([answer('First.'), answer('Second.')]);
+      final chat = chatOn(server);
+      final done = chat.send('First question');
+      await pumpEventQueue();
+      chat.session!.web = const WebAccess(limit: 3, search: false);
+      server.gate.complete();
+      await done;
+      List<Object?> names(int i) => [
+            for (final tool in server.requests[i].body['tools'] as List)
+              tool['name'],
+          ];
+      expect(names(0), isNot(contains('fetch_web_page')));
+      await chat.send('Second question');
+      expect(names(1), contains('fetch_web_page'));
     });
 
     test('no dot for a chat that is open', () async {

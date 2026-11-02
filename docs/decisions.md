@@ -3931,12 +3931,15 @@ does. Emacs is the source; the app only shows.
 only to a chat made after the change: a chat with messages kept the web
 access it was started with, and the model had no `fetch_web_page`.
 - **Every chat takes the setting at its next message.** `ChatSession.web`
-  can be set again. One helper in `chat_screen.dart` makes the `WebAccess`
-  from the settings and the chat's provider; `_start`, the kept session,
-  `_refreshTools` and `_restart` use it. `didChangeDependencies` reacts to
-  a change of the two settings as it does for hidden tags.
-- **A request under way is not changed,** and the count of web searches
-  of the current message stays.
+  can be set again. One function, `webAccessFor` (in `chat_store.dart`),
+  makes the `WebAccess` from the settings and the chat's provider;
+  `_start`, the kept session, `_refreshTools` and `_restart` use it.
+  `didChangeDependencies` reacts to a change of the two settings as it
+  does for hidden tags. A chat whose screen is closed gets it from
+  `ChatStore.webFor` (set by `ChatStoreHost`) when its request starts.
+- **A request under way is not changed:** the session keeps the web access
+  it had when the message started until the message ends, and the count of
+  web searches of the message stays.
 
 ## Recommended, not decided
 

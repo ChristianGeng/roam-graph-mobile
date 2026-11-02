@@ -29,6 +29,7 @@ import 'ai_chat.dart';
 import 'ai_settings.dart';
 import 'ai_visibility.dart';
 import 'note_language.dart';
+import 'web_access.dart';
 
 /// Above this many characters, the chat suggests a new chat: every message
 /// sends the whole chat again.
@@ -314,6 +315,11 @@ class Chat extends ChangeNotifier {
       return;
     }
     pendingText = null;
+    // The web access of the settings as they are now, also for a chat
+    // whose screen is closed (#232).
+    final session = this.session;
+    final webFor = store.webFor;
+    if (session != null && webFor != null) session.web = webFor(session.config);
     store._askForNotifications();
     try {
       await whileScreenOn(work);
@@ -645,6 +651,10 @@ class ChatStore extends ChangeNotifier {
 
   /// The most chats that may send at the same time (at least 1).
   int get maxParallel => _maxParallel;
+
+  /// The web access for a chat's provider as the AI settings have it now;
+  /// set by [ChatStoreHost]. A request takes it when it starts (#232).
+  WebAccess? Function(ProviderConfig config)? webFor;
   set maxParallel(int value) {
     _maxParallel = max(1, value);
     _pump();
@@ -1001,6 +1011,7 @@ class _ChatStoreHostState extends State<ChatStoreHost>
     final settings = await AiSettingsScope.current(context);
     _store.maxParallel = settings.maxParallelChats;
     _store.notifyAnswers = settings.notifyAnswers;
+    _store.webFor = (config) => webAccessFor(settings, config);
     await _store.load(keepDays: settings.keepChatsDays);
     // The notification that started the app.
     final tap = await _notifier.launchTap();
@@ -1013,9 +1024,20 @@ class _ChatStoreHostState extends State<ChatStoreHost>
     final settings = AiSettingsScope.of(context);
     _store.maxParallel = settings.maxParallelChats;
     _store.notifyAnswers = settings.notifyAnswers;
+    _store.webFor = (config) => webAccessFor(settings, config);
   }
 
   @override
   Widget build(BuildContext context) =>
       ChatStoreScope(store: _store, child: widget.child);
 }
+
+/// The web access of [settings] for a chat with [config]'s provider, or
+/// null where "Web access for the AI" is off (#232).
+WebAccess? webAccessFor(AiSettings settings, ProviderConfig config) =>
+    settings.webAccess
+        ? WebAccess(
+            limit: settings.maxWebSearches,
+            search: hasWebSearch(config),
+          )
+        : null;

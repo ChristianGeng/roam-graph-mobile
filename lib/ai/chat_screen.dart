@@ -39,7 +39,6 @@ import 'edit_tools.dart';
 import 'model_picker.dart';
 import 'note_from_answer.dart';
 import 'note_language.dart';
-import 'web_access.dart';
 
 /// Opens a node by its ID, from a link in an answer.
 typedef OpenNode = void Function(BuildContext context, String id);
@@ -314,20 +313,10 @@ class _ChatScreenState extends State<ChatScreen> {
     _setWeb(session, settings);
   }
 
-  /// The web access of the settings as they are now, for the chat's
-  /// provider (#232).
-  WebAccess? _webFor(AiSettings settings, ProviderConfig config) =>
-      settings.webAccess
-          ? WebAccess(
-              limit: settings.maxWebSearches,
-              search: hasWebSearch(config),
-            )
-          : null;
-
   /// Gives [session] the web access of [settings]; a request under way is
   /// not changed.
   void _setWeb(ChatSession session, AiSettings settings) {
-    session.web = _webFor(settings, session.config);
+    session.web = webAccessFor(settings, session.config);
     _webAccess = settings.webAccess;
     _maxWebSearches = settings.maxWebSearches;
   }
@@ -495,7 +484,7 @@ class _ChatScreenState extends State<ChatScreen> {
               '${languagePrompt(language)}',
               DateTime.now()),
           toolImage: agent?.imageFor,
-          web: _webFor(settings, config),
+          web: webAccessFor(settings, config),
           handlers: {
             if (mode == AiEditMode.review) ...{
               'propose_edit': (call) => _proposeEdit(chat, readNote, call),
