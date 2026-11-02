@@ -189,7 +189,10 @@ release, never a pre-release) and installs it over the old one. Running
 
 **What stays where:** the app's own data (its database of the graph,
 settings, the edit history) is in `~/.local/share/io.github.christiangeng.roamgraph`;
-API keys are in the system keyring; the notes stay in their folder. An
+API keys are in the system keyring (when none is saved there, the app
+reads the provider's environment variable, such as `MISTRAL_API_KEY`; see
+the help page "The desktop app", decision 126); the notes stay in their
+folder. An
 update or `--remove` changes none of them.
 
 "Open in Emacs" runs `emacsclient`; Emacs needs `(server-start)`, which

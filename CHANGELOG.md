@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-02: Desktop: API keys from environment variables ([#PR](PR_URL))
+
+Added: on Linux, Windows and macOS a provider's key is read from its
+environment variable (such as `MISTRAL_API_KEY`, `HF_TOKEN`,
+`BRAVE_API_KEY`) when none is saved in the app; a saved key takes
+precedence. Fixed: the key fields name the platform's secret store. Closes #236.
+
 ## 2026-11-02: Web search for every provider with Brave Search ([#235](https://github.com/ChristianGeng/roam-graph-mobile/pull/235))
 
 - Added: the AI chat can search the web with every provider. Enter a Brave Search API key under AI → Web access; the AI then has `web_search` and reads the pages it picks with `fetch_web_page`. With Anthropic, "Search with" chooses between Anthropic's own search and Brave.
