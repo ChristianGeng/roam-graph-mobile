@@ -141,6 +141,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// The web access the session was made with (#232).
   bool? _webAccess;
   int? _maxWebSearches;
+  String? _searchWith;
 
   /// Undo is running for this message.
   int? _undoing;
@@ -236,7 +237,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final tagsChanged = _hiddenTags != null && !setEquals(tags, _hiddenTags);
     final webChanged = _webAccess != null &&
         (settings.webAccess != _webAccess ||
-            settings.maxWebSearches != _maxWebSearches);
+            settings.maxWebSearches != _maxWebSearches ||
+            settings.webSearchWith != _searchWith);
     if (tagsChanged || webChanged) {
       _refreshTools();
     }
@@ -316,9 +318,11 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Gives [session] the web access of [settings]; a request under way is
   /// not changed.
   void _setWeb(ChatSession session, AiSettings settings) {
-    session.web = webAccessFor(settings, session.config);
+    session.web = webAccessFor(settings, session.config,
+        braveKey: _chat.store.braveKey);
     _webAccess = settings.webAccess;
     _maxWebSearches = settings.maxWebSearches;
+    _searchWith = settings.webSearchWith;
   }
 
   /// Makes the session of the chat with the settings as they are now: for
@@ -434,6 +438,15 @@ class _ChatScreenState extends State<ChatScreen> {
           )
         : null;
     final readNote = widget.readNote;
+    var braveKey = '';
+    if (settings.webAccess && keys != null) {
+      try {
+        braveKey = (await keys.read(braveKeyId))?.trim() ?? '';
+      } on Exception {
+        braveKey = '';
+      }
+      if (!mounted || !identical(chat, _chat)) return;
+    }
     setState(() {
       if (empty) {
         chat.proposals.clear();
@@ -450,6 +463,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _hiddenTags = settings.hiddenTags.toSet();
       _webAccess = settings.webAccess;
       _maxWebSearches = settings.maxWebSearches;
+      _searchWith = settings.webSearchWith;
       _config = config;
       _defaultModel = values.defaultModel;
       _strongModel = values.strongModel;
@@ -484,7 +498,7 @@ class _ChatScreenState extends State<ChatScreen> {
               '${languagePrompt(language)}',
               DateTime.now()),
           toolImage: agent?.imageFor,
-          web: webAccessFor(settings, config),
+          web: webAccessFor(settings, config, braveKey: braveKey),
           handlers: {
             if (mode == AiEditMode.review) ...{
               'propose_edit': (call) => _proposeEdit(chat, readNote, call),

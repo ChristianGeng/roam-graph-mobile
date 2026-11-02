@@ -376,23 +376,252 @@ String decodeEntities(String text) => text.replaceAllMapped(
       },
     );
 
+/// The search tool of the app (#233): it asks the Brave Search API with
+/// the user's own key, for every provider. It is called `web_search`, like
+/// Anthropic's built-in tool, and the two are never offered together (see
+/// [makeWebAccess]).
+const braveSearchTool = AiTool(
+  'web_search',
+  'Search the web and return the best results: for each its title, '
+      'address and a short description. Then read the pages you want with '
+      'fetch_web_page. Each search counts as one of the web searches '
+      'allowed for one message. The search words go to Brave Search.',
+  {
+    'type': 'object',
+    'properties': {
+      'query': {
+        'type': 'string',
+        'description': 'The search words.',
+      },
+      'count': {
+        'type': 'integer',
+        'description': 'How many results, 1 to 10. Default 5.',
+      },
+      'freshness': {
+        'type': 'string',
+        'enum': ['pd', 'pw', 'pm', 'py'],
+        'description': 'Only pages from the last day (pd), week (pw), '
+            'month (pm) or year (py). Optional.',
+      },
+      'country': {
+        'type': 'string',
+        'description': 'A two-letter country code such as DE or US, to '
+            'prefer results from there. Optional.',
+      },
+      'search_lang': {
+        'type': 'string',
+        'description': 'The language of the results as a code such as en '
+            'or de. Optional.',
+      },
+    },
+    'required': ['query'],
+  },
+);
+
+/// The Brave Search API's address.
+final braveSearchUrl = Uri.https('api.search.brave.com', '/res/v1/web/search');
+
+/// The most results one search returns to the model.
+const maxSearchResults = 10;
+
+/// The results returned when the model gives no `count`.
+const defaultSearchResults = 5;
+
+/// The time one search may take.
+const searchTimeLimit = Duration(seconds: 20);
+
+/// The most bytes read of a search answer.
+const maxSearchBytes = 1024 * 1024;
+
+/// What the Brave Search API answered.
+class SearchReply {
+  const SearchReply(this.status, this.body);
+
+  final int status;
+  final String body;
+}
+
+/// Sends the search [url] with [headers]; tests replace it.
+typedef SearchGet = Future<SearchReply> Function(
+    Uri url, Map<String, String> headers);
+
+/// [SearchGet] with `dart:io`: no cookies, a time and a size limit.
+Future<SearchReply> getSearchWithDartIo(
+    Uri url, Map<String, String> headers) async {
+  final client = HttpClient()
+    ..connectionTimeout = searchTimeLimit
+    ..userAgent = 'RoamGraph';
+  try {
+    final request = await client.getUrl(url).timeout(searchTimeLimit);
+    // A redirect must not carry the key to another address.
+    request.followRedirects = false;
+    headers.forEach(request.headers.set);
+    final response = await request.close().timeout(searchTimeLimit);
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in response.timeout(searchTimeLimit)) {
+      bytes.add(chunk);
+      if (bytes.length >= maxSearchBytes) break;
+    }
+    return SearchReply(
+        response.statusCode, utf8.decode(bytes.takeBytes(), allowMalformed: true));
+  } finally {
+    client.close(force: true);
+  }
+}
+
+/// The search for the model (#233): asks Brave for [input]'s `query` with
+/// [key], and returns the results as numbered text, at most
+/// [maxSearchResults]. Throws [WebPageError] in plain words when the key
+/// is not accepted, a limit is reached, the network fails or the answer is
+/// not understood; the message never contains the key.
+Future<String> braveSearch(Map<String, Object?> input,
+    {required String key, SearchGet get = getSearchWithDartIo}) async {
+  final query = input['query'];
+  if (query is! String || query.trim().isEmpty) {
+    throw const WebPageError('query is missing.');
+  }
+  final asked = input['count'];
+  final count = (asked is num ? asked.toInt() : defaultSearchResults)
+      .clamp(1, maxSearchResults)
+      .toInt();
+  final freshness = input['freshness'];
+  final country = input['country'];
+  final lang = input['search_lang'];
+  final url = braveSearchUrl.replace(queryParameters: {
+    'q': query.trim(),
+    'count': '$count',
+    if (freshness is String && const {'pd', 'pw', 'pm', 'py'}.contains(freshness))
+      'freshness': freshness,
+    if (country is String && RegExp(r'^[A-Za-z]{2}$').hasMatch(country.trim()))
+      'country': country.trim().toUpperCase(),
+    if (lang is String &&
+        RegExp(r'^[A-Za-z]{2}(-[A-Za-z]{2,4})?$').hasMatch(lang.trim()))
+      'search_lang': lang.trim().toLowerCase(),
+  });
+  final SearchReply reply;
+  try {
+    reply = await get(url, {
+      'X-Subscription-Token': key,
+      'Accept': 'application/json',
+    }).timeout(searchTimeLimit);
+  } on TimeoutException {
+    throw WebPageError('The search did not answer within '
+        '${searchTimeLimit.inSeconds} seconds.');
+  } on SocketException catch (e) {
+    throw WebPageError('No connection to Brave Search: ${e.message}.');
+  } on HandshakeException catch (e) {
+    throw WebPageError('No secure connection to Brave Search: '
+        '${e.message}.');
+  } on HttpException catch (e) {
+    throw WebPageError('The connection to Brave Search failed: '
+        '${e.message}.');
+  }
+  switch (reply.status) {
+    case 200:
+      break;
+    case 401 || 403:
+      throw WebPageError('Brave Search did not accept the key (HTTP '
+          '${reply.status}). The key may be wrong or expired. Answer '
+          'without a web search.');
+    case 429:
+      throw const WebPageError('Brave Search refused the search: the rate '
+          'or quota limit is reached (HTTP 429). Answer without a web '
+          'search, or try again later.');
+    default:
+      throw WebPageError('Brave Search answered with HTTP ${reply.status}. '
+          'Answer without a web search.');
+  }
+  return _searchText(query.trim(), reply.body, count);
+}
+
+String _plain(Object? value) => decodeEntities(
+        '${value ?? ''}'.replaceAll(RegExp(r'<[^>]*>'), ''))
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
+String _searchText(String query, String body, int count) {
+  Object? json;
+  try {
+    json = jsonDecode(body);
+  } on FormatException {
+    throw const WebPageError('Brave Search gave an answer the app cannot '
+        'read.');
+  }
+  final web = json is Map ? json['web'] : null;
+  final results = web is Map ? web['results'] : null;
+  if (results is! List || results.whereType<Map>().isEmpty) {
+    return 'No results for "$query".';
+  }
+  final lines = <String>['Results for "$query":'];
+  var number = 0;
+  for (final result in results.whereType<Map>().take(count)) {
+    number++;
+    final title = _plain(result['title']);
+    final description = _plain(result['description']);
+    lines
+      ..add('')
+      ..add('$number. ${title.isEmpty ? '(no title)' : title}')
+      ..add('   ${result['url'] ?? ''}');
+    if (description.isNotEmpty) lines.add('   $description');
+  }
+  return lines.join('\n');
+}
+
 /// What the chat may do on the web for one chat (#137): read pages with
-/// [fetchWebPageTool], and, where the provider has it, search with its
-/// built-in tool; together at most [limit] times for one message.
+/// [fetchWebPageTool], and search, either with the provider's built-in
+/// tool ([search]) or with the app's own [braveSearchTool] ([searchBrave]);
+/// together at most [limit] times for one message.
 class WebAccess {
   const WebAccess({
     required this.limit,
     this.search = false,
     this.fetch = fetchWebPage,
+    this.searchBrave,
   });
 
   /// "Most web searches for one message".
   final int limit;
 
-  /// Whether the provider's built-in web search is offered.
+  /// Whether the provider's built-in web search is offered (Anthropic).
   final bool search;
 
   final Future<String> Function(String url) fetch;
+
+  /// The app's own search with Brave (#233), or null when it is not
+  /// offered. Never set together with [search]: both tools are called
+  /// `web_search`.
+  final Future<String> Function(Map<String, Object?> input)? searchBrave;
+
+  /// Whether the model can search at all.
+  bool get canSearch => search || searchBrave != null;
+}
+
+/// "Search with" (#233) in the settings: [anthropicSearch] or [braveSearch].
+const anthropicSearch = 'anthropic';
+const braveSearchChoice = 'brave';
+
+/// The web access of one chat (#233). Where the provider has its own
+/// search ([providerSearch]) and the settings choose it, that is offered;
+/// otherwise, with a Brave [braveKey], the app's own search. Never both,
+/// because both tools are called `web_search`. With Brave chosen but no
+/// key, Anthropic's search stays, so the chat does not lose it.
+WebAccess makeWebAccess({
+  required int limit,
+  required bool providerSearch,
+  required String searchWith,
+  required String braveKey,
+  SearchGet get = getSearchWithDartIo,
+}) {
+  final key = braveKey.trim();
+  final brave = key.isNotEmpty &&
+      (!providerSearch || searchWith == braveSearchChoice);
+  return WebAccess(
+    limit: limit,
+    search: providerSearch && !brave,
+    searchBrave: brave
+        ? (input) => braveSearch(input, key: key, get: get)
+        : null,
+  );
 }
 
 /// What the system prompt says with web access on.
@@ -400,6 +629,8 @@ String webAccessPrompt({required bool search}) =>
     '${search ? 'You can search the web with web_search and read pages '
         'with fetch_web_page. ' : 'You can read web pages with '
         'fetch_web_page. '}'
+    'If the user gives a web address, read it with fetch_web_page; never '
+    'say you have no web access when you have these tools. '
     'Name the sources of what you found on the web, as links. When you '
     'write or change a note with facts from the web, put the sources in it '
     'as Org links: [[<URL>][<title>]].';

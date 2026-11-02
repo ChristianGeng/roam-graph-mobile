@@ -3925,7 +3925,53 @@ does. Emacs is the source; the app only shows.
   a refused port without an error; sending a node once; the mode's hook
   and timer. The file byte-compiles with warnings as errors.
 
-## 125. Web access set during a chat applies from its next message (#232)
+## 125. Web search for every provider with the Brave Search API (#233)
+
+The chat can search the web with any provider. The app runs the search
+itself, like `fetch_web_page`, with the user's own Brave Search API key.
+- **The tool is named `web_search`,** like Anthropic's built-in tool, and
+  the two are never offered together. `makeWebAccess` (in
+  `web_access.dart`) decides: with Anthropic's own API and "Search with:
+  Anthropic's search" (the default), only the built-in tool is offered,
+  as before. With any other provider and a Brave key, or with Anthropic
+  and "Search with: Brave Search" and a key, only the app's tool is
+  offered. Brave chosen without a key keeps Anthropic's search, so the
+  chat does not lose it. Without a key and without a built-in search, no
+  search tool is offered; `fetch_web_page` stays.
+- **Request:** `GET https://api.search.brave.com/res/v1/web/search` with
+  `q`, `count` (1 to 10, default 5; Brave allows 20, the app asks for at
+  most 10), and when the model gives them `freshness` (`pd`, `pw`, `pm`,
+  `py`), `country` (two letters, upper case) and `search_lang` (a code,
+  lower case); a value that does not fit is left out. Headers
+  `X-Subscription-Token: <key>` and `Accept: application/json`. The
+  parameter names are from Brave's documentation.
+- **Answer to the model:** `web.results`, at most `count`, as numbered
+  text: title, address, description, with HTML tags and entities removed.
+  No results: "No results for ...". Each search counts as one of *Most web
+  searches for one message*, as a page does.
+- **Errors are tool results,** so the chat goes on: 401 and 403 (key not
+  accepted), 429 (rate or quota limit), other HTTP codes, no network,
+  timeout (20 seconds), an answer that is not JSON. The text never
+  contains the key.
+- **The key** is kept like the other keys, in the `ApiKeyStore` under
+  `brave-search` (Android secure storage), never in the settings file,
+  never shown after saving, never logged. AI → Web access has the key
+  field, a link to Brave's API page, the "Search with" choice (shown for
+  Anthropic) and a line per provider, for example "Mistral: read pages;
+  search with Brave." or "Mistral: read pages only. Add a Brave key to
+  search."
+- **Privacy:** the search words go to Brave, not to the chat provider.
+  `ai-privacy.org` says so. Notes hidden from AI stay hidden: the model
+  writes the query, and the system text forbids hidden content.
+- **System text:** with a search, "You can search the web with web_search
+  and read pages with fetch_web_page." Without, "You can read web pages
+  with fetch_web_page." Both add: "If the user gives a web address, read it
+  with fetch_web_page; never say you have no web access when you have
+  these tools."
+- **Tests** use a fake HTTP function; the real Brave API is never called
+  and CI has no key.
+
+## 126. Web access set during a chat applies from its next message (#232)
 
 *Web access for the AI* and *Most web searches for one message* applied
 only to a chat made after the change: a chat with messages kept the web

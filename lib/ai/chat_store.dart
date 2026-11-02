@@ -655,6 +655,10 @@ class ChatStore extends ChangeNotifier {
   /// The web access for a chat's provider as the AI settings have it now;
   /// set by [ChatStoreHost]. A request takes it when it starts (#232).
   WebAccess? Function(ProviderConfig config)? webFor;
+
+  /// The Brave Search key (#233) as the key store has it, for [webFor];
+  /// read by [ChatStoreHost], empty without one.
+  String braveKey = '';
   set maxParallel(int value) {
     _maxParallel = max(1, value);
     _pump();
@@ -1011,7 +1015,10 @@ class _ChatStoreHostState extends State<ChatStoreHost>
     final settings = await AiSettingsScope.current(context);
     _store.maxParallel = settings.maxParallelChats;
     _store.notifyAnswers = settings.notifyAnswers;
-    _store.webFor = (config) => webAccessFor(settings, config);
+    _store.webFor = (config) =>
+        webAccessFor(settings, config, braveKey: _store.braveKey);
+    await _readBraveKey();
+    if (!mounted) return;
     await _store.load(keepDays: settings.keepChatsDays);
     // The notification that started the app.
     final tap = await _notifier.launchTap();
@@ -1024,7 +1031,21 @@ class _ChatStoreHostState extends State<ChatStoreHost>
     final settings = AiSettingsScope.of(context);
     _store.maxParallel = settings.maxParallelChats;
     _store.notifyAnswers = settings.notifyAnswers;
-    _store.webFor = (config) => webAccessFor(settings, config);
+    _store.webFor = (config) =>
+        webAccessFor(settings, config, braveKey: _store.braveKey);
+    unawaited(_readBraveKey());
+  }
+
+  /// Reads the Brave key again: after a change of the AI settings, where
+  /// it is saved too.
+  Future<void> _readBraveKey() async {
+    final keys = AiSettingsScope.keysOf(context);
+    if (keys == null) return;
+    try {
+      _store.braveKey = (await keys.read(braveKeyId))?.trim() ?? '';
+    } on Exception {
+      _store.braveKey = '';
+    }
   }
 
   @override
@@ -1034,10 +1055,13 @@ class _ChatStoreHostState extends State<ChatStoreHost>
 
 /// The web access of [settings] for a chat with [config]'s provider, or
 /// null where "Web access for the AI" is off (#232).
-WebAccess? webAccessFor(AiSettings settings, ProviderConfig config) =>
+WebAccess? webAccessFor(AiSettings settings, ProviderConfig config,
+        {String braveKey = ''}) =>
     settings.webAccess
-        ? WebAccess(
+        ? makeWebAccess(
             limit: settings.maxWebSearches,
-            search: hasWebSearch(config),
+            providerSearch: hasWebSearch(config),
+            searchWith: settings.webSearchWith,
+            braveKey: braveKey,
           )
         : null;
