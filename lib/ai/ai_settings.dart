@@ -2295,7 +2295,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             if (value != null) setState(() => _webSearchWith = value);
           },
         ),
-      Text(_webCapability(), key: const ValueKey('web-capability')),
+      if (_webAccess)
+        Text(_webCapability(), key: const ValueKey('web-capability')),
     ];
   }
 
@@ -2305,7 +2306,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     final key = _braveKey.text.trim().isNotEmpty ||
         (_braveKeySaved && !_braveKeyRemove);
     return webCapabilityLine(name,
-        providerSearch: _provider == 'anthropic',
+        providerSearch: _provider == 'anthropic' &&
+            Uri.tryParse(_drafts['anthropic']?.baseUrl.text.trim() ??
+                        presetById('anthropic').baseUrl)
+                    ?.host ==
+                'api.anthropic.com',
         searchWith: _webSearchWith,
         braveKey: key);
   }

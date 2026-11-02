@@ -996,6 +996,12 @@ void main() {
       final field = find.byKey(const ValueKey('brave-key'));
       await scrollTo(tester, field);
       expect(tester.widget<TextField>(field).obscureText, isTrue);
+      expect(find.byKey(const ValueKey('web-capability')), findsNothing);
+      final toggle = find.byKey(const ValueKey('web-access'));
+      await scrollTo(tester, toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      await scrollTo(tester, field);
       expect(find.byKey(const ValueKey('web-capability')), findsOneWidget);
       await tester.enterText(field, 'brave-typed-key');
       await tester.pumpAndSettle();

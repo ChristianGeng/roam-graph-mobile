@@ -453,6 +453,8 @@ Future<SearchReply> getSearchWithDartIo(
     ..userAgent = 'RoamGraph';
   try {
     final request = await client.getUrl(url).timeout(searchTimeLimit);
+    // A redirect must not carry the key to another address.
+    request.followRedirects = false;
     headers.forEach(request.headers.set);
     final response = await request.close().timeout(searchTimeLimit);
     final bytes = BytesBuilder(copy: false);
