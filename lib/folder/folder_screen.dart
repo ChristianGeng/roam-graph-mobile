@@ -13,6 +13,7 @@ import '../help/help.dart';
 import '../capture/audio_info.dart';
 import '../capture/capture_screen.dart';
 import '../capture/new_node.dart' show newOrgId;
+import '../capture/opened_file.dart';
 import '../capture/share_inbox.dart';
 import '../capture/text_files.dart';
 import '../capture/voice_memo.dart';
@@ -373,6 +374,21 @@ class _FolderScreenState extends State<FolderScreen>
     switch (share) {
       case SharedText(:final text):
         await _captureText(notifier, text, proposeNode(share));
+      case SharedFiles(:final files, opened: true):
+        // "Open with" (#243): an Org file is shown, a recording becomes a
+        // voice memo.
+        for (final file in files) {
+          if (!mounted) return true;
+          switch (openedKind(file.name, file.mimeType)) {
+            case OpenedKind.audio:
+              await _captureVoice(notifier, file);
+            case OpenedKind.org:
+              await _openOrgFile(notifier, file);
+            case OpenedKind.other:
+              _tell('Roam Graph opens .org files and recordings; '
+                  '${fileBaseName(file.name)} is neither.');
+          }
+        }
       case SharedFiles(:final files):
         // Voice memos (#221) first, one after the other; then the text
         // files (#220).
@@ -393,6 +409,73 @@ class _FolderScreenState extends State<FolderScreen>
         }
     }
     return true;
+  }
+
+  /// An Org file opened with the app (#243): the note it is, when it is a
+  /// note of the notes folder; otherwise a read-only view of the file, with
+  /// "Add to my notes". Nothing is written to the opened file.
+  Future<void> _openOrgFile(
+      ValueNotifier<RoamGraph> notifier, IncomingFile file) async {
+    final read = readTextFiles([file]);
+    if (read.files.isEmpty) {
+      _tell(read.notes.isEmpty
+          ? 'Could not read ${fileBaseName(file.name)}.'
+          : read.notes.join('\n'));
+      return;
+    }
+    final text = read.files.single;
+    // Compared as the notes folder is read (_readNote: UTF-8, malformed
+    // bytes replaced), so a note that is not UTF-8 still matches itself.
+    final compared = switch (file.bytes) {
+      final bytes? => utf8.decode(bytes, allowMalformed: true),
+      null => text.text,
+    };
+    var route = await routeOpenedOrg(notifier.value, compared, _readNote);
+    if (route case OutsideNotes(unknownIds: true)) {
+      // Perhaps a note that came after the last scan: scan, then look again.
+      await _rescan();
+      if (!mounted) return;
+      route = await routeOpenedOrg(
+          (_graph ?? notifier).value, compared, _readNote);
+    }
+    if (!mounted) return;
+    switch (route) {
+      case InNotes(:final id):
+        widget.nodeMemory.remember(id);
+        _openNode(_graph ?? notifier, id);
+      case OutsideNotes():
+        _viewOutside(_graph ?? notifier, text);
+    }
+  }
+
+  /// Shows [file], an Org file from outside the notes folder, read-only in
+  /// the node view; "Add to my notes" goes through the capture screen.
+  void _viewOutside(ValueNotifier<RoamGraph> notifier, TextFile file) {
+    final data = viewedFile(file.name, file.text);
+    final id = data.nodes.firstWhere((n) => n.level == 0).id;
+    // Not awaited: the share queue goes on, so another file opened with the
+    // app shows on top of this one.
+    unawaited(NodeScreen.open(
+      context,
+      graph: ValueNotifier(RoamGraph.fromFiles([data])),
+      id: id,
+      readNote: (path) async => path == data.path ? file.text : null,
+      nodeMemory: const NoNodeMemory(),
+      // As the help pages: no search, AI or edits on a file from elsewhere.
+      help: true,
+      addToNotes: (pageContext) {
+        Navigator.pop(pageContext);
+        if (mounted) unawaited(_captureFile(notifier, file));
+      },
+      openOutside: (_, id) {
+        if (notifier.value.nodes.containsKey(id)) {
+          widget.nodeMemory.remember(id);
+          _openNode(notifier, id);
+        } else {
+          _tell('There is no node with the ID $id in your notes.');
+        }
+      },
+    ));
   }
 
   /// A voice memo (#221): checks the key and the limits, asks once where
@@ -492,8 +575,9 @@ class _FolderScreenState extends State<FolderScreen>
             ].join(', ')}) goes whole to ${provider.name} to be turned into '
             'text. ${provider.where} The provider gets the recording itself, '
             'not only the text. This question is not asked again for '
-            '${provider.name}; the recording is sent only when you share a '
-            'file. Nothing is saved before you save the note.'),
+            '${provider.name}; a recording is sent only when you share it with '
+            'the app or open it with the app. Nothing is saved before you '
+            'save the note.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

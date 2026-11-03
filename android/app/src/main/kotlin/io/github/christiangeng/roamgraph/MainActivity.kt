@@ -87,9 +87,10 @@ class MainActivity : FlutterActivity() {
                     } else {
                         // Reading may be slow (a cloud file): not on the main thread.
                         val type = next.getString("type")
+                        val view = next.getBoolean("view")
                         Thread {
                             val files = IncomingFiles.read(contentResolver, File(cacheDir, "voice"), uris.map(Uri::parse), type)
-                            runOnUiThread { result.success(mapOf("files" to files)) }
+                            runOnUiThread { result.success(mapOf("files" to files, "view" to view)) }
                         }.start()
                     }
                 }
@@ -252,6 +253,21 @@ class MainActivity : FlutterActivity() {
      * the sending app granted lasts as long as this activity's task.
      */
     private fun keepShare(intent: Intent?): Boolean {
+        // "Open with" from a file manager (#243): one file in the intent's
+        // data, queued like a shared file and marked, so the Dart side shows
+        // an Org file instead of capturing it.
+        if (intent?.action == Intent.ACTION_VIEW) {
+            val uri = intent.data ?: return false
+            pendingShares.addLast(
+                Bundle().apply {
+                    putStringArrayList("uris", arrayListOf(uri.toString()))
+                    putString("type", intent.type)
+                    putBoolean("view", true)
+                },
+            )
+            setIntent(Intent(Intent.ACTION_MAIN))
+            return true
+        }
         if (intent?.action != Intent.ACTION_SEND && intent?.action != Intent.ACTION_SEND_MULTIPLE) return false
         val uris = IncomingFiles.streams(intent)
         if (uris.isNotEmpty()) {
