@@ -54,19 +54,28 @@ moment ago) is shown once the app has read the folder again. While a
 note, a chat or another page is open on top of the graph, the graph
 stays as it is.
 
-Emacs needs the small file ~emacs/roam-graph-follow.el~ from the app's
-repository, with ~roam-graph-follow-mode~ on. In Doom Emacs, for example
-in ~config.el~, with the file in ~~/src/roam-graph-mobile/emacs~:
+Emacs needs the small file ~roam-graph-follow.el~, with
+~roam-graph-follow-mode~ on. The app brings it along, in the version that
+matches it:
+- Linux: ~~/.local/share/roam-graph/app/emacs/~
+- Windows: the ~emacs~ folder next to ~roam_graph_mobile.exe~
+- macOS: ~Roam Graph.app/Contents/Resources/emacs/~
+
+*Copy Emacs snippet* in Settings copies the code for this app's folder.
+On Linux, in Doom Emacs, for example in ~config.el~:
 
 #+begin_src emacs-lisp
-(use-package! roam-graph-follow
-  :load-path "~/src/roam-graph-mobile/emacs"
-  :after org-roam
-  :config (roam-graph-follow-mode 1))
+(let ((dir (expand-file-name "~/.local/share/roam-graph/app/emacs")))
+  (when (file-exists-p (expand-file-name "roam-graph-follow.el" dir))
+    (add-to-list 'load-path dir)
+    (after! org-roam
+      (require 'roam-graph-follow)
+      (roam-graph-follow-mode 1))))
 #+end_src
 
-Without Doom: ~(add-to-list 'load-path "…/emacs")~, ~(require
-'roam-graph-follow)~ and ~(roam-graph-follow-mode 1)~ after org-roam.
+Without Doom, use ~with-eval-after-load 'org-roam~ instead of ~after!
+org-roam~. An update of the app updates the file too; Emacs reads the new
+one at its next start.
 
 How it works: the app listens on 127.0.0.1 only, and writes the port and
 a random secret to ~follow.json~ in its own folder, readable only by

@@ -139,4 +139,33 @@ void main() {
       // tearDown closes again: that must not fail.
     });
   });
+
+  group('the shipped Emacs file (#241)', () {
+    test('is in emacs/ next to the executable on Linux and Windows', () {
+      expect(
+          followElispDir('/home/me/.local/share/roam-graph/app/roam-graph',
+              macOS: false),
+          '/home/me/.local/share/roam-graph/app/emacs');
+      expect(
+          followElispDir(r'C:\Programs\Roam Graph\roam_graph_mobile.exe',
+              macOS: false),
+          'C:/Programs/Roam Graph/emacs');
+    });
+
+    test('is in the app\'s Resources on macOS', () {
+      expect(
+          followElispDir(
+              '/Applications/Roam Graph.app/Contents/MacOS/Roam Graph',
+              macOS: true),
+          '/Applications/Roam Graph.app/Contents/Resources/emacs');
+    });
+
+    test('the snippet loads it from that folder and turns following on', () {
+      final snippet = followEmacsSnippet('/opt/rg "x"/emacs');
+      expect(snippet, contains(r'(expand-file-name "/opt/rg \"x\"/emacs")'));
+      expect(snippet, contains("(require 'roam-graph-follow)"));
+      expect(snippet, contains('(roam-graph-follow-mode 1)'));
+      expect('('.allMatches(snippet).length, ')'.allMatches(snippet).length);
+    });
+  });
 }

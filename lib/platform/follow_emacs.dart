@@ -37,6 +37,32 @@ Future<FollowServer?> startFollowing() async {
   }
 }
 
+/// The folder with `roam-graph-follow.el` that the desktop packages ship
+/// with the app (#241), for the app at [executable]: `emacs/` next to the
+/// executable on Linux and Windows, `Contents/Resources/emacs` in the app
+/// on macOS, where the executable is in `Contents/MacOS`. Forward slashes,
+/// which Emacs takes on every system.
+String followElispDir(String executable, {required bool macOS}) {
+  final path = executable.replaceAll(r'\', '/');
+  final dir = path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : '.';
+  if (macOS && dir.endsWith('/MacOS')) {
+    return '${dir.substring(0, dir.length - '/MacOS'.length)}/Resources/emacs';
+  }
+  return '$dir/emacs';
+}
+
+/// The Emacs code that turns following on with the file in [dir], for
+/// Doom Emacs (`after!`), as in Help, "The desktop app".
+String followEmacsSnippet(String dir) {
+  final quoted = dir.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+  return '(let ((dir (expand-file-name "$quoted")))\n'
+      '  (when (file-exists-p (expand-file-name "roam-graph-follow.el" dir))\n'
+      "    (add-to-list 'load-path dir)\n"
+      '    (after! org-roam\n'
+      "      (require 'roam-graph-follow)\n"
+      '      (roam-graph-follow-mode 1))))\n';
+}
+
 /// The longest message read; an ID and a token are far shorter.
 const _maxMessage = 4096;
 
