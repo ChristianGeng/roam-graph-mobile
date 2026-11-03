@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-03: "Open with" for Org files and recordings on Android ([#244](https://github.com/ChristianGeng/roam-graph-mobile/pull/244))
+
+- Added: Roam Graph appears in a file manager's "Open with" (Total Commander, for example) for `.org` files and audio files.
+- An Org file of the notes folder opens as its note; one from elsewhere opens read-only, with "Add to my notes", which goes through the capture screen. Nothing is written to the opened file.
+- A recording opened this way becomes a voice memo, as when it is shared: transcribed, then the capture screen. Closes [#243](https://github.com/ChristianGeng/roam-graph-mobile/issues/243).
+
 ## 2026-11-03: Emacs loads "Follow Emacs" from the installed app ([#242](https://github.com/ChristianGeng/roam-graph-mobile/pull/242))
 
 - Added: the desktop packages carry `roam-graph-follow.el`: on Linux `install.sh` puts it in `~/.local/share/roam-graph/app/emacs/`, on Windows it is in the `emacs` folder next to the app, on macOS in `Roam Graph.app/Contents/Resources/emacs/`. Updating the app updates it; on Linux `--remove` removes it.

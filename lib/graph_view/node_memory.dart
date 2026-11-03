@@ -45,3 +45,15 @@ class FileNodeMemory implements NodeMemory {
   }
 }
 
+
+/// A [NodeMemory] that keeps nothing: for pages that are not nodes of the
+/// notes folder, such as a file opened from elsewhere (#243).
+class NoNodeMemory implements NodeMemory {
+  const NoNodeMemory();
+
+  @override
+  Future<String?> lastNode() async => null;
+
+  @override
+  Future<void> remember(String id) async {}
+}

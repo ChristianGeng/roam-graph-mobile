@@ -60,6 +60,38 @@
                 <data android:mimeType="text/*"/>
                 <data android:mimeType="application/octet-stream"/>
             </intent-filter>
+            <!-- "Open with" in a file manager (#243): an Org file opens as its
+                 note, or read-only when it is not in the notes folder; a
+                 recording becomes a voice memo. content: only (file: URIs
+                 are never read, see IncomingFiles). File managers send .org
+                 files as text/plain, text/x-org or application/octet-stream;
+                 octet-stream counts only with .org at the end of the path,
+                 so the app is not offered for every binary file. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"/>
+                <data android:mimeType="text/org"/>
+                <data android:mimeType="text/x-org"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"/>
+                <data android:host="*"/>
+                <data android:mimeType="application/octet-stream"/>
+                <data android:pathPattern=".*\\.org"/>
+                <data android:pathPattern=".*\\..*\\.org"/>
+                <data android:pathPattern=".*\\..*\\..*\\.org"/>
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.org"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"/>
+                <data android:mimeType="audio/*"/>
+            </intent-filter>
             <!-- Voice memos (#221): audio files from a recorder or a messenger. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>

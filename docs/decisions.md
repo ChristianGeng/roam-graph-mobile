@@ -4019,6 +4019,59 @@ the app, so Emacs and the app always speak the same message format.
 - The file in the repository stays the source, tested by the ERT step of
   the `org-roam` job as before.
 
+## 128. "Open with" on Android for Org files and recordings (#243)
+
+A file manager's "Open with" (Total Commander, for example) lists the
+apps with an `ACTION_VIEW` intent filter for the file's type; Roam Graph
+had only `SEND` filters (#15, #220, #221), so it appeared under "Share"
+only.
+- **Intent filters** on the main activity, `content:` only, `DEFAULT`
+  category, never a default handler:
+  - `text/org`, `text/x-org`, `text/plain`;
+  - `application/octet-stream` only with a path ending in `.org`
+    (`pathPattern`, with the usual extra patterns for dots earlier in the
+    name), because file managers send `.org` files with that type, and
+    without the path condition the app would be offered for every binary
+    file;
+  - `audio/*`.
+  `file:` URIs are not taken: `IncomingFiles` never reads them (a sender
+  could point them at the app's private files), and Android has not let
+  apps send them since Android 7.
+- **The intent** goes into the same queue as a share (`MainActivity.keepShare`,
+  also from `onNewIntent` while the app runs): the data URI as a one-file
+  share, marked `view`. `IncomingFiles.read` reads it as for #220 and
+  #221 (an Org file by its name, up to 1 MB; audio copied to the cache),
+  and `takeShare` hands the mark to Dart as `SharedFiles.opened`.
+- **Routing** (`lib/capture/opened_file.dart`): an `.org` file by its name
+  (whatever type was sent), audio as in #221, anything else gets a short
+  message. A recording takes the voice-memo path unchanged: consent,
+  background transcription, the capture screen.
+- **Inside the notes folder or not** is decided by content, not by path.
+  A file manager's content URI (its own provider, not the
+  Storage Access Framework tree the app was given) carries no document ID
+  the app can compare with its folder, and a path in it is the provider's
+  business. So: the file's `:ID:` properties are looked up in the index;
+  for a known ID, the note with that ID is read through the folder access,
+  and the file counts as that note when the text is the same, apart from
+  line ends and trailing white space. It then opens at its file node (or
+  its first node, if it has heading nodes only), as a tap in the graph
+  does. A copy elsewhere with other text counts as outside. When the file
+  has IDs and the index knows none of them, the folder is scanned once
+  and the lookup repeated: a note may have arrived by Syncthing after the
+  last scan.
+- **Outside the folder:** the file is parsed as the index parses notes and
+  shown in the node view as a one-file graph, read-only (the help mode,
+  #62: no search, AI or edits). A plain Org file without a file node gets
+  one made up, so the whole file shows. `id:` links to the user's notes
+  open them from the notes folder (`NodeScreen.openOutside`). "Add to my
+  notes" (`NodeScreen.addToNotes`) closes the view and opens the capture
+  screen as for a shared file (#220), so nothing is written without
+  review. The view is not remembered as the node shown last.
+- Nothing is written to the opened file; its read permission is used only
+  while the share is read.
+- Desktop: out of scope; "Open in Emacs" and the desktop drop (#224)
+  cover it there.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

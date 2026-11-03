@@ -23,9 +23,13 @@ class SharedText extends Share {
 /// Files shared with the app, dropped onto the window or chosen with
 /// "Open files…" (#220); [readTextFiles] checks them.
 class SharedFiles extends Share {
-  const SharedFiles(this.files);
+  const SharedFiles(this.files, {this.opened = false});
 
   final List<IncomingFile> files;
+
+  /// True for a file opened with the app through Android's "Open with"
+  /// (#243), not shared: an Org file is shown, not captured.
+  final bool opened;
 }
 
 /// The title and text a share proposes for the new node: the subject if
@@ -101,7 +105,7 @@ class PlatformShareInbox implements ShareInbox {
             durationMs: file['durationMs'] as int?,
             isCopy: file['copy'] == true,
           ),
-      ]);
+      ], opened: map?['view'] == true);
     }
     final text = map?['text'] as String?;
     if (text == null) return null;
