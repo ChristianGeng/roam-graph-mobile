@@ -3987,6 +3987,35 @@ access it was started with, and the model had no `fetch_web_page`.
   it had when the message started until the message ends, and the count of
   web searches of the message stays.
 
+## 127. The desktop packages ship the Emacs file for "Follow Emacs" (#241)
+
+"Follow Emacs" (#117, decision 124) needs `roam-graph-follow.el` in Emacs.
+It lived only in the repository, so Emacs loaded it from a source
+checkout: tied to whatever that checkout held, and missing where only the
+app is installed. The packages now carry the file of the same commit as
+the app, so Emacs and the app always speak the same message format.
+- **Linux:** `bundle/emacs/roam-graph-follow.el`. `install.sh` copies the
+  whole bundle, so the file lands in `~/.local/share/roam-graph/app/emacs/`
+  with no new install code; `--update` replaces it with the app and
+  `--remove` deletes it with the folder. It is a plain file under
+  `bundle/`, which `update()`'s archive check accepts. The installer says
+  where it is.
+- **Windows:** `emacs\roam-graph-follow.el` next to the executable.
+- **macOS:** `Contents/Resources/emacs/`, so it moves with the app. Adding
+  a file after `flutter build` breaks the ad-hoc signature (the resources
+  are sealed), and macOS then calls the app damaged; CI signs it again ad
+  hoc, `--preserve-metadata=entitlements,requirements,flags,runtime`, and
+  runs `codesign --verify --deep --strict`. Copying it in an Xcode build
+  phase would avoid the re-signing, but needs project-file edits that are
+  harder to review than three lines in the workflow.
+- **CI** fails a desktop job whose package lacks the file.
+- **Settings, "Copy Emacs snippet"** (desktop) copies the code that loads
+  the file from the running app's folder (`followElispDir`, from
+  `Platform.resolvedExecutable`) and turns the mode on after org-roam,
+  guarded by the file's existence, as a Doom snippet.
+- The file in the repository stays the source, tested by the ERT step of
+  the `org-roam` job as before.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
@@ -4067,32 +4096,3 @@ From the laptop `org-roam.db`, `roam/` only, on 2026-10-11:
 | Tags | 192 |
 | Refs | 125 |
 | Aliases | 2 |
-
-## 127. The desktop packages ship the Emacs file for "Follow Emacs" (#241)
-
-"Follow Emacs" (#117, decision 124) needs `roam-graph-follow.el` in Emacs.
-It lived only in the repository, so Emacs loaded it from a source
-checkout: tied to whatever that checkout held, and missing where only the
-app is installed. The packages now carry the file of the same commit as
-the app, so Emacs and the app always speak the same message format.
-- **Linux:** `bundle/emacs/roam-graph-follow.el`. `install.sh` copies the
-  whole bundle, so the file lands in `~/.local/share/roam-graph/app/emacs/`
-  with no new install code; `--update` replaces it with the app and
-  `--remove` deletes it with the folder. It is a plain file under
-  `bundle/`, which `update()`'s archive check accepts. The installer says
-  where it is.
-- **Windows:** `emacs\roam-graph-follow.el` next to the executable.
-- **macOS:** `Contents/Resources/emacs/`, so it moves with the app. Adding
-  a file after `flutter build` breaks the ad-hoc signature (the resources
-  are sealed), and macOS then calls the app damaged; CI signs it again ad
-  hoc, `--preserve-metadata=entitlements,requirements,flags,runtime`, and
-  runs `codesign --verify --deep --strict`. Copying it in an Xcode build
-  phase would avoid the re-signing, but needs project-file edits that are
-  harder to review than three lines in the workflow.
-- **CI** fails a desktop job whose package lacks the file.
-- **Settings, "Copy Emacs snippet"** (desktop) copies the code that loads
-  the file from the running app's folder (`followElispDir`, from
-  `Platform.resolvedExecutable`) and turns the mode on after org-roam,
-  guarded by the file's existence, as a Doom snippet.
-- The file in the repository stays the source, tested by the ERT step of
-  the `org-roam` job as before.

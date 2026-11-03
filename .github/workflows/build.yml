@@ -421,8 +421,10 @@ jobs:
           cp emacs/roam-graph-follow.el "$bundle/emacs/"
           tar -C build/linux/x64/release -czf \
             "roam-graph-$VERSION-linux-x64.tar.gz" bundle
-          if ! tar -tzf "roam-graph-$VERSION-linux-x64.tar.gz" |
-              grep -qx 'bundle/emacs/roam-graph-follow.el'; then
+          # The listing first: under pipefail, grep -q stopping early would
+          # fail tar with SIGPIPE.
+          listing=$(tar -tzf "roam-graph-$VERSION-linux-x64.tar.gz")
+          if ! grep -qx 'bundle/emacs/roam-graph-follow.el' <<< "$listing"; then
             echo "::error::The Linux package lacks bundle/emacs/roam-graph-follow.el."
             exit 1
           fi
@@ -542,8 +544,9 @@ jobs:
           # ditto keeps the app's links and attributes, as Finder's zip.
           ditto -c -k --keepParent "$app" \
             "$GITHUB_WORKSPACE/roam-graph-$VERSION-macos.zip"
-          if ! unzip -Z1 "$GITHUB_WORKSPACE/roam-graph-$VERSION-macos.zip" |
-              grep -qx "$app/Contents/Resources/emacs/roam-graph-follow.el"; then
+          listing=$(unzip -Z1 "$GITHUB_WORKSPACE/roam-graph-$VERSION-macos.zip")
+          if ! grep -qx "$app/Contents/Resources/emacs/roam-graph-follow.el" \
+              <<< "$listing"; then
             echo "::error::The macOS package lacks Contents/Resources/emacs/roam-graph-follow.el."
             exit 1
           fi
