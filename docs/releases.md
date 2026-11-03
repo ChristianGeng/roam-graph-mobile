@@ -195,6 +195,28 @@ update or `--remove` changes none of them.
 "Open in Emacs" runs `emacsclient`; Emacs needs `(server-start)`, which
 Doom runs. Another command can be set in Settings.
 
+**Follow Emacs (#117, #241):** the package carries
+`bundle/emacs/roam-graph-follow.el`, so the app installs it at
+`~/.local/share/roam-graph/app/emacs/roam-graph-follow.el`; `--update`
+replaces it with the app, and `--remove` removes it. Load it from there,
+with `XDG_DATA_HOME` as the installer uses it, for example in Doom's
+`config.el` or in `init.el`:
+
+```elisp
+(let ((dir (expand-file-name "roam-graph/app/emacs"
+                             (or (getenv "XDG_DATA_HOME") "~/.local/share"))))
+  (when (file-exists-p (expand-file-name "roam-graph-follow.el" dir))
+    (add-to-list 'load-path dir)
+    (with-eval-after-load 'org-roam
+      (require 'roam-graph-follow)
+      (roam-graph-follow-mode 1))))
+```
+
+Settings, "Copy Emacs snippet", copies the same code for the folder of
+the running app, on every desktop system. Remove an older setup that
+loads the file from a copy of the repository: whichever copy loads first
+wins.
+
 ## Install on Windows (#116)
 
 Each release carries `roam-graph-<version>-windows-x64.zip`.
@@ -208,6 +230,10 @@ Each release carries `roam-graph-<version>-windows-x64.zip`.
 
 The app is not signed, so Windows SmartScreen may warn the first time:
 "More info", then "Run anyway". An update is unpacked over the old folder.
+
+Follow Emacs (#241): the zip carries `emacs\roam-graph-follow.el` next to
+`roam_graph_mobile.exe`; Settings, "Copy Emacs snippet", gives the code
+that loads it.
 
 ## Install on macOS (#116)
 
@@ -223,3 +249,9 @@ silicon and Intel.
    `/opt/homebrew/bin/emacsclient`.
 
 An update replaces the app in Applications.
+
+Follow Emacs (#241): the app carries
+`Roam Graph.app/Contents/Resources/emacs/roam-graph-follow.el`; Settings,
+"Copy Emacs snippet", gives the code that loads it. The file is added
+after the build, so CI signs the app again ad hoc (as Flutter does),
+keeping its entitlements, and checks the signature.

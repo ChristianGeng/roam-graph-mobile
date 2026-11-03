@@ -21,12 +21,23 @@
 ;; sent, and nothing is written.  Without the app, or without the file,
 ;; nothing is sent and no error is shown.
 ;;
-;; Doom Emacs, in config.el:
+;; The desktop app ships this file (#241): on Linux in
+;; ~/.local/share/roam-graph/app/emacs/ (under $XDG_DATA_HOME if set), on
+;; Windows in emacs\ next to the app, on macOS in the app's
+;; Contents/Resources/emacs/.  Load it from there, so it matches the app;
+;; Settings, "Copy Emacs snippet", gives the code.  On Linux:
 ;;
-;;   (use-package! roam-graph-follow
-;;     :load-path "~/src/roam-graph-mobile/emacs"
-;;     :after org-roam
-;;     :config (roam-graph-follow-mode 1))
+;;   (let ((dir (expand-file-name "roam-graph/app/emacs"
+;;                                (or (getenv "XDG_DATA_HOME")
+;;                                    "~/.local/share"))))
+;;     (when (file-exists-p (expand-file-name "roam-graph-follow.el" dir))
+;;       (add-to-list 'load-path dir)
+;;       (with-eval-after-load 'org-roam
+;;         (require 'roam-graph-follow)
+;;         (roam-graph-follow-mode 1))))
+;;
+;; Load only one copy: with an older setup that loads this file from the
+;; repository as well, whichever loads first wins.
 
 ;;; Code:
 

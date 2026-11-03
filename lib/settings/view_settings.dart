@@ -23,6 +23,7 @@ import '../node_view/scripts.dart' show ScriptMode;
 import '../node_view/web_links.dart' show UrlOpener, openUrlOnDevice;
 import '../platform/desktop.dart';
 import '../platform/error_text.dart';
+import '../platform/follow_emacs.dart';
 import 'about_screen.dart';
 
 /// How far a note's sections are open when the note opens: the values
@@ -588,6 +589,21 @@ class SettingsScreen extends StatelessWidget {
         MaterialPageRoute<void>(builder: (_) => SettingsScreen(graph: graph)),
       );
 
+  /// The folder with `roam-graph-follow.el` that the app ships (#241).
+  static String get _followElispDir => followElispDir(
+      Platform.resolvedExecutable,
+      macOS: Platform.isMacOS);
+
+  /// Copies the Emacs code that loads the shipped file and turns
+  /// following on (#241).
+  Future<void> _copyFollowSnippet(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await copyTextOut(followEmacsSnippet(_followElispDir));
+    messenger.showSnackBar(const SnackBar(
+        content: Text('Copied. Paste it into your Emacs config, for Doom '
+            'into config.el.')));
+  }
+
   /// Asks for the Emacs command (#116); empty is the system's default.
   Future<void> _chooseEmacs(BuildContext context, ViewSettings settings) async {
     final field = TextEditingController(text: settings.emacsClient);
@@ -741,6 +757,15 @@ class SettingsScreen extends StatelessWidget {
               value: settings.followEmacs,
               onChanged: (value) =>
                   _saveSettings(context, settings.copyWith(followEmacs: value)),
+            ),
+          if (isDesktop)
+            ListTile(
+              key: const ValueKey('settings-follow-emacs-snippet'),
+              leading: const Icon(Icons.content_copy_outlined),
+              title: const Text('Copy Emacs snippet'),
+              subtitle: Text('Loads roam-graph-follow.el from '
+                  '$_followElispDir, which the app ships (#241)'),
+              onTap: () => _copyFollowSnippet(context),
             ),
           const Divider(),
           ListTile(
