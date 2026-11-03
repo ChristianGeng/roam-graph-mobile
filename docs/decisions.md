@@ -4030,9 +4030,14 @@ only.
   - `text/org`, `text/x-org`, `text/plain`;
   - `application/octet-stream` only with a path ending in `.org`
     (`pathPattern`, with the usual extra patterns for dots earlier in the
-    name), because file managers send `.org` files with that type, and
-    without the path condition the app would be offered for every binary
-    file;
+    name, and `.ORG` and `.Org`, since `pathPattern` is case-sensitive),
+    because file managers send `.org` files with that type, and without
+    the path condition the app would be offered for every binary file. A
+    provider whose URI path is an opaque ID (`/document/42`) and that
+    sends this type is not matched: Android picks the apps before the app
+    can ask the provider for the file name. The common providers (the
+    system's documents provider, Total Commander) have the name in the
+    path;
   - `audio/*`.
   `file:` URIs are not taken: `IncomingFiles` never reads them (a sender
   could point them at the app's private files), and Android has not let
@@ -4053,7 +4058,13 @@ only.
   business. So: the file's `:ID:` properties are looked up in the index;
   for a known ID, the note with that ID is read through the folder access,
   and the file counts as that note when the text is the same, apart from
-  line ends and trailing white space. It then opens at its file node (or
+  line ends and trailing white space. Both sides are decoded alike, as
+  UTF-8 with malformed bytes replaced (as the node view reads notes), so a
+  note that is not UTF-8 still matches itself. An identical copy outside
+  the folder therefore opens the note itself, which shows the same text.
+  For a known ID the note is read from disk, not from the index, so a
+  note changed since the last scan is compared as it is now; only unknown
+  IDs need a scan. It then opens at its file node (or
   its first node, if it has heading nodes only), as a tap in the graph
   does. A copy elsewhere with other text counts as outside. When the file
   has IDs and the index knows none of them, the folder is scanned once
@@ -4066,7 +4077,11 @@ only.
   open them from the notes folder (`NodeScreen.openOutside`). "Add to my
   notes" (`NodeScreen.addToNotes`) closes the view and opens the capture
   screen as for a shared file (#220), so nothing is written without
-  review. The view is not remembered as the node shown last.
+  review; it is on every page of the view, also a heading of the file
+  opened from its own link. The view is not awaited, so the share queue
+  goes on: a second file opened with the app shows on top. The view is not
+  remembered as the node shown last. The voice-memo consent question says
+  that a recording is sent when it is shared with or opened with the app.
 - Nothing is written to the opened file; its read permission is used only
   while the share is read.
 - Desktop: out of scope; "Open in Emacs" and the desktop drop (#224)

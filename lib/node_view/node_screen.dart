@@ -608,6 +608,7 @@ class _NodeScreenState extends State<NodeScreen> {
       shareText: widget.shareText,
       openUrl: widget.openUrl,
       help: widget.help,
+      addToNotes: widget.addToNotes,
       openOutside: widget.openOutside,
     );
   }

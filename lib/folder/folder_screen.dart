@@ -424,13 +424,19 @@ class _FolderScreenState extends State<FolderScreen>
       return;
     }
     final text = read.files.single;
-    var route = await routeOpenedOrg(notifier.value, text.text, _readNote);
+    // Compared as the notes folder is read (_readNote: UTF-8, malformed
+    // bytes replaced), so a note that is not UTF-8 still matches itself.
+    final compared = switch (file.bytes) {
+      final bytes? => utf8.decode(bytes, allowMalformed: true),
+      null => text.text,
+    };
+    var route = await routeOpenedOrg(notifier.value, compared, _readNote);
     if (route case OutsideNotes(unknownIds: true)) {
       // Perhaps a note that came after the last scan: scan, then look again.
       await _rescan();
       if (!mounted) return;
       route = await routeOpenedOrg(
-          (_graph ?? notifier).value, text.text, _readNote);
+          (_graph ?? notifier).value, compared, _readNote);
     }
     if (!mounted) return;
     switch (route) {
@@ -438,18 +444,18 @@ class _FolderScreenState extends State<FolderScreen>
         widget.nodeMemory.remember(id);
         _openNode(_graph ?? notifier, id);
       case OutsideNotes():
-        await _viewOutside(_graph ?? notifier, text);
+        _viewOutside(_graph ?? notifier, text);
     }
   }
 
   /// Shows [file], an Org file from outside the notes folder, read-only in
   /// the node view; "Add to my notes" goes through the capture screen.
-  Future<void> _viewOutside(
-      ValueNotifier<RoamGraph> notifier, TextFile file) async {
+  void _viewOutside(ValueNotifier<RoamGraph> notifier, TextFile file) {
     final data = viewedFile(file.name, file.text);
     final id = data.nodes.firstWhere((n) => n.level == 0).id;
-    var add = false;
-    await NodeScreen.open(
+    // Not awaited: the share queue goes on, so another file opened with the
+    // app shows on top of this one.
+    unawaited(NodeScreen.open(
       context,
       graph: ValueNotifier(RoamGraph.fromFiles([data])),
       id: id,
@@ -458,8 +464,8 @@ class _FolderScreenState extends State<FolderScreen>
       // As the help pages: no search, AI or edits on a file from elsewhere.
       help: true,
       addToNotes: (pageContext) {
-        add = true;
         Navigator.pop(pageContext);
+        if (mounted) unawaited(_captureFile(notifier, file));
       },
       openOutside: (_, id) {
         if (notifier.value.nodes.containsKey(id)) {
@@ -469,8 +475,7 @@ class _FolderScreenState extends State<FolderScreen>
           _tell('There is no node with the ID $id in your notes.');
         }
       },
-    );
-    if (add && mounted) await _captureFile(notifier, file);
+    ));
   }
 
   /// A voice memo (#221): checks the key and the limits, asks once where
@@ -570,8 +575,9 @@ class _FolderScreenState extends State<FolderScreen>
             ].join(', ')}) goes whole to ${provider.name} to be turned into '
             'text. ${provider.where} The provider gets the recording itself, '
             'not only the text. This question is not asked again for '
-            '${provider.name}; the recording is sent only when you share a '
-            'file. Nothing is saved before you save the note.'),
+            '${provider.name}; a recording is sent only when you share it with '
+            'the app or open it with the app. Nothing is saved before you '
+            'save the note.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
