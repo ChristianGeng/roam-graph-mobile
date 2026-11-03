@@ -62,20 +62,24 @@ matches it:
 - macOS: ~Roam Graph.app/Contents/Resources/emacs/~
 
 *Copy Emacs snippet* in Settings copies the code for this app's folder.
-On Linux, in Doom Emacs, for example in ~config.el~:
+On Linux, for example in Doom's ~config.el~ or in ~init.el~:
 
 #+begin_src emacs-lisp
-(let ((dir (expand-file-name "~/.local/share/roam-graph/app/emacs")))
+(let ((dir (expand-file-name "roam-graph/app/emacs"
+                             (or (getenv "XDG_DATA_HOME") "~/.local/share"))))
   (when (file-exists-p (expand-file-name "roam-graph-follow.el" dir))
     (add-to-list 'load-path dir)
-    (after! org-roam
+    (with-eval-after-load 'org-roam
       (require 'roam-graph-follow)
       (roam-graph-follow-mode 1))))
 #+end_src
 
-Without Doom, use ~with-eval-after-load 'org-roam~ instead of ~after!
-org-roam~. An update of the app updates the file too; Emacs reads the new
-one at its next start.
+An update of the app updates the file too; Emacs reads the new one at
+its next start. If your config already loads ~roam-graph-follow~ from a
+copy of the app's repository (an older setup, for example
+~use-package! roam-graph-follow~ with a ~:load-path~), remove that and
+use only this code: whichever copy loads first wins, and the other is
+ignored.
 
 How it works: the app listens on 127.0.0.1 only, and writes the port and
 a random secret to ~follow.json~ in its own folder, readable only by

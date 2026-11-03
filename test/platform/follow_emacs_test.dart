@@ -163,6 +163,7 @@ void main() {
     test('the snippet loads it from that folder and turns following on', () {
       final snippet = followEmacsSnippet('/opt/rg "x"/emacs');
       expect(snippet, contains(r'(expand-file-name "/opt/rg \"x\"/emacs")'));
+      expect(snippet, contains("(with-eval-after-load 'org-roam"));
       expect(snippet, contains("(require 'roam-graph-follow)"));
       expect(snippet, contains('(roam-graph-follow-mode 1)'));
       expect('('.allMatches(snippet).length, ')'.allMatches(snippet).length);

@@ -11,7 +11,7 @@ each entry.
 ## 2026-11-03: Emacs loads "Follow Emacs" from the installed app ([#242](https://github.com/ChristianGeng/roam-graph-mobile/pull/242))
 
 - Added: the desktop packages carry `roam-graph-follow.el`: on Linux `install.sh` puts it in `~/.local/share/roam-graph/app/emacs/`, on Windows it is in the `emacs` folder next to the app, on macOS in `Roam Graph.app/Contents/Resources/emacs/`. Updating the app updates it; on Linux `--remove` removes it.
-- Added: Settings, "Copy Emacs snippet" copies the Emacs code that loads the file from the running app's folder and turns following on.
+- Added: Settings, "Copy Emacs snippet" copies the Emacs code (for Doom and plain Emacs) that loads the file from the running app's folder and turns following on. Replace an older setup that loads it from the repository.
 - Closes [#241](https://github.com/ChristianGeng/roam-graph-mobile/issues/241).
 
 ## 2026-11-02: Web access set during a chat applies from its next message ([#234](https://github.com/ChristianGeng/roam-graph-mobile/pull/234))

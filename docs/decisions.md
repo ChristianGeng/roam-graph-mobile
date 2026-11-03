@@ -4011,8 +4011,11 @@ the app, so Emacs and the app always speak the same message format.
 - **CI** fails a desktop job whose package lacks the file.
 - **Settings, "Copy Emacs snippet"** (desktop) copies the code that loads
   the file from the running app's folder (`followElispDir`, from
-  `Platform.resolvedExecutable`) and turns the mode on after org-roam,
-  guarded by the file's existence, as a Doom snippet.
+  `Platform.resolvedExecutable`) and turns the mode on after org-roam
+  (`with-eval-after-load`, for Doom and plain Emacs alike), guarded by
+  the file's existence. The docs' example follows `XDG_DATA_HOME` as
+  `install.sh` does, and says to drop an older setup that loads the
+  file from the repository: only the first copy loaded counts.
 - The file in the repository stays the source, tested by the ERT step of
   the `org-roam` job as before.
 

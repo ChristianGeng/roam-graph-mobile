@@ -51,14 +51,15 @@ String followElispDir(String executable, {required bool macOS}) {
   return '$dir/emacs';
 }
 
-/// The Emacs code that turns following on with the file in [dir], for
-/// Doom Emacs (`after!`), as in Help, "The desktop app".
+/// The Emacs code that turns following on with the file in [dir], as in
+/// Help, "The desktop app". `with-eval-after-load`, so it works in Doom
+/// Emacs and in plain Emacs alike.
 String followEmacsSnippet(String dir) {
   final quoted = dir.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
   return '(let ((dir (expand-file-name "$quoted")))\n'
       '  (when (file-exists-p (expand-file-name "roam-graph-follow.el" dir))\n'
       "    (add-to-list 'load-path dir)\n"
-      '    (after! org-roam\n'
+      "    (with-eval-after-load 'org-roam\n"
       "      (require 'roam-graph-follow)\n"
       '      (roam-graph-follow-mode 1))))\n';
 }

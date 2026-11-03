@@ -199,19 +199,23 @@ Doom runs. Another command can be set in Settings.
 `bundle/emacs/roam-graph-follow.el`, so the app installs it at
 `~/.local/share/roam-graph/app/emacs/roam-graph-follow.el`; `--update`
 replaces it with the app, and `--remove` removes it. Load it from there,
-for example in Doom's `config.el`:
+with `XDG_DATA_HOME` as the installer uses it, for example in Doom's
+`config.el` or in `init.el`:
 
 ```elisp
-(let ((dir (expand-file-name "~/.local/share/roam-graph/app/emacs")))
+(let ((dir (expand-file-name "roam-graph/app/emacs"
+                             (or (getenv "XDG_DATA_HOME") "~/.local/share"))))
   (when (file-exists-p (expand-file-name "roam-graph-follow.el" dir))
     (add-to-list 'load-path dir)
-    (after! org-roam
+    (with-eval-after-load 'org-roam
       (require 'roam-graph-follow)
       (roam-graph-follow-mode 1))))
 ```
 
 Settings, "Copy Emacs snippet", copies the same code for the folder of
-the running app, on every desktop system.
+the running app, on every desktop system. Remove an older setup that
+loads the file from a copy of the repository: whichever copy loads first
+wins.
 
 ## Install on Windows (#116)
 
