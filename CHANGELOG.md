@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-11-03: Emacs loads "Follow Emacs" from the installed app ([#PRNUM](https://github.com/ChristianGeng/roam-graph-mobile/pull/PRNUM))
+## 2026-11-03: Emacs loads "Follow Emacs" from the installed app ([#242](https://github.com/ChristianGeng/roam-graph-mobile/pull/242))
 
 - Added: the desktop packages carry `roam-graph-follow.el`: on Linux `install.sh` puts it in `~/.local/share/roam-graph/app/emacs/`, on Windows it is in the `emacs` folder next to the app, on macOS in `Roam Graph.app/Contents/Resources/emacs/`. Updating the app updates it; on Linux `--remove` removes it.
 - Added: Settings, "Copy Emacs snippet" copies the Emacs code that loads the file from the running app's folder and turns following on.
