@@ -31,6 +31,10 @@ folder is the only connection.
   org files under the test directory. Comparisons with my real data are
   local scripts that read the files and the laptop `org-roam.db` from my
   disk and print differences.
+- **Desktop end-to-end checks run under xvfb-run, never on the developer's
+  display.** Start the app with `env -u WAYLAND_DISPLAY xvfb-run -a -s
+  "-screen 0 1280x800x24" <launcher>`, in a scratch `HOME`, and close only
+  that process afterwards; never the installed app.
 - **The APK comes from GitHub Actions.** Releases carry the signed APK; the
   signing key is a repository secret, never a file in the repo.
 - **Every pull request adds a CHANGELOG.md entry** at the top:
