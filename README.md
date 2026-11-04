@@ -137,15 +137,21 @@ Good to know:
 
 ### Linux, Windows and macOS
 
-See [docs/releases.md](docs/releases.md). On Linux:
+See [docs/releases.md](docs/releases.md). On Linux, download the installer,
+look at it, then run it:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/ChristianGeng/roam-graph-mobile/main/linux/packaging/install.sh | sh -s -- --update
+curl -fsSLo install.sh https://raw.githubusercontent.com/ChristianGeng/roam-graph-mobile/main/linux/packaging/install.sh
+less install.sh
+sh install.sh --update
 ```
 
-installs the newest full release into `~/.local/share/roam-graph/app` and
-adds Roam Graph to the app menu; run
-`~/.local/share/roam-graph/app/install.sh --update` again to update.
+It installs the newest full release into
+`${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app` and adds Roam Graph to
+the app menu. The package it downloads is checked against the SHA-256 that
+GitHub gives for the release; the installer script itself is not, so read it
+before running it. To update later, run the installed copy:
+`${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app/install.sh --update`.
 [docs/releases.md](docs/releases.md) also explains the signing key.
 
 ## Build locally
