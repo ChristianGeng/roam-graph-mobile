@@ -8,6 +8,12 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-04: "Follow Emacs" works with the installed Linux app ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Fixed: Emacs looked for the app's `follow.json` in `~/.local/share/io.github.christiangeng.roamgraph/`, but the installed app keeps its data in `~/.local/share/roam-graph/`, so following did nothing. Emacs now finds the file where the app writes it, again before every message; `roam-graph-follow-file` still wins when it is set.
+- Changed: `docs/releases.md` names the right data folder. Nothing moves: settings, chats, the edit history and the index stay where they are.
+- Closes [#245](https://github.com/ChristianGeng/roam-graph-mobile/issues/245).
+
 ## 2026-11-04: How to install, and share the app, with Obtainium ([#248](https://github.com/ChristianGeng/roam-graph-mobile/pull/248))
 
 - Added: the README's Install section says how to add the app to Obtainium (the repository URL, or an `obtainium://add/` link that fills it in), what pre-releases and the release key mean for it, and that each person needs their own notes folder and AI key. So the app can be shared with others.

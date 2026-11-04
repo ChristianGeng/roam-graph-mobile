@@ -235,4 +235,76 @@ Return the IDs sent, in order."
   (should-not (memq #'roam-graph-follow--visited org-roam-find-file-hook))
   (should-not roam-graph-follow--timer))
 
+(defmacro roam-graph-follow-test--in-data (&rest body)
+  "Run BODY with a fresh, empty $XDG_DATA_HOME bound to `data'."
+  (declare (indent 0))
+  `(let* ((data (make-temp-file "xdg" t))
+          (process-environment
+           (cons (concat "XDG_DATA_HOME=" data) process-environment))
+          (roam-graph-follow-file nil))
+     (unwind-protect (progn ,@body)
+       (delete-directory data t))))
+
+(ert-deftest roam-graph-follow-finds-an-installed-app ()
+  "The installer's folder: data next to app/, where the app keeps it (#245)."
+  (skip-unless (memq system-type '(gnu/linux berkeley-unix)))
+  (roam-graph-follow-test--in-data
+    (make-directory (expand-file-name "roam-graph/app/emacs" data) t)
+    (should (equal (roam-graph-follow--file)
+                   (expand-file-name "roam-graph/follow.json" data)))))
+
+(ert-deftest roam-graph-follow-prefers-the-id-folder ()
+  "With both folders, the app ID's wins, as in path_provider_linux."
+  (skip-unless (memq system-type '(gnu/linux berkeley-unix)))
+  (roam-graph-follow-test--in-data
+    (make-directory (expand-file-name "roam-graph/app" data) t)
+    (make-directory (expand-file-name roam-graph-follow--app-id data) t)
+    (should (equal (roam-graph-follow--file)
+                   (expand-file-name
+                    (concat roam-graph-follow--app-id "/follow.json") data)))))
+
+(ert-deftest roam-graph-follow-beside-the-shipped-file ()
+  "Without either folder, follow.json two levels above this file is used."
+  (skip-unless (memq system-type '(gnu/linux berkeley-unix)))
+  (roam-graph-follow-test--in-data
+    (let* ((support (make-temp-file "support" t))
+           (roam-graph-follow--here
+            (file-name-as-directory (expand-file-name "app/emacs" support)))
+           (beside (expand-file-name "follow.json" support)))
+      (unwind-protect
+          (progn
+            (make-directory roam-graph-follow--here t)
+            (with-temp-file beside (insert "{}"))
+            (should (equal (roam-graph-follow--file) beside)))
+        (delete-directory support t)))))
+
+(ert-deftest roam-graph-follow-default-when-nothing-exists ()
+  "Nothing installed: the app ID's folder, which the app would create."
+  (skip-unless (memq system-type '(gnu/linux berkeley-unix)))
+  (roam-graph-follow-test--in-data
+    (let ((roam-graph-follow--here "/nonexistent/app/emacs/"))
+      (should (equal (roam-graph-follow--file)
+                     (expand-file-name
+                      (concat roam-graph-follow--app-id "/follow.json")
+                      data))))))
+
+(ert-deftest roam-graph-follow-setting-wins ()
+  "A set `roam-graph-follow-file' is used as it is."
+  (roam-graph-follow-test--in-data
+    (make-directory (expand-file-name "roam-graph/app" data) t)
+    (let ((roam-graph-follow-file "/somewhere/else/follow.json"))
+      (should (equal (roam-graph-follow--file)
+                     "/somewhere/else/follow.json")))))
+
+(ert-deftest roam-graph-follow-found-again-each-time ()
+  "A folder that appears later is found on the next call."
+  (skip-unless (memq system-type '(gnu/linux berkeley-unix)))
+  (roam-graph-follow-test--in-data
+    (let ((roam-graph-follow--here "/nonexistent/app/emacs/"))
+      (should (string-suffix-p (concat roam-graph-follow--app-id "/follow.json")
+                               (roam-graph-follow--file)))
+      (make-directory (expand-file-name "roam-graph/app" data) t)
+      (should (equal (roam-graph-follow--file)
+                     (expand-file-name "roam-graph/follow.json" data))))))
+
 ;;; roam-graph-follow-test.el ends here
