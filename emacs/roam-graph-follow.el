@@ -65,6 +65,11 @@
   (file-name-directory (or load-file-name buffer-file-name default-directory))
   "The folder this file was loaded from.")
 
+(defun roam-graph-follow--data-home ()
+  "$XDG_DATA_HOME, or ~/.local/share when it is unset or empty."
+  (let ((data (getenv "XDG_DATA_HOME")))
+    (if (and data (not (string-empty-p data))) data "~/.local/share")))
+
 (defun roam-graph-follow--support-folder ()
   "The app's support folder on Linux, chosen as Flutter's path_provider
 chooses it: the app's ID under $XDG_DATA_HOME if that folder exists,
@@ -72,7 +77,7 @@ else the executable's name if that one exists.  The installer puts the
 program in $XDG_DATA_HOME/roam-graph/app before the first start, so an
 installed app keeps its data in $XDG_DATA_HOME/roam-graph; nil when
 neither folder exists."
-  (let* ((data (or (getenv "XDG_DATA_HOME") "~/.local/share"))
+  (let* ((data (roam-graph-follow--data-home))
          (by-id (expand-file-name roam-graph-follow--app-id data))
          (by-name (expand-file-name roam-graph-follow--binary data)))
     (cond ((file-directory-p by-id) by-id)
@@ -94,11 +99,15 @@ neither folder exists."
           ;; The file shipped with the app sits in <support>/app/emacs/.
           (beside (expand-file-name "../../follow.json"
                                     roam-graph-follow--here)))
-      (cond (folder (expand-file-name "follow.json" folder))
+      ;; A folder without the file loses to the shipped file's neighbour,
+      ;; for an app started with another $XDG_DATA_HOME than Emacs.
+      (cond ((and folder (file-exists-p (expand-file-name "follow.json" folder)))
+             (expand-file-name "follow.json" folder))
             ((file-exists-p beside) beside)
+            (folder (expand-file-name "follow.json" folder))
             (t (expand-file-name
                 (concat roam-graph-follow--app-id "/follow.json")
-                (or (getenv "XDG_DATA_HOME") "~/.local/share"))))))))
+                (roam-graph-follow--data-home))))))))
 
 (defcustom roam-graph-follow-file nil
   "The file in which the Roam Graph app writes its port and token.

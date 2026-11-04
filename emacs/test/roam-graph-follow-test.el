@@ -307,4 +307,30 @@ Return the IDs sent, in order."
       (should (equal (roam-graph-follow--file)
                      (expand-file-name "roam-graph/follow.json" data))))))
 
+(ert-deftest roam-graph-follow-empty-data-home-is-unset ()
+  "An empty $XDG_DATA_HOME means ~/.local/share, as for the app."
+  (let ((process-environment (cons "XDG_DATA_HOME=" process-environment)))
+    (should (equal (roam-graph-follow--data-home) "~/.local/share"))))
+
+(ert-deftest roam-graph-follow-neighbour-beats-an-empty-folder ()
+  "A support folder without follow.json loses to the shipped file's one."
+  (skip-unless (memq system-type '(gnu/linux berkeley-unix)))
+  (roam-graph-follow-test--in-data
+    (make-directory (expand-file-name "roam-graph/app" data) t)
+    (let* ((support (make-temp-file "support" t))
+           (roam-graph-follow--here
+            (file-name-as-directory (expand-file-name "app/emacs" support)))
+           (beside (expand-file-name "follow.json" support)))
+      (unwind-protect
+          (progn
+            (make-directory roam-graph-follow--here t)
+            (with-temp-file beside (insert "{}"))
+            (should (equal (roam-graph-follow--file) beside))
+            ;; Once the folder has the file, the folder wins again.
+            (with-temp-file (expand-file-name "roam-graph/follow.json" data)
+              (insert "{}"))
+            (should (equal (roam-graph-follow--file)
+                           (expand-file-name "roam-graph/follow.json" data))))
+        (delete-directory support t)))))
+
 ;;; roam-graph-follow-test.el ends here

@@ -4121,11 +4121,15 @@ hand made it work.
   started after Emacs is found too (`roam-graph-follow--file`):
   1. `roam-graph-follow-file`, if the user set it (its default is now
      nil, "find it");
-  2. on Linux, the folder path_provider would choose, by the same rule:
-     the ID's folder if it exists, else `roam-graph`;
-  3. else `follow.json` two levels above the loaded file, where it is
-     when the file is the one shipped in `<support>/app/emacs/`;
-  4. else the ID's folder, as before. macOS and Windows are unchanged.
+  2. on Linux, `follow.json` in the folder path_provider would choose, by
+     the same rule (the ID's folder if it exists, else `roam-graph`), if
+     the file is there;
+  3. else `follow.json` two levels above the loaded file, if it is there:
+     where it is when the file is the one shipped in `<support>/app/emacs/`,
+     also when the app runs with another `$XDG_DATA_HOME` than Emacs;
+  4. else the chosen folder's `follow.json`, or the ID's folder's when
+     neither folder exists. An empty `$XDG_DATA_HOME` counts as unset, as
+     for the app. macOS and Windows are unchanged.
 - **"Copy Emacs snippet" stays as it is:** it loads the shipped file; the
   search above then finds `follow.json`. Writing the path into the
   snippet would pin it, and a later change of the folder would need the
