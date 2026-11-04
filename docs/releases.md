@@ -188,9 +188,14 @@ release, never a pre-release) and installs it over the old one. Running
 `install.sh --remove` takes the app and its menu entry away.
 
 **What stays where:** the app's own data (its database of the graph,
-settings, the edit history) is in `~/.local/share/io.github.christiangeng.roamgraph`;
-API keys are in the system keyring; the notes stay in their folder. An
-update or `--remove` changes none of them.
+settings, chats, the edit history, and `follow.json` while it runs) is in
+`~/.local/share/roam-graph/` (under `$XDG_DATA_HOME` if set), next to the
+program in `app/`. That is Flutter's choice: it uses the app ID's folder
+(`io.github.christiangeng.roamgraph`) only if that exists, else the
+program's name, `roam-graph`, which the installer has made by the first
+start (decision 129). API keys are in the system keyring; the notes stay
+in their folder. An update replaces only `app/`, and `--remove` removes
+only `app/` and the menu entry, so the data stays.
 
 "Open in Emacs" runs `emacsclient`; Emacs needs `(server-start)`, which
 Doom runs. Another command can be set in Settings.

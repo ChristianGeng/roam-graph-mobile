@@ -3879,9 +3879,9 @@ does. Emacs is the source; the app only shows.
   every start, compared in constant time. The app writes
   `{"port": …, "token": …}` to `follow.json` in its support folder
   (`getApplicationSupportDirectory`), the folder the app already keeps its
-  settings in, rather than `~/.local/share/roam-graph/`, which holds the
-  installed program and is replaced by an update. On Linux that is
-  `$XDG_DATA_HOME/io.github.christiangeng.roamgraph`, on macOS
+  settings in. On Linux that is `$XDG_DATA_HOME/roam-graph` for an
+  installed app (corrected in decision 129; this decision first said
+  `$XDG_DATA_HOME/io.github.christiangeng.roamgraph`), on macOS
   `~/Library/Application Support/io.github.christiangeng.roamgraph`, on
   Windows `%APPDATA%\io.github.christiangeng\Roam Graph`; the elisp
   computes the same path per system (`roam-graph-follow-file`). The file
@@ -4086,6 +4086,59 @@ only.
   while the share is read.
 - Desktop: out of scope; "Open in Emacs" and the desktop drop (#224)
   cover it there.
+
+## 129. Emacs finds follow.json where an installed app writes it (#245)
+
+On a real Linux install, "Follow Emacs" (#117, decision 124) did nothing:
+the app wrote `follow.json` to `~/.local/share/roam-graph/`, and the
+Emacs file looked in `~/.local/share/io.github.christiangeng.roamgraph/`,
+which did not exist. Setting `roam-graph-follow-file` to the first path by
+hand made it work.
+
+- **Why two folders.** path_provider_linux 2.2.2
+  (`getApplicationSupportPath`) uses `$XDG_DATA_HOME/<application ID>` if
+  that folder exists, else `$XDG_DATA_HOME/<executable name>` if that one
+  exists (kept for apps from before the plugin used the ID), else it
+  creates the ID's folder. The ID is `io.github.christiangeng.roamgraph`
+  (`g_set_prgname(APPLICATION_ID)` in `linux/runner/my_application.cc`),
+  the executable `roam-graph` (`BINARY_NAME`). `install.sh` puts the
+  program in `$XDG_DATA_HOME/roam-graph/app` before its first start, so
+  the executable's folder exists, the ID's does not, and an installed app
+  keeps all its data in `$XDG_DATA_HOME/roam-graph`. The checks of #231
+  and #242 ran the bundle in a scratch `XDG_DATA_HOME` without installing
+  it, so there the ID's folder was created, and the mismatch did not
+  show.
+- **The app's folder stays as it is.** It is the same however the app is
+  started (menu, `install.sh`'s launcher, the binary directly): the
+  choice depends only on which folders exist. Moving it would mean
+  migrating settings, chats, the edit history and the index for no gain,
+  and `install.sh` only ever replaces or removes `app/` (and `app.new`,
+  `app.old`) and the menu entry, so the data next to it is safe. One
+  thing would move it: a folder `$XDG_DATA_HOME/io.github.christiangeng.roamgraph`
+  created by something else, after which the app would start with empty
+  data. Nothing creates it today; this is noted, not guarded.
+- **Emacs finds the file itself**, again before every message, so an app
+  started after Emacs is found too (`roam-graph-follow--file`):
+  1. `roam-graph-follow-file`, if the user set it (its default is now
+     nil, "find it");
+  2. on Linux, `follow.json` in the folder path_provider would choose, by
+     the same rule (the ID's folder if it exists, else `roam-graph`), if
+     the file is there;
+  3. else `follow.json` two levels above the loaded file, if it is there:
+     where it is when the file is the one shipped in `<support>/app/emacs/`,
+     also when the app runs with another `$XDG_DATA_HOME` than Emacs;
+  4. else the chosen folder's `follow.json`, or the ID's folder's when
+     neither folder exists. An empty `$XDG_DATA_HOME` counts as unset, as
+     for the app. macOS and Windows are unchanged.
+- **"Copy Emacs snippet" stays as it is:** it loads the shipped file; the
+  search above then finds `follow.json`. Writing the path into the
+  snippet would pin it, and a later change of the folder would need the
+  user's config changed.
+- Tests: ERT for each step of the search (an installed app, both folders,
+  beside the shipped file, nothing installed, a set variable, a folder
+  that appears later). Checked on Ubuntu 22.04 with the Linux bundle
+  installed by `install.sh` into a scratch `HOME` and started by its
+  launcher, and Emacs sending from batch mode.
 
 ## 130. Install and share through Obtainium; the Linux installer is read before it runs (#248)
 
