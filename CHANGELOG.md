@@ -8,6 +8,11 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-04: How to install, and share the app, with Obtainium ([#248](https://github.com/ChristianGeng/roam-graph-mobile/pull/248))
+
+- Added: the README's Install section says how to add the app to Obtainium (the repository URL, or an `obtainium://add/` link that fills it in), what pre-releases and the release key mean for it, and that each person needs their own notes folder and AI key. So the app can be shared with others.
+- Changed: the Linux install in the README downloads the installer, shows it, then runs it, and names the `XDG_DATA_HOME` path.
+
 ## 2026-11-03: "Open with" for Org files and recordings on Android ([#244](https://github.com/ChristianGeng/roam-graph-mobile/pull/244))
 
 - Added: Roam Graph appears in a file manager's "Open with" (Total Commander, for example) for `.org` files and audio files.

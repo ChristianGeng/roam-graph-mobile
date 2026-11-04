@@ -4087,6 +4087,27 @@ only.
 - Desktop: out of scope; "Open in Emacs" and the desktop drop (#224)
   cover it there.
 
+## 130. Install and share through Obtainium; the Linux installer is read before it runs (#248)
+
+**Decided:** the README tells everyone, not only the owner, how to install
+the app. On Android that is Obtainium, from this repository's GitHub
+releases: the repository URL, or the link
+`obtainium://add/https://github.com/ChristianGeng/roam-graph-mobile`.
+Obtainium installs full releases; the `-dev` pre-releases only with
+"Include prereleases". F-Droid is not used: its main repository builds and
+signs the app itself, so moving there would need a new key and a reinstall
+that loses the app's data, and releases would arrive days later. On Linux the
+README downloads `install.sh`, asks the reader to look at it, then runs it,
+instead of piping it to `sh`.
+
+**Why:** the owner wants to share the app through Obtainium. The installer
+checks the package it downloads against GitHub's SHA-256, but nothing checks
+the installer script fetched from `main` before it runs (CodeRabbit on #248,
+CWE-494). A pinned commit would go stale with every release; reading the
+script first is honest today. Publishing `install.sh` as a release asset with
+a checksum, so the first install can be checked like an update, is a
+follow-up issue.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

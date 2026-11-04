@@ -110,8 +110,49 @@ command again reads only new and changed files.
 
 ## Install
 
-Install and update with Obtainium from this repo's GitHub releases. See
-[docs/releases.md](docs/releases.md), which also explains the signing key.
+### Android, with Obtainium
+
+[Obtainium](https://github.com/ImranR98/Obtainium) installs the app from this
+repository's GitHub releases and keeps it updated. No GitHub account is
+needed.
+
+1. Install Obtainium (from its GitHub releases or from F-Droid).
+2. In Obtainium, choose **Add App**, paste
+   `https://github.com/ChristianGeng/roam-graph-mobile`, and choose **Add**.
+   Or open this link on the phone, which fills it in:
+   [obtainium://add/https://github.com/ChristianGeng/roam-graph-mobile](obtainium://add/https://github.com/ChristianGeng/roam-graph-mobile)
+3. Install. Obtainium reports every new full release from then on.
+
+Good to know:
+
+- Obtainium installs *full* releases. The pre-releases that every merge
+  publishes (`v<version>-dev.<n>`, APK only) come only with "Include
+  prereleases" turned on for the app.
+- Every release is signed with the same release key, so updates install over
+  the old version. A build signed with another key (a local build, see below)
+  can't update it.
+- The app needs an org-roam folder on the phone, for example kept in step
+  with Syncthing; it asks for the folder at the first start. The AI chat uses
+  your own provider and API key, set in Settings → AI.
+
+### Linux, Windows and macOS
+
+See [docs/releases.md](docs/releases.md). On Linux, download the installer,
+look at it, then run it:
+
+```
+curl -fsSLo install.sh https://raw.githubusercontent.com/ChristianGeng/roam-graph-mobile/main/linux/packaging/install.sh
+less install.sh
+sh install.sh --update
+```
+
+It installs the newest full release into
+`${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app` and adds Roam Graph to
+the app menu. The package it downloads is checked against the SHA-256 that
+GitHub gives for the release; the installer script itself is not, so read it
+before running it. To update later, run the installed copy:
+`${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app/install.sh --update`.
+[docs/releases.md](docs/releases.md) also explains the signing key.
 
 ## Build locally
 
