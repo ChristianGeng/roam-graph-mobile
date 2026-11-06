@@ -4161,7 +4161,33 @@ script first is honest today. Publishing `install.sh` as a release asset with
 a checksum, so the first install can be checked like an update, is a
 follow-up issue.
 
-## 131. The note view keeps its folding (#254)
+## 131. ~code~ and =verbatim= in a monospace font (#238)
+
+- **What:** inline `~code~` and `=verbatim=` are shown in the platform's
+  monospace font, in the note view, the help pages and the chat answers,
+  with org_flutter's colours. The text around them keeps its font.
+- **How:** `MonospaceOrgThemeData` (`lib/node_view/org_fonts.dart`)
+  extends org_flutter's `OrgThemeData`, copies every colour of the light
+  or dark theme and overrides `fontStyleForOrgStyle` for `OrgStyle.code`
+  and `OrgStyle.verbatim`. The note view passes it to `OrgRootWidget`.
+  The chat uses `MonospaceOrgText`, a copy of org_flutter's `OrgText`
+  (markup hidden, no padding, shrink-wrapped), because `OrgText` makes
+  its own themes and takes none.
+- **Fonts:** no font file is bundled. Menlo on macOS, Consolas on
+  Windows, the alias `monospace` on Linux (fontconfig) and Android, with
+  the fallbacks Menlo, Consolas, DejaVu Sans Mono, Liberation Mono,
+  Courier New, monospace. The size is the size of the text around.
+- **Not done here: blocks and fixed-width lines.** org_flutter 13.4.2
+  styles source blocks, example blocks and `: ` lines from the
+  surrounding `DefaultTextStyle` with only the code colour, and offers no
+  theme value or builder for them; highlighted source blocks merge the
+  surrounding style over org_flutter's own `monospace`. They need a
+  change in org_flutter (#239).
+- **Tables stay as they are:** org_flutter draws an Org table as a grid
+  (`Table` with one cell per value and `IntrinsicColumnWidth`), so the
+  columns line up in any font.
+
+## 132. The note view keeps its folding (#254)
 
 **Decided:** the node view parses a note again only when its text, its
 scripts mode, its line joining or its file changes; any other rebuild keeps
