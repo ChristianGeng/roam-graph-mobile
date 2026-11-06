@@ -4161,6 +4161,26 @@ script first is honest today. Publishing `install.sh` as a release asset with
 a checksum, so the first install can be checked like an update, is a
 follow-up issue.
 
+## 131. The note view keeps its folding (#254)
+
+**Decided:** the node view parses a note again only when its text, its
+scripts mode, its line joining or its file changes; any other rebuild keeps
+the same parsed tree. When the tree is new because the text changed, the
+headings that were open stay open, matched by their place in the heading
+tree: the titles from the top, equal titles under one parent numbered, a TODO
+keyword and a progress cookie (`[1/3]`) left out. Headings that are new
+follow the setting. A scan that finds nothing to read and the same listing as
+the last scan keeps the graph on show instead of making a new one.
+
+**Why:** `org_flutter` keeps how far each section is open by the id of the
+section object, set once when its controller is made. A tree made again for
+the same text has new ids, so every heading showed as folded, whatever
+started the rebuild: a new graph from a scan, a return to the app, or a
+change to another note. Keeping the tree fixes the cause; matching by path
+covers the real changes of the text; the scan change stops the needless
+rebuilds. The quick-edit folding (#217) still keeps its state by section
+number.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
