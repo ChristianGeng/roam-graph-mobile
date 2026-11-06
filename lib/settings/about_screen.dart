@@ -112,6 +112,14 @@ class _AboutScreenState extends State<AboutScreen> {
     final result = await checker.checkForUpdates(force: true);
     if (result.available && result.release != null && mounted) {
       setState(() => _effectiveRelease = result.release);
+    } else if (mounted) {
+      // Show feedback that no update is available or there was an error
+      final message = result.error != null
+          ? 'Failed to check for updates: ${result.error}'
+          : 'No update available';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     }
   }
 
