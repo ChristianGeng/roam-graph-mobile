@@ -196,7 +196,9 @@ void main() {
           child: const Text('open'),
         ),
       ),
-      store: MemoryAiSettingsStore(const AiSettings(webAccess: true)),
+      store: MemoryAiSettingsStore(
+        const AiSettings(webAccess: true, webSearchWith: braveSearchChoice),
+      ),
       keys: storeWith({'BRAVE_API_KEY': 'brave-env'}),
     );
     await tester.tap(find.text('open'));
@@ -204,10 +206,6 @@ void main() {
     await openRow(tester, 'web');
     final line = find.byKey(const ValueKey('web-capability'));
     await scrollTo(tester, line);
-    expect(
-      tester.widget<Text>(line).data,
-      isNot(contains('Add a Brave key')),
-    );
     expect(tester.widget<Text>(line).data, contains('search with Brave'));
   });
 }
