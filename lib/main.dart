@@ -63,7 +63,7 @@ class RoamGraphApp extends StatelessWidget {
     this.backgroundService,
     this.answerNotifier,
     this.pickTextFiles = pickTextFilesOnDesktop,
-    this.apiKeys = const SecureApiKeyStore(),
+    this.apiKeys = const EnvApiKeyStore(),
     this.speechPost = postBytesWithDartIo,
     this.voiceWork,
   });

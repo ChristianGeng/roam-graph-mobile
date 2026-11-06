@@ -8,6 +8,15 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-02: Desktop: API keys from environment variables ([#237](https://github.com/ChristianGeng/roam-graph-mobile/pull/237))
+
+Added: on Linux, Windows and macOS a provider's key is read from its
+environment variable (such as `MISTRAL_API_KEY`, `HF_TOKEN`,
+`BRAVE_API_KEY`) when none is saved in the app; a saved key takes
+precedence. Fixed: the key fields name the platform's secret store; settings that
+depend on a key (automatic speech provider, web search line) count a key
+from a variable. Closes #236.
+
 ## 2026-11-02: ~code~ and =verbatim= in a monospace font ([#240](https://github.com/ChristianGeng/roam-graph-mobile/pull/240))
 
 Changed: inline `~code~` and `=verbatim=` are shown in a monospace font in
