@@ -57,12 +57,12 @@ folder is the only connection.
 
 1. **Plan:** the owner and Claude agree on the change; Claude writes the
    issue.
-2. **Build:** Devin, in a new session for each issue, started with a
-   prompt that names the issue and the rules of this file; or Claude,
-   when the owner says so. One pull request per issue, with
-   "Closes #<issue>". Devin does not merge.
+2. **Build:** Devin, opencode or Claude, in a new session for each issue,
+   started with a prompt that names the issue and the rules of this file.
+   One pull request per issue, with "Closes #<issue>". Devin and opencode
+   do not merge.
 3. **Review:** CI (Android build with all tests, Linux, Windows, macOS,
-   changelog, org-roam) and the review bots (Gitar, Sourcery, Devin).
+   changelog, org-roam) and the review bots (CodeRabbit, Sourcery, Devin).
    Every finding is fixed or answered. Findings for Devin go to Devin as a
    pull request comment that starts with `@devin`; Devin answers such
    comments from users with write access.
@@ -75,6 +75,35 @@ folder is the only connection.
    (APK, Linux, Windows, macOS) and publishes the next semantic version
    (`v0.3.0`), with the notes since the last full release. How to start
    it: `docs/releases.md`.
+
+## When a pull request is done
+
+A pull request is done only when all of this is true. Do not call it done,
+and do not ask for a merge, before.
+
+1. **It builds.** After each push, wait for all check runs. If one fails,
+   read its annotations (`gh api repos/<owner>/<repo>/check-runs/<id>/annotations`)
+   and fix it. Analyzer errors seen often: an unused import, a default value
+   of an optional parameter that is not `const`, a `BuildContext` used after
+   an `await` without a `mounted` check.
+2. **The tests the issue names exist and pass.** A change in `lib/` without
+   tests for the new behaviour is not done. For a bug, write the test that
+   fails first, then the fix.
+3. **No placeholders.** The CHANGELOG heading has the real date and the real
+   pull request number and link; fill them in once the pull request exists.
+   No `YYYY-MM-DD`, no empty `#`, no "TODO" in code or docs.
+4. **The description is true.** It says what is done and what is left
+   ("Done / Left"). It does not claim a test or a behaviour that is not there.
+5. **Reviews are dealt with.** CodeRabbit reviews every pull request that is
+   not a draft. If its summary is not "up to" the newest commit after a few
+   minutes, comment `@coderabbitai review`. Sourcery reviews when it has
+   budget. Fix each finding, or answer it with the reason; then resolve the
+   thread. Gitar does not review any more.
+6. **Merge** only when CI is green on the newest commit, CodeRabbit has
+   reviewed that commit and every thread is resolved.
+7. **When `main` moves on,** merge `main` in. Keep the entries of both sides
+   in `CHANGELOG.md` and `docs/decisions.md`; if a decision number is taken,
+   renumber yours.
 
 Things to know:
 
