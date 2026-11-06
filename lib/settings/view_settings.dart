@@ -24,7 +24,7 @@ import '../node_view/web_links.dart' show UrlOpener, openUrlOnDevice;
 import '../platform/desktop.dart';
 import '../platform/error_text.dart';
 import '../platform/follow_emacs.dart';
-import '../platform/update_notification.dart' show UpdateCheckResultStorage;
+import '../platform/update_notification.dart' show UpdateCheckerScope;
 import 'about_screen.dart';
 
 /// How far a note's sections are open when the note opens: the values
@@ -249,9 +249,10 @@ class ViewSettings {
         'lastSeenVersion': lastSeenVersion,
       };
 
-  /// Settings from [json]; a missing or unknown value keeps its default.
+  /// Settings from [json]; a missing or unknown value keeps its default
+  /// (the platform default for "Check for updates", on Android off, #247).
   factory ViewSettings.fromJson(Object? json) {
-    const defaults = ViewSettings();
+    final defaults = ViewSettings.withDefaults();
     if (json is! Map) return defaults;
     final sections = json['sectionsOnOpen'];
     final share = json['graphShare'];
@@ -855,8 +856,7 @@ class SettingsScreen extends StatelessWidget {
               context,
               version: version,
               openUrl: openUrl,
-              release: UpdateCheckResultStorage.latestResult?.release,
-              checkForUpdates: settings.checkForUpdates,
+              checker: UpdateCheckerScope.maybeOf(context),
             ),
           ),
         ],

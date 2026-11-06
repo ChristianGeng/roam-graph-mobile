@@ -8,6 +8,7 @@ import '../node_view/web_links.dart';
 import '../platform/desktop.dart';
 import '../platform/error_text.dart' show copyToClipboard;
 import '../platform/update_check.dart' show GitHubRelease, UpdateChecker;
+import '../platform/update_notification.dart' show UpdateCheckerScope;
 
 /// The page with all releases, pre-releases included.
 final releasesUri =
@@ -72,20 +73,30 @@ class AboutScreen extends StatefulWidget {
     required this.version,
     this.openUrl = openUrlOnDevice,
     this.release,
-    this.checkForUpdates = true,
+    this.checker,
   });
 
   final String version;
   final UrlOpener openUrl;
   final GitHubRelease? release;
-  final bool checkForUpdates;
+
+  /// The app's one update checker, from the [UpdateCheckerScope]; null in
+  /// tests or when there is none.
+  final UpdateChecker? checker;
 
   static Future<void> open(BuildContext context,
-          {required String version, UrlOpener openUrl = openUrlOnDevice, GitHubRelease? release, bool checkForUpdates = true}) =>
+          {required String version,
+          UrlOpener openUrl = openUrlOnDevice,
+          GitHubRelease? release,
+          UpdateChecker? checker}) =>
       Navigator.push(
         context,
         MaterialPageRoute<void>(
-            builder: (_) => AboutScreen(version: version, openUrl: openUrl, release: release, checkForUpdates: checkForUpdates)),
+            builder: (_) => AboutScreen(
+                version: version,
+                openUrl: openUrl,
+                release: release,
+                checker: checker ?? UpdateCheckerScope.maybeOf(context))),
       );
 
   @override
@@ -96,36 +107,40 @@ class _AboutScreenState extends State<AboutScreen> {
   Future<String>? _changelog;
   int _shown = changelogPageSize;
   GitHubRelease? _effectiveRelease;
+  String? _checkStatus;
   bool _checkingForUpdates = false;
 
   @override
   void initState() {
     super.initState();
-    // Use the passed release, or check for updates if on desktop and enabled
-    _effectiveRelease = widget.release;
-    if (_effectiveRelease == null && isDesktop && widget.checkForUpdates) {
+    final checker = widget.checker;
+    _effectiveRelease = widget.release ?? checker?.lastResult?.release;
+    // Check on open only on the desktop and only when checking is on.
+    if (_effectiveRelease == null &&
+        isDesktop &&
+        checker != null &&
+        checker.settings.checkForUpdates) {
       _checkForUpdates();
     }
   }
 
   Future<void> _checkForUpdates() async {
-    // Prevent duplicate checks
-    if (_checkingForUpdates) return;
+    final checker = widget.checker;
+    if (checker == null || _checkingForUpdates) return;
     _checkingForUpdates = true;
     try {
-      final checker = UpdateChecker(currentVersion: widget.version);
       final result = await checker.checkForUpdates(force: true);
-      if (result.available && result.release != null && mounted) {
-        setState(() => _effectiveRelease = result.release);
-      } else if (mounted) {
-        // Show feedback that no update is available or there was an error
-        final message = result.error != null
-            ? 'Failed to check for updates: ${result.error}'
-            : 'No update available';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
-      }
+      if (!mounted) return;
+      setState(() {
+        if (result.available && result.release != null) {
+          _effectiveRelease = result.release;
+          _checkStatus = 'Update available: ${result.release!.version}';
+        } else if (result.error != null) {
+          _checkStatus = 'Check failed: ${result.error}';
+        } else {
+          _checkStatus = 'Up to date';
+        }
+      });
     } finally {
       if (mounted) {
         setState(() => _checkingForUpdates = false);
@@ -182,6 +197,15 @@ class _AboutScreenState extends State<AboutScreen> {
               ],
             ),
           ),
+          if (_checkStatus != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                _checkStatus!,
+                key: const ValueKey('about-check-status'),
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
           if (_effectiveRelease != null) ...[
             const Divider(),
             Padding(
@@ -239,6 +263,8 @@ class _AboutScreenState extends State<AboutScreen> {
                             return FilledButton(
                               key: const ValueKey('about-update-and-restart'),
                               onPressed: () async {
+                                final messenger =
+                                    ScaffoldMessenger.of(context);
                                 final confirmed = await showDialog<bool>(
                                   context: context,
                                   builder: (context) => AlertDialog(
@@ -260,24 +286,16 @@ class _AboutScreenState extends State<AboutScreen> {
                                 );
                                 if (confirmed == true) {
                                   try {
-                                    final result = await UpdateChecker.runInstallShUpdate();
-                                    if (result.exitCode == 0 && mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Update successful! Please restart the app.'),
-                                        ),
-                                      );
-                                    } else if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Update failed: ${result.stderr}'),
-                                        ),
-                                      );
-                                    }
+                                    // Runs install.sh --update, then
+                                    // starts the new app and quits this
+                                    // one; only on success.
+                                    await UpdateChecker.updateAndRestart();
                                   } catch (e) {
                                     if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Update failed: $e')),
+                                      messenger.showSnackBar(
+                                        SnackBar(
+                                            content:
+                                                Text('Update failed: $e')),
                                       );
                                     }
                                   }
