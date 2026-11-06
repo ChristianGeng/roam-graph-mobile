@@ -19,13 +19,19 @@ OrgVisibilityState startupState(OrgDocument document, SectionsOnOpen setting) =>
 /// changes them, and the heading is still the same heading.
 final _progressCookie = RegExp(r'\[\d*(?:/\d*|%)\]');
 
-/// The sections of [tree] below it, by their place in the heading tree: the
+/// The sections of [tree] and below it, by their place in the heading tree: the
 /// titles from the top, each with its number among the sections of the
 /// same title under the same parent. The objects of one parse are not the
 /// objects of the next, but this key is the same for a heading that is
-/// still there (#254). Progress cookies in the title are left out.
+/// still there (#254). Progress cookies in the title are left out. If
+/// [tree] is itself a section, it is there too, with the empty key.
+///
+/// A heading with the same title as a sibling and moved past it takes its
+/// number: the folding follows the place, not the text.
 Map<String, OrgSection> sectionsByPath(OrgTree tree) {
   final result = <String, OrgSection>{};
+  // A heading node's own section has the empty key.
+  if (tree is OrgSection) result[''] = tree;
   void walk(OrgTree parent, String prefix) {
     final seen = <String, int>{};
     for (final section in parent.sections) {

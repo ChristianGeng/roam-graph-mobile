@@ -1788,7 +1788,13 @@ class _NodeScreenState extends State<NodeScreen> {
   }
 
   /// The note as last parsed, with what it was parsed from.
-  ({Object key, String nodeId, int version, OrgDocument document})? _parsed;
+  ({
+    Object key,
+    String nodeId,
+    int version,
+    OrgDocument document,
+    List<(String, bool)> asked,
+  })? _parsed;
   var _parsedVersion = 0;
 
   /// The parsed [text] of [node] as the settings in [view] show it. The
@@ -1797,7 +1803,9 @@ class _NodeScreenState extends State<NodeScreen> {
   /// tree, so a tree made again for the same text would fold everything
   /// (#254). When the input changed, the sections that were open in the
   /// tree before are returned in `carried`, by their place in the heading
-  /// tree.
+  /// tree. A mermaid block's drawing depends on the images in the folder:
+  /// the answers given then are asked again, and a different one parses
+  /// the note again.
   ({
     OrgDocument document,
     int version,
@@ -1807,8 +1815,19 @@ class _NodeScreenState extends State<NodeScreen> {
     // The note's own #+OPTIONS: ^: wins over the setting (#213).
     final scriptMode = scriptModeOf(text) ?? view.scripts;
     final key = (text, scriptMode, view.joinLines, node.file);
+    bool imageShown(String location) {
+      final path = linkedImagePath(node.file, location);
+      return files != null &&
+          path != null &&
+          files.reaches(path) &&
+          files.find(path) != null;
+    }
+
     final kept = _parsed;
-    if (kept != null && kept.nodeId == node.id && kept.key == key) {
+    if (kept != null &&
+        kept.nodeId == node.id &&
+        kept.key == key &&
+        kept.asked.every((answer) => imageShown(answer.$1) == answer.$2)) {
       return (document: kept.document, version: kept.version, carried: null);
     }
     // The note before, as the person left it, if it is still on screen.
@@ -1823,18 +1842,23 @@ class _NodeScreenState extends State<NodeScreen> {
       withDisplayFormulas(withHighlightLanguages(parseNote(text))),
       scriptMode,
     );
+    final asked = <(String, bool)>[];
     final document = withMermaidDrawings(
       view.joinLines ? withJoinedLines(scripted) : scripted,
       showsImage: (location) {
-        final path = linkedImagePath(node.file, location);
-        return files != null &&
-            path != null &&
-            files.reaches(path) &&
-            files.find(path) != null;
+        final shown = imageShown(location);
+        asked.add((location, shown));
+        return shown;
       },
     );
     final version = ++_parsedVersion;
-    _parsed = (key: key, nodeId: node.id, version: version, document: document);
+    _parsed = (
+      key: key,
+      nodeId: node.id,
+      version: version,
+      document: document,
+      asked: asked,
+    );
     return (document: document, version: version, carried: carried);
   }
 

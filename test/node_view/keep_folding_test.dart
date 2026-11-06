@@ -42,6 +42,15 @@ void main() {
           sectionsByPath(OrgDocument.parse('* B [3/3]\n')).keys);
     });
 
+    test('a section as the tree has the empty key; below it, the titles '
+        'from its children', () {
+      final part = OrgDocument.parse('* A\n** X\n').sections.single;
+      final keys = sectionsByPath(part).keys.toList();
+      expect(keys.length, 2);
+      expect(keys.first, '');
+      expect(keys.last, 'X\u00011\u0000');
+    });
+
     test('a TODO keyword is not part of the key', () {
       expect(sectionsByPath(OrgDocument.parse('* TODO B\n')).keys,
           sectionsByPath(OrgDocument.parse('* DONE B\n')).keys);
