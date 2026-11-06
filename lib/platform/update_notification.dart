@@ -5,6 +5,20 @@ import 'package:flutter/material.dart';
 
 import 'update_check.dart';
 
+/// Global storage for the latest update check result.
+///
+/// This allows screens like AboutScreen to access the latest release
+/// information without having to pass it through the widget tree.
+class UpdateCheckResultStorage {
+  static UpdateCheckResult? _latestResult;
+
+  /// The latest update check result, or null if no check has been performed.
+  static UpdateCheckResult? get latestResult => _latestResult;
+
+  /// Sets the latest update check result.
+  static set latestResult(UpdateCheckResult? result) => _latestResult = result;
+}
+
 /// Shows a snackbar notification when an update is available.
 ///
 /// Returns true if the user tapped the action button.
@@ -67,6 +81,9 @@ class _UpdateCheckerWidgetState extends State<UpdateCheckerWidget> {
 
     try {
       final result = await _updateChecker.checkForUpdates();
+      // Store the result for other screens to access
+      UpdateCheckResultStorage.latestResult = result;
+
       if (result.available && result.release != null && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -112,12 +129,16 @@ class CheckForUpdatesButton extends StatelessWidget {
         final checker = UpdateChecker(currentVersion: version);
         try {
           final result = await checker.checkForUpdates(force: true);
+          // Store the result
+          UpdateCheckResultStorage.latestResult = result;
+
           if (result.available && result.release != null) {
             onUpdateAvailable(result.release!);
           } else if (result.error != null) {
             onError?.call(result.error!);
           } else {
             // Show no update dialog
+            // ignore: use_build_context_synchronously
             await showDialog(
               context: context,
               builder: (context) => onNoUpdate,

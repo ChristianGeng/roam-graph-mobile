@@ -24,6 +24,7 @@ import '../node_view/web_links.dart' show UrlOpener, openUrlOnDevice;
 import '../platform/desktop.dart';
 import '../platform/error_text.dart';
 import '../platform/follow_emacs.dart';
+import '../platform/update_notification.dart' show UpdateCheckResultStorage;
 import 'about_screen.dart';
 
 /// How far a note's sections are open when the note opens: the values
@@ -97,7 +98,7 @@ class ViewSettings {
     this.imageFolder = defaultImageFolder,
     this.emacsClient = '',
     this.followEmacs = true,
-    this.checkForUpdates = true,
+    this.checkForUpdates = _defaultCheckForUpdates,
     this.includePreReleases = false,
   }) : _swipeHeadings = swipeHeadings;
 
@@ -107,6 +108,9 @@ class ViewSettings {
   /// The graph's share of the width on a tablet in landscape (#69): 40 %,
   /// so the note gets 60 %.
   static const defaultGraphShare = 0.4;
+
+  /// Default value for checkForUpdates: true on desktop, false on Android.
+  static bool get _defaultCheckForUpdates => isDesktop;
 
   /// By default [SectionsOnOpen.collapsed]: on a phone, the headings first.
   final SectionsOnOpen sectionsOnOpen;
@@ -822,8 +826,12 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('About'),
             subtitle: Text(versionLabel(version)),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () =>
-                AboutScreen.open(context, version: version, openUrl: openUrl),
+            onTap: () => AboutScreen.open(
+              context,
+              version: version,
+              openUrl: openUrl,
+              release: UpdateCheckResultStorage.latestResult?.release,
+            ),
           ),
         ],
       ),

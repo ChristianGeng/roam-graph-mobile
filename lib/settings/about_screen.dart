@@ -5,7 +5,9 @@ library;
 import 'package:material_ui/material_ui.dart';
 
 import '../node_view/web_links.dart';
+import '../platform/desktop.dart';
 import '../platform/error_text.dart' show copyToClipboard;
+import '../platform/update_check.dart' show GitHubRelease, UpdateChecker;
 
 /// The page with all releases, pre-releases included.
 final releasesUri =
@@ -69,17 +71,19 @@ class AboutScreen extends StatefulWidget {
     super.key,
     required this.version,
     this.openUrl = openUrlOnDevice,
+    this.release,
   });
 
   final String version;
   final UrlOpener openUrl;
+  final GitHubRelease? release;
 
   static Future<void> open(BuildContext context,
-          {required String version, UrlOpener openUrl = openUrlOnDevice}) =>
+          {required String version, UrlOpener openUrl = openUrlOnDevice, GitHubRelease? release}) =>
       Navigator.push(
         context,
         MaterialPageRoute<void>(
-            builder: (_) => AboutScreen(version: version, openUrl: openUrl)),
+            builder: (_) => AboutScreen(version: version, openUrl: openUrl, release: release)),
       );
 
   @override
@@ -89,6 +93,29 @@ class AboutScreen extends StatefulWidget {
 class _AboutScreenState extends State<AboutScreen> {
   Future<String>? _changelog;
   int _shown = changelogPageSize;
+  GitHubRelease? _effectiveRelease;
+
+  @override
+  void initState() {
+    super.initState();
+    // Use the passed release, or check for updates if on desktop
+    _effectiveRelease = widget.release;
+    if (_effectiveRelease == null && isDesktop) {
+      _checkForUpdates();
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    final checker = UpdateChecker(currentVersion: widget.version);
+    final result = await checker.checkForUpdates(force: true);
+    if (result.available && result.release != null && mounted) {
+      setState(() => _effectiveRelease = result.release);
+    }
+  }
+
+  /// Checks if the app was installed via install.sh on Linux.
+  Future<bool> _isInstalledViaInstallSh() async =>
+      isDesktop && await UpdateChecker.isInstalledViaInstallSh();
 
   @override
   void didChangeDependencies() {
@@ -100,7 +127,18 @@ class _AboutScreenState extends State<AboutScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('About')),
+      appBar: AppBar(
+        title: const Text('About'),
+        actions: [
+          if (isDesktop)
+            IconButton(
+              key: const ValueKey('about-check-for-updates'),
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Check for updates',
+              onPressed: _checkForUpdates,
+            ),
+        ],
+      ),
       body: ListView(
         children: [
           Padding(
@@ -124,6 +162,118 @@ class _AboutScreenState extends State<AboutScreen> {
               ],
             ),
           ),
+          if (_effectiveRelease != null) ...[
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Update available: ${_effectiveRelease!.name}',
+                    key: const ValueKey('about-update-available'),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "What's new",
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(_effectiveRelease!.body),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          key: const ValueKey('about-view-release'),
+                          onPressed: () => openExternalLink(
+                            context,
+                            Uri.parse(_effectiveRelease!.htmlUrl),
+                            widget.openUrl,
+                          ),
+                          child: const Text('View release on GitHub'),
+                        ),
+                      ),
+                      if (isDesktop) ...[
+                        const SizedBox(width: 8),
+                        FutureBuilder<bool>(
+                          future: _isInstalledViaInstallSh(),
+                          builder: (context, snapshot) {
+                            final installedViaInstallSh = snapshot.data ?? false;
+                            if (!installedViaInstallSh) {
+                              // On Windows/macOS, show download link
+                              return FilledButton(
+                                key: const ValueKey('about-download-update'),
+                                onPressed: () => openExternalLink(
+                                  context,
+                                  Uri.parse(_effectiveRelease!.htmlUrl),
+                                  widget.openUrl,
+                                ),
+                                child: const Text('Download update'),
+                              );
+                            }
+                            // On Linux with install.sh, show update and restart
+                            return FilledButton(
+                              key: const ValueKey('about-update-and-restart'),
+                              onPressed: () async {
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Update and restart'),
+                                    content: const Text(
+                                      'This will run install.sh --update and restart the app. Continue?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        child: const Text('Update and restart'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirmed == true) {
+                                  try {
+                                    final result = await UpdateChecker.runInstallShUpdate();
+                                    if (result.exitCode == 0 && mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Update successful! Please restart the app.'),
+                                        ),
+                                      );
+                                    } else if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Update failed: ${result.stderr}'),
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('Update failed: $e')),
+                                      );
+                                    }
+                                  }
+                                }
+                              },
+                              child: const Text('Update and restart'),
+                            );
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           ListTile(
             key: const ValueKey('about-releases'),
             leading: const Icon(Icons.open_in_new),
