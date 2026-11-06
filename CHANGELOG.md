@@ -17,6 +17,12 @@ precedence. Fixed: the key fields name the platform's secret store; settings tha
 depend on a key (automatic speech provider, web search line) count a key
 from a variable. Closes #236.
 
+## 2026-11-02: ~code~ and =verbatim= in a monospace font ([#240](https://github.com/ChristianGeng/roam-graph-mobile/pull/240))
+
+Changed: inline `~code~` and `=verbatim=` are shown in a monospace font in
+notes, help pages and chat answers, as in Emacs. Source blocks and
+fixed-width lines follow in #239. Part of #238.
+
 ## 2026-11-04: "Follow Emacs" works with the installed Linux app ([#246](https://github.com/ChristianGeng/roam-graph-mobile/pull/246))
 
 - Fixed: Emacs looked for the app's `follow.json` in `~/.local/share/io.github.christiangeng.roamgraph/`, but the installed app keeps its data in `~/.local/share/roam-graph/`, so following did nothing. Emacs now finds the file where the app writes it, again before every message; `roam-graph-follow-file` still wins when it is set.

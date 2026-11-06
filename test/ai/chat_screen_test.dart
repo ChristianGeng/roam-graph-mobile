@@ -24,6 +24,7 @@ import 'package:roam_graph_mobile/node_view/web_links.dart';
 import '../graph_view/graph_screen_test.dart'
     show MemoryNodeMemory, algorithmsHere, layoutHere;
 import '../edit/note_editor_test.dart' show MemoryNoteStore;
+import '../node_view/org_fonts_test.dart' show styleOf;
 import 'ai_chat_test.dart' show FakeServer, anthropicReply;
 import 'ai_settings_test.dart' show MemoryAiSettingsStore, MemoryKeyStore;
 import 'ai_visibility_test.dart' show graphOf, notes;
@@ -128,6 +129,23 @@ void main() {
     await openChat(tester, server);
     await ask(tester, 'Hello?');
     expect(find.text('The model sent no text.'), findsOneWidget);
+  });
+
+  testWidgets('~code~ and =verbatim= in an answer are monospace (#238)',
+      (tester) async {
+    final server = FakeServer([
+      anthropicReply([
+        {
+          'type': 'text',
+          'text': 'Set ~BRAVE_API_KEY~ in =config.yaml= and plain words.',
+        },
+      ]),
+    ]);
+    await openChat(tester, server);
+    await ask(tester, 'Which key?');
+    expect(styleOf(tester, 'BRAVE_API_KEY').fontFamily, 'monospace');
+    expect(styleOf(tester, 'config.yaml').fontFamily, 'monospace');
+    expect(styleOf(tester, 'plain words').fontFamily, isNot('monospace'));
   });
 
   testWidgets('without a key, the chat says where to enter it',

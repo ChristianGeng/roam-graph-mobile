@@ -195,7 +195,7 @@ program in `app/`. That is Flutter's choice: it uses the app ID's folder
 program's name, `roam-graph`, which the installer has made by the first
 start (decision 129). API keys are in the system keyring (when none is
 saved there, the app reads the provider's environment variable, such as
-`MISTRAL_API_KEY`; see the help page "The desktop app", decision 131); the
+`MISTRAL_API_KEY`; see the help page "The desktop app", decision 132); the
 notes stay in their folder. An update replaces only `app/`, and `--remove` removes
 only `app/` and the menu entry, so the data stays.
 
