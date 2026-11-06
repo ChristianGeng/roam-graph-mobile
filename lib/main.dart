@@ -19,8 +19,9 @@ import 'platform/chat_background.dart';
 import 'platform/desktop.dart';
 import 'platform/follow_emacs.dart';
 import 'platform/text_drop.dart';
-import 'platform/update_check.dart';
+import 'platform/update_check.dart' show GitHubRelease;
 import 'platform/update_notification.dart';
+import 'node_view/web_links.dart' show openUrlOnDevice;
 import 'platform/voice_work.dart';
 import 'settings/view_settings.dart';
 
@@ -116,35 +117,45 @@ class RoamGraphApp extends StatelessWidget {
           child: Builder(
             builder: (context) {
               final settings = ViewSettingsScope.of(context);
-              return UpdateCheckerWidget(
-                version: appVersion,
-                checkOnStart: settings.checkForUpdates,
-                child: MaterialApp(
-                  title: 'Roam Graph',
-                  themeMode: settings.theme.mode,
-                  theme: ThemeData(colorSchemeSeed: Colors.indigo),
-                  darkTheme: ThemeData(
-                    colorSchemeSeed: Colors.indigo,
-                    brightness: Brightness.dark,
-                  ),
-                  // Drops onto the window on the desktop (#220).
-                  builder: (context, child) =>
-                      WindowDropTarget(child: child ?? const SizedBox()),
-                  home: FolderScreen(
-                    folderAccess: folderAccess ??
-                        (isDesktop
-                            ? const DesktopFolderAccess()
-                            : const PlatformFolderAccess()),
-                    version: appVersion,
-                    graphIndex: graphIndex,
-                    graphScreen: graphScreen,
-                    shareInbox: shareInbox,
-                    nodeMemory: nodeMemory,
-                    editHistory: editHistory,
-                    pickTextFiles: pickTextFiles,
-                    speechPost: speechPost,
-                    voiceWork: voiceWork,
-                  ),
+              return MaterialApp(
+                title: 'Roam Graph',
+                themeMode: settings.theme.mode,
+                theme: ThemeData(colorSchemeSeed: Colors.indigo),
+                darkTheme: ThemeData(
+                  colorSchemeSeed: Colors.indigo,
+                  brightness: Brightness.dark,
+                ),
+                // Drops onto the window on the desktop (#220).
+                builder: (context, child) => UpdateCheckerWidget(
+                  version: appVersion,
+                  checkOnStart: settings.checkForUpdates,
+                  onUpdateAvailable: (release) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Update available: ${release.name}'),
+                        action: SnackBarAction(
+                          label: 'View',
+                          onPressed: () => openUrlOnDevice(Uri.parse(release.htmlUrl)),
+                        ),
+                      ),
+                    );
+                  },
+                  child: WindowDropTarget(child: child ?? const SizedBox()),
+                ),
+                home: FolderScreen(
+                  folderAccess: folderAccess ??
+                      (isDesktop
+                          ? const DesktopFolderAccess()
+                          : const PlatformFolderAccess()),
+                  version: appVersion,
+                  graphIndex: graphIndex,
+                  graphScreen: graphScreen,
+                  shareInbox: shareInbox,
+                  nodeMemory: nodeMemory,
+                  editHistory: editHistory,
+                  pickTextFiles: pickTextFiles,
+                  speechPost: speechPost,
+                  voiceWork: voiceWork,
                 ),
               );
             },

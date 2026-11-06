@@ -460,8 +460,7 @@ class UpdateChecker {
     try {
       final executable = Platform.resolvedExecutable;
       final executableDir = path.dirname(executable);
-      final appDir = path.dirname(executableDir);
-      final installSh = path.join(appDir, 'install.sh');
+      final installSh = path.join(executableDir, 'install.sh');
       return await File(installSh).exists();
     } catch (_) {
       return false;
@@ -474,8 +473,7 @@ class UpdateChecker {
   static Future<ProcessResult> runInstallShUpdate() async {
     final executable = Platform.resolvedExecutable;
     final executableDir = path.dirname(executable);
-    final appDir = path.dirname(executableDir);
-    final installSh = path.join(appDir, 'install.sh');
+    final installSh = path.join(executableDir, 'install.sh');
 
     return await Process.run(installSh, ['--update']);
   }

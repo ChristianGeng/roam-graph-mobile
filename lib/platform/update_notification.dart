@@ -49,12 +49,14 @@ class UpdateCheckerWidget extends StatefulWidget {
     super.key,
     required this.version,
     required this.child,
+    this.onUpdateAvailable,
     this.onUpdatePressed,
     this.checkOnStart = true,
   });
 
   final String version;
   final Widget child;
+  final ValueChanged<GitHubRelease>? onUpdateAvailable;
   final VoidCallback? onUpdatePressed;
   final bool checkOnStart;
 
@@ -85,15 +87,14 @@ class _UpdateCheckerWidgetState extends State<UpdateCheckerWidget> {
       UpdateCheckResultStorage.latestResult = result;
 
       if (result.available && result.release != null && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            showUpdateAvailableNotification(
-              context,
-              result.release!,
-              widget.onUpdatePressed ?? () {},
-            );
-          }
-        });
+        // Notify via callback if provided
+        if (widget.onUpdateAvailable != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              widget.onUpdateAvailable!(result.release!);
+            }
+          });
+        }
       }
     } catch (_) {
       // Silently ignore errors
