@@ -57,7 +57,7 @@ void main() {
           OrgDocument.parse('* A\n** X\n** New\n* A2\n** X\n'));
       final found = {
         for (final MapEntry(:key, :value) in after.entries)
-          if (before[key] case final state?) value.headline.rawTitle: state,
+          value.headline.rawTitle: ?before[key],
       };
       // Only the first X, under A, is found; the X under A2 is not.
       expect(found, {'A': OrgVisibilityState.folded, 'X': OrgVisibilityState.subtree});
@@ -92,9 +92,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(orgText('Part text.'), findsOneWidget);
 
-      texts['b.org'] = notes['b.org']!
-              .replaceFirst('Top text of B.', 'Top text of B, changed.') +
-          '* Third\nThird text.\n';
+      final changed = notes['b.org']!
+          .replaceFirst('Top text of B.', 'Top text of B, changed.');
+      texts['b.org'] = '$changed* Third\nThird text.\n';
       graph.value = graphOf(texts);
       await tester.pumpAndSettle();
       expect(orgText('Top text of B, changed.'), findsOneWidget);
