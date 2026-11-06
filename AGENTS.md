@@ -91,8 +91,8 @@ and do not ask for a merge, before.
    write the test that fails first, then the fix.
 3. **No placeholders.** The CHANGELOG heading has the real date and the real
    pull request number and link; fill them in once the pull request exists.
-   No `YYYY-MM-DD`, no empty `#` and no "TODO" left as a placeholder in what
-   you add. Templates that tell how to write an entry are not placeholders.
+   No `YYYY-MM-DD`, no empty `#` and no "TODO" used as a placeholder in code
+   or docs. Templates that tell how to write an entry are not placeholders.
 4. **The description is true.** It says what is done and what is left
    ("Done / Left"). It does not claim a test or a behaviour that is not there.
 5. **Reviews are dealt with.** CodeRabbit reviews every pull request that is
