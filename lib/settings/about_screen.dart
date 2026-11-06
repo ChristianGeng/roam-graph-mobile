@@ -96,6 +96,7 @@ class _AboutScreenState extends State<AboutScreen> {
   Future<String>? _changelog;
   int _shown = changelogPageSize;
   GitHubRelease? _effectiveRelease;
+  bool _checkingForUpdates = false;
 
   @override
   void initState() {
@@ -108,18 +109,27 @@ class _AboutScreenState extends State<AboutScreen> {
   }
 
   Future<void> _checkForUpdates() async {
-    final checker = UpdateChecker(currentVersion: widget.version);
-    final result = await checker.checkForUpdates(force: true);
-    if (result.available && result.release != null && mounted) {
-      setState(() => _effectiveRelease = result.release);
-    } else if (mounted) {
-      // Show feedback that no update is available or there was an error
-      final message = result.error != null
-          ? 'Failed to check for updates: ${result.error}'
-          : 'No update available';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+    // Prevent duplicate checks
+    if (_checkingForUpdates) return;
+    _checkingForUpdates = true;
+    try {
+      final checker = UpdateChecker(currentVersion: widget.version);
+      final result = await checker.checkForUpdates(force: true);
+      if (result.available && result.release != null && mounted) {
+        setState(() => _effectiveRelease = result.release);
+      } else if (mounted) {
+        // Show feedback that no update is available or there was an error
+        final message = result.error != null
+            ? 'Failed to check for updates: ${result.error}'
+            : 'No update available';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _checkingForUpdates = false);
+      }
     }
   }
 
