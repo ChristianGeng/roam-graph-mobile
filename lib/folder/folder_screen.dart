@@ -1075,24 +1075,8 @@ class _FolderScreenState extends State<FolderScreen>
     // scan must not store its contents after the newer one. The index runs
     // its calls in order, so checking here, before the call, is enough.
     if (generation != _generation) return;
-    // Nothing new, gone or changed since the last scan, and nothing to
-    // read again: the graph on show is still right. A new graph object
-    // would make every open view read its note and draw it again (#254),
-    // for example on every return to the app.
-    final shown = _result.graph;
-    final RoamGraph graph;
-    if (!replace &&
-        shown != null &&
-        _settled == _Status.indexed &&
-        _result.unreadable.isEmpty &&
-        forced.isEmpty &&
-        toRead.isEmpty &&
-        !_changedSinceScan(listing)) {
-      graph = shown;
-    } else {
-      graph = await index.update(listing, contents,
-          folder: folder.uri, replace: replace);
-    }
+    final graph = await index.update(listing, contents,
+        folder: folder.uri, replace: replace);
     _mustRead.removeAll(forced);
     final unreadable = [
       for (final MapEntry(key: path, value: content) in contents.entries)
