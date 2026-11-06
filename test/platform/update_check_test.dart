@@ -235,6 +235,22 @@ void main() {
     //   expect(checker.shouldCheck, false);
     // });
 
+    test('includePreReleases setting is respected', () {
+      // Test with includePreReleases = false (default)
+      final checker1 = UpdateChecker.simple(
+        currentVersion: '1.0.0',
+        includePreReleases: false,
+      );
+      expect(checker1.preferences.includePreReleases, false);
+
+      // Test with includePreReleases = true
+      final checker2 = UpdateChecker.simple(
+        currentVersion: '1.0.0',
+        includePreReleases: true,
+      );
+      expect(checker2.preferences.includePreReleases, true);
+    });
+
     test('isNewerVersion with current dev version', () {
       // Current version is 1.0.0-dev.590, release is 1.0.0
       expect(isNewerVersion('1.0.0', '1.0.0-dev.590'), true);

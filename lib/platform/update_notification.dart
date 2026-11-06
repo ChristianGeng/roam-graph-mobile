@@ -52,6 +52,7 @@ class UpdateCheckerWidget extends StatefulWidget {
     this.onUpdateAvailable,
     this.onUpdatePressed,
     this.checkOnStart = true,
+    this.includePreReleases = false,
   });
 
   final String version;
@@ -59,6 +60,7 @@ class UpdateCheckerWidget extends StatefulWidget {
   final ValueChanged<GitHubRelease>? onUpdateAvailable;
   final VoidCallback? onUpdatePressed;
   final bool checkOnStart;
+  final bool includePreReleases;
 
   @override
   State<UpdateCheckerWidget> createState() => _UpdateCheckerWidgetState();
@@ -71,7 +73,10 @@ class _UpdateCheckerWidgetState extends State<UpdateCheckerWidget> {
   @override
   void initState() {
     super.initState();
-    _updateChecker = UpdateChecker(currentVersion: widget.version);
+    _updateChecker = UpdateChecker.simple(
+      currentVersion: widget.version,
+      includePreReleases: widget.includePreReleases,
+    );
     if (widget.checkOnStart) {
       _checkForUpdates();
     }
@@ -141,6 +146,7 @@ class CheckForUpdatesButton extends StatelessWidget {
             // Show no update dialog
             // ignore: use_build_context_synchronously
             await showDialog(
+              // ignore: use_build_context_synchronously
               context: context,
               builder: (context) => onNoUpdate,
             );

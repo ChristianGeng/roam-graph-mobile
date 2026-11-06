@@ -305,6 +305,15 @@ class UpdateChecker {
   })  : preferences = preferences ?? MemoryUpdatePreferences(),
         fetcher = fetcher ?? GitHubReleaseFetcher();
 
+  /// Creates an UpdateChecker with explicit settings.
+  UpdateChecker.simple({
+    required String currentVersion,
+    bool includePreReleases = false,
+    GitHubReleaseFetcher? fetcher,
+  })  : currentVersion = currentVersion,
+        preferences = MemoryUpdatePreferences(includePreReleases: includePreReleases),
+        fetcher = fetcher ?? GitHubReleaseFetcher();
+
   final String currentVersion;
   final UpdatePreferences preferences;
   final ReleaseFetcher fetcher;

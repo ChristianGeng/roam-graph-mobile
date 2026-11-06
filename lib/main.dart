@@ -130,6 +130,7 @@ class RoamGraphApp extends StatelessWidget {
                 builder: (context, child) => UpdateCheckerWidget(
                   version: appVersion,
                   checkOnStart: settings.checkForUpdates,
+                  includePreReleases: settings.includePreReleases,
                   onUpdateAvailable: (release) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
