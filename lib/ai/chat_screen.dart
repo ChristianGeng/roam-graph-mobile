@@ -19,6 +19,7 @@ import '../edit/recent_changes_screen.dart';
 import '../edit/save_messages.dart';
 import '../graph/roam_db.dart' show TextHit;
 import '../graph/roam_graph.dart';
+import '../node_view/org_fonts.dart';
 import '../node_view/web_links.dart';
 import '../platform/error_text.dart';
 import '../platform/screen_awake.dart';
@@ -1250,7 +1251,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     // Selectable, as the Copy button copies it all (#94).
                     SelectionArea(
-                      child: OrgText(entry.text.trim(), onLinkTap: _openLink),
+                      // OrgText with ~code~ and =verbatim= in
+                      // monospace (#238).
+                      child: MonospaceOrgText(entry.text.trim(),
+                          onLinkTap: _openLink),
                     ),
                     Row(
                       children: [
