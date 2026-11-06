@@ -4256,6 +4256,48 @@ reviewer; opencode is named next to Devin and Claude as a builder.
 requests. opencode, given only AGENTS.md, pushed code that did not build,
 without the tests the issue asks for, and with placeholders in the CHANGELOG
 (#258). Gitar no longer reviews (free plan); CodeRabbit does.
+## 135. Desktop: check for updates, and "Update and restart" on Linux (#247)
+
+On the desktop, the app checks for a newer release on GitHub on start (at
+most once a day). A setting "Check for updates" (on by default on the
+desktop) turns it off. If a newer release exists, a short notice appears on
+the start screen, and Settings → About shows "Update available: 0.2.x"
+with "What's new" (the CHANGELOG entries since this version) and a link to
+the release page. On Linux, if the app was installed via install.sh, an
+"Update and restart" button runs install.sh --update and restarts the app.
+On Windows and macOS, a download link is shown instead. On Android, update
+checking is off by default (Obtainium is the updater there); if turned on,
+a notice links to the release page. A setting "Include pre-releases" (off)
+checks for pre-release versions too.
+
+- **Check for updates:** on start, at most once a day, the app asks GitHub
+  for the latest full release (`/releases/latest`, which is never a pre-release
+  or draft). It compares the version semantically with its own version
+  (`APP_VERSION`); a `-dev.N` build counts as older than its release. No
+  request while offline, no telemetry, nothing but this one read.
+- **Version comparison:** the app compares versions semantically, so
+  `0.2.4` > `0.2.4-dev.590` > `0.2.3`.
+- **Release information:** the app parses the GitHub release JSON, handles
+  rate limits (403/429) and offline cases, and extracts the changelog
+  entries since the current version.
+- **Linux "Update and restart":** only when the app runs from an install.sh
+  install (it finds install.sh next to itself in `…/roam-graph/app/`). It
+  runs install.sh --update, shows its output, and on success starts the new
+  app and quits. Ask first, never automatically. On failure, show the error
+  with its copy button (#182) and keep the running app. The data folder
+  (`~/.local/share/roam-graph/`, see #245) is not touched.
+- **Windows and macOS:** a download link to the release page. A running app
+  can't replace itself, and on macOS the download is quarantined and must
+  be re-signed.
+- **Android:** off by default; Obtainium is the updater there. If turned on,
+  a notice links to the release page.
+- **Pre-releases:** a setting "Include pre-releases" (off), for testing
+  builds like `v0.2.3-dev.581`. With it on, the check reads the newest
+  release, including pre-releases.
+- **Tests:** version comparison, parsing the release JSON (latest, pre-release,
+  no assets, rate limit 403/429, offline), "Update and restart" only offered
+  next to an install.sh, the setting off means no request. Desktop end-to-end
+  checks run under xvfb-run, never on the developer's display.
 
 ## Recommended, not decided
 

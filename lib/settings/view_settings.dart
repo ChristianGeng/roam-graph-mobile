@@ -97,6 +97,8 @@ class ViewSettings {
     this.imageFolder = defaultImageFolder,
     this.emacsClient = '',
     this.followEmacs = true,
+    this.checkForUpdates = true,
+    this.includePreReleases = false,
   }) : _swipeHeadings = swipeHeadings;
 
   /// Where new images go (#112), relative to `roam/`.
@@ -155,6 +157,14 @@ class ViewSettings {
   /// `roam-graph-follow-mode` is on there.
   final bool followEmacs;
 
+  /// Whether to check for updates on start (#247); on by default on the
+  /// desktop.
+  final bool checkForUpdates;
+
+  /// Whether to include pre-releases when checking for updates (#247);
+  /// off by default.
+  final bool includePreReleases;
+
   /// The command to run: [emacsClient], or [defaultEmacsClient].
   String get emacsCommand =>
       emacsClient.trim().isEmpty ? defaultEmacsClient : emacsClient.trim();
@@ -182,6 +192,8 @@ class ViewSettings {
     String? imageFolder,
     String? emacsClient,
     bool? followEmacs,
+    bool? checkForUpdates,
+    bool? includePreReleases,
   }) =>
       ViewSettings(
         sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
@@ -196,6 +208,8 @@ class ViewSettings {
         imageFolder: imageFolder ?? this.imageFolder,
         emacsClient: emacsClient ?? this.emacsClient,
         followEmacs: followEmacs ?? this.followEmacs,
+        checkForUpdates: checkForUpdates ?? this.checkForUpdates,
+        includePreReleases: includePreReleases ?? this.includePreReleases,
       );
 
   Map<String, Object?> toJson() => {
@@ -211,6 +225,8 @@ class ViewSettings {
         'imageFolder': imageFolder,
         'emacsClient': emacsClient,
         'followEmacs': followEmacs,
+        'checkForUpdates': checkForUpdates,
+        'includePreReleases': includePreReleases,
       };
 
   /// Settings from [json]; a missing or unknown value keeps its default.
@@ -264,6 +280,14 @@ class ViewSettings {
         final bool follow => follow,
         _ => defaults.followEmacs,
       },
+      checkForUpdates: switch (json['checkForUpdates']) {
+        final bool check => check,
+        _ => defaults.checkForUpdates,
+      },
+      includePreReleases: switch (json['includePreReleases']) {
+        final bool include => include,
+        _ => defaults.includePreReleases,
+      },
     );
   }
 
@@ -281,12 +305,14 @@ class ViewSettings {
       other._swipeHeadings == _swipeHeadings &&
       other.imageFolder == imageFolder &&
       other.emacsClient == emacsClient &&
-      other.followEmacs == followEmacs;
+      other.followEmacs == followEmacs &&
+      other.checkForUpdates == checkForUpdates &&
+      other.includePreReleases == includePreReleases;
 
   @override
   int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
       startLayout, lastLayout, theme, scripts, joinLines, _swipeHeadings,
-      imageFolder, emacsClient, followEmacs);
+      imageFolder, emacsClient, followEmacs, checkForUpdates, includePreReleases);
 }
 
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
@@ -757,6 +783,28 @@ class SettingsScreen extends StatelessWidget {
               value: settings.followEmacs,
               onChanged: (value) =>
                   _saveSettings(context, settings.copyWith(followEmacs: value)),
+            ),
+          if (isDesktop)
+            SwitchListTile(
+              key: const ValueKey('settings-check-for-updates'),
+              secondary: const Icon(Icons.system_update_outlined),
+              title: const Text('Check for updates'),
+              subtitle: const Text('On start, at most once a day, check for a '
+                  'newer release on GitHub. See Help, "Update checking".'),
+              value: settings.checkForUpdates,
+              onChanged: (value) =>
+                  _saveSettings(context, settings.copyWith(checkForUpdates: value)),
+            ),
+          if (isDesktop)
+            SwitchListTile(
+              key: const ValueKey('settings-include-pre-releases'),
+              secondary: const Icon(Icons.new_releases_outlined),
+              title: const Text('Include pre-releases'),
+              subtitle: const Text('Also check for pre-release versions when '
+                  'checking for updates.'),
+              value: settings.includePreReleases,
+              onChanged: (value) =>
+                  _saveSettings(context, settings.copyWith(includePreReleases: value)),
             ),
           if (isDesktop)
             ListTile(
