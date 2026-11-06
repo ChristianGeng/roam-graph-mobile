@@ -856,6 +856,7 @@ class SettingsScreen extends StatelessWidget {
               version: version,
               openUrl: openUrl,
               release: UpdateCheckResultStorage.latestResult?.release,
+              checkForUpdates: settings.checkForUpdates,
             ),
           ),
         ],

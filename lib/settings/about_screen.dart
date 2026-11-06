@@ -72,18 +72,20 @@ class AboutScreen extends StatefulWidget {
     required this.version,
     this.openUrl = openUrlOnDevice,
     this.release,
+    this.checkForUpdates = true,
   });
 
   final String version;
   final UrlOpener openUrl;
   final GitHubRelease? release;
+  final bool checkForUpdates;
 
   static Future<void> open(BuildContext context,
-          {required String version, UrlOpener openUrl = openUrlOnDevice, GitHubRelease? release}) =>
+          {required String version, UrlOpener openUrl = openUrlOnDevice, GitHubRelease? release, bool checkForUpdates = true}) =>
       Navigator.push(
         context,
         MaterialPageRoute<void>(
-            builder: (_) => AboutScreen(version: version, openUrl: openUrl, release: release)),
+            builder: (_) => AboutScreen(version: version, openUrl: openUrl, release: release, checkForUpdates: checkForUpdates)),
       );
 
   @override
@@ -98,9 +100,9 @@ class _AboutScreenState extends State<AboutScreen> {
   @override
   void initState() {
     super.initState();
-    // Use the passed release, or check for updates if on desktop
+    // Use the passed release, or check for updates if on desktop and enabled
     _effectiveRelease = widget.release;
-    if (_effectiveRelease == null && isDesktop) {
+    if (_effectiveRelease == null && isDesktop && widget.checkForUpdates) {
       _checkForUpdates();
     }
   }
