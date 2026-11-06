@@ -83,9 +83,9 @@ and do not ask for a merge, before.
 
 1. **It builds.** After each push, wait for all check runs. If one fails,
    read its annotations (`gh api repos/<owner>/<repo>/check-runs/<id>/annotations`)
-   and fix it. Analyzer errors seen often: an unused import, a default value
-   of an optional parameter that is not `const`, a `BuildContext` used after
-   an `await` without a `mounted` check.
+   and fix it. Analyzer errors seen often: an unused or unnecessary import,
+   a default value of an optional parameter that is not `const`, a
+   `BuildContext` used after an `await` without a `mounted` check.
 2. **The tests the issue names exist and pass.** A change in `lib/` or
    `android/` without tests for the new behaviour is not done. For a bug,
    write the test that fails first, then the fix.
