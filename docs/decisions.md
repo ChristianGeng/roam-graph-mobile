@@ -4195,8 +4195,11 @@ the same parsed tree. When the tree is new because the text changed, the
 headings that were open stay open, matched by their place in the heading
 tree: the titles from the top, equal titles under one parent numbered, a TODO
 keyword and a progress cookie (`[1/3]`) left out. Headings that are new
-follow the setting. A scan that finds nothing to read and the same listing as
-the last scan keeps the graph on show instead of making a new one.
+follow the setting. Two headings with the same title under one parent are told
+apart by their number, so a same-titled sibling put before another takes its
+place. A scan that finds nothing to read and the same files in the folder
+(path, time and size) as the last scan keeps the graph on show instead of
+making a new one.
 
 **Why:** `org_flutter` keeps how far each section is open by the id of the
 section object, set once when its controller is made. A tree made again for
