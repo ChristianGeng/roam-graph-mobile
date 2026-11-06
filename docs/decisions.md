@@ -4241,6 +4241,22 @@ covers the real changes of the text; the scan change stops the needless
 rebuilds. The quick-edit folding (#217) still keeps its state by section
 number.
 
+## 134. AGENTS.md says when a pull request is done (#259)
+
+**Decided:** AGENTS.md has a section "When a pull request is done" for every
+agent: it builds (all check runs read after each push), the tests the issue
+names exist and pass, no placeholders in the CHANGELOG, code or docs, a true
+"Done / Left" description, every review finding fixed or answered and its
+thread resolved, and a merge only on green CI, a CodeRabbit review of the
+newest commit and no open thread. When `main` moves on, `main` is merged in
+and both sides' entries stay. CodeRabbit replaces Gitar as the named
+reviewer; opencode is named next to Devin and Claude as a builder.
+
+**Why:** Sessions given these rules in their prompt delivered clean pull
+requests. opencode, given only AGENTS.md, pushed code that did not build,
+without the tests the issue asks for, and with placeholders in the CHANGELOG
+(#258). Gitar no longer reviews (free plan); CodeRabbit does.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
