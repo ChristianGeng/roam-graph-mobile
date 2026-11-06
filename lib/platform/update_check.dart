@@ -11,6 +11,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+
+import '../settings/view_settings.dart';
 import 'package:path/path.dart' as path;
 
 import 'desktop.dart';
@@ -236,6 +238,77 @@ class MemoryUpdatePreferences implements UpdatePreferences {
   Future<void> setLastSeenVersion(String? version) async {
     _lastSeenVersion = version;
   }
+}
+
+/// Implementation of [UpdatePreferences] that delegates to a callback.
+///
+/// This allows the update checker to trigger saves to the actual settings store.
+class CallbackUpdatePreferences implements UpdatePreferences {
+  CallbackUpdatePreferences({
+    required this.checkForUpdates,
+    required this.includePreReleases,
+    required this.lastCheckTime,
+    required this.lastSeenVersion,
+    required this.onSave,
+  });
+
+  @override
+  final bool checkForUpdates;
+
+  @override
+  final bool includePreReleases;
+
+  @override
+  final DateTime? lastCheckTime;
+
+  @override
+  final String? lastSeenVersion;
+
+  /// Callback to save preferences.
+  final Future<void> Function(bool, bool, DateTime?, String?) onSave;
+
+  @override
+  Future<void> setCheckForUpdates(bool value) async {
+    await onSave(value, includePreReleases, lastCheckTime, lastSeenVersion);
+  }
+
+  @override
+  Future<void> setIncludePreReleases(bool value) async {
+    await onSave(checkForUpdates, value, lastCheckTime, lastSeenVersion);
+  }
+
+  @override
+  Future<void> setLastCheckTime(DateTime? time) async {
+    await onSave(checkForUpdates, includePreReleases, time, lastSeenVersion);
+  }
+
+  @override
+  Future<void> setLastSeenVersion(String? version) async {
+    await onSave(checkForUpdates, includePreReleases, lastCheckTime, version);
+  }
+}
+
+/// Creates [UpdatePreferences] from [ViewSettings] with a save callback.
+///
+/// This bridges the update checker with the app's settings system.
+CallbackUpdatePreferences updatePreferencesFromViewSettings({
+  required ViewSettings settings,
+  required Future<void> Function(ViewSettings) onSave,
+}) {
+  return CallbackUpdatePreferences(
+    checkForUpdates: settings.checkForUpdates,
+    includePreReleases: settings.includePreReleases,
+    lastCheckTime: settings.lastUpdateCheckTime,
+    lastSeenVersion: settings.lastSeenVersion,
+    onSave: (checkForUpdates, includePreReleases, lastCheckTime, lastSeenVersion) async {
+      await onSave(settings.copyWith(
+        checkForUpdates: checkForUpdates,
+        includePreReleases: includePreReleases,
+        lastUpdateCheckTime: lastCheckTime,
+        lastSeenVersion: lastSeenVersion,
+      ));
+    },
+  );
 }
 
 /// Fetches releases from GitHub.

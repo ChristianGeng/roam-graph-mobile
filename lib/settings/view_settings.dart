@@ -100,6 +100,8 @@ class ViewSettings {
     this.followEmacs = true,
     this.checkForUpdates = true,
     this.includePreReleases = false,
+    this.lastUpdateCheckTime,
+    this.lastSeenVersion,
   }) : _swipeHeadings = swipeHeadings;
 
   /// Where new images go (#112), relative to `roam/`.
@@ -171,6 +173,12 @@ class ViewSettings {
   /// off by default.
   final bool includePreReleases;
 
+  /// The last time an update check was performed (#247).
+  final DateTime? lastUpdateCheckTime;
+
+  /// The last seen version from an update check (#247).
+  final String? lastSeenVersion;
+
   /// The command to run: [emacsClient], or [defaultEmacsClient].
   String get emacsCommand =>
       emacsClient.trim().isEmpty ? defaultEmacsClient : emacsClient.trim();
@@ -200,6 +208,8 @@ class ViewSettings {
     bool? followEmacs,
     bool? checkForUpdates,
     bool? includePreReleases,
+    DateTime? lastUpdateCheckTime,
+    String? lastSeenVersion,
   }) =>
       ViewSettings(
         sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
@@ -216,6 +226,8 @@ class ViewSettings {
         followEmacs: followEmacs ?? this.followEmacs,
         checkForUpdates: checkForUpdates ?? this.checkForUpdates,
         includePreReleases: includePreReleases ?? this.includePreReleases,
+        lastUpdateCheckTime: lastUpdateCheckTime ?? this.lastUpdateCheckTime,
+        lastSeenVersion: lastSeenVersion ?? this.lastSeenVersion,
       );
 
   Map<String, Object?> toJson() => {
@@ -233,6 +245,8 @@ class ViewSettings {
         'followEmacs': followEmacs,
         'checkForUpdates': checkForUpdates,
         'includePreReleases': includePreReleases,
+        'lastUpdateCheckTime': lastUpdateCheckTime?.toIso8601String(),
+        'lastSeenVersion': lastSeenVersion,
       };
 
   /// Settings from [json]; a missing or unknown value keeps its default.
@@ -293,6 +307,14 @@ class ViewSettings {
       includePreReleases: switch (json['includePreReleases']) {
         final bool include => include,
         _ => defaults.includePreReleases,
+      },
+      lastUpdateCheckTime: switch (json['lastUpdateCheckTime']) {
+        final String time => DateTime.parse(time),
+        _ => defaults.lastUpdateCheckTime,
+      },
+      lastSeenVersion: switch (json['lastSeenVersion']) {
+        final String version => version,
+        _ => defaults.lastSeenVersion,
       },
     );
   }
