@@ -814,28 +814,31 @@ class SettingsScreen extends StatelessWidget {
               onChanged: (value) =>
                   _saveSettings(context, settings.copyWith(followEmacs: value)),
             ),
-          if (isDesktop)
-            SwitchListTile(
-              key: const ValueKey('settings-check-for-updates'),
-              secondary: const Icon(Icons.system_update_outlined),
-              title: const Text('Check for updates'),
-              subtitle: const Text('On start, at most once a day, check for a '
-                  'newer release on GitHub. See Help, "Update checking".'),
-              value: settings.checkForUpdates,
-              onChanged: (value) =>
-                  _saveSettings(context, settings.copyWith(checkForUpdates: value)),
-            ),
-          if (isDesktop)
-            SwitchListTile(
-              key: const ValueKey('settings-include-pre-releases'),
-              secondary: const Icon(Icons.new_releases_outlined),
-              title: const Text('Include pre-releases'),
-              subtitle: const Text('Also check for pre-release versions when '
-                  'checking for updates.'),
-              value: settings.includePreReleases,
-              onChanged: (value) =>
-                  _saveSettings(context, settings.copyWith(includePreReleases: value)),
-            ),
+          // On Android the default is off (Obtainium is the updater
+          // there), but the user can turn it on (#247).
+          SwitchListTile(
+            key: const ValueKey('settings-check-for-updates'),
+            secondary: const Icon(Icons.system_update_outlined),
+            title: const Text('Check for updates'),
+            subtitle: Text(isDesktop
+                ? 'On start, at most once a day, check for a newer release '
+                    'on GitHub. See Help, "Update checking".'
+                : 'Off by default here; Obtainium updates the app. When on, '
+                    'a notice links to the release page on GitHub.'),
+            value: settings.checkForUpdates,
+            onChanged: (value) =>
+                _saveSettings(context, settings.copyWith(checkForUpdates: value)),
+          ),
+          SwitchListTile(
+            key: const ValueKey('settings-include-pre-releases'),
+            secondary: const Icon(Icons.new_releases_outlined),
+            title: const Text('Include pre-releases'),
+            subtitle: const Text('Also check for pre-release versions when '
+                'checking for updates.'),
+            value: settings.includePreReleases,
+            onChanged: (value) =>
+                _saveSettings(context, settings.copyWith(includePreReleases: value)),
+          ),
           if (isDesktop)
             ListTile(
               key: const ValueKey('settings-follow-emacs-snippet'),

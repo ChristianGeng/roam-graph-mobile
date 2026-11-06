@@ -115,9 +115,9 @@ class _AboutScreenState extends State<AboutScreen> {
     super.initState();
     final checker = widget.checker;
     _effectiveRelease = widget.release ?? checker?.lastResult?.release;
-    // Check on open only on the desktop and only when checking is on.
+    // Check on open only when checking is on (on Android only if the
+    // user turned it on, #247).
     if (_effectiveRelease == null &&
-        isDesktop &&
         checker != null &&
         checker.settings.checkForUpdates) {
       _checkForUpdates();
@@ -165,7 +165,7 @@ class _AboutScreenState extends State<AboutScreen> {
       appBar: AppBar(
         title: const Text('About'),
         actions: [
-          if (isDesktop)
+          if (widget.checker != null)
             IconButton(
               key: const ValueKey('about-check-for-updates'),
               icon: const Icon(Icons.refresh),

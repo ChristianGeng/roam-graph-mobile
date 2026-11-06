@@ -199,4 +199,37 @@ void main() {
       expect(find.textContaining('Graph 40 %, note 60 %'), findsOneWidget);
     });
   });
+
+  group('the update switches (#247)', () {
+    testWidgets('are shown on the desktop, on by default there',
+        (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        final store = await pumpSettings(tester);
+        final check = tester.widget<SwitchListTile>(
+            find.byKey(const ValueKey('settings-check-for-updates')));
+        expect(check.value, isTrue);
+        expect(find.byKey(const ValueKey('settings-include-pre-releases')),
+            findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('settings-check-for-updates')));
+        await tester.pumpAndSettle();
+        expect(store.settings.checkForUpdates, isFalse);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('are also shown on Android, off by default there',
+        (tester) async {
+      // Widget tests run as Android by default.
+      final store =
+          await pumpSettings(tester, settings: ViewSettings.withDefaults());
+      final check = tester.widget<SwitchListTile>(
+          find.byKey(const ValueKey('settings-check-for-updates')));
+      expect(check.value, isFalse);
+      await tester.tap(find.byKey(const ValueKey('settings-check-for-updates')));
+      await tester.pumpAndSettle();
+      expect(store.settings.checkForUpdates, isTrue);
+    });
+  });
 }
