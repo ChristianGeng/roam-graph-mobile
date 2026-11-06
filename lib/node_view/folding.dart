@@ -15,6 +15,51 @@ import '../settings/view_settings.dart';
 OrgVisibilityState startupState(OrgDocument document, SectionsOnOpen setting) =>
     OrgSettings.fromDocument(document, (_) {}).startupFolded ?? setting.state;
 
+/// Progress cookies (`[1/3]`, `[33%]`) in a heading's title: a checkbox
+/// changes them, and the heading is still the same heading.
+final _progressCookie = RegExp(r'\[\d*(?:/\d*|%)\]');
+
+/// The sections of [tree] and below it, by their place in the heading tree: the
+/// titles from the top, each with its number among the sections of the
+/// same title under the same parent. The objects of one parse are not the
+/// objects of the next, but this key is the same for a heading that is
+/// still there (#254). Progress cookies in the title are left out. If
+/// [tree] is itself a section, it is there too, with the empty key.
+///
+/// A heading with the same title as a sibling and moved past it takes its
+/// number: the folding follows the place, not the text.
+Map<String, OrgSection> sectionsByPath(OrgTree tree) {
+  final result = <String, OrgSection>{};
+  // A heading node's own section has the empty key.
+  if (tree is OrgSection) result[''] = tree;
+  void walk(OrgTree parent, String prefix) {
+    final seen = <String, int>{};
+    for (final section in parent.sections) {
+      final title = (section.headline.rawTitle ?? '')
+          .replaceAll(_progressCookie, '')
+          .trim();
+      final number = seen[title] = (seen[title] ?? 0) + 1;
+      final path = '$prefix$title\u0001$number\u0000';
+      result[path] = section;
+      walk(section, path);
+    }
+  }
+
+  walk(tree, '');
+  return result;
+}
+
+/// How far each section below [tree] is open, by [sectionsByPath]; the
+/// state of a section is [stateOf].
+Map<String, OrgVisibilityState> foldingByPath(
+  OrgTree tree,
+  OrgVisibilityState Function(OrgSection) stateOf,
+) =>
+    {
+      for (final MapEntry(:key, :value) in sectionsByPath(tree).entries)
+        key: stateOf(value),
+    };
+
 /// The state a heading node's own section starts in: open, so its text
 /// shows, with its subheadings in [state]. Folded, a heading node would
 /// show only its heading line.

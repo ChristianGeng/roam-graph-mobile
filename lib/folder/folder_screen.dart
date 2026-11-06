@@ -251,6 +251,26 @@ class _FolderScreenState extends State<FolderScreen>
       listing.length != _roamFiles.length ||
       listing.entries.any((e) => _roamFiles[e.key]?.modified != e.value);
 
+  /// The graph the index gave last, also when its scan was replaced by a
+  /// newer one before it could be shown.
+  RoamGraph? _lastUpdate;
+
+  /// Whether the files of the folder (not only the notes: images are among
+  /// them) are the files of the last scan, with the same size and time.
+  bool _sameFolderFiles(List<FolderFile> entries) {
+    final files = [
+      for (final entry in entries)
+        if (!entry.isDirectory) entry,
+    ];
+    return files.length == _folderFiles.length &&
+        files.every((file) {
+          final scanned = _folderFiles[file.path];
+          return scanned != null &&
+              scanned.modified == file.modified &&
+              scanned.size == file.size;
+        });
+  }
+
   static bool _sameSet(List<String> a, List<String> b) =>
       a.length == b.length && a.toSet().containsAll(b);
 
@@ -1075,8 +1095,29 @@ class _FolderScreenState extends State<FolderScreen>
     // scan must not store its contents after the newer one. The index runs
     // its calls in order, so checking here, before the call, is enough.
     if (generation != _generation) return;
-    final graph = await index.update(listing, contents,
-        folder: folder.uri, replace: replace);
+    // Nothing new, gone or changed since the last scan, and nothing to
+    // read again: the graph on show is still right. A new graph object
+    // would make every open view read its note and draw it again (#254),
+    // for example on every return to the app.
+    final shown = _result.graph;
+    final RoamGraph graph;
+    if (!replace &&
+        shown != null &&
+        _settled == _Status.indexed &&
+        _result.unreadable.isEmpty &&
+        forced.isEmpty &&
+        toRead.isEmpty &&
+        // The graph on show is the latest the index gave: an older scan
+        // that was replaced may have stored a newer one meanwhile.
+        identical(shown, _lastUpdate) &&
+        !_changedSinceScan(listing) &&
+        _sameFolderFiles(entries)) {
+      graph = shown;
+    } else {
+      graph = await index.update(listing, contents,
+          folder: folder.uri, replace: replace);
+      _lastUpdate = graph;
+    }
     _mustRead.removeAll(forced);
     final unreadable = [
       for (final MapEntry(key: path, value: content) in contents.entries)

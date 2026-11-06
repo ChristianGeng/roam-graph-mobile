@@ -6,21 +6,31 @@ import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 
 import '../edit/org_toggles.dart';
+import 'folding.dart';
 
 /// Sets each section of [tree] to its state in [states] (in the order of
 /// [sectionsOf]) once, before the first build, so a note read again after a
-/// quick edit keeps the sections open that were open. Below an
-/// [OrgController]; without [states] it does nothing.
+/// quick edit keeps the sections open that were open. Failing that, it
+/// sets the sections found in [byPath] (#254). Below an [OrgController];
+/// without either it does nothing.
 class KeepFolding extends StatefulWidget {
   const KeepFolding({
     super.key,
     required this.tree,
     required this.states,
+    this.byPath,
     required this.child,
   });
 
   final OrgTree tree;
+
+  /// The state of each section of [tree] in the order of the text, after
+  /// a quick edit.
   final List<OrgVisibilityState>? states;
+
+  /// Otherwise the state of the sections that were there before, by
+  /// [sectionsByPath]: the others start as the controller says (#254).
+  final Map<String, OrgVisibilityState>? byPath;
   final Widget child;
 
   @override
@@ -35,12 +45,20 @@ class _KeepFoldingState extends State<KeepFolding> {
     super.didChangeDependencies();
     if (_applied) return;
     _applied = true;
-    final states = widget.states;
-    if (states == null) return;
+    final states = widget.states, byPath = widget.byPath;
+    if (states == null && byPath == null) return;
     final controller = OrgController.of(context);
-    for (final (i, section) in sectionsOf(widget.tree).indexed) {
-      if (i >= states.length) break;
-      controller.setVisibilityOf(section, (_) => states[i]);
+    if (states != null) {
+      for (final (i, section) in sectionsOf(widget.tree).indexed) {
+        if (i >= states.length) break;
+        controller.setVisibilityOf(section, (_) => states[i]);
+      }
+      return;
+    }
+    for (final MapEntry(:key, :value) in sectionsByPath(widget.tree).entries) {
+      if (byPath![key] case final state?) {
+        controller.setVisibilityOf(value, (_) => state);
+      }
     }
   }
 
