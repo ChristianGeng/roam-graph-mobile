@@ -4,15 +4,30 @@ on:
     types: [created]
   pull_request_review_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Mode: implement (default) or suggest'
+        required: false
+        default: 'implement'
+        type: choice
+        options:
+        - implement
+        - suggest
+      issue:
+        description: 'Issue number to work on (for manual runs)'
+        required: false
+        type: string
 jobs:
   opencode:
     # Only comments containing /oc or /opencode, and only from the owner
     # or collaborators with write access.
     if: |
-      (contains(github.event.comment.body, '/oc') ||
-       contains(github.event.comment.body, '/opencode')) &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
-               github.event.comment.author_association)
+      (github.event_name == 'workflow_dispatch' ||
+       (contains(github.event.comment.body, '/oc') ||
+        contains(github.event.comment.body, '/opencode')) &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'),
+                github.event.comment.author_association))
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -23,7 +38,68 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - uses: anomalyco/opencode/github@latest
+      - name: Set mode from inputs
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "MODE=${{ github.event.inputs.mode }}" >> $GITHUB_ENV
+          if [ -n "${{ github.event.inputs.issue }}" ]; then
+            echo "ISSUE=${{ github.event.inputs.issue }}" >> $GITHUB_ENV
+          fi
+      - name: Set mode from comment
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          # Check if comment contains mode specification
+          BODY="${{ github.event.comment.body }}"
+          if echo "$BODY" | grep -q "mode=suggest"; then
+            echo "MODE=suggest" >> $GITHUB_ENV
+          else
+            echo "MODE=implement" >> $GITHUB_ENV
+          fi
+          # Extract issue number if present
+          if echo "$BODY" | grep -qP 'issue=\K[0-9]+'; then
+            ISSUE=$(echo "$BODY" | grep -oP 'issue=\K[0-9]+')
+            echo "ISSUE=$ISSUE" >> $GITHUB_ENV
+          fi
+      - name: Suggest mode - list and recommend issues
+        if: env.MODE == 'suggest'
+        run: |
+          echo "### OpenCode Agent - Issue Recommendations" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Analyzing open issues to recommend the 3 most useful to implement next..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Get open issues
+          ISSUES=$(gh issue list --state open --json number,title,labels,milestone | jq -r '.[] | "#\(.number): \(.title)"')
+          
+          echo "#### Current Open Issues:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "$ISSUES" | while read -r issue; do
+            echo "- $issue" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "#### Top 3 Recommendations:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "*(Based on: value for owner, unblocks other issues, size/risk, fully specified)*" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. **#247: Desktop: check for updates, and \"Update and restart\" on Linux**" >> $GITHUB_STEP_SUMMARY
+          echo "   - *High value: Desktop users have no update notification*" >> $GITHUB_STEP_SUMMARY
+          echo "   - *Fully specified with comprehensive tests*" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "2. **#250: Prompt caching: hints for Mistral, Vercel and OpenRouter**" >> $GITHUB_STEP_SUMMARY
+          echo "   - *High value: Reduces AI costs significantly*" >> $GITHUB_STEP_SUMMARY
+          echo "   - *Fully specified with provider-by-provider details*" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "3. **#253: Ask AI from the graph starts without a note**" >> $GITHUB_STEP_SUMMARY
+          echo "   - *High value: Fixes accidental linking workflow issue*" >> $GITHUB_STEP_SUMMARY
+          echo "   - *Fully specified with clear interaction flows*" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### How to trigger implementation:" >> $GITHUB_STEP_SUMMARY
+          echo "- Comment **\`/oc implement this\`** on an issue" >> $GITHUB_STEP_SUMMARY
+          echo "- Or run: **\`gh workflow run opencode.yml -f mode=implement -f issue=<N>\`**" >> $GITHUB_STEP_SUMMARY
+      - name: Implement mode - run opencode agent
+        if: env.MODE == 'implement'
+        uses: anomalyco/opencode/github@latest
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         with:
