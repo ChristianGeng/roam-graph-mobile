@@ -1787,18 +1787,41 @@ class _NodeScreenState extends State<NodeScreen> {
     );
   }
 
-  /// The Org text of [node]: the file, or the heading's subtree.
-  Widget _org(RoamNode node, String text) {
+  /// The note as last parsed, with what it was parsed from.
+  ({Object key, String nodeId, int version, OrgDocument document})? _parsed;
+  var _parsedVersion = 0;
+
+  /// The parsed [text] of [node] as the settings in [view] show it. The
+  /// same input gives the same tree, not a new parse: `OrgController`
+  /// keeps how far each section is open by the section objects of one
+  /// tree, so a tree made again for the same text would fold everything
+  /// (#254). When the input changed, the sections that were open in the
+  /// tree before are returned in `carried`, by their place in the heading
+  /// tree.
+  ({
+    OrgDocument document,
+    int version,
+    Map<String, OrgVisibilityState>? carried,
+  }) _parsedNote(RoamNode node, String text, ViewSettings view) {
     final files = widget.files;
+    // The note's own #+OPTIONS: ^: wins over the setting (#213).
+    final scriptMode = scriptModeOf(text) ?? view.scripts;
+    final key = (text, scriptMode, view.joinLines, node.file);
+    final kept = _parsed;
+    if (kept != null && kept.nodeId == node.id && kept.key == key) {
+      return (document: kept.document, version: kept.version, carried: null);
+    }
+    // The note before, as the person left it, if it is still on screen.
+    final carried = kept != null && kept.nodeId == node.id
+        ? _foldingByPath()
+        : null;
     // Source blocks coloured as Emacs colours them (#45); display formulas
     // in display mode (#50); mermaid blocks without a result image drawn
     // (#49); sub- and superscripts as the mode says (#213); the lines of
     // a paragraph joined, if the setting says so (#219).
-    final view = ViewSettingsScope.of(context);
     final scripted = withScripts(
       withDisplayFormulas(withHighlightLanguages(parseNote(text))),
-      // The note's own #+OPTIONS: ^: wins over the setting (#213).
-      scriptModeOf(text) ?? view.scripts,
+      scriptMode,
     );
     final document = withMermaidDrawings(
       view.joinLines ? withJoinedLines(scripted) : scripted,
@@ -1810,6 +1833,27 @@ class _NodeScreenState extends State<NodeScreen> {
             files.find(path) != null;
       },
     );
+    final version = ++_parsedVersion;
+    _parsed = (key: key, nodeId: node.id, version: version, document: document);
+    return (document: document, version: version, carried: carried);
+  }
+
+  /// How far each section of the note on screen is open, by its place in
+  /// the heading tree; null if nothing is on screen.
+  Map<String, OrgVisibilityState>? _foldingByPath() {
+    final orgContext = _orgContext;
+    if (orgContext == null || !orgContext.mounted) return null;
+    final controller = OrgController.of(orgContext);
+    return foldingByPath(controller.root,
+        (section) => controller.nodeFor(section).visibility.value);
+  }
+
+  /// The Org text of [node]: the file, or the heading's subtree.
+  Widget _org(RoamNode node, String text) {
+    final files = widget.files;
+    final view = ViewSettingsScope.of(context);
+    final parsed = _parsedNote(node, text, view);
+    final document = parsed.document;
     final OrgTree? tree =
         node.isFile ? document : document.sectionWithId(node.id);
     if (tree == null) {
@@ -1821,8 +1865,7 @@ class _NodeScreenState extends State<NodeScreen> {
     }
     // Sections open as the setting says, or as the file's #+STARTUP: says
     // (#63).
-    final state =
-        startupState(document, view.sectionsOnOpen);
+    final state = startupState(document, view.sectionsOnOpen);
     final writer = _editWriter;
     // The folding before a quick edit, when this is the same note after it.
     List<OrgVisibilityState>? folding;
@@ -1850,6 +1893,7 @@ class _NodeScreenState extends State<NodeScreen> {
     final body = KeepFolding(
       tree: tree,
       states: folding,
+      byPath: parsed.carried,
       child: NoteSearchHits(
         hits: _hits,
         child: Builder(builder: (context) {
@@ -1911,9 +1955,10 @@ class _NodeScreenState extends State<NodeScreen> {
             child: shown,
           );
     return OrgController(
-      // A new controller for new text or a new setting, so the folding
-      // starts again.
-      key: ValueKey((text, state)),
+      // A new controller for another parsed tree or startup state: its
+      // folding belongs to the sections of one tree. The same parse gives
+      // the same tree, so a rebuild keeps the folding (#254).
+      key: ValueKey((parsed.version, state)),
       root: tree,
       settings: OrgSettings(startupFolded: state),
       // Search inside the note (#152).
