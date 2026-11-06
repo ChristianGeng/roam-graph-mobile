@@ -57,10 +57,10 @@ folder is the only connection.
 
 1. **Plan:** the owner and Claude agree on the change; Claude writes the
    issue.
-2. **Build:** Devin, opencode or Claude, in a new session for each issue,
-   started with a prompt that names the issue and the rules of this file.
-   One pull request per issue, with "Closes #<issue>". Devin and opencode
-   do not merge.
+2. **Build:** Devin or opencode, in a new session for each issue, started
+   with a prompt that names the issue and the rules of this file; or Claude,
+   when the owner says so. One pull request per issue, with
+   "Closes #<issue>". Devin and opencode do not merge.
 3. **Review:** CI (Android build with all tests, Linux, Windows, macOS,
    changelog, org-roam) and the review bots (CodeRabbit, Sourcery, Devin).
    Every finding is fixed or answered. Findings for Devin go to Devin as a
