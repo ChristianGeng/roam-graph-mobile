@@ -19,6 +19,7 @@ import 'platform/chat_background.dart';
 import 'platform/desktop.dart';
 import 'platform/follow_emacs.dart';
 import 'platform/text_drop.dart';
+// ignore: unused_import
 import 'platform/update_check.dart' show GitHubRelease;
 import 'platform/update_notification.dart';
 import 'node_view/web_links.dart' show openUrlOnDevice;

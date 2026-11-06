@@ -249,7 +249,7 @@ abstract interface class ReleaseFetcher {
 
 /// Default implementation using the GitHub API.
 class GitHubReleaseFetcher implements ReleaseFetcher {
-  const GitHubReleaseFetcher({http.Client? client})
+  GitHubReleaseFetcher({http.Client? client})
       : client = client ?? http.Client();
 
   final http.Client client;

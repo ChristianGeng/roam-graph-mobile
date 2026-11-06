@@ -98,7 +98,7 @@ class ViewSettings {
     this.imageFolder = defaultImageFolder,
     this.emacsClient = '',
     this.followEmacs = true,
-    this.checkForUpdates = _defaultCheckForUpdates,
+    this.checkForUpdates = true,
     this.includePreReleases = false,
   }) : _swipeHeadings = swipeHeadings;
 
@@ -109,8 +109,10 @@ class ViewSettings {
   /// so the note gets 60 %.
   static const defaultGraphShare = 0.4;
 
-  /// Default value for checkForUpdates: true on desktop, false on Android.
-  static bool get _defaultCheckForUpdates => isDesktop;
+  /// Creates ViewSettings with platform-specific defaults.
+  factory ViewSettings.withDefaults() => ViewSettings(
+    checkForUpdates: isDesktop,
+  );
 
   /// By default [SectionsOnOpen.collapsed]: on a phone, the headings first.
   final SectionsOnOpen sectionsOnOpen;
@@ -363,10 +365,10 @@ class FileViewSettingsStore implements ViewSettingsStore {
   Future<ViewSettings> load() async {
     try {
       final file = await _file();
-      if (!file.existsSync()) return const ViewSettings();
+      if (!file.existsSync()) return ViewSettings.withDefaults();
       return ViewSettings.fromJson(jsonDecode(file.readAsStringSync()));
     } on Exception {
-      return const ViewSettings();
+      return ViewSettings.withDefaults();
     }
   }
 
@@ -383,7 +385,8 @@ class FileViewSettingsStore implements ViewSettingsStore {
 
 /// [ViewSettingsStore] in memory, for tests.
 class MemoryViewSettingsStore implements ViewSettingsStore {
-  MemoryViewSettingsStore([this.settings = const ViewSettings()]);
+  MemoryViewSettingsStore([ViewSettings? settings])
+      : settings = settings ?? ViewSettings.withDefaults();
 
   ViewSettings settings;
 
@@ -411,7 +414,7 @@ class ViewSettingsHost extends StatefulWidget {
 }
 
 class _ViewSettingsHostState extends State<ViewSettingsHost> {
-  final _settings = ValueNotifier(const ViewSettings());
+  late final _settings = ValueNotifier(ViewSettings.withDefaults());
 
   /// The saves so far, one after the other, so the file ends with the
   /// latest choice.
@@ -422,7 +425,7 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
 
   /// What the file holds as far as known: the settings loaded, then each
   /// one saved. Used when the latest save fails.
-  ViewSettings _inFile = const ViewSettings();
+  late ViewSettings _inFile = ViewSettings.withDefaults();
 
   /// Whether a save succeeded; then the file is newer than what was
   /// loaded.
@@ -440,7 +443,7 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
       try {
         settings = await widget.store.load();
       } on Exception {
-        settings = const ViewSettings();
+        settings = ViewSettings.withDefaults();
       }
       if (mounted && !_saved) {
         _inFile = settings;
@@ -517,7 +520,7 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
     if (loaded != null) {
       await loaded.timeout(limit, onTimeout: () {});
     }
-    return scope?.notifier?.value ?? const ViewSettings();
+    return scope?.notifier?.value ?? ViewSettings.withDefaults();
   }
 
   /// Saves and applies new settings; see [change].
@@ -531,7 +534,7 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
           .dependOnInheritedWidgetOfExactType<ViewSettingsScope>()
           ?.notifier
           ?.value ??
-      const ViewSettings();
+      ViewSettings.withDefaults();
 
   /// Saves [settings], then uses them. Changes are saved in the order they
   /// are made, and only the latest is used, so a slow earlier save cannot
@@ -544,7 +547,7 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
           .getInheritedWidgetOfExactType<ViewSettingsScope>()
           ?.notifier
           ?.value ??
-      const ViewSettings();
+      ViewSettings.withDefaults();
 
   static Future<void> change(BuildContext context, ViewSettings settings) async {
     final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
