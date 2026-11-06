@@ -86,12 +86,13 @@ and do not ask for a merge, before.
    and fix it. Analyzer errors seen often: an unused import, a default value
    of an optional parameter that is not `const`, a `BuildContext` used after
    an `await` without a `mounted` check.
-2. **The tests the issue names exist and pass.** A change in `lib/` without
-   tests for the new behaviour is not done. For a bug, write the test that
+2. **The tests the issue names exist and pass.** A change in `lib/` or
+   `android/` without tests for the new behaviour is not done. For a bug, write the test that
    fails first, then the fix.
 3. **No placeholders.** The CHANGELOG heading has the real date and the real
    pull request number and link; fill them in once the pull request exists.
-   No `YYYY-MM-DD`, no empty `#`, no "TODO" in code or docs.
+   No `YYYY-MM-DD`, no empty `#` and no "TODO" left as a placeholder in what
+   you add. Templates that tell how to write an entry are not placeholders.
 4. **The description is true.** It says what is done and what is left
    ("Done / Left"). It does not claim a test or a behaviour that is not there.
 5. **Reviews are dealt with.** CodeRabbit reviews every pull request that is
