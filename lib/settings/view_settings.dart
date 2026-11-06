@@ -4,7 +4,7 @@
 /// The settings are a JSON file in the app's support folder, read once at
 /// the start and written when they change. Screens read them through
 /// [ViewSettingsScope]. Secrets, such as API keys, never go here: they
-/// belong in Android's secure storage.
+/// belong in the platform's secure storage (see `SecureApiKeyStore`).
 library;
 
 import 'dart:async';

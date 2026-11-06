@@ -4187,7 +4187,38 @@ follow-up issue.
   (`Table` with one cell per value and `IntrinsicColumnWidth`), so the
   columns line up in any font.
 
-## 132. The note view keeps its folding (#254)
+## 132. API keys from environment variables on the desktop (#236)
+
+On Linux, Windows and macOS the app takes a key from an environment
+variable when none is saved in the app.
+- **Precedence:** first the key saved in the secret store
+  (`flutter_secure_storage`: the system keyring, the Keychain; on Windows
+  encrypted files in the app's data folder, with their key in Credential
+  Manager), then the variable. A typed key is a deliberate choice; a
+  variable is only what happens to be set. The app never copies a variable
+  into the store, so removing works only on a saved key.
+- **Names:** the ones each provider's own SDK uses, in `keyVariables`
+  (`ai_settings.dart`); the first one set wins. Vercel has two:
+  `VERCEL_AI_GATEWAY_API_KEY` (the live tests and the repository secrets)
+  and `AI_GATEWAY_API_KEY` (Vercel's own). `custom` reads none. A value
+  that is only whitespace counts as not set.
+- **Android reads no environment.** `EnvApiKeyStore` wraps
+  `SecureApiKeyStore` and reads `Platform.environment` only when
+  `isDesktop`; tests give the environment as a map.
+- **Settings:** a key from a variable is not shown as saved. Its field says
+  "Read from MISTRAL_API_KEY. A key typed here is saved in the app and
+  takes precedence." and has no Remove button. The help of the key fields
+  names the platform's store instead of "Android's secure storage" on
+  every platform.
+  Where a setting depends on whether a key exists (the automatic speech
+  provider, the line on web search), a key from a variable counts.
+- **Why not only variables:** an app started from the menu, the dock or
+  the Start menu does not get the variables of a shell profile, and
+  Android has none; the secret store works for every way the app is
+  started. The help page "The desktop app" says how to set variables for
+  the desktop session.
+
+## 133. The note view keeps its folding (#254)
 
 **Decided:** the node view parses a note again only when its text, its
 scripts mode, its line joining or its file changes; any other rebuild keeps

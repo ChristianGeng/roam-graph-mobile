@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:path_provider/path_provider.dart';
@@ -643,9 +644,111 @@ abstract interface class ApiKeyStore {
   Future<void> write(String provider, String key);
 }
 
-/// [ApiKeyStore] in Android's secure storage: encrypted with a key that
-/// the Android Keystore holds, in the app's private storage. Not in the
-/// notes, not in a plain file.
+/// The environment variables of each key id on the desktop (#236), the
+/// names each provider's own SDK uses; the first one set wins.
+/// `VERCEL_AI_GATEWAY_API_KEY` is the name of the live tests and the
+/// repository secrets, `AI_GATEWAY_API_KEY` Vercel's own. `custom` has
+/// none.
+const keyVariables = <String, List<String>>{
+  'mistral': ['MISTRAL_API_KEY'],
+  'vercel': ['VERCEL_AI_GATEWAY_API_KEY', 'AI_GATEWAY_API_KEY'],
+  'openrouter': ['OPENROUTER_API_KEY'],
+  'anthropic': ['ANTHROPIC_API_KEY'],
+  'deepseek': ['DEEPSEEK_API_KEY'],
+  'qwen': ['DASHSCOPE_API_KEY'],
+  'scaleway': ['SCW_SECRET_KEY'],
+  'huggingface': ['HF_TOKEN'],
+  'bedrock-eu': ['AWS_BEARER_TOKEN_BEDROCK'],
+  'openai-speech': ['OPENAI_API_KEY'],
+  'brave-search': ['BRAVE_API_KEY'],
+};
+
+/// Where this platform keeps the keys, for the help of the key fields.
+String get keyStoreName => switch (defaultTargetPlatform) {
+      TargetPlatform.linux => 'the system keyring',
+      TargetPlatform.macOS => 'the Keychain',
+      TargetPlatform.windows => 'app files, encrypted with a key '
+          'that Credential Manager holds',
+      _ => "Android's secure storage",
+    };
+
+/// The help of a key field that has no saved key: where a typed key is
+/// kept, or the variable the key is read from (#236).
+String keyFieldHelp(String? variable) => variable == null
+    ? 'Kept in $keyStoreName, never in the notes.'
+    : 'Read from $variable. A key typed here is saved in the app '
+        'and takes precedence.';
+
+/// [ApiKeyStore] that reads a key saved in [inner] first and, when none
+/// is saved, the key's environment variable (#236; see [keyVariables]).
+/// Saving and removing go to [inner] only: a key from the environment is
+/// never copied into the store.
+class EnvApiKeyStore implements ApiKeyStore {
+  /// [environment] is the process environment on the desktop and empty
+  /// on Android when not given; tests give their own.
+  const EnvApiKeyStore({
+    this.inner = const SecureApiKeyStore(),
+    this.environment,
+  });
+
+  final ApiKeyStore inner;
+  final Map<String, String>? environment;
+
+  /// Whether keys are read from an environment: a given one, or the
+  /// process environment on the desktop. Android reads none.
+  bool get readsEnvironment => environment != null || isDesktop;
+
+  Map<String, String> get _environment => environment ??
+      (readsEnvironment ? Platform.environment : const <String, String>{});
+
+  /// The key saved in [inner], empty when none.
+  Future<String> stored(String provider) async =>
+      (await inner.read(provider))?.trim() ?? '';
+
+  /// The variable [provider]'s key is read from: the first of its
+  /// variables that is set and not only whitespace, or null.
+  String? variable(String provider) {
+    for (final name in keyVariables[provider] ?? const <String>[]) {
+      if ((_environment[name] ?? '').trim().isNotEmpty) return name;
+    }
+    return null;
+  }
+
+  @override
+  Future<String?> read(String provider) async {
+    final saved = await stored(provider);
+    if (saved.isNotEmpty) return saved;
+    final name = variable(provider);
+    return name == null ? null : _environment[name]!.trim();
+  }
+
+  @override
+  Future<void> write(String provider, String key) =>
+      inner.write(provider, key);
+}
+
+/// Whether [keys] has a key saved for [provider], and, when not, the
+/// variable it is read from (#236). A key from a variable is not "saved":
+/// it cannot be removed in the app.
+Future<({bool saved, String? variable})> keyState(
+    ApiKeyStore? keys, String provider) async {
+  try {
+    if (keys is EnvApiKeyStore) {
+      final saved = (await keys.stored(provider)).isNotEmpty;
+      return (saved: saved, variable: saved ? null : keys.variable(provider));
+    }
+    final saved = (await keys?.read(provider))?.trim() ?? '';
+    return (saved: saved.isNotEmpty, variable: null);
+  } on Exception {
+    return (saved: false, variable: null);
+  }
+}
+
+/// [ApiKeyStore] in the platform's secure storage (`flutter_secure_storage`):
+/// on Android encrypted with a key that the Android Keystore holds, in the
+/// app's private storage; on the desktop the system keyring, the Keychain
+/// or, on Windows, app files encrypted with a key that Credential Manager
+/// holds. Not in the notes, not in a plain file.
 class SecureApiKeyStore implements ApiKeyStore {
   const SecureApiKeyStore();
 
@@ -709,7 +812,7 @@ class AiSettingsHost extends StatefulWidget {
   const AiSettingsHost({
     super.key,
     this.store = const FileAiSettingsStore(),
-    this.keys = const SecureApiKeyStore(),
+    this.keys = const EnvApiKeyStore(),
     required this.child,
   });
 
@@ -844,7 +947,7 @@ class _ScopeImageAgents implements ImageAgents {
 
 /// What the page holds for one provider until it is saved.
 class _Draft {
-  _Draft(ProviderSettings settings, this.hasKey)
+  _Draft(ProviderSettings settings, this.hasKey, [this.keyVariable])
       : api = settings.api,
         euOnly = settings.euOnly,
         imageApi = settings.imageApi,
@@ -872,6 +975,16 @@ class _Draft {
   /// Whether a key is saved.
   bool hasKey;
   bool removeKey = false;
+
+  /// Whether a key will be used: one typed in, a saved one that is not
+  /// being removed, or one read from a variable (#236).
+  bool get hasUsableKey =>
+      key.text.trim().isNotEmpty ||
+      (hasKey && !removeKey) ||
+      keyVariable != null;
+
+  /// The variable the key is read from when none is saved (#236).
+  final String? keyVariable;
 
   ProviderSettings get settings => ProviderSettings(
         api: api,
@@ -980,6 +1093,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _braveKey = TextEditingController();
   bool _braveKeySaved = false;
   bool _braveKeyRemove = false;
+  String? _braveKeyVariable;
   bool _notifyAnswers = true;
 
   /// "Speech to text" (#221): '' for automatic, else a provider ID.
@@ -996,6 +1110,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   final _openAiKey = TextEditingController();
   bool _openAiKeySaved = false;
   bool _openAiKeyRemove = false;
+  String? _openAiKeyVariable;
   AiEditMode _editMode = AiEditMode.agent;
   AiSettings? _loaded;
   String? _problem;
@@ -1128,21 +1243,15 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           ? settings.speechLanguage
           : settings.newNoteLanguage;
       _speechSpeakers = settings.speechSpeakers;
-      try {
-        final saved = await AiSettingsScope.keysOf(context)
-            ?.read(speechProviderById('openai').keyId);
-        _openAiKeySaved = saved != null && saved.isNotEmpty;
-      } on Exception {
-        _openAiKeySaved = false;
-      }
+      final openAi = await keyState(AiSettingsScope.keysOf(context),
+          speechProviderById('openai').keyId);
+      _openAiKeySaved = openAi.saved;
+      _openAiKeyVariable = openAi.variable;
       if (!mounted) return;
-      try {
-        final saved =
-            await AiSettingsScope.keysOf(context)?.read(braveKeyId);
-        _braveKeySaved = saved != null && saved.trim().isNotEmpty;
-      } on Exception {
-        _braveKeySaved = false;
-      }
+      final brave =
+          await keyState(AiSettingsScope.keysOf(context), braveKeyId);
+      _braveKeySaved = brave.saved;
+      _braveKeyVariable = brave.variable;
       _editMode = settings.editMode;
       await _draft('mistral');
       await _draft(_provider);
@@ -1159,17 +1268,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   Future<_Draft> _draft(String id) async {
     final existing = _drafts[id];
     if (existing != null) return existing;
-    final keys = AiSettingsScope.keysOf(context);
-    String? key;
-    try {
-      key = await keys?.read(id);
-    } on Exception {
-      key = null;
-    }
+    final state = await keyState(AiSettingsScope.keysOf(context), id);
     final known = _drafts[id];
     if (known != null) return known;
-    final draft = _drafts[id] = _Draft(
-        _loaded!.providerSettings(id), key != null && key.isNotEmpty);
+    final draft = _drafts[id] =
+        _Draft(_loaded!.providerSettings(id), state.saved, state.variable);
     // A new base URL or key: the list is fetched again (#113).
     draft.baseUrl.addListener(() => _connectionChanged(id));
     draft.key.addListener(() => _connectionChanged(id));
@@ -1536,11 +1639,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   String _effectiveSpeechProvider() {
     if (_speechProvider.isNotEmpty) return _speechProvider;
     final mistral = _drafts['mistral'];
-    final mistralKey = mistral != null &&
-        (mistral.key.text.trim().isNotEmpty ||
-            (mistral.hasKey && !mistral.removeKey));
+    final mistralKey = mistral != null && mistral.hasUsableKey;
     final openAiKey = _openAiKey.text.trim().isNotEmpty ||
-        (_openAiKeySaved && !_openAiKeyRemove);
+        (_openAiKeySaved && !_openAiKeyRemove) ||
+        _openAiKeyVariable != null;
     return mistralKey || !openAiKey ? 'mistral' : 'openai';
   }
 
@@ -1555,9 +1657,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   List<Widget> _speechSection(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final mistralDraft = _drafts['mistral'];
-    final mistralKey = mistralDraft != null &&
-        (mistralDraft.key.text.trim().isNotEmpty ||
-            (mistralDraft.hasKey && !mistralDraft.removeKey));
+    final mistralKey = mistralDraft != null && mistralDraft.hasUsableKey;
     final provider = speechProviderById(_effectiveSpeechProvider());
     return [
       Text(
@@ -1625,7 +1725,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           labelText: 'OpenAI API key (for speech to text only)',
           helperText: _openAiKeySaved && !_openAiKeyRemove
               ? 'A key is saved. Type a new one to replace it.'
-              : "Kept in Android's secure storage, never in the notes.",
+              : keyFieldHelp(_openAiKeyVariable),
           helperMaxLines: 2,
         ),
       ),
@@ -1899,7 +1999,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           labelText: preset.keyHint,
           helperText: draft.hasKey && !draft.removeKey
               ? 'A key is saved. Type a new one to replace it.'
-              : 'Kept in Android\'s secure storage, never in the notes.',
+              : keyFieldHelp(draft.keyVariable),
           helperMaxLines: 2,
         ),
       ),
@@ -2248,7 +2348,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           labelText: 'Brave Search API key',
           helperText: _braveKeySaved && !_braveKeyRemove
               ? 'A key is saved. Type a new one to replace it.'
-              : "Kept in Android's secure storage, never in the notes. "
+              : '${keyFieldHelp(_braveKeyVariable)} '
                   'Searching with Brave works for every provider.',
           helperMaxLines: 3,
         ),
@@ -2314,7 +2414,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   String _webCapability() {
     final name = presetById(_provider).name;
     final key = _braveKey.text.trim().isNotEmpty ||
-        (_braveKeySaved && !_braveKeyRemove);
+        (_braveKeySaved && !_braveKeyRemove) ||
+        _braveKeyVariable != null;
     return webCapabilityLine(name,
         providerSearch: _providerHasSearch,
         searchWith: _webSearchWith,
