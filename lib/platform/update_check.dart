@@ -116,8 +116,40 @@ int compareVersions(String a, String b) {
   if (aParts.length > 1 && bParts.length == 1) return -1;
   if (aParts.length == 1 && bParts.length > 1) return 1;
   if (aParts.length > 1 && bParts.length > 1) {
-    // Both have pre-release parts, compare them lexicographically
-    return a.compareTo(b);
+    // Both have pre-release parts, compare them properly
+    // Split the pre-release parts and compare each segment
+    final aPre = aParts[1];
+    final bPre = bParts[1];
+    final aPreParts = aPre.split('.');
+    final bPreParts = bPre.split('.');
+    
+    for (var i = 0; i < aPreParts.length && i < bPreParts.length; i++) {
+      final aPart = aPreParts[i];
+      final bPart = bPreParts[i];
+      
+      // Try to parse as numbers first
+      final aNum = int.tryParse(aPart);
+      final bNum = int.tryParse(bPart);
+      
+      if (aNum != null && bNum != null) {
+        // Both are numbers, compare numerically
+        final cmp = aNum.compareTo(bNum);
+        if (cmp != 0) return cmp;
+      } else if (aNum != null) {
+        // a is number, b is not - numbers come before strings
+        return -1;
+      } else if (bNum != null) {
+        // b is number, a is not - numbers come before strings
+        return 1;
+      } else {
+        // Both are strings, compare lexicographically
+        final cmp = aPart.compareTo(bPart);
+        if (cmp != 0) return cmp;
+      }
+    }
+    
+    // If all compared parts are equal, the one with more parts is newer
+    return aPreParts.length.compareTo(bPreParts.length);
   }
 
   // If one has more parts, it's newer
@@ -217,18 +249,25 @@ abstract interface class ReleaseFetcher {
 
 /// Default implementation using the GitHub API.
 class GitHubReleaseFetcher implements ReleaseFetcher {
-  const GitHubReleaseFetcher({this.client = http.Client()});
+  const GitHubReleaseFetcher({http.Client? client})
+      : client = client ?? http.Client();
 
   final http.Client client;
+
+  /// Timeout for HTTP requests (10 seconds).
+  static const _timeout = Duration(seconds: 10);
 
   @override
   Future<GitHubRelease?> fetchLatestRelease() async {
     try {
-      final response = await client.get(_latestReleaseUrl);
+      final response = await client.get(_latestReleaseUrl).timeout(_timeout);
       if (response.statusCode == 200) {
         return GitHubRelease.fromJson(
             jsonDecode(response.body) as Map<String, dynamic>);
       }
+      return null;
+    } on TimeoutException {
+      // Request timed out
       return null;
     } catch (_) {
       return null;
@@ -238,7 +277,7 @@ class GitHubReleaseFetcher implements ReleaseFetcher {
   @override
   Future<List<GitHubRelease>> fetchAllReleases() async {
     try {
-      final response = await client.get(_allReleasesUrl);
+      final response = await client.get(_allReleasesUrl).timeout(_timeout);
       if (response.statusCode == 200) {
         final list = jsonDecode(response.body) as List;
         return list
@@ -247,6 +286,9 @@ class GitHubReleaseFetcher implements ReleaseFetcher {
             .where((release) => !release.isDraft)
             .toList();
       }
+      return [];
+    } on TimeoutException {
+      // Request timed out
       return [];
     } catch (_) {
       return [];
