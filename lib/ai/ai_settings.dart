@@ -667,7 +667,8 @@ const keyVariables = <String, List<String>>{
 String get keyStoreName => switch (defaultTargetPlatform) {
       TargetPlatform.linux => 'the system keyring',
       TargetPlatform.macOS => 'the Keychain',
-      TargetPlatform.windows => 'Credential Manager',
+      TargetPlatform.windows => 'app files, encrypted with a key '
+          'that Credential Manager holds',
       _ => "Android's secure storage",
     };
 
@@ -746,7 +747,8 @@ Future<({bool saved, String? variable})> keyState(
 /// [ApiKeyStore] in the platform's secure storage (`flutter_secure_storage`):
 /// on Android encrypted with a key that the Android Keystore holds, in the
 /// app's private storage; on the desktop the system keyring, the Keychain
-/// or Credential Manager. Not in the notes, not in a plain file.
+/// or, on Windows, app files encrypted with a key that Credential Manager
+/// holds. Not in the notes, not in a plain file.
 class SecureApiKeyStore implements ApiKeyStore {
   const SecureApiKeyStore();
 
@@ -973,6 +975,13 @@ class _Draft {
   /// Whether a key is saved.
   bool hasKey;
   bool removeKey = false;
+
+  /// Whether a key will be used: one typed in, a saved one that is not
+  /// being removed, or one read from a variable (#236).
+  bool get hasUsableKey =>
+      key.text.trim().isNotEmpty ||
+      (hasKey && !removeKey) ||
+      keyVariable != null;
 
   /// The variable the key is read from when none is saved (#236).
   final String? keyVariable;
@@ -1630,11 +1639,10 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   String _effectiveSpeechProvider() {
     if (_speechProvider.isNotEmpty) return _speechProvider;
     final mistral = _drafts['mistral'];
-    final mistralKey = mistral != null &&
-        (mistral.key.text.trim().isNotEmpty ||
-            (mistral.hasKey && !mistral.removeKey));
+    final mistralKey = mistral != null && mistral.hasUsableKey;
     final openAiKey = _openAiKey.text.trim().isNotEmpty ||
-        (_openAiKeySaved && !_openAiKeyRemove);
+        (_openAiKeySaved && !_openAiKeyRemove) ||
+        _openAiKeyVariable != null;
     return mistralKey || !openAiKey ? 'mistral' : 'openai';
   }
 
@@ -1649,9 +1657,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   List<Widget> _speechSection(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final mistralDraft = _drafts['mistral'];
-    final mistralKey = mistralDraft != null &&
-        (mistralDraft.key.text.trim().isNotEmpty ||
-            (mistralDraft.hasKey && !mistralDraft.removeKey));
+    final mistralKey = mistralDraft != null && mistralDraft.hasUsableKey;
     final provider = speechProviderById(_effectiveSpeechProvider());
     return [
       Text(
@@ -2408,7 +2414,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   String _webCapability() {
     final name = presetById(_provider).name;
     final key = _braveKey.text.trim().isNotEmpty ||
-        (_braveKeySaved && !_braveKeyRemove);
+        (_braveKeySaved && !_braveKeyRemove) ||
+        _braveKeyVariable != null;
     return webCapabilityLine(name,
         providerSearch: _providerHasSearch,
         searchWith: _webSearchWith,

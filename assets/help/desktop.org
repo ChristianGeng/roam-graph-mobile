@@ -54,19 +54,32 @@ moment ago) is shown once the app has read the folder again. While a
 note, a chat or another page is open on top of the graph, the graph
 stays as it is.
 
-Emacs needs the small file ~emacs/roam-graph-follow.el~ from the app's
-repository, with ~roam-graph-follow-mode~ on. In Doom Emacs, for example
-in ~config.el~, with the file in ~~/src/roam-graph-mobile/emacs~:
+Emacs needs the small file ~roam-graph-follow.el~, with
+~roam-graph-follow-mode~ on. The app brings it along, in the version that
+matches it:
+- Linux: ~~/.local/share/roam-graph/app/emacs/~
+- Windows: the ~emacs~ folder next to ~roam_graph_mobile.exe~
+- macOS: ~Roam Graph.app/Contents/Resources/emacs/~
+
+*Copy Emacs snippet* in Settings copies the code for this app's folder.
+On Linux, for example in Doom's ~config.el~ or in ~init.el~:
 
 #+begin_src emacs-lisp
-(use-package! roam-graph-follow
-  :load-path "~/src/roam-graph-mobile/emacs"
-  :after org-roam
-  :config (roam-graph-follow-mode 1))
+(let ((dir (expand-file-name "roam-graph/app/emacs"
+                             (or (getenv "XDG_DATA_HOME") "~/.local/share"))))
+  (when (file-exists-p (expand-file-name "roam-graph-follow.el" dir))
+    (add-to-list 'load-path dir)
+    (with-eval-after-load 'org-roam
+      (require 'roam-graph-follow)
+      (roam-graph-follow-mode 1))))
 #+end_src
 
-Without Doom: ~(add-to-list 'load-path "…/emacs")~, ~(require
-'roam-graph-follow)~ and ~(roam-graph-follow-mode 1)~ after org-roam.
+An update of the app updates the file too; Emacs reads the new one at
+its next start. If your config already loads ~roam-graph-follow~ from a
+copy of the app's repository (an older setup, for example
+~use-package! roam-graph-follow~ with a ~:load-path~), remove that and
+use only this code: whichever copy loads first wins, and the other is
+ignored.
 
 How it works: the app listens on 127.0.0.1 only, and writes the port and
 a random secret to ~follow.json~ in its own folder, readable only by
@@ -109,7 +122,8 @@ never in the notes or in a settings file:
 - Linux: the system keyring (GNOME Keyring, KWallet or another Secret
   Service), unlocked when you log in.
 - macOS: the Keychain.
-- Windows: Credential Manager.
+- Windows: files in the app's data folder, encrypted with a key that
+  Credential Manager holds.
 
 When no key is saved for a provider, the app reads it from an environment
 variable, the name the provider's own tools use. A key saved in the app

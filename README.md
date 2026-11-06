@@ -47,7 +47,7 @@ menu; they are saved only after the diff (#39). The AI can also propose a
 change set, edits to several notes reviewed and saved together, and undone
 together (#76). In agent mode, the default, the AI creates, edits and
 links notes itself, under the same rules, and the chat shows what it
-changed afterwards, with "Undo all" (#82). "Recent AI changes" undoes them later too, after the chat is closed (#99). "Edit with AI" changes the note shown, by an instruction, after a diff (#103), and with "Also the linked notes" the notes that link to it and that it links to, after a plan you accept and a review of all changes together (#122). Web, mail and phone links open in their app (#108). "Create image" draws a picture with an AI image model and adds it to the note, in an image folder set in Settings (#112). The same app runs on Linux, Windows and macOS, where notes open in Emacs (#116); the Linux app runs on Ubuntu 22.04 and newer (#229). The desktop graph follows the node at point in Emacs, with `roam-graph-follow-mode` from `emacs/roam-graph-follow.el` (#117). What changed in each
+changed afterwards, with "Undo all" (#82). "Recent AI changes" undoes them later too, after the chat is closed (#99). "Edit with AI" changes the note shown, by an instruction, after a diff (#103), and with "Also the linked notes" the notes that link to it and that it links to, after a plan you accept and a review of all changes together (#122). Web, mail and phone links open in their app (#108). "Create image" draws a picture with an AI image model and adds it to the note, in an image folder set in Settings (#112). The same app runs on Linux, Windows and macOS, where notes open in Emacs (#116); the Linux app runs on Ubuntu 22.04 and newer (#229). The desktop graph follows the node at point in Emacs, with `roam-graph-follow-mode` from `emacs/roam-graph-follow.el` (#117). The desktop packages carry that file, so Emacs loads it from the installed app, and Settings copies the code that does (#241); Emacs finds the app where it keeps its data: for an app installed with install.sh, `$XDG_DATA_HOME/roam-graph` (by default `~/.local/share/roam-graph`), or the app ID's folder if that exists (#245). On Android, "Open with" in a file manager opens an Org file as its note, or read-only with "Add to my notes" when it is not in the notes folder, and turns a recording into a voice memo (#243). What changed in each
 release is in [CHANGELOG.md](CHANGELOG.md), and the release text repeats it
 (#70). On a tablet in landscape, the divider between graph and note can be
 dragged, and the graph folded away (#69). The graph starts force-directed,
@@ -110,8 +110,49 @@ command again reads only new and changed files.
 
 ## Install
 
-Install and update with Obtainium from this repo's GitHub releases. See
-[docs/releases.md](docs/releases.md), which also explains the signing key.
+### Android, with Obtainium
+
+[Obtainium](https://github.com/ImranR98/Obtainium) installs the app from this
+repository's GitHub releases and keeps it updated. No GitHub account is
+needed.
+
+1. Install Obtainium (from its GitHub releases or from F-Droid).
+2. In Obtainium, choose **Add App**, paste
+   `https://github.com/ChristianGeng/roam-graph-mobile`, and choose **Add**.
+   Or open this link on the phone, which fills it in:
+   [obtainium://add/https://github.com/ChristianGeng/roam-graph-mobile](obtainium://add/https://github.com/ChristianGeng/roam-graph-mobile)
+3. Install. Obtainium reports every new full release from then on.
+
+Good to know:
+
+- Obtainium installs *full* releases. The pre-releases that every merge
+  publishes (`v<version>-dev.<n>`, APK only) come only with "Include
+  prereleases" turned on for the app.
+- Every release is signed with the same release key, so updates install over
+  the old version. A build signed with another key (a local build, see below)
+  can't update it.
+- The app needs an org-roam folder on the phone, for example kept in step
+  with Syncthing; it asks for the folder at the first start. The AI chat uses
+  your own provider and API key, set in Settings → AI.
+
+### Linux, Windows and macOS
+
+See [docs/releases.md](docs/releases.md). On Linux, download the installer,
+look at it, then run it:
+
+```
+curl -fsSLo install.sh https://raw.githubusercontent.com/ChristianGeng/roam-graph-mobile/main/linux/packaging/install.sh
+less install.sh
+sh install.sh --update
+```
+
+It installs the newest full release into
+`${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app` and adds Roam Graph to
+the app menu. The package it downloads is checked against the SHA-256 that
+GitHub gives for the release; the installer script itself is not, so read it
+before running it. To update later, run the installed copy:
+`${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app/install.sh --update`.
+[docs/releases.md](docs/releases.md) also explains the signing key.
 
 ## Build locally
 

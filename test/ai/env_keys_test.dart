@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 
-import 'ai_settings_test.dart' show MemoryKeyStore, openRow, pumpIn, scrollTo;
+import 'ai_settings_test.dart'
+    show MemoryAiSettingsStore, MemoryKeyStore, openRow, pumpIn, scrollTo;
 
 EnvApiKeyStore storeWith(Map<String, String> env, [MemoryKeyStore? inner]) =>
     EnvApiKeyStore(inner: inner ?? MemoryKeyStore(), environment: env);
@@ -120,7 +121,8 @@ void main() {
         TargetPlatform.android: "Android's secure storage",
         TargetPlatform.linux: 'the system keyring',
         TargetPlatform.macOS: 'the Keychain',
-        TargetPlatform.windows: 'Credential Manager',
+        TargetPlatform.windows:
+            'app files, encrypted with a key that Credential Manager holds',
       };
       for (final MapEntry(key: platform, value: name) in names.entries) {
         debugDefaultTargetPlatformOverride = platform;
@@ -158,6 +160,55 @@ void main() {
       findsNothing,
     );
     expect(find.text('sk-env'), findsNothing);
+  });
+
+  testWidgets('OPENAI_API_KEY alone makes OpenAI the automatic speech provider',
+      (tester) async {
+    await pumpIn(
+      tester,
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => AiSettingsScreen.open(context),
+          child: const Text('open'),
+        ),
+      ),
+      store: MemoryAiSettingsStore(),
+      keys: storeWith({'OPENAI_API_KEY': 'sk-env'}),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('ai-speech')),
+        matching: find.text('OpenAI (automatic)'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('BRAVE_API_KEY alone lets the web line say search with Brave',
+      (tester) async {
+    await pumpIn(
+      tester,
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => AiSettingsScreen.open(context),
+          child: const Text('open'),
+        ),
+      ),
+      store: MemoryAiSettingsStore(const AiSettings(webAccess: true)),
+      keys: storeWith({'BRAVE_API_KEY': 'brave-env'}),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await openRow(tester, 'web');
+    final line = find.byKey(const ValueKey('web-capability'));
+    await scrollTo(tester, line);
+    expect(
+      tester.widget<Text>(line).data,
+      isNot(contains('Add a Brave key')),
+    );
+    expect(tester.widget<Text>(line).data, contains('search with Brave'));
   });
 }
 
