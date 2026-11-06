@@ -85,9 +85,20 @@ class NodeScreen extends StatefulWidget {
     this.openUrl = openUrlOnDevice,
     this.help = false,
     this.visitBoundary = 0,
+    this.addToNotes,
+    this.openOutside,
   });
 
   final ValueListenable<RoamGraph> graph;
+
+  /// "Add to my notes" for a file opened from outside the notes folder
+  /// (#243); the button is hidden when null.
+  final void Function(BuildContext context)? addToNotes;
+
+  /// Opens an `id:` link whose node is not in [graph]: a file opened from
+  /// elsewhere (#243) shows its own graph, and links to notes open from
+  /// the notes folder. When null, such a link says there is no such node.
+  final void Function(BuildContext context, String id)? openOutside;
   final String id;
   /// A graph editing surface ends the side pane's quick-edit visit even
   /// when the node ID stays the same (#171).
@@ -160,6 +171,8 @@ class NodeScreen extends StatefulWidget {
     UrlOpener openUrl = openUrlOnDevice,
     bool help = false,
     NodeHeading? heading,
+    void Function(BuildContext context)? addToNotes,
+    void Function(BuildContext context, String id)? openOutside,
   }) {
     nodeMemory.remember(id);
     return Navigator.push(
@@ -179,6 +192,8 @@ class NodeScreen extends StatefulWidget {
           shareFiles: shareFiles,
           openUrl: openUrl,
           help: help,
+          addToNotes: addToNotes,
+          openOutside: openOutside,
         ),
       ),
     );
@@ -563,6 +578,10 @@ class _NodeScreenState extends State<NodeScreen> {
 
   void _openId(String id, {NodeHeading? heading}) {
     if (!widget.graph.value.nodes.containsKey(id)) {
+      if (widget.openOutside case final open?) {
+        open(context, id);
+        return;
+      }
       _tell('There is no node with the ID $id.', error: true);
       return;
     }
@@ -590,6 +609,8 @@ class _NodeScreenState extends State<NodeScreen> {
       shareText: widget.shareText,
       openUrl: widget.openUrl,
       help: widget.help,
+      addToNotes: widget.addToNotes,
+      openOutside: widget.openOutside,
     );
   }
 
@@ -1513,6 +1534,7 @@ class _NodeScreenState extends State<NodeScreen> {
       widget.writer?.editor != null && node != null && !widget.help, // Edit
       _editWriter != null && _undoSteps.isNotEmpty, // Undo
       node != null && onShowInGraph != null, // Show in graph
+      widget.addToNotes != null, // Add to my notes
     ].where((shown) => shown).length + more.length;
     // The back button, every button, and some room for the title.
     final crowded = more.length > 1 && width < 56 + 48 * buttons + 120;
@@ -1528,6 +1550,12 @@ class _NodeScreenState extends State<NodeScreen> {
               ),
         title: Text(node?.displayTitle ?? 'Node'),
         actions: [
+          if (widget.addToNotes case final add?)
+            IconButton(
+              tooltip: 'Add to my notes',
+              icon: const Icon(Icons.library_add_outlined),
+              onPressed: () => add(context),
+            ),
           if (node != null)
             IconButton(
               tooltip: 'Search in this note',

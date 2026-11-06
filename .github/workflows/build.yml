@@ -415,8 +415,19 @@ jobs:
           cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
             "$bundle/roam-graph.png"
           echo "Roam Graph $VERSION" > "$bundle/VERSION"
+          # Emacs loads "Follow Emacs" from the installed app, in the
+          # version that matches it (#241, decision 127).
+          mkdir -p "$bundle/emacs"
+          cp emacs/roam-graph-follow.el "$bundle/emacs/"
           tar -C build/linux/x64/release -czf \
             "roam-graph-$VERSION-linux-x64.tar.gz" bundle
+          # The listing first: under pipefail, grep -q stopping early would
+          # fail tar with SIGPIPE.
+          listing=$(tar -tzf "roam-graph-$VERSION-linux-x64.tar.gz")
+          if ! grep -qx 'bundle/emacs/roam-graph-follow.el' <<< "$listing"; then
+            echo "::error::The Linux package lacks bundle/emacs/roam-graph-follow.el."
+            exit 1
+          fi
           # install.sh --update accepts only plain files and folders under
           # bundle/: checked here, so a release it would refuse is not made.
           if tar -tvzf "roam-graph-$VERSION-linux-x64.tar.gz" | grep -E '^[^-d]'; then
@@ -468,8 +479,21 @@ jobs:
             Copy-Item "$env:SystemRoot\System32\$dll" $out
           }
           "Roam Graph $env:VERSION" | Out-File -Encoding utf8 "$out/VERSION.txt"
-          Compress-Archive -Path "$out/*" `
-            -DestinationPath "roam-graph-$env:VERSION-windows-x64.zip"
+          # Emacs loads "Follow Emacs" from the unpacked app (#241).
+          New-Item -ItemType Directory -Force "$out/emacs" | Out-Null
+          Copy-Item emacs/roam-graph-follow.el "$out/emacs/"
+          $zip = "roam-graph-$env:VERSION-windows-x64.zip"
+          Compress-Archive -Path "$out/*" -DestinationPath $zip
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip))
+          $found = $archive.Entries | Where-Object {
+            ($_.FullName -replace '\\', '/') -eq 'emacs/roam-graph-follow.el'
+          }
+          $archive.Dispose()
+          if (-not $found) {
+            Write-Output "::error::The Windows package lacks emacs/roam-graph-follow.el."
+            exit 1
+          }
 
       - name: Keep the Windows app as a build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -507,9 +531,25 @@ jobs:
           # The one app the build made, whatever its product name.
           app=$(ls -d *.app | head -n 1)
           [ -n "$app" ] || { echo "::error::No .app was built."; exit 1; }
+          # Emacs loads "Follow Emacs" from the app's Resources (#241). A
+          # file added after the build breaks the app's ad-hoc signature,
+          # so it is signed again, ad hoc as Flutter signs it, keeping the
+          # entitlements, and checked.
+          mkdir -p "$app/Contents/Resources/emacs"
+          cp "$GITHUB_WORKSPACE/emacs/roam-graph-follow.el" \
+            "$app/Contents/Resources/emacs/"
+          codesign --force --sign - \
+            --preserve-metadata=entitlements,requirements,flags,runtime "$app"
+          codesign --verify --deep --strict "$app"
           # ditto keeps the app's links and attributes, as Finder's zip.
           ditto -c -k --keepParent "$app" \
             "$GITHUB_WORKSPACE/roam-graph-$VERSION-macos.zip"
+          listing=$(unzip -Z1 "$GITHUB_WORKSPACE/roam-graph-$VERSION-macos.zip")
+          if ! grep -qx "$app/Contents/Resources/emacs/roam-graph-follow.el" \
+              <<< "$listing"; then
+            echo "::error::The macOS package lacks Contents/Resources/emacs/roam-graph-follow.el."
+            exit 1
+          fi
 
       - name: Keep the macOS app as a build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

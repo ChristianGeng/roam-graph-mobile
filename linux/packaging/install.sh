@@ -95,6 +95,10 @@ DESKTOP
     update-desktop-database "$APPS" >/dev/null 2>&1 || true
   echo "Installed $(cat "$DEST/VERSION" 2>/dev/null || echo Roam Graph) in $DEST."
   echo "Start it from the app menu, or with $DEST/roam-graph."
+  if [ -f "$DEST/emacs/roam-graph-follow.el" ]; then
+    echo "To follow Emacs, load $DEST/emacs/roam-graph-follow.el in Emacs"
+    echo "(Settings, \"Copy Emacs snippet\", gives the code)."
+  fi
 }
 
 update() {

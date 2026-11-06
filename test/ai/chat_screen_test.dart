@@ -24,6 +24,7 @@ import 'package:roam_graph_mobile/node_view/web_links.dart';
 import '../graph_view/graph_screen_test.dart'
     show MemoryNodeMemory, algorithmsHere, layoutHere;
 import '../edit/note_editor_test.dart' show MemoryNoteStore;
+import '../node_view/org_fonts_test.dart' show styleOf;
 import 'ai_chat_test.dart' show FakeServer, anthropicReply;
 import 'ai_settings_test.dart' show MemoryAiSettingsStore, MemoryKeyStore;
 import 'ai_visibility_test.dart' show graphOf, notes;
@@ -128,6 +129,23 @@ void main() {
     await openChat(tester, server);
     await ask(tester, 'Hello?');
     expect(find.text('The model sent no text.'), findsOneWidget);
+  });
+
+  testWidgets('~code~ and =verbatim= in an answer are monospace (#238)',
+      (tester) async {
+    final server = FakeServer([
+      anthropicReply([
+        {
+          'type': 'text',
+          'text': 'Set ~BRAVE_API_KEY~ in =config.yaml= and plain words.',
+        },
+      ]),
+    ]);
+    await openChat(tester, server);
+    await ask(tester, 'Which key?');
+    expect(styleOf(tester, 'BRAVE_API_KEY').fontFamily, 'monospace');
+    expect(styleOf(tester, 'config.yaml').fontFamily, 'monospace');
+    expect(styleOf(tester, 'plain words').fontFamily, isNot('monospace'));
   });
 
   testWidgets('without a key, the chat says where to enter it',
@@ -1234,6 +1252,97 @@ void main() {
       await ask(tester, 'And now?');
       final second = jsonEncode(server.requests[3].body['messages'].last);
       expect(second, isNot(contains('New plan')));
+    });
+
+    group('web access set during a chat (#232)', () {
+      List<Object?> toolNamesOf(FakeServer server, int request) => [
+            for (final tool in server.requests[request].body['tools'] as List)
+              tool['name'],
+          ];
+
+      String systemOf(FakeServer server, int request) =>
+          server.requests[request].body['system'][0]['text'] as String;
+
+      FakeServer twoAnswers() => FakeServer([
+            anthropicReply([
+              {'type': 'text', 'text': 'First answer.'},
+            ]),
+            anthropicReply([
+              {'type': 'text', 'text': 'Second answer.'},
+            ]),
+          ]);
+
+      testWidgets('turned on, the next message offers fetch_web_page',
+          (tester) async {
+        final server = twoAnswers();
+        await openChat(tester, server);
+        await ask(tester, 'First question.');
+        expect(toolNamesOf(server, 0), isNot(contains('fetch_web_page')));
+        expect(systemOf(server, 0), isNot(contains('fetch_web_page')));
+
+        await AiSettingsScope.change(
+            tester.element(find.byType(ChatScreen)),
+            const AiSettings(webAccess: true));
+        await tester.pumpAndSettle();
+        await ask(tester, 'Second question.');
+        expect(toolNamesOf(server, 1), contains('fetch_web_page'));
+        expect(systemOf(server, 1), contains('fetch_web_page'));
+      });
+
+      testWidgets('turned off, the next message has no web tool',
+          (tester) async {
+        final server = twoAnswers();
+        await openChat(tester, server,
+            settings: const AiSettings(webAccess: true));
+        await ask(tester, 'First question.');
+        expect(toolNamesOf(server, 0), contains('fetch_web_page'));
+
+        await AiSettingsScope.change(
+            tester.element(find.byType(ChatScreen)), const AiSettings());
+        await tester.pumpAndSettle();
+        await ask(tester, 'Second question.');
+        expect(toolNamesOf(server, 1), isNot(contains('fetch_web_page')));
+        expect(toolNamesOf(server, 1), isNot(contains('web_search')));
+        expect(systemOf(server, 1), isNot(contains('fetch_web_page')));
+      });
+
+      testWidgets('a chat reopened from the list offers the tool',
+          (tester) async {
+        final server = twoAnswers();
+        final store = ChatStore(MemoryChatStorage());
+        await openChat(tester, server, store: store);
+        await ask(tester, 'First question.');
+        expect(toolNamesOf(server, 0), isNot(contains('fetch_web_page')));
+
+        // The setting changed while the chat was closed; its session is
+        // kept in the store.
+        await tester.pumpWidget(const SizedBox());
+        await openChat(tester, server,
+            store: store,
+            chat: store.chats.single,
+            settings: const AiSettings(webAccess: true));
+        await ask(tester, 'Second question.');
+        expect(toolNamesOf(server, 1), contains('fetch_web_page'));
+        expect(systemOf(server, 1), contains('fetch_web_page'));
+      });
+
+      testWidgets('a lower limit applies to the next message',
+          (tester) async {
+        final server = twoAnswers();
+        await openChat(tester, server,
+            settings: const AiSettings(webAccess: true, maxWebSearches: 5));
+        await ask(tester, 'First question.');
+        final first = server.requests[0].body['tools'] as List;
+        expect(first.last['max_uses'], 5);
+
+        await AiSettingsScope.change(
+            tester.element(find.byType(ChatScreen)),
+            const AiSettings(webAccess: true, maxWebSearches: 2));
+        await tester.pumpAndSettle();
+        await ask(tester, 'Second question.');
+        final second = server.requests[1].body['tools'] as List;
+        expect(second.last['max_uses'], 2);
+      });
     });
   });
 }

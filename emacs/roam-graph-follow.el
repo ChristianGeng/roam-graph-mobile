@@ -16,17 +16,30 @@
 ;; with another node at point than the one sent last.
 ;;
 ;; The app listens on 127.0.0.1 only.  It writes its port and a secret
-;; token to `roam-graph-follow-file'; every message carries the token.  A
+;; token to follow.json in its support folder; every message carries the
+;; token.  Emacs finds that file itself (`roam-graph-follow--file'), or
+;; uses `roam-graph-follow-file' when that is set.  A
 ;; message is one line of JSON with the token and the ID; nothing else is
 ;; sent, and nothing is written.  Without the app, or without the file,
 ;; nothing is sent and no error is shown.
 ;;
-;; Doom Emacs, in config.el:
+;; The desktop app ships this file (#241): on Linux in
+;; ~/.local/share/roam-graph/app/emacs/ (under $XDG_DATA_HOME if set), on
+;; Windows in emacs\ next to the app, on macOS in the app's
+;; Contents/Resources/emacs/.  Load it from there, so it matches the app;
+;; Settings, "Copy Emacs snippet", gives the code.  On Linux:
 ;;
-;;   (use-package! roam-graph-follow
-;;     :load-path "~/src/roam-graph-mobile/emacs"
-;;     :after org-roam
-;;     :config (roam-graph-follow-mode 1))
+;;   (let ((dir (expand-file-name "roam-graph/app/emacs"
+;;                                (or (getenv "XDG_DATA_HOME")
+;;                                    "~/.local/share"))))
+;;     (when (file-exists-p (expand-file-name "roam-graph-follow.el" dir))
+;;       (add-to-list 'load-path dir)
+;;       (with-eval-after-load 'org-roam
+;;         (require 'roam-graph-follow)
+;;         (roam-graph-follow-mode 1))))
+;;
+;; Load only one copy: with an older setup that loads this file from the
+;; repository as well, whichever loads first wins.
 
 ;;; Code:
 
@@ -45,9 +58,33 @@
 (defconst roam-graph-follow--app-id "io.github.christiangeng.roamgraph"
   "The app's ID, which names its folder on Linux and macOS.")
 
+(defconst roam-graph-follow--binary "roam-graph"
+  "The app's executable on Linux, which can name its folder too.")
+
+(defconst roam-graph-follow--here
+  (file-name-directory (or load-file-name buffer-file-name default-directory))
+  "The folder this file was loaded from.")
+
+(defun roam-graph-follow--data-home ()
+  "$XDG_DATA_HOME, or ~/.local/share when it is unset or empty."
+  (let ((data (getenv "XDG_DATA_HOME")))
+    (if (and data (not (string-empty-p data))) data "~/.local/share")))
+
+(defun roam-graph-follow--support-folder ()
+  "The app's support folder on Linux, chosen as Flutter's path_provider
+chooses it: the app's ID under $XDG_DATA_HOME if that folder exists,
+else the executable's name if that one exists.  The installer puts the
+program in $XDG_DATA_HOME/roam-graph/app before the first start, so an
+installed app keeps its data in $XDG_DATA_HOME/roam-graph; nil when
+neither folder exists."
+  (let* ((data (roam-graph-follow--data-home))
+         (by-id (expand-file-name roam-graph-follow--app-id data))
+         (by-name (expand-file-name roam-graph-follow--binary data)))
+    (cond ((file-directory-p by-id) by-id)
+          ((file-directory-p by-name) by-name))))
+
 (defun roam-graph-follow--default-file ()
-  "Where the app writes its port and token on this system.
-The app's support folder, as Flutter's path_provider names it."
+  "Where the app writes its port and token on this system."
   (cond
    ((eq system-type 'windows-nt)
     (expand-file-name "io.github.christiangeng/Roam Graph/follow.json"
@@ -58,13 +95,30 @@ The app's support folder, as Flutter's path_provider names it."
              "/follow.json")
      "~"))
    (t
-    (expand-file-name
-     (concat roam-graph-follow--app-id "/follow.json")
-     (or (getenv "XDG_DATA_HOME") "~/.local/share")))))
+    (let ((folder (roam-graph-follow--support-folder))
+          ;; The file shipped with the app sits in <support>/app/emacs/.
+          (beside (expand-file-name "../../follow.json"
+                                    roam-graph-follow--here)))
+      ;; A folder without the file loses to the shipped file's neighbour,
+      ;; for an app started with another $XDG_DATA_HOME than Emacs.
+      (cond ((and folder (file-exists-p (expand-file-name "follow.json" folder)))
+             (expand-file-name "follow.json" folder))
+            ((file-exists-p beside) beside)
+            (folder (expand-file-name "follow.json" folder))
+            (t (expand-file-name
+                (concat roam-graph-follow--app-id "/follow.json")
+                (roam-graph-follow--data-home))))))))
 
-(defcustom roam-graph-follow-file (roam-graph-follow--default-file)
-  "The file in which the Roam Graph app writes its port and token."
-  :type 'file)
+(defcustom roam-graph-follow-file nil
+  "The file in which the Roam Graph app writes its port and token.
+Nil means: find it, again before every message (see
+`roam-graph-follow--default-file'), so an app started after Emacs is
+found too."
+  :type '(choice (const :tag "Find it" nil) file))
+
+(defun roam-graph-follow--file ()
+  "The app's follow.json: `roam-graph-follow-file' if set, else found."
+  (or roam-graph-follow-file (roam-graph-follow--default-file)))
 
 (defcustom roam-graph-follow-idle-delay 1.0
   "Seconds of idle time before the node at point is checked again."
@@ -82,11 +136,12 @@ anew on another port.")
 (defun roam-graph-follow--read-config ()
   "The app's port and token as (PORT . TOKEN), or nil.
 Nil when the file is missing or not as the app writes it."
-  (when (file-readable-p roam-graph-follow-file)
+  (when-let* ((file (roam-graph-follow--file))
+              ((file-readable-p file)))
     (condition-case nil
         (let* ((json-object-type 'alist)
                (json-key-type 'symbol)
-               (config (json-read-file roam-graph-follow-file))
+               (config (json-read-file file))
                (port (alist-get 'port config))
                (token (alist-get 'token config)))
           (when (and (natnump port) (< 0 port 65536)

@@ -12,7 +12,34 @@ each entry.
 
 Changed: inline `~code~` and `=verbatim=` are shown in a monospace font in
 notes, help pages and chat answers, as in Emacs. Source blocks and
-fixed-width lines follow in #239. Closes #238.
+fixed-width lines follow in #239. Part of #238.
+
+## 2026-11-04: "Follow Emacs" works with the installed Linux app ([#246](https://github.com/ChristianGeng/roam-graph-mobile/pull/246))
+
+- Fixed: Emacs looked for the app's `follow.json` in `~/.local/share/io.github.christiangeng.roamgraph/`, but the installed app keeps its data in `~/.local/share/roam-graph/`, so following did nothing. Emacs now finds the file where the app writes it, again before every message; `roam-graph-follow-file` still wins when it is set.
+- Changed: `docs/releases.md` names the right data folder. Nothing moves: settings, chats, the edit history and the index stay where they are.
+- Closes [#245](https://github.com/ChristianGeng/roam-graph-mobile/issues/245).
+
+## 2026-11-04: How to install, and share the app, with Obtainium ([#248](https://github.com/ChristianGeng/roam-graph-mobile/pull/248))
+
+- Added: the README's Install section says how to add the app to Obtainium (the repository URL, or an `obtainium://add/` link that fills it in), what pre-releases and the release key mean for it, and that each person needs their own notes folder and AI key. So the app can be shared with others.
+- Changed: the Linux install in the README downloads the installer, shows it, then runs it, and names the `XDG_DATA_HOME` path.
+
+## 2026-11-03: "Open with" for Org files and recordings on Android ([#244](https://github.com/ChristianGeng/roam-graph-mobile/pull/244))
+
+- Added: Roam Graph appears in a file manager's "Open with" (Total Commander, for example) for `.org` files and audio files.
+- An Org file of the notes folder opens as its note; one from elsewhere opens read-only, with "Add to my notes", which goes through the capture screen. Nothing is written to the opened file.
+- A recording opened this way becomes a voice memo, as when it is shared: transcribed, then the capture screen. Closes [#243](https://github.com/ChristianGeng/roam-graph-mobile/issues/243).
+
+## 2026-11-03: Emacs loads "Follow Emacs" from the installed app ([#242](https://github.com/ChristianGeng/roam-graph-mobile/pull/242))
+
+- Added: the desktop packages carry `roam-graph-follow.el`: on Linux `install.sh` puts it in `~/.local/share/roam-graph/app/emacs/`, on Windows it is in the `emacs` folder next to the app, on macOS in `Roam Graph.app/Contents/Resources/emacs/`. Updating the app updates it; on Linux `--remove` removes it.
+- Added: Settings, "Copy Emacs snippet" copies the Emacs code (for Doom and plain Emacs) that loads the file from the running app's folder and turns following on. Replace an older setup that loads it from the repository.
+- Closes [#241](https://github.com/ChristianGeng/roam-graph-mobile/issues/241).
+
+## 2026-11-02: Web access set during a chat applies from its next message ([#234](https://github.com/ChristianGeng/roam-graph-mobile/pull/234))
+
+Fixed: turning on *Web access for the AI*, or changing *Most web searches for one message*, now reaches chats that already have messages, from their next message. Before, such a chat kept the setting it was started with. Closes #232.
 
 ## 2026-11-02: Web search for every provider with Brave Search ([#235](https://github.com/ChristianGeng/roam-graph-mobile/pull/235))
 

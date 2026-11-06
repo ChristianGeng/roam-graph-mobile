@@ -3879,9 +3879,9 @@ does. Emacs is the source; the app only shows.
   every start, compared in constant time. The app writes
   `{"port": …, "token": …}` to `follow.json` in its support folder
   (`getApplicationSupportDirectory`), the folder the app already keeps its
-  settings in, rather than `~/.local/share/roam-graph/`, which holds the
-  installed program and is replaced by an update. On Linux that is
-  `$XDG_DATA_HOME/io.github.christiangeng.roamgraph`, on macOS
+  settings in. On Linux that is `$XDG_DATA_HOME/roam-graph` for an
+  installed app (corrected in decision 129; this decision first said
+  `$XDG_DATA_HOME/io.github.christiangeng.roamgraph`), on macOS
   `~/Library/Application Support/io.github.christiangeng.roamgraph`, on
   Windows `%APPDATA%\io.github.christiangeng\Roam Graph`; the elisp
   computes the same path per system (`roam-graph-follow-file`). The file
@@ -3971,7 +3971,197 @@ itself, like `fetch_web_page`, with the user's own Brave Search API key.
 - **Tests** use a fake HTTP function; the real Brave API is never called
   and CI has no key.
 
-## 127. ~code~ and =verbatim= in a monospace font (#238)
+## 126. Web access set during a chat applies from its next message (#232)
+
+*Web access for the AI* and *Most web searches for one message* applied
+only to a chat made after the change: a chat with messages kept the web
+access it was started with, and the model had no `fetch_web_page`.
+- **Every chat takes the setting at its next message.** `ChatSession.web`
+  can be set again. One function, `webAccessFor` (in `chat_store.dart`),
+  makes the `WebAccess` from the settings and the chat's provider;
+  `_start`, the kept session, `_refreshTools` and `_restart` use it.
+  `didChangeDependencies` reacts to a change of the two settings as it
+  does for hidden tags. A chat whose screen is closed gets it from
+  `ChatStore.webFor` (set by `ChatStoreHost`) when its request starts.
+- **A request under way is not changed:** the session keeps the web access
+  it had when the message started until the message ends, and the count of
+  web searches of the message stays.
+
+## 127. The desktop packages ship the Emacs file for "Follow Emacs" (#241)
+
+"Follow Emacs" (#117, decision 124) needs `roam-graph-follow.el` in Emacs.
+It lived only in the repository, so Emacs loaded it from a source
+checkout: tied to whatever that checkout held, and missing where only the
+app is installed. The packages now carry the file of the same commit as
+the app, so Emacs and the app always speak the same message format.
+- **Linux:** `bundle/emacs/roam-graph-follow.el`. `install.sh` copies the
+  whole bundle, so the file lands in `~/.local/share/roam-graph/app/emacs/`
+  with no new install code; `--update` replaces it with the app and
+  `--remove` deletes it with the folder. It is a plain file under
+  `bundle/`, which `update()`'s archive check accepts. The installer says
+  where it is.
+- **Windows:** `emacs\roam-graph-follow.el` next to the executable.
+- **macOS:** `Contents/Resources/emacs/`, so it moves with the app. Adding
+  a file after `flutter build` breaks the ad-hoc signature (the resources
+  are sealed), and macOS then calls the app damaged; CI signs it again ad
+  hoc, `--preserve-metadata=entitlements,requirements,flags,runtime`, and
+  runs `codesign --verify --deep --strict`. Copying it in an Xcode build
+  phase would avoid the re-signing, but needs project-file edits that are
+  harder to review than three lines in the workflow.
+- **CI** fails a desktop job whose package lacks the file.
+- **Settings, "Copy Emacs snippet"** (desktop) copies the code that loads
+  the file from the running app's folder (`followElispDir`, from
+  `Platform.resolvedExecutable`) and turns the mode on after org-roam
+  (`with-eval-after-load`, for Doom and plain Emacs alike), guarded by
+  the file's existence. The docs' example follows `XDG_DATA_HOME` as
+  `install.sh` does, and says to drop an older setup that loads the
+  file from the repository: only the first copy loaded counts.
+- The file in the repository stays the source, tested by the ERT step of
+  the `org-roam` job as before.
+
+## 128. "Open with" on Android for Org files and recordings (#243)
+
+A file manager's "Open with" (Total Commander, for example) lists the
+apps with an `ACTION_VIEW` intent filter for the file's type; Roam Graph
+had only `SEND` filters (#15, #220, #221), so it appeared under "Share"
+only.
+- **Intent filters** on the main activity, `content:` only, `DEFAULT`
+  category, never a default handler:
+  - `text/org`, `text/x-org`, `text/plain`;
+  - `application/octet-stream` only with a path ending in `.org`
+    (`pathPattern`, with the usual extra patterns for dots earlier in the
+    name, and `.ORG` and `.Org`, since `pathPattern` is case-sensitive),
+    because file managers send `.org` files with that type, and without
+    the path condition the app would be offered for every binary file. A
+    provider whose URI path is an opaque ID (`/document/42`) and that
+    sends this type is not matched: Android picks the apps before the app
+    can ask the provider for the file name. The common providers (the
+    system's documents provider, Total Commander) have the name in the
+    path;
+  - `audio/*`.
+  `file:` URIs are not taken: `IncomingFiles` never reads them (a sender
+  could point them at the app's private files), and Android has not let
+  apps send them since Android 7.
+- **The intent** goes into the same queue as a share (`MainActivity.keepShare`,
+  also from `onNewIntent` while the app runs): the data URI as a one-file
+  share, marked `view`. `IncomingFiles.read` reads it as for #220 and
+  #221 (an Org file by its name, up to 1 MB; audio copied to the cache),
+  and `takeShare` hands the mark to Dart as `SharedFiles.opened`.
+- **Routing** (`lib/capture/opened_file.dart`): an `.org` file by its name
+  (whatever type was sent), audio as in #221, anything else gets a short
+  message. A recording takes the voice-memo path unchanged: consent,
+  background transcription, the capture screen.
+- **Inside the notes folder or not** is decided by content, not by path.
+  A file manager's content URI (its own provider, not the
+  Storage Access Framework tree the app was given) carries no document ID
+  the app can compare with its folder, and a path in it is the provider's
+  business. So: the file's `:ID:` properties are looked up in the index;
+  for a known ID, the note with that ID is read through the folder access,
+  and the file counts as that note when the text is the same, apart from
+  line ends and trailing white space. Both sides are decoded alike, as
+  UTF-8 with malformed bytes replaced (as the node view reads notes), so a
+  note that is not UTF-8 still matches itself. An identical copy outside
+  the folder therefore opens the note itself, which shows the same text.
+  For a known ID the note is read from disk, not from the index, so a
+  note changed since the last scan is compared as it is now; only unknown
+  IDs need a scan. It then opens at its file node (or
+  its first node, if it has heading nodes only), as a tap in the graph
+  does. A copy elsewhere with other text counts as outside. When the file
+  has IDs and the index knows none of them, the folder is scanned once
+  and the lookup repeated: a note may have arrived by Syncthing after the
+  last scan.
+- **Outside the folder:** the file is parsed as the index parses notes and
+  shown in the node view as a one-file graph, read-only (the help mode,
+  #62: no search, AI or edits). A plain Org file without a file node gets
+  one made up, so the whole file shows. `id:` links to the user's notes
+  open them from the notes folder (`NodeScreen.openOutside`). "Add to my
+  notes" (`NodeScreen.addToNotes`) closes the view and opens the capture
+  screen as for a shared file (#220), so nothing is written without
+  review; it is on every page of the view, also a heading of the file
+  opened from its own link. The view is not awaited, so the share queue
+  goes on: a second file opened with the app shows on top. The view is not
+  remembered as the node shown last. The voice-memo consent question says
+  that a recording is sent when it is shared with or opened with the app.
+- Nothing is written to the opened file; its read permission is used only
+  while the share is read.
+- Desktop: out of scope; "Open in Emacs" and the desktop drop (#224)
+  cover it there.
+
+## 129. Emacs finds follow.json where an installed app writes it (#245)
+
+On a real Linux install, "Follow Emacs" (#117, decision 124) did nothing:
+the app wrote `follow.json` to `~/.local/share/roam-graph/`, and the
+Emacs file looked in `~/.local/share/io.github.christiangeng.roamgraph/`,
+which did not exist. Setting `roam-graph-follow-file` to the first path by
+hand made it work.
+
+- **Why two folders.** path_provider_linux 2.2.2
+  (`getApplicationSupportPath`) uses `$XDG_DATA_HOME/<application ID>` if
+  that folder exists, else `$XDG_DATA_HOME/<executable name>` if that one
+  exists (kept for apps from before the plugin used the ID), else it
+  creates the ID's folder. The ID is `io.github.christiangeng.roamgraph`
+  (`g_set_prgname(APPLICATION_ID)` in `linux/runner/my_application.cc`),
+  the executable `roam-graph` (`BINARY_NAME`). `install.sh` puts the
+  program in `$XDG_DATA_HOME/roam-graph/app` before its first start, so
+  the executable's folder exists, the ID's does not, and an installed app
+  keeps all its data in `$XDG_DATA_HOME/roam-graph`. The checks of #231
+  and #242 ran the bundle in a scratch `XDG_DATA_HOME` without installing
+  it, so there the ID's folder was created, and the mismatch did not
+  show.
+- **The app's folder stays as it is.** It is the same however the app is
+  started (menu, `install.sh`'s launcher, the binary directly): the
+  choice depends only on which folders exist. Moving it would mean
+  migrating settings, chats, the edit history and the index for no gain,
+  and `install.sh` only ever replaces or removes `app/` (and `app.new`,
+  `app.old`) and the menu entry, so the data next to it is safe. One
+  thing would move it: a folder `$XDG_DATA_HOME/io.github.christiangeng.roamgraph`
+  created by something else, after which the app would start with empty
+  data. Nothing creates it today; this is noted, not guarded.
+- **Emacs finds the file itself**, again before every message, so an app
+  started after Emacs is found too (`roam-graph-follow--file`):
+  1. `roam-graph-follow-file`, if the user set it (its default is now
+     nil, "find it");
+  2. on Linux, `follow.json` in the folder path_provider would choose, by
+     the same rule (the ID's folder if it exists, else `roam-graph`), if
+     the file is there;
+  3. else `follow.json` two levels above the loaded file, if it is there:
+     where it is when the file is the one shipped in `<support>/app/emacs/`,
+     also when the app runs with another `$XDG_DATA_HOME` than Emacs;
+  4. else the chosen folder's `follow.json`, or the ID's folder's when
+     neither folder exists. An empty `$XDG_DATA_HOME` counts as unset, as
+     for the app. macOS and Windows are unchanged.
+- **"Copy Emacs snippet" stays as it is:** it loads the shipped file; the
+  search above then finds `follow.json`. Writing the path into the
+  snippet would pin it, and a later change of the folder would need the
+  user's config changed.
+- Tests: ERT for each step of the search (an installed app, both folders,
+  beside the shipped file, nothing installed, a set variable, a folder
+  that appears later). Checked on Ubuntu 22.04 with the Linux bundle
+  installed by `install.sh` into a scratch `HOME` and started by its
+  launcher, and Emacs sending from batch mode.
+
+## 130. Install and share through Obtainium; the Linux installer is read before it runs (#248)
+
+**Decided:** the README tells everyone, not only the owner, how to install
+the app. On Android that is Obtainium, from this repository's GitHub
+releases: the repository URL, or the link
+`obtainium://add/https://github.com/ChristianGeng/roam-graph-mobile`.
+Obtainium installs full releases; the `-dev` pre-releases only with
+"Include prereleases". F-Droid is not used: its main repository builds and
+signs the app itself, so moving there would need a new key and a reinstall
+that loses the app's data, and releases would arrive days later. On Linux the
+README downloads `install.sh`, asks the reader to look at it, then runs it,
+instead of piping it to `sh`.
+
+**Why:** the owner wants to share the app through Obtainium. The installer
+checks the package it downloads against GitHub's SHA-256, but nothing checks
+the installer script fetched from `main` before it runs (CodeRabbit on #248,
+CWE-494). A pinned commit would go stale with every release; reading the
+script first is honest today. Publishing `install.sh` as a release asset with
+a checksum, so the first install can be checked like an update, is a
+follow-up issue.
+
+## 131. ~code~ and =verbatim= in a monospace font (#238)
 
 - **What:** inline `~code~` and `=verbatim=` are shown in the platform's
   monospace font, in the note view, the help pages and the chat answers,
