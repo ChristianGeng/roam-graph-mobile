@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
+import 'package:roam_graph_mobile/ai/web_access.dart' show braveSearchChoice;
 
 import 'ai_settings_test.dart'
     show MemoryAiSettingsStore, MemoryKeyStore, openRow, pumpIn, scrollTo;
