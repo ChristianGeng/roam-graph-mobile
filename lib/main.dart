@@ -117,7 +117,8 @@ class RoamGraphApp extends StatelessWidget {
           store: viewSettings,
           child: Builder(
             builder: (context) {
-              final settings = ViewSettingsScope.of(context);
+              final scope = context.dependOnInheritedWidgetOfExactType<ViewSettingsScope>();
+              final settings = scope?.notifier?.value ?? ViewSettings.withDefaults();
               return MaterialApp(
                 title: 'Roam Graph',
                 themeMode: settings.theme.mode,
@@ -131,6 +132,7 @@ class RoamGraphApp extends StatelessWidget {
                   version: appVersion,
                   checkOnStart: settings.checkForUpdates,
                   includePreReleases: settings.includePreReleases,
+                  loaded: scope?.loaded,
                   onUpdateAvailable: (release) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(

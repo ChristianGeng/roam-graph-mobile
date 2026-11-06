@@ -53,6 +53,7 @@ class UpdateCheckerWidget extends StatefulWidget {
     this.onUpdatePressed,
     this.checkOnStart = true,
     this.includePreReleases = false,
+    this.loaded,
   });
 
   final String version;
@@ -61,6 +62,7 @@ class UpdateCheckerWidget extends StatefulWidget {
   final VoidCallback? onUpdatePressed;
   final bool checkOnStart;
   final bool includePreReleases;
+  final Future<void>? loaded;
 
   @override
   State<UpdateCheckerWidget> createState() => _UpdateCheckerWidgetState();
@@ -78,7 +80,9 @@ class _UpdateCheckerWidgetState extends State<UpdateCheckerWidget> {
       includePreReleases: widget.includePreReleases,
     );
     if (widget.checkOnStart) {
-      _checkForUpdates();
+      // Wait for settings to load before checking
+      final loaded = widget.loaded ?? Future.value();
+      loaded.then((_) => _checkForUpdates());
     }
   }
 
