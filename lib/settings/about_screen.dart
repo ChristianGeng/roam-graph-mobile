@@ -6,7 +6,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../node_view/web_links.dart';
 import '../platform/desktop.dart';
-import '../platform/error_text.dart' show copyToClipboard;
+import '../platform/error_text.dart' show copyToClipboard, showErrorSnackBar;
 import '../platform/update_check.dart' show GitHubRelease, UpdateChecker;
 import '../platform/update_notification.dart' show UpdateCheckerScope;
 
@@ -292,11 +292,10 @@ class _AboutScreenState extends State<AboutScreen> {
                                     await UpdateChecker.updateAndRestart();
                                   } catch (e) {
                                     if (mounted) {
-                                      messenger.showSnackBar(
-                                        SnackBar(
-                                            content:
-                                                Text('Update failed: $e')),
-                                      );
+                                      // The error with its copy action
+                                      // (#182).
+                                      showErrorSnackBar(
+                                          messenger, 'Update failed: $e');
                                     }
                                   }
                                 }
