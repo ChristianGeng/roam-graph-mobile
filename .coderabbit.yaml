@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit asks for changes while its findings are open and approves the
+# pull request once they are resolved (decision 136). Everything else stays
+# at CodeRabbit's defaults.
+language: en-US
+reviews:
+  auto_approvals:
+    enabled: true
+  auto_review:
+    drafts: false
