@@ -4316,7 +4316,38 @@ checks for pre-release versions too.
      chat. The centre note is passed to the chat list as `centreNode`,
      separate from `startNode`.
 
-## 136. Desktop keys: Enter sends, and one key table in Settings → Keyboard (#256)
+## 136. Agent setup: CodeRabbit approves, AGENTS.md second round, opencode only by hand (#261, #263, #264)
+
+**Decided:**
+
+- `.coderabbit.yaml` turns on `reviews.auto_approvals.enabled`. CodeRabbit
+  asks for changes while it has blocking findings and approves when its
+  threads are resolved, the newest commit is reviewed and its checks pass.
+  Its approval is the one review a merge needs, so the owner can set the
+  required approvals on `main` back to 1. Other settings stay at the
+  defaults; the file only states English and that drafts are not reviewed.
+  (`request_changes_workflow` is the old name of the same setting.)
+- AGENTS.md gets: the `gh` commands for review threads, short checks of the
+  running app, local `flutter analyze` and `flutter test` where Flutter is
+  there, small sessions, and who may merge and how.
+- opencode stays on the owner's laptop. `.github/workflows/opencode.yml`
+  starts only by hand (`workflow_dispatch`), with read-only permissions as
+  before. The comment triggers are removed, the inputs reach the shell only
+  through environment variables, and the "suggest" mode, which printed a
+  fixed list, is removed.
+
+**Why:** In a one-person repo nobody could approve a pull request, so the
+required approvals were 0. CodeRabbit is the reviewer that counts, and it
+can approve. The comment text was written into the shell script by
+`${{ }}`, so a comment could run commands with the job's token and the API
+key. A workflow that cannot push could not deliver an implementation
+anyway, and opencode runs locally, so it does not need comment triggers.
+
+**Owner, in Settings:** required approvals back to 1 (when CodeRabbit's
+approval worked), "Require conversation resolution before merging", and
+optionally CodeRabbit as a required status check.
+
+## 137. Desktop keys: Enter sends, and one key table in Settings → Keyboard (#256)
 
 On the desktop (`isDesktop`), Enter in the AI chat input sends the
 message and Shift+Enter makes a new line; Ctrl+Enter (Cmd+Enter on macOS)
