@@ -911,5 +911,65 @@ void main() {
       expect(jsonEncode(server.requests[1].body['messages'][0]),
           jsonEncode(server.requests[0].body['messages'][0]));
     });
+
+    test('OpenRouter Claude: the request after a tool result still asks for '
+        'automatic caching', () async {
+      final server = FakeServer([
+        openAiReply({
+          'content': null,
+          'tool_calls': [
+            {
+              'id': 'call_1',
+              'type': 'function',
+              'function': {
+                'name': 'org_roam_find',
+                'arguments': '{"search":"Plan"}',
+              },
+            },
+          ],
+        }, finish: 'tool_calls'),
+        openAiReply({'content': 'Found it.'}),
+      ]);
+      final session = ChatSession(
+          tools: tools(),
+          config: openAiAt(
+              'https://openrouter.ai/api/v1', 'anthropic/claude-sonnet-4.5'),
+          post: server.post,
+          cacheKey: key);
+      await session.send('Where is my plan?');
+      final followUp = server.requests[1].body;
+      final messages = followUp['messages'] as List;
+      expect((messages.last as Map)['role'], 'tool');
+      expect((messages.last as Map)['tool_call_id'], 'call_1');
+      expect(followUp['cache_control'], {'type': 'ephemeral'});
+      expect(followUp['session_id'], key);
+    });
+
+    test("each message of mine carries today's date; the system text and the "
+        'earlier messages stay the same', () async {
+      final server = FakeServer([
+        openAiReply({'content': 'One.'}),
+        openAiReply({'content': 'Two.'}),
+      ]);
+      var now = DateTime(2026, 11, 7, 9);
+      final session = ChatSession(
+          tools: tools(),
+          config: openAiAt('https://api.mistral.ai/v1', 'mistral-large-4'),
+          post: server.post,
+          cacheKey: key,
+          today: () => now);
+      await session.send('First?', context: 'I am at Ideas.');
+      now = DateTime(2027, 2, 1, 9);
+      await session.send('Second?');
+      final first = server.requests[0].body['messages'] as List;
+      final second = server.requests[1].body['messages'] as List;
+      expect(jsonEncode(first[0]), jsonEncode(second[0]));
+      expect(jsonEncode(first[0]), isNot(contains('Today is')));
+      expect(jsonEncode(first[1]), jsonEncode(second[1]));
+      expect(jsonEncode(first[1]), contains('I am at Ideas.'));
+      expect(jsonEncode(first[1]), contains('Today is 2026-11-07.'));
+      expect(jsonEncode(second.last), contains('Today is 2027-02-01.'));
+      expect(jsonEncode(second.last), isNot(contains('I am at Ideas.')));
+    });
   });
 }

@@ -495,10 +495,10 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             AiEditMode.agent => [...aiTools, ...agent!.tools],
           },
-          system: withChatDate(
+          system:
               '${mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt} '
               '${languagePrompt(language)}',
-              chat.createdAt.toLocal()),
+          today: DateTime.now,
           toolImage: agent?.imageFor,
           web: webAccessFor(settings, config, braveKey: braveKey),
           handlers: {

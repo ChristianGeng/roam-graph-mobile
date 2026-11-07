@@ -357,6 +357,15 @@ const _ephemeral = {'type': 'ephemeral'};
 /// The key of a chat for the providers' prompt caches (#250): a hash of
 /// the chat's ID, the same for every request of the chat, and nothing
 /// that tells who or what.
+/// The date for a message of mine, so "the last 5 years" is counted from
+/// today, not from the end of the model's training (#129). It goes with
+/// the message, not into the system text, so the start of the request
+/// stays the same for the cache (#250).
+String todayLine(DateTime now) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return 'Today is ${now.year}-${two(now.month)}-${two(now.day)}.';
+}
+
 String chatCacheKey(String chatId) =>
     'rg-${sha256.convert(utf8.encode(chatId)).toString().substring(0, 32)}';
 
@@ -852,11 +861,15 @@ class ChatSession {
     this.retryDelays = const [Duration(seconds: 2), Duration(seconds: 6)],
     this.web,
     this.cacheKey,
+    this.today,
   }) : _config = config;
 
   /// The chat's key for the providers' prompt caches ([chatCacheKey]);
   /// null for a request outside a chat.
   final String? cacheKey;
+
+  /// The clock for [todayLine] in each message of mine; null sends no date.
+  final DateTime Function()? today;
 
   /// Web access (#137); null when "Web access for the AI" is off: then no
   /// web tool is offered. Set again when the setting changes (#232); it
@@ -951,7 +964,13 @@ class ChatSession {
   Future<void> send(String text,
       {String? context, void Function()? onUpdate}) async {
     final first = !transcript.any((e) => e is UserMessage);
-    transcript.add(UserMessage(text, context: first ? context : null));
+    final clock = today;
+    final parts = [
+      if (first && context != null) context,
+      if (clock != null) todayLine(clock()),
+    ];
+    transcript.add(
+        UserMessage(text, context: parts.isEmpty ? null : parts.join('\n\n')));
     _rounds = 0;
     _webUsed = 0;
     _turn = (web: web);

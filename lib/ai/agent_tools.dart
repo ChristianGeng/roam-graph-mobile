@@ -605,15 +605,6 @@ class InfographicData {
   }
 }
 
-/// [system] with the date the chat started, so "the last 5 years" is
-/// counted from then, not from the end of the model's training (#129).
-/// It is the same in every request of the chat, so the cache holds (#250).
-String withChatDate(String system, DateTime started) {
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '$system This chat started on '
-      '${started.year}-${two(started.month)}-${two(started.day)}.';
-}
-
 /// The system prompt in agent mode: as [systemPrompt], but notes are
 /// changed with the write tools, which save at once.
 final agentSystemPrompt = systemPrompt.replaceFirst(

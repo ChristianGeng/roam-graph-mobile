@@ -4383,11 +4383,11 @@ per chat whether it works.
   request may then run more searches than were left, at most the limit.
 - **The start of the request stays the same in a chat:** the system text
   changes only with a setting (web access, the language, agent mode); the
-  tools keep their order. The date in the system text is the day the chat
-  started (`withChatDate`, was today's date, `withToday`, #129): "This
-  chat started on 2026-11-07." A chat opened again on another day keeps
-  it, so the model counts "the last 5 years" from the chat's start, a few
-  days off at most.
+  tools keep their order. Today's date (#129) is no longer in the system
+  text (`withToday` is gone): each message of mine carries it in its
+  context, "Today is 2026-11-07." (`todayLine`), saved with the message.
+  So the model knows today's date also in a chat opened again months
+  later, and the earlier messages, like the system text, stay the same.
 - **A reply that arrives after its chat was closed still counts:** the
   session adds its usage, and `onLateUsage` gives it to the chat, which
   saves it with the next save.

@@ -453,9 +453,8 @@ void main() {
     });
   });
 
-  test("the chat's start date goes into the system prompt", () {
-    expect(withChatDate('Prompt.', DateTime(2026, 3, 4, 23, 59)),
-        'Prompt. This chat started on 2026-03-04.');
+  test("today's date for a message", () {
+    expect(todayLine(DateTime(2026, 3, 4, 23, 59)), 'Today is 2026-03-04.');
   });
 
   test('the setting: one image per message by default, saved', () {
