@@ -487,6 +487,7 @@ class _ChatScreenState extends State<ChatScreen> {
           post: widget.post,
           cacheKey: chatCacheKey(chat.id),
           maxToolRounds: settings.maxToolRounds,
+          shortening: settings.shortening,
           toolList: switch (mode) {
             AiEditMode.off => null,
             AiEditMode.review => [
