@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-07: The Linux installer comes with the release, with its checksum ([#270](https://github.com/ChristianGeng/roam-graph-mobile/pull/270))
+
+Added: every full release carries the Linux installer, `install.sh`, with
+`install.sh.sha256`. The README's first install downloads both from the
+newest release, checks them with `sha256sum -c`, then runs the installer;
+it no longer runs a script from `main`. Closes #249.
+
 ## 2026-11-07: Prompt caching for Mistral, Vercel and OpenRouter, and a cache line per chat ([#265](https://github.com/ChristianGeng/roam-graph-mobile/pull/265))
 
 Added: caching hints for Mistral, Vercel AI Gateway and OpenRouter, so a
