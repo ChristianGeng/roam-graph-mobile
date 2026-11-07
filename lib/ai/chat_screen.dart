@@ -484,6 +484,7 @@ class _ChatScreenState extends State<ChatScreen> {
           tools: _tools(settings),
           config: config,
           post: widget.post,
+          cacheKey: chatCacheKey(chat.id),
           maxToolRounds: settings.maxToolRounds,
           toolList: switch (mode) {
             AiEditMode.off => null,
@@ -1479,8 +1480,7 @@ class _ChatScreenState extends State<ChatScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Tokens in this chat: ${usage.input} in, of them '
-                '${usage.cached} from the cache, ${usage.output} out.',
+                chatUsageText(usage),
                 key: const ValueKey('chat-usage'),
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: colors.onSurfaceVariant,

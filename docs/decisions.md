@@ -4316,6 +4316,52 @@ checks for pre-release versions too.
      chat. The centre note is passed to the chat list as `centreNode`,
      separate from `startNode`.
 
+## 136. Prompt caching hints per provider, and a cache line per chat (#250)
+
+Every chat request sends the whole conversation. The providers' prompt
+caches make that cheap: the unchanged start of a request is billed at a
+fraction of the price. The app helps each cache the owner uses, and shows
+per chat whether it works.
+
+- **One key per chat:** `chatCacheKey` is `rg-` and the first 32 hex
+  digits of the SHA-256 of the chat's ID. It is the same in every request
+  of the chat and says nothing about the user or the notes. Requests
+  outside a chat (Edit with AI) send no key.
+- **Each hint only where the base URL is the provider's:**
+  - Mistral (`api.mistral.ai`): `prompt_cache_key`.
+  - Vercel AI Gateway (`ai-gateway.vercel.sh`): `providerOptions.gateway.caching
+    = 'auto'` (next to the EU region of "EU only", when it is on) and the header `x-session-affinity`.
+  - OpenRouter (`openrouter.ai`): `session_id`, which OpenRouter's docs
+    name as the key of its sticky routing (the chat stays on one upstream
+    provider and its cache). For `anthropic/…` and `google/gemini…`
+    models, which OpenRouter caches only with explicit marks, a
+    `cache_control: {type: ephemeral}` on the system message's text and on
+    the last text part of my last message, as `AnthropicApi` does for
+    Anthropic direct. Other models (`deepseek/…`, OpenAI's) cache by
+    themselves.
+  - A custom OpenAI-compatible provider gets none, so no unknown field can
+    break a request.
+- **Anthropic's own web search keeps a fixed `max_uses`:** the setting's
+  limit, in every request of a message. The tools come first in the
+  request, so the old count of the searches left changed the start of
+  every round and emptied the whole cache. The app still counts the
+  searches of the message and leaves the tool out once none are left; one
+  request may then run more searches than were left, at most the limit.
+- **The start of the request stays the same in a chat:** the system text
+  changes only with a setting (web access, the language, agent mode); the
+  tools keep their order. The date in the system text (`withToday`) is set
+  when the chat's session is made, so it changes at most once a day, when
+  the chat is opened again; the caches live minutes, so it stays.
+- **The cache line:** the chat's info shows "Input so far: 412,000 tokens,
+  78 % from the cache. Output: 9,000 tokens." in place of the old token
+  line. It is the sum over the chat's requests, saved with the chat
+  (#201). The percentage is rounded down, so 100 % means all of it.
+- **Tests (fake HTTP only):** the body and headers per provider (Mistral's
+  key; Vercel's caching and header, also with EU only; OpenRouter's marks
+  for `anthropic/…` and Gemini, none for `deepseek/…`; nothing for a
+  custom base URL); the same `max_uses` and tools in two rounds of one
+  message; the chat's sum, its percentage, and that both are saved.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

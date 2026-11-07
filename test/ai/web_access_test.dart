@@ -520,7 +520,11 @@ void main() {
       await session.send('How much rain in 2025?');
       expect(session.webLeft, 2);
       final second = server.requests.last.body;
-      expect((second['tools'] as List).last['max_uses'], 2);
+      // The same max_uses in both rounds of the message, so the tools, which
+      // come first, stay cached (#250); the app counts the searches.
+      expect((second['tools'] as List).last['max_uses'], 5);
+      expect(jsonEncode(second['tools']),
+          jsonEncode(server.requests.first.body['tools']));
       // The search goes back unchanged, its encrypted content included.
       expect(jsonEncode(second['messages'][1]['content']),
           contains('"encrypted_content":"opaque"'));

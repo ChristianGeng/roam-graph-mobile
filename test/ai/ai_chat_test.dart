@@ -372,6 +372,7 @@ void main() {
           .send('Hi');
       expect(server.requests.single.body['providerOptions'], {
         'gateway': {
+          'caching': 'auto',
           'inferenceRegion': {'scope': 'zone', 'geoRegion': 'eu'},
         },
       });
@@ -732,5 +733,179 @@ void main() {
         [for (final p in providerPresets) if (p.dataStaysInEu) p.id],
         ['bedrock-eu', 'mistral', 'scaleway']);
     expect(presetById('vercel').defaultModel, 'deepseek/deepseek-v4-pro');
+  });
+
+  group('prompt caching hints (#250)', () {
+    ProviderConfig openAiAt(String baseUrl, String model,
+            {bool euOnly = false}) =>
+        ProviderConfig(
+          name: 'Test',
+          api: ApiKind.openAi,
+          baseUrl: baseUrl,
+          model: model,
+          apiKey: 'k-test',
+          euOnly: euOnly,
+        );
+    final key = chatCacheKey('c1abc');
+    final transcript = <ChatEntry>[
+      const UserMessage('First?', context: 'I am at Ideas.'),
+      const AssistantMessage(text: 'One.', model: 'm'),
+      const UserMessage('Second?'),
+    ];
+    ApiRequest requestFor(ProviderConfig config) => const OpenAiApi()
+        .request(config, aiTools, transcript, cacheKey: key);
+    int marks(ApiRequest request) =>
+        RegExp('cache_control').allMatches(jsonEncode(request.body)).length;
+
+    test('the chat key is a stable hash, not the chat ID', () {
+      expect(key, chatCacheKey('c1abc'));
+      expect(key, isNot(chatCacheKey('c1abd')));
+      expect(key, startsWith('rg-'));
+      expect(key, isNot(contains('c1abc')));
+    });
+
+    test('Mistral gets prompt_cache_key, nothing else', () {
+      final r = requestFor(
+          openAiAt('https://api.mistral.ai/v1', 'mistral-large-4'));
+      expect(r.body['prompt_cache_key'], key);
+      expect(r.body.containsKey('providerOptions'), isFalse);
+      expect(r.body.containsKey('session_id'), isFalse);
+      expect(r.headers.containsKey('x-session-affinity'), isFalse);
+      expect(marks(r), 0);
+    });
+
+    test('Vercel AI Gateway gets caching auto and the affinity header', () {
+      final r = requestFor(openAiAt(
+          'https://ai-gateway.vercel.sh/v1', 'anthropic/claude-sonnet-5-5'));
+      expect(r.body['providerOptions'], {
+        'gateway': {'caching': 'auto'},
+      });
+      expect(r.headers['x-session-affinity'], key);
+      expect(r.body.containsKey('prompt_cache_key'), isFalse);
+      expect(r.body.containsKey('session_id'), isFalse);
+      // The gateway sets the markers itself.
+      expect(marks(r), 0);
+    });
+
+    test('Vercel EU only keeps its region next to caching', () {
+      final r = requestFor(openAiAt(
+          'https://ai-gateway.vercel.sh/v1', 'mistral/mistral-large-4',
+          euOnly: true));
+      expect(r.body['providerOptions'], {
+        'gateway': {
+          'caching': 'auto',
+          'inferenceRegion': {'scope': 'zone', 'geoRegion': 'eu'},
+        },
+      });
+    });
+
+    test('OpenRouter marks the system and my last message for anthropic/',
+        () {
+      final r = requestFor(openAiAt(
+          'https://openrouter.ai/api/v1', 'anthropic/claude-sonnet-5-5'));
+      expect(r.body['session_id'], key);
+      expect(r.headers.containsKey('x-session-affinity'), isFalse);
+      expect(r.body.containsKey('prompt_cache_key'), isFalse);
+      final messages = r.body['messages'] as List;
+      expect(messages[0]['content'], [
+        {
+          'type': 'text',
+          'text': systemPrompt,
+          'cache_control': {'type': 'ephemeral'},
+        },
+      ]);
+      expect(messages.last['content'], [
+        {
+          'type': 'text',
+          'text': 'Second?',
+          'cache_control': {'type': 'ephemeral'},
+        },
+      ]);
+      // The first message of mine stays as it was.
+      expect(messages[1]['content'], 'I am at Ideas.\n\nFirst?');
+      expect(marks(r), 2);
+    });
+
+    test('OpenRouter marks Gemini, and the last text part of a list', () {
+      final r = const OpenAiApi().request(
+          openAiAt('https://openrouter.ai/api/v1', 'google/gemini-3-pro'),
+          aiTools,
+          [
+            const UserMessage('Look.'),
+            const AssistantMessage(
+                text: '',
+                model: 'm',
+                toolCalls: [ToolCall('c1', 'make_chart', {})]),
+            ToolResults([
+              ToolResult(const ToolCall('c1', 'make_chart', {}), 'Made.',
+                  image: const ToolImage([1, 2, 3], 'image/png')),
+            ]),
+          ],
+          cacheKey: key);
+      final messages = r.body['messages'] as List;
+      final parts = messages.last['content'] as List;
+      expect(parts.first['type'], 'text');
+      expect(parts.first['cache_control'], {'type': 'ephemeral'});
+      expect(parts.last['type'], 'image_url');
+      expect(parts.last.containsKey('cache_control'), isFalse);
+      expect(marks(r), 2);
+    });
+
+    test('OpenRouter marks nothing for deepseek/, but keeps the session',
+        () {
+      final r = requestFor(
+          openAiAt('https://openrouter.ai/api/v1', 'deepseek/deepseek-v4-pro'));
+      expect(r.body['session_id'], key);
+      expect(marks(r), 0);
+      expect((r.body['messages'] as List).first['content'], systemPrompt);
+    });
+
+    test('a custom base URL gets no hint', () {
+      for (final config in [
+        openAiAt('https://llm.example.org/v1', 'anthropic/claude-sonnet-5-5'),
+        openAiAt('https://notopenrouter.ai/v1', 'anthropic/claude-sonnet-5-5'),
+        deepseek,
+      ]) {
+        final r = requestFor(config);
+        expect(r.body.keys.toSet(), {'model', 'max_tokens', 'tools', 'messages'},
+            reason: config.baseUrl);
+        expect(r.headers.keys.toSet(), {'content-type', 'authorization'});
+        expect(marks(r), 0);
+      }
+    });
+
+    test('a chat session sends its key with every request', () async {
+      final server = FakeServer([
+        openAiReply({
+          'content': null,
+          'tool_calls': [
+            {
+              'id': 'call_1',
+              'type': 'function',
+              'function': {
+                'name': 'org_roam_find',
+                'arguments': '{"search":"Plan"}',
+              },
+            },
+          ],
+        }, finish: 'tool_calls'),
+        openAiReply({'content': 'Found it.'}),
+      ]);
+      final session = ChatSession(
+          tools: tools(),
+          config: openAiAt('https://api.mistral.ai/v1', 'mistral-large-4'),
+          post: server.post,
+          cacheKey: key);
+      await session.send('Where is my plan?');
+      expect(server.requests, hasLength(2));
+      for (final request in server.requests) {
+        expect(request.body['prompt_cache_key'], key);
+      }
+      // Tools and system are the same bytes in both rounds.
+      expect(jsonEncode(server.requests[1].body['tools']),
+          jsonEncode(server.requests[0].body['tools']));
+      expect(jsonEncode(server.requests[1].body['messages'][0]),
+          jsonEncode(server.requests[0].body['messages'][0]));
+    });
   });
 }

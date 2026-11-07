@@ -15,6 +15,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
+
 import '../platform/error_text.dart';
 import 'ai_providers.dart';
 import 'ai_tools.dart';
@@ -327,10 +329,16 @@ abstract class ModelApi {
 
   /// The request for [transcript]. It starts with the same bytes in every
   /// round: the system prompt, the tools in their fixed order, then the
-  /// conversation so far, which only grows.
+  /// conversation so far, which only grows. [webSearches] is the most
+  /// searches of the provider's own web search per request, 0 for none.
+  /// [cacheKey] ([chatCacheKey]) names the chat for the caching hints of
+  /// the providers that take one (#250).
   ApiRequest request(
       ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
-      {String system = systemPrompt, bool images = true, int webSearches = 0});
+      {String system = systemPrompt,
+      bool images = true,
+      int webSearches = 0,
+      String? cacheKey});
 
   /// Reads a successful answer.
   ApiReply read(ProviderConfig config, Map<String, Object?> json);
@@ -346,6 +354,26 @@ String _url(String base, String path) {
 
 const _ephemeral = {'type': 'ephemeral'};
 
+/// The key of a chat for the providers' prompt caches (#250): a hash of
+/// the chat's ID, the same for every request of the chat, and nothing
+/// that tells who or what.
+String chatCacheKey(String chatId) =>
+    'rg-${sha256.convert(utf8.encode(chatId)).toString().substring(0, 32)}';
+
+/// Whether [config]'s base URL is on [host] or one of its subdomains.
+bool _onHost(ProviderConfig config, String host) {
+  final h = Uri.tryParse(config.baseUrl.trim())?.host.toLowerCase() ?? '';
+  return h == host || h.endsWith('.$host');
+}
+
+/// Whether OpenRouter caches [model] only with `cache_control` markers in
+/// the messages: Anthropic's and Google's Gemini models (#250).
+bool _openRouterNeedsMarks(String model) {
+  var m = model.trim().toLowerCase();
+  if (m.startsWith('~')) m = m.substring(1);
+  return m.startsWith('anthropic/') || m.startsWith('google/gemini');
+}
+
 /// Anthropic's Messages API (also Claude on AWS Bedrock's).
 class AnthropicApi extends ModelApi {
   const AnthropicApi();
@@ -353,7 +381,10 @@ class AnthropicApi extends ModelApi {
   @override
   ApiRequest request(
       ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
-      {String system = systemPrompt, bool images = true, int webSearches = 0}) {
+      {String system = systemPrompt,
+      bool images = true,
+      int webSearches = 0,
+      String? cacheKey}) {
     final current = currentMessageStart(transcript);
     final messages = <Map<String, Object?>>[];
     void addUser(List<Map<String, Object?>> blocks) {
@@ -447,9 +478,10 @@ class AnthropicApi extends ModelApi {
               'description': tool.description,
               'input_schema': tool.parameters,
             },
-          // Anthropic's own web search (#137), with as many searches as
-          // are left for this message. The basic version: the later ones
-          // filter results with code execution, which not every model has.
+          // Anthropic's own web search (#137). The basic version: the later
+          // ones filter results with code execution, which not every model
+          // has. [webSearches] is the same in every request of a message,
+          // as a change here would empty the whole cache (#250).
           if (webSearches > 0)
             {
               'type': 'web_search_20250305',
@@ -567,7 +599,10 @@ class OpenAiApi extends ModelApi {
   @override
   ApiRequest request(
       ProviderConfig config, List<AiTool> tools, List<ChatEntry> transcript,
-      {String system = systemPrompt, bool images = true, int webSearches = 0}) {
+      {String system = systemPrompt,
+      bool images = true,
+      int webSearches = 0,
+      String? cacheKey}) {
     final current = currentMessageStart(transcript);
     final messages = <Map<String, Object?>>[
       {'role': 'system', 'content': system},
@@ -650,11 +685,21 @@ class OpenAiApi extends ModelApi {
           }
       }
     }
+    // Caching hints, each only for the provider it is meant for (#250); a
+    // custom provider gets none, so no unknown field can break a request.
+    final mistral = _onHost(config, 'api.mistral.ai');
+    final vercel = _onHost(config, 'ai-gateway.vercel.sh');
+    final openRouter = _onHost(config, 'openrouter.ai');
+    if (openRouter && _openRouterNeedsMarks(config.model)) {
+      _markForCache(messages);
+    }
     return ApiRequest(
       Uri.parse(_url(config.baseUrl, '/chat/completions')),
       {
         'content-type': 'application/json',
         if (config.apiKey.isNotEmpty) 'authorization': 'Bearer ${config.apiKey}',
+        // Keeps the chat on the provider that holds its cache.
+        if (vercel && cacheKey != null) 'x-session-affinity': cacheKey,
       },
       {
         'model': config.model,
@@ -671,15 +716,47 @@ class OpenAiApi extends ModelApi {
             },
         ],
         'messages': messages,
-        // Vercel AI Gateway: inference and stored data in the EU.
-        if (config.euOnly)
+        if (mistral && cacheKey != null) 'prompt_cache_key': cacheKey,
+        // OpenRouter keeps a session on one upstream provider.
+        if (openRouter && cacheKey != null) 'session_id': cacheKey,
+        if (vercel || config.euOnly)
           'providerOptions': {
             'gateway': {
-              'inferenceRegion': {'scope': 'zone', 'geoRegion': 'eu'},
+              // Cache markers for the models that need them.
+              if (vercel) 'caching': 'auto',
+              // Vercel AI Gateway: inference and stored data in the EU.
+              if (config.euOnly)
+                'inferenceRegion': {'scope': 'zone', 'geoRegion': 'eu'},
             },
           },
       },
     );
+  }
+
+  /// Puts `cache_control` on the system message and on the last text of
+  /// my last message, as [AnthropicApi] does, in the form OpenRouter takes
+  /// it (#250).
+  static void _markForCache(List<Map<String, Object?>> messages) {
+    List<Object?> parts(Object? content) => content is String
+        ? [
+            {'type': 'text', 'text': content},
+          ]
+        : [...(content as List? ?? const [])];
+    void mark(int index) {
+      final content = parts(messages[index]['content']);
+      final last = content.lastIndexWhere(
+          (part) => part is Map && part['type'] == 'text');
+      if (last < 0) return;
+      content[last] = {
+        ...(content[last] as Map).cast<String, Object?>(),
+        'cache_control': _ephemeral,
+      };
+      messages[index] = {...messages[index], 'content': content};
+    }
+
+    mark(0);
+    final user = messages.lastIndexWhere((m) => m['role'] == 'user');
+    if (user > 0) mark(user);
   }
 
   @override
@@ -763,7 +840,12 @@ class ChatSession {
     this.toolImage,
     this.retryDelays = const [Duration(seconds: 2), Duration(seconds: 6)],
     this.web,
+    this.cacheKey,
   }) : _config = config;
+
+  /// The chat's key for the providers' prompt caches ([chatCacheKey]);
+  /// null for a request outside a chat.
+  final String? cacheKey;
 
   /// Web access (#137); null when "Web access for the AI" is off: then no
   /// web tool is offered. Set again when the setting changes (#232); it
@@ -1059,13 +1141,18 @@ class ChatSession {
       throw AiError('No base URL for ${config.name}. Enter it in AI '
           'settings.');
     }
+    // The provider's own web search gets the whole limit in every request
+    // of a message, so the tools stay the same and stay cached (#250); the
+    // app counts the searches and leaves the tool out once none are left.
     final request = entries != null
         ? _api.request(config, offered, entries,
-            system: system ?? _system, images: false)
+            system: system ?? _system, images: false, cacheKey: cacheKey)
         : _api.request(config, offered, transcript,
             system: system ?? _system,
             images: _images,
-            webSearches: _activeWeb?.search == true ? webLeft : 0);
+            webSearches:
+                _activeWeb?.search == true && webLeft > 0 ? _activeWeb!.limit : 0,
+            cacheKey: cacheKey);
     if (request.url.scheme != 'https' && config.apiKey.isNotEmpty) {
       throw AiError('The app sends an API key only over HTTPS. Use an '
           'https:// base URL for ${config.name}, or remove the key for a '

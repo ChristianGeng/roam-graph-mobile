@@ -88,10 +88,35 @@ again with the next message.
 - *Keep chats for* (AI → Privacy) is 30 days, 90 days (the default), 1 year
   or always. Older chats are deleted when the app starts.
 - Under a long chat (about 100,000 characters) a line suggests a new chat:
-  every message sends the whole chat again.
+  every message sends the whole chat again. How much of that came from the
+  provider's cache is under the chat too: see
+  [[id:roam-graph-help-caching][Caching]].
 - *Save chat as note* (the chat's menu) opens *New node* with the chat as
   Org text: each question and each answer is a heading, and the tag is
   ~chat~. I review it before it is saved.
+
+** Caching
+:PROPERTIES:
+:ID:       roam-graph-help-caching
+:END:
+Every message sends the whole chat again. Most providers keep the start of
+a request that they have seen a few minutes before (prompt caching) and
+bill it at a fraction of the price; it is also faster. The app helps them:
+the instructions and the tools stay the same in every request of a chat,
+and it sends each provider its own hint, with a key for the chat that is
+not personal data:
+- Anthropic: cache marks in the request.
+- Mistral: a cache key for the chat.
+- Vercel AI Gateway: automatic cache marks, and the chat stays with the
+  provider that holds its cache.
+- OpenRouter: cache marks for Claude and Gemini models, and the chat stays
+  with one provider.
+A provider with my own base URL gets no hint.
+
+Under the chat, a line shows how well it works: "Input so far: 412,000
+tokens, 78 % from the cache". It counts all the messages of the chat and is
+saved with it. A low percentage after the first message can mean that the
+provider or the model does not cache.
 
 ** Run several chats
 :PROPERTIES:

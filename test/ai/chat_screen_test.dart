@@ -118,7 +118,9 @@ void main() {
     expect(find.textContaining('plan | Plan | plan.org'), findsOneWidget);
 
     expect(find.byKey(const ValueKey('chat-usage')), findsOneWidget);
-    expect(find.textContaining('of them 500 from the cache'), findsOneWidget);
+    // Two requests: 110 and 610 tokens in, 500 of them from the cache.
+    expect(find.text('Input so far: 720 tokens, 69 % from the cache. '
+        'Output: 40 tokens.'), findsOneWidget);
 
     await tester.tapOnText(find.textRange.ofSubstring('the Plan note'));
     expect(opened, 'plan');
