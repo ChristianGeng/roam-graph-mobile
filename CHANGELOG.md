@@ -8,6 +8,17 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-07: Update check: four fixes left from #258 ([#272](https://github.com/ChristianGeng/roam-graph-mobile/pull/272))
+
+- Fixed: a damaged saved time of the last update check no longer resets
+  all settings; only that time falls back.
+- Fixed: the update check no longer hangs on a stalled name lookup; after
+  15 s it counts as offline.
+- Fixed: an update that was found is still shown when the time of the
+  check can't be saved.
+- Fixed: "Update and restart" is disabled, with "Updating…", while the
+  installer runs, so it can't run twice. Closes [#268](https://github.com/ChristianGeng/roam-graph-mobile/issues/268).
+
 ## 2026-11-07: Prompt caching for Mistral, Vercel and OpenRouter, and a cache line per chat ([#265](https://github.com/ChristianGeng/roam-graph-mobile/pull/265))
 
 Added: caching hints for Mistral, Vercel AI Gateway and OpenRouter, so a
