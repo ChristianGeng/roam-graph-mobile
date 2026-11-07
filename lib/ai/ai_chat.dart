@@ -1090,6 +1090,7 @@ class ChatSession {
       {required String system}) async {
     final reply = await _request(const [], entries: entries, system: system);
     usage += reply.usage;
+    if (_cancelled) onLateUsage?.call(reply.usage);
     if (reply.cut) {
       throw AiError('The answer stopped at ${_config.maxOutputTokens} '
           'tokens and was dropped.');

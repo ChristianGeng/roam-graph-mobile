@@ -4393,7 +4393,8 @@ per chat whether it works.
   saves it with the next save.
 - **The request of "Save as new node" is saved too:** in review and off
   mode its usage is added to the chat, and the chat is saved right after
-  it, also when the answer could not be used.
+  it, also when the answer could not be used, and also when the chat got
+  a new session meanwhile (`askOnce` gives it to `onLateUsage`).
 - **The cache line:** the chat's info shows "Input so far: 412,000 tokens,
   78 % from the cache. Output: 9,000 tokens." in place of the old token
   line. It is the sum over the chat's requests, saved with the chat

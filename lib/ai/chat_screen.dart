@@ -834,7 +834,8 @@ class _ChatScreenState extends State<ChatScreen> {
       failed = e.message;
       failedDetail = e.report();
     } finally {
-      // The request's usage is saved with the chat (#250).
+      // The request's usage is saved with the chat (#250); after a new
+      // session, onLateUsage has done that.
       if (identical(chat.session, session)) chat.changed();
       if (mounted) setState(() => _preparing = null);
     }

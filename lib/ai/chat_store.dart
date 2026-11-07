@@ -276,7 +276,7 @@ class Chat extends ChangeNotifier {
     } else {
       _storedUsage += late;
     }
-    notifyListeners();
+    changed();
   }
 
   /// Tells the listeners that something changed and saves the chat.

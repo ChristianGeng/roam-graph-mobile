@@ -391,6 +391,27 @@ void main() {
       expect(names(1), contains('fetch_web_page'));
     });
 
+    test('a one-off request (Save as new node) that ends after the chat was '
+        'closed still counts in its usage and is saved (#250)', () async {
+      final chat = chatOn(FakeServer([answer('Porcini grow in autumn.')]));
+      await chat.send('When do porcini grow?');
+      final server = GatedServer([answer('{"title": "T", "body": "B"}')]);
+      chat.detach();
+      chat.attach(
+          ChatSession(tools: tools(), config: anthropic, post: server.post));
+      final done = chat.session!
+          .askOnce(const [UserMessage('A note?')], system: 'Write a note.');
+      await pumpEventQueue();
+      chat.detach();
+      server.gate.complete();
+      await done;
+      expect(chat.usage.input, 220);
+      expect(chat.usage.output, 40);
+      await store.flush();
+      expect(jsonDecode(storage.files[chat.id]!)['usage'],
+          {'input': 220, 'cached': 0, 'output': 40});
+    });
+
     test('a reply that arrives after the chat was closed still counts in '
         'its usage (#250)', () async {
       final server = GatedServer([answer('Late.')]);
