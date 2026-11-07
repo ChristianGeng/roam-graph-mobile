@@ -75,6 +75,7 @@ class AboutScreen extends StatefulWidget {
     this.release,
     this.checker,
     this.installedViaInstallSh,
+    this.updateAndRestart,
   });
 
   final String version;
@@ -87,6 +88,10 @@ class AboutScreen extends StatefulWidget {
 
   /// Tests replace the install.sh lookup.
   final Future<bool> Function()? installedViaInstallSh;
+
+  /// Tests replace the "Update and restart" run; the app runs
+  /// [UpdateChecker.updateAndRestart].
+  final Future<void> Function()? updateAndRestart;
 
   static Future<void> open(BuildContext context,
           {required String version,
@@ -298,7 +303,8 @@ class _AboutScreenState extends State<AboutScreen> {
                                     // Runs install.sh --update, then
                                     // starts the new app and quits this
                                     // one; only on success.
-                                    await UpdateChecker.updateAndRestart();
+                                    await (widget.updateAndRestart ??
+                                        UpdateChecker.updateAndRestart)();
                                   } catch (e) {
                                     if (mounted) {
                                       // The error with its copy action

@@ -547,9 +547,11 @@ void main() {
             home: AboutScreen(
               version: '0.2.4',
               release: release('v0.2.5'),
-              // Pretend install.sh is there; it is not next to the test
-              // binary, so running it fails.
               installedViaInstallSh: () async => true,
+              // A failing updater, without launching another executable.
+              updateAndRestart: () async =>
+                  throw const ProcessException('install.sh', ['--update'],
+                      'installer not found', 127),
             ),
           ),
         ));
