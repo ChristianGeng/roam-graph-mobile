@@ -13,14 +13,16 @@ void main() {
   late TextEditingController text;
 
   Future<void> pump(WidgetTester tester,
-      {bool enterSends = false, bool canSubmit = true}) async {
+      {bool enterSends = false,
+      bool canSubmit = true,
+      bool withController = true}) async {
     submitted = 0;
     text = TextEditingController();
     addTearDown(text.dispose);
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: FieldKeys(
-          controller: text,
+          controller: withController ? text : null,
           enterSends: enterSends,
           onSubmit: canSubmit ? () => submitted++ : null,
           child: TextField(
@@ -83,6 +85,27 @@ void main() {
         isTrue);
     expect(submitted, 0);
   });
+
+  for (final withController in [true, false]) {
+    onLinux(
+        'while an input method composes, the key goes to the field'
+        '${withController ? '' : ' (a page without controller)'}',
+        (tester) async {
+      await pump(tester, enterSends: true, withController: withController);
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'ka',
+        selection: TextSelection.collapsed(offset: 2),
+        composing: TextRange(start: 0, end: 2),
+      ));
+      await tester.pump();
+      expect(await press(tester, LogicalKeyboardKey.enter), isFalse);
+      expect(
+          await press(tester, LogicalKeyboardKey.enter,
+              held: LogicalKeyboardKey.controlLeft),
+          isFalse);
+      expect(submitted, 0);
+    });
+  }
 
   testWidgets('android: no key saves', (tester) async {
     await pump(tester, enterSends: true);

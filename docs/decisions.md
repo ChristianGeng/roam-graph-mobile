@@ -4347,7 +4347,7 @@ anyway, and opencode runs locally, so it does not need comment triggers.
 approval worked), "Require conversation resolution before merging", and
 optionally CodeRabbit as a required status check.
 
-## 137. Desktop keys: Enter sends, and one key table in Settings → Keyboard (#256)
+## 138. Desktop keys: Enter sends, and one key table in Settings → Keyboard (#256)
 
 On the desktop (`isDesktop`), Enter in the AI chat input sends the
 message and Shift+Enter makes a new line; Ctrl+Enter (Cmd+Enter on macOS)

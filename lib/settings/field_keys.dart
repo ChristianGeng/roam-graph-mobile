@@ -24,9 +24,10 @@ class FieldKeys extends StatelessWidget {
     required this.child,
   });
 
-  /// The field's text. While an input method composes in it (a dead key,
-  /// Japanese), the keys go to the field, so the Enter that ends the
-  /// composition sends nothing.
+  /// The field's text. While an input method composes in it, or in the
+  /// focused field of a page without [controller] (a dead key, Japanese),
+  /// the keys go to the field, so the Enter that ends the composition
+  /// sends nothing.
   final TextEditingController? controller;
 
   final VoidCallback? onSubmit;
@@ -39,6 +40,15 @@ class FieldKeys extends StatelessWidget {
 
   final Widget child;
 
+  /// Whether an input method composes in [controller], or, on a page of
+  /// fields, in the field that has the focus.
+  bool _composing() {
+    if (controller?.value.isComposingRangeValid ?? false) return true;
+    final field = primaryFocus?.context
+        ?.findAncestorStateOfType<EditableTextState>();
+    return field?.textEditingValue.isComposingRangeValid ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!isDesktop) return child;
@@ -50,9 +60,7 @@ class FieldKeys extends StatelessWidget {
         if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
           return KeyEventResult.ignored;
         }
-        if (controller?.value.isComposingRangeValid ?? false) {
-          return KeyEventResult.ignored;
-        }
+        if (_composing()) return KeyEventResult.ignored;
         bool pressed(KeyAction action) =>
             keys.of(action)?.accepts(event) ?? false;
         if (pressed(KeyAction.submit) ||

@@ -1617,6 +1617,12 @@ void main() {
       expect(handled, isFalse);
       expect(server.requests, isEmpty);
       expect(input(tester), 'First line');
+      // A widget test has no platform text input that would turn the key
+      // into a line; the field takes the line it gets, and still nothing
+      // is sent.
+      await type(tester, 'First line\nSecond line');
+      expect(input(tester), 'First line\nSecond line');
+      expect(server.requests, isEmpty);
     });
 
     onDesktop('Ctrl+Enter sends', (tester) async {
