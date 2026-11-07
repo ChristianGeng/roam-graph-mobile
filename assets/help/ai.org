@@ -118,6 +118,22 @@ tokens, 78 % from the cache". It counts all the messages of the chat and is
 saved with it. A low percentage after the first message can mean that the
 provider or the model does not cache.
 
+*Shorten old tool results* (AI → Agent and limits, on by default): in a
+long agent chat most of every request is notes, web pages and graph output
+the AI read many messages ago. A tool result that is older than 3 of my
+messages (the number is a setting) and longer than 2,000 characters goes to
+the AI as a short note instead: the tool, what it read, how long it was and
+its first line, for example "[Earlier result of read_node "kgv" (12,400
+characters), shortened. …]". The AI can read it again if it needs it. The
+chat on screen and the saved chat keep everything.
+- It happens in steps, not with every message: only when the old results
+  not yet shortened add up to about 50,000 characters are they all
+  shortened at once. Between two steps every request starts with the same
+  text as the one before, so the provider's cache keeps working.
+- An image that came with such a result is left out with it.
+- The size of the chat under it counts what is sent, so the line that
+  suggests a new chat comes later.
+
 ** Run several chats
 :PROPERTIES:
 :ID:       roam-graph-help-parallel-chats

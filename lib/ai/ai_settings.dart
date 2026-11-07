@@ -19,6 +19,7 @@ import 'note_language.dart';
 import 'ai_providers.dart';
 import 'ai_visibility.dart';
 import 'speech.dart';
+import 'tool_result_shortening.dart';
 import 'web_access.dart';
 import 'chat_store.dart' show ChatStoreScope;
 
@@ -179,6 +180,8 @@ class AiSettings {
     this.maxParallelChats = 3,
     this.keepChatsDays = 90,
     this.notifyAnswers = true,
+    this.shortenToolResults = true,
+    this.shortenAfterTurns = ToolResultShortening.defaultAfterTurns,
     this.speechProvider = '',
     this.speechModels = const {},
     this.speechLanguage = '',
@@ -221,6 +224,17 @@ class AiSettings {
   /// "Notify when an answer is ready" (#202): a notification when a chat
   /// that is not on screen gets its answer, or fails.
   final bool notifyAnswers;
+
+  /// "Shorten old tool results" (#251): results older than
+  /// [shortenAfterTurns] of my messages go to the model as a short stub.
+  final bool shortenToolResults;
+
+  /// After how many of my messages a tool result counts as old (#251).
+  final int shortenAfterTurns;
+
+  /// How the chat's requests shorten old tool results (#251).
+  ToolResultShortening get shortening => ToolResultShortening(
+      enabled: shortenToolResults, afterTurns: shortenAfterTurns);
 
   /// "Language of new notes" (#172): the code of the language the AI
   /// writes new notes in when neither the request, the note they start
@@ -315,6 +329,8 @@ class AiSettings {
     int? maxParallelChats,
     int? keepChatsDays,
     bool? notifyAnswers,
+    bool? shortenToolResults,
+    int? shortenAfterTurns,
     String? speechProvider,
     Map<String, String>? speechModels,
     String? speechLanguage,
@@ -341,6 +357,8 @@ class AiSettings {
         maxParallelChats: maxParallelChats ?? this.maxParallelChats,
         keepChatsDays: keepChatsDays ?? this.keepChatsDays,
         notifyAnswers: notifyAnswers ?? this.notifyAnswers,
+        shortenToolResults: shortenToolResults ?? this.shortenToolResults,
+        shortenAfterTurns: shortenAfterTurns ?? this.shortenAfterTurns,
         speechProvider: speechProvider ?? this.speechProvider,
         speechModels: speechModels ?? this.speechModels,
         speechLanguage: speechLanguage ?? this.speechLanguage,
@@ -371,6 +389,8 @@ class AiSettings {
         'maxParallelChats': maxParallelChats,
         'keepChatsDays': keepChatsDays,
         'notifyAnswers': notifyAnswers,
+        'shortenToolResults': shortenToolResults,
+        'shortenAfterTurns': shortenAfterTurns,
         'speechProvider': speechProvider,
         'speechModels': speechModels,
         'speechLanguage': speechLanguage,
@@ -448,6 +468,12 @@ class AiSettings {
       notifyAnswers: json['notifyAnswers'] is bool
           ? json['notifyAnswers'] as bool
           : defaults.notifyAnswers,
+      // Missing in settings saved before #251: on, after 3 messages.
+      shortenToolResults: json['shortenToolResults'] is bool
+          ? json['shortenToolResults'] as bool
+          : defaults.shortenToolResults,
+      shortenAfterTurns:
+          positive('shortenAfterTurns', defaults.shortenAfterTurns),
       speechProvider: switch (json['speechProvider']) {
         final String id when speechProviders.any((p) => p.id == id) => id,
         _ => defaults.speechProvider,
@@ -1095,6 +1121,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
   bool _braveKeyRemove = false;
   String? _braveKeyVariable;
   bool _notifyAnswers = true;
+  bool _shortenToolResults = true;
+  final _shortenTurns = TextEditingController();
 
   /// "Speech to text" (#221): '' for automatic, else a provider ID.
   String _speechProvider = '';
@@ -1231,6 +1259,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       _webAccess = settings.webAccess;
       _webSearchWith = settings.webSearchWith;
       _notifyAnswers = settings.notifyAnswers;
+      _shortenToolResults = settings.shortenToolResults;
+      _shortenTurns.text = '${settings.shortenAfterTurns}';
       _speechProvider = settings.speechProvider;
       _speechMistralModel.text = settings.speechModel('mistral');
       _speechOpenAiModel.text = settings.speechModel('openai');
@@ -1298,6 +1328,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     _webSearches.dispose();
     _language.dispose();
     _parallel.dispose();
+    _shortenTurns.dispose();
     _speechMistralModel.dispose();
     _speechOpenAiModel.dispose();
     _speechLanguage.dispose();
@@ -1343,6 +1374,15 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
     if (parallel == null || parallel < 1) {
       setState(() => _problem =
           'The chats working at the same time must be at least 1.');
+      return;
+    }
+    // Checked only while "Shorten old tool results" is on: the field is
+    // hidden otherwise, and its saved value is kept (#251 review).
+    final shortenTurns = int.tryParse(_shortenTurns.text.trim());
+    final shortenTurnsOk = shortenTurns != null && shortenTurns >= 1;
+    if (_shortenToolResults && !shortenTurnsOk) {
+      setState(() => _problem = 'The messages after which a tool result is '
+          'shortened must be at least 1.');
       return;
     }
     final language = languageCode(_language.text);
@@ -1395,6 +1435,9 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       maxParallelChats: parallel,
       keepChatsDays: _keepChats,
       notifyAnswers: _notifyAnswers,
+      shortenToolResults: _shortenToolResults,
+      shortenAfterTurns:
+          shortenTurnsOk ? shortenTurns : loaded.shortenAfterTurns,
     );
     final keys = AiSettingsScope.keysOf(context);
     setState(() {
@@ -1448,6 +1491,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         _braveKey.text.trim().isNotEmpty ||
         _braveKeyRemove ||
         _notifyAnswers != saved.notifyAnswers ||
+        _shortenToolResults != saved.shortenToolResults ||
+        _shortenTurns.text.trim() != '${saved.shortenAfterTurns}' ||
         _speechProvider != saved.speechProvider ||
         jsonEncode(_speechModels()) != jsonEncode(saved.speechModels) ||
         _speechLanguageValue != saved.speechLanguage ||
@@ -2483,6 +2528,26 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           helperText: 'A further message waits until one of them is done.',
         ),
       ),
+      SwitchListTile(
+        key: const ValueKey('shorten-tool-results'),
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Shorten old tool results'),
+        subtitle: const Text(
+            'Notes, pages and other tool results the AI read several '
+            'messages ago go to it as a short note, so long chats cost '
+            'less. The chat on screen keeps them whole.'),
+        value: _shortenToolResults,
+        onChanged: (on) => setState(() => _shortenToolResults = on),
+      ),
+      if (_shortenToolResults)
+        TextField(
+          key: const ValueKey('shorten-after-turns'),
+          controller: _shortenTurns,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Shorten a tool result after this many messages',
+          ),
+        ),
       TextField(
         key: const ValueKey('max-change-set-files'),
         controller: _files,

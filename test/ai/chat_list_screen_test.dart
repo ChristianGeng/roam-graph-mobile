@@ -526,6 +526,28 @@ void main() {
     expect(find.byKey(const ValueKey('notify-denied')), findsNothing);
   });
 
+  testWidgets('"Shorten old tool results" is on under Agent and limits, '
+      'with the age in messages (#251)', (tester) async {
+    await openList(tester, FakeServer([]));
+    await tester.tap(find.byTooltip('AI settings'));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('ai-agent')));
+    await settle(tester);
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('shorten-tool-results')), 200,
+        scrollable: find.byType(Scrollable).first);
+    final tile = tester.widget<SwitchListTile>(
+        find.byKey(const ValueKey('shorten-tool-results')));
+    expect(tile.value, isTrue);
+    final field = tester
+        .widget<TextField>(find.byKey(const ValueKey('shorten-after-turns')));
+    expect(field.controller!.text, '3');
+    // Off: the age goes with it.
+    await tester.tap(find.byKey(const ValueKey('shorten-tool-results')));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('shorten-after-turns')), findsNothing);
+  });
+
   testWidgets('no refusal line when notifications are allowed',
       (tester) async {
     await openList(tester, FakeServer([]), notifier: FakeNotifier());

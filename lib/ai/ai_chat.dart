@@ -20,6 +20,7 @@ import 'package:crypto/crypto.dart';
 import '../platform/error_text.dart';
 import 'ai_providers.dart';
 import 'ai_tools.dart';
+import 'tool_result_shortening.dart';
 import 'web_access.dart';
 
 /// What the model is told before the conversation. It never changes, so
@@ -862,7 +863,12 @@ class ChatSession {
     this.web,
     this.cacheKey,
     this.today,
+    this.shortening = const ToolResultShortening(),
   }) : _config = config;
+
+  /// How old tool results are shortened in the requests (#251); the
+  /// transcript keeps them whole.
+  final ToolResultShortening shortening;
 
   /// The chat's key for the providers' prompt caches ([chatCacheKey]);
   /// null for a request outside a chat.
@@ -1185,7 +1191,8 @@ class ChatSession {
     final request = entries != null
         ? _api.request(config, offered, entries,
             system: system ?? _system, images: false, cacheKey: cacheKey)
-        : _api.request(config, offered, transcript,
+        : _api.request(
+            config, offered, shortenOldToolResults(transcript, shortening),
             system: system ?? _system,
             images: _images,
             webSearches:

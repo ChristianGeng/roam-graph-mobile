@@ -1080,6 +1080,43 @@ void main() {
       }
     });
 
+    testWidgets('"Shorten old tool results" off: a wrong age in the hidden '
+        'field does not block saving (#251 review)', (tester) async {
+      final store = MemoryAiSettingsStore();
+      await openAiPage(tester, store: store);
+      await openRow(tester, 'agent');
+      final age = find.byKey(const ValueKey('shorten-after-turns'));
+      await scrollTo(tester, age);
+      await tester.enterText(age, '0');
+      await tester.tap(find.byKey(const ValueKey('shorten-tool-results')));
+      await tester.pump();
+      expect(age, findsNothing);
+      await backToAi(tester);
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(store.saves, 1);
+      expect(store.settings.shortenToolResults, isFalse);
+      // The hidden, wrong value is not saved: the age stays as it was.
+      expect(store.settings.shortenAfterTurns, 3);
+    });
+
+    testWidgets('"Shorten old tool results" on: a wrong age is refused',
+        (tester) async {
+      final store = MemoryAiSettingsStore();
+      await openAiPage(tester, store: store);
+      await openRow(tester, 'agent');
+      final age = find.byKey(const ValueKey('shorten-after-turns'));
+      await scrollTo(tester, age);
+      await tester.enterText(age, '0');
+      await backToAi(tester);
+      await tester.tap(find.byTooltip('Save'));
+      await tester.pumpAndSettle();
+      expect(store.saves, 0);
+      expect(
+          find.textContaining('a tool result is shortened must be at least 1'),
+          findsOneWidget);
+    });
+
     testWidgets('a change in a sub-page is saved with the check mark and '
         'read back', (tester) async {
       final store = MemoryAiSettingsStore();
