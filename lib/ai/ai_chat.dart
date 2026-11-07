@@ -900,10 +900,10 @@ class ChatSession {
   /// `max_uses` of the provider's own web search in the next request, 0
   /// to leave the tool out (#269). It is what is left of the message's
   /// limit, so one request can never search past it. That is the whole
-  /// limit until the first search of a message, so the tools, which come
-  /// first in the request, stay the same and stay cached (#250); it is
-  /// lower, and the cache starts again, only in the request after a round
-  /// that searched or fetched a page.
+  /// limit until the first search or fetched page of a message, so the
+  /// tools, which come first in the request, stay the same and stay
+  /// cached (#250); it is lower, and the cache starts again, only in the
+  /// request after a round that searched or fetched a page.
   int get providerSearches => _activeWeb?.search == true ? webLeft : 0;
 
   /// [system], with the sentences on web access when it is on.

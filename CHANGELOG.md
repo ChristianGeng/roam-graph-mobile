@@ -10,7 +10,26 @@ each entry.
 
 ## 2026-11-07: Anthropic's web search keeps to "Most web searches" in every request ([#274](https://github.com/ChristianGeng/roam-graph-mobile/pull/274))
 
-- Fixed: with Anthropic's own web search, one request could search the whole limit again after earlier searches in the same message (with 5: 4, then 5 more). Each request now allows only what is left of the limit, so a message never searches more than "Most web searches for one message". The search tool stays the same, and cached, in every request until the first search. Closes #269.
+- Fixed: with Anthropic's own web search, one request could search the whole limit again after earlier searches in the same message (with 5: 4, then 5 more). Each request now allows only what is left of the limit, so a message never searches more than "Most web searches for one message". The search tool stays the same, and cached, in every request until the first search or page fetch. Closes #269.
+
+## 2026-11-07: The Linux installer comes with the release, with its checksum ([#270](https://github.com/ChristianGeng/roam-graph-mobile/pull/270))
+
+Added: every full release carries the Linux installer, `install.sh`, with
+`install.sh.sha256`. The README's first install downloads both from the
+newest release, checks them with `sha256sum -c`, then runs the installer;
+it no longer runs a script from `main`. Closes #249.
+
+## 2026-11-07: Update check: four fixes left from #258 ([#272](https://github.com/ChristianGeng/roam-graph-mobile/pull/272))
+
+- Fixed: a damaged saved time of the last update check no longer resets
+  all settings; only that time falls back.
+- Fixed: the update check no longer hangs on a stalled name lookup; after
+  15 s it counts as offline.
+- Fixed: an update that was found is still shown when the time of the
+  check can't be saved.
+- Fixed: "Update and restart" is disabled, with "Updating…", while the
+  installer runs, so it can't run twice, also not from a second About
+  page. Closes [#268](https://github.com/ChristianGeng/roam-graph-mobile/issues/268).
 
 ## 2026-11-07: Old tool results are shortened in chat requests ([#271](https://github.com/ChristianGeng/roam-graph-mobile/pull/271))
 

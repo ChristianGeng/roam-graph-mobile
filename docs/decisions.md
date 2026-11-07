@@ -4375,12 +4375,11 @@ per chat whether it works.
     themselves.
   - A custom OpenAI-compatible provider gets none, so no unknown field can
     break a request.
-- **Anthropic's own web search keeps a fixed `max_uses`:** the setting's
-  limit, in every request of a message. The tools come first in the
-  request, so the old count of the searches left changed the start of
-  every round and emptied the whole cache. The app still counts the
-  searches of the message and leaves the tool out once none are left; one
-  request may then run more searches than were left, at most the limit.
+- **Anthropic's own web search `max_uses`:** superseded by decision 142
+  (#269). It was the setting's limit in every request of a message, so
+  one request could run more searches than were left; it is now what is
+  left of the message's limit, the whole limit until the first search or
+  page fetch.
 - **The start of the request stays the same in a chat:** the system text
   changes only with a setting (web access, the language, agent mode); the
   tools keep their order. Today's date (#129) is no longer in the system
@@ -4490,7 +4489,69 @@ chat keep everything.
   made yet) the setting is not known, so the whole chat counts: the size is
   never too low.
 
-## 141. Anthropic's web search: max_uses is what is left of the limit (#269)
+## 140. Update check: a bounded lookup that dispose() can end, results kept, one installer (#268)
+
+The four points left from #258 (decision 135, #247), and what the review
+of #272 added:
+
+- **The saved check time can't break the settings.** `ViewSettings.fromJson`
+  reads `lastUpdateCheckTime` with `DateTime.tryParse`; a bad string falls
+  back for that field only.
+- **The connectivity lookup has the request's limit** (`onlineTimeout`,
+  default `requestTimeout`, 15 s). A lookup that stalls, fails or throws at
+  once counts as offline. Each lookup has its own `Timer` (not
+  `Future.timeout`), and its first outcome wins, so a lookup that answers
+  after its time-out changes neither its check nor a later lookup's timer.
+- **`UpdateChecker.dispose()` ends the checker:** it cancels the timers of
+  waiting lookups and ends their checks at once with the result
+  "Cancelled", which is not a check: no check time is saved and the last
+  result stays. Later checks on a disposed checker end the same way. The
+  app's state calls it when it closes or replaces the checker. Without it,
+  a closed app kept a 15 s timer, and every desktop widget test that
+  starts the app failed on the pending timer.
+- **A failed save of the check time keeps the result:** the found update
+  is still shown; the next start checks again.
+- **One installer at a time:** "Update and restart" is disabled and shows
+  "Updating…" while `install.sh --update` runs; a failure enables it again
+  and keeps the error's Copy action. The guard is shared by all About
+  pages, so a second page can't start a second installer.
+
+**Why:** a hanging check or a double installer run is worse than a missed
+update notice, and a check the app cancelled must not count as one made.
+
+## 141. The Linux installer is a release asset, with its checksum (#249)
+
+**Decided:** every full release carries the installer as two assets of its
+own, `install.sh` and `install.sh.sha256`. The README's first install
+downloads both from `releases/latest/download/`, checks them with
+`sha256sum -c install.sh.sha256`, and only then runs `sh install.sh
+--update`. This replaces the "download, read, then run" from `main` of
+decision 130.
+
+- The `linux` job takes `bundle/install.sh` out of the package it just
+  built and writes the asset and its checksum file with
+  `tool/installer_asset.dart`. The step fails if that file is not
+  `linux/packaging/install.sh`, so the asset, the package's installer and
+  the reviewed source are the same file.
+- The `release` job checks again before publishing: the asset against the
+  package's `bundle/install.sh` (`cmp`), the checksum file against the asset
+  (`sha256sum -c`), and after the upload GitHub's `digest` of `install.sh`
+  against the asset's SHA-256. A mismatch stops the release before it is
+  published. A pre-release has no installer asset, like it has no desktop
+  packages (decision 100).
+- `releases/latest` is never a pre-release or a draft, so the installer a
+  reader downloads is that of the newest full release.
+
+**Why:** CodeRabbit on #248 (CWE-494): the first install ran a script
+fetched from `main`, which nothing checked, while updates check the package
+against GitHub's SHA-256. Now the first install is checked the same way: a
+file of an immutable release, with GitHub's digest and the checksum file to
+compare. The checksum file comes from the same release as the script, so it
+guards against a broken or swapped download, not against a compromised
+release; GitHub's digest, shown on the release page, is the independent
+copy. A pinned commit in the README would go stale with every release.
+
+## 142. Anthropic's web search: max_uses is what is left of the limit (#269)
 
 Since #250 the request gave Anthropic's own web search the whole limit
 (*Most web searches for one message*) as `max_uses` in every request of a
@@ -4507,9 +4568,9 @@ limit of 5, after 4 searches the next request could do 5 more. Now
   past it. Counting the `server_tool_use` blocks as they stream and
   stopping the answer (option 2) would need streaming answers, which the
   chat does not use, and would stop an answer half written.
-- **The cache:** until the first search of a message, `max_uses` is the
-  whole limit, so the tools stay byte for byte the same in every round
-  before it (the rounds that read notes first). The tools change, and the
+- **The cache:** until the first search or page fetch of a message,
+  `max_uses` is the whole limit, so the tools stay byte for byte the same
+  in every round before it (the rounds that read notes first). The tools change, and the
   provider's cache starts again, only in the request after a round that
   searched or fetched a page (`webLeft` counts both), and then stay the
   same in the rounds that don't use the web. A new message starts with the

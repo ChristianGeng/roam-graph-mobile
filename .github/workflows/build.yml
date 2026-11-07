@@ -440,11 +440,26 @@ jobs:
         # (tool/glibc_check.dart, decision 123).
         run: dart tool/glibc_check.dart build/linux/x64/release/bundle
 
+      - name: Make the installer a release asset
+        # The first install downloads install.sh from the newest full
+        # release, not from main, and checks it with install.sh.sha256
+        # (#249, decision 141). The asset is the file in the package, and
+        # the step fails if that is not linux/packaging/install.sh.
+        env:
+          VERSION: ${{ needs.version.outputs.name }}
+        run: |
+          dart tool/installer_asset.dart \
+            "roam-graph-$VERSION-linux-x64.tar.gz" \
+            linux/packaging/install.sh installer
+
       - name: Keep the Linux app as a build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: linux
-          path: roam-graph-*-linux-x64.tar.gz
+          path: |
+            roam-graph-*-linux-x64.tar.gz
+            installer/install.sh
+            installer/install.sh.sha256
           if-no-files-found: error
 
   windows:
@@ -715,7 +730,12 @@ jobs:
           files=("$APK")
           mark=(--prerelease)
           if [ "$KIND" = full ]; then
-            files+=("$LINUX" "$WINDOWS" "$MACOS")
+            # The installer asset (#249, decision 141): the same file as in
+            # the Linux package, and its checksum file matches it.
+            tar -xzOf "$LINUX" bundle/install.sh | cmp - installer/install.sh
+            (cd installer && sha256sum -c install.sh.sha256)
+            files+=("$LINUX" "$WINDOWS" "$MACOS" \
+              installer/install.sh installer/install.sh.sha256)
             mark=(--prerelease=false)
           fi
           if gh release view "$TAG" > /dev/null 2>&1; then
@@ -728,5 +748,17 @@ jobs:
               --target "${{ github.sha }}" \
               --title "$TAG" \
               --notes-file release-notes.md
+          fi
+          if [ "$KIND" = full ]; then
+            # GitHub's SHA-256 of the uploaded installer is the one the
+            # README tells users to compare with; check it before the
+            # release is published.
+            want="sha256:$(sha256sum installer/install.sh | cut -c1-64)"
+            got=$(gh release view "$TAG" --json assets \
+              --jq '.assets[] | select(.name == "install.sh") | .digest')
+            if [ "$got" != "$want" ]; then
+              echo "::error::GitHub's digest of install.sh is '$got', not '$want'."
+              exit 1
+            fi
           fi
           gh release edit "$TAG" --draft=false
