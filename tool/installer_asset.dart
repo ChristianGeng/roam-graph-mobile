@@ -1,4 +1,4 @@
-// Makes the Linux installer a release asset of its own (#249, decision 139),
+// Makes the Linux installer a release asset of its own (#249, decision 140),
 // so the first install can be checked the same way an update is.
 //
 //   dart tool/installer_asset.dart TARBALL SOURCE OUT_FOLDER

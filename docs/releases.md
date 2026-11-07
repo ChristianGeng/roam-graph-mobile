@@ -175,7 +175,7 @@ Ubuntu 22.04, so it runs on Ubuntu 22.04 and newer (decision 123). It
 needs GTK 3 and libsecret, which Ubuntu has.
 
 The shortest way is the installer alone, a file of every full release
-(`install.sh`, with `install.sh.sha256`, #249, decision 139): download
+(`install.sh`, with `install.sh.sha256`, #249, decision 140): download
 both into a new, empty folder, check, compare, then run. A failed download
 stops the chain, so no older file is checked.
 
