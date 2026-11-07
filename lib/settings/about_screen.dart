@@ -74,6 +74,7 @@ class AboutScreen extends StatefulWidget {
     this.openUrl = openUrlOnDevice,
     this.release,
     this.checker,
+    this.installedViaInstallSh,
   });
 
   final String version;
@@ -83,6 +84,9 @@ class AboutScreen extends StatefulWidget {
   /// The app's one update checker, from the [UpdateCheckerScope]; null in
   /// tests or when there is none.
   final UpdateChecker? checker;
+
+  /// Tests replace the install.sh lookup.
+  final Future<bool> Function()? installedViaInstallSh;
 
   static Future<void> open(BuildContext context,
           {required String version,
@@ -150,7 +154,9 @@ class _AboutScreenState extends State<AboutScreen> {
 
   /// Checks if the app was installed via install.sh on Linux.
   Future<bool> _isInstalledViaInstallSh() async =>
-      isDesktop && await UpdateChecker.isInstalledViaInstallSh();
+      isDesktop &&
+      await (widget.installedViaInstallSh ??
+          UpdateChecker.isInstalledViaInstallSh)();
 
   @override
   void didChangeDependencies() {
@@ -247,8 +253,11 @@ class _AboutScreenState extends State<AboutScreen> {
                           future: _isInstalledViaInstallSh(),
                           builder: (context, snapshot) {
                             final installedViaInstallSh = snapshot.data ?? false;
-                            if (!installedViaInstallSh) {
-                              // On Windows/macOS, show download link
+                            // install.sh --update installs the latest full
+                            // release; a pre-release has no Linux package,
+                            // so offer the download link for it instead.
+                            if (!installedViaInstallSh ||
+                                _effectiveRelease!.isPrerelease) {
                               return FilledButton(
                                 key: const ValueKey('about-download-update'),
                                 onPressed: () => openExternalLink(

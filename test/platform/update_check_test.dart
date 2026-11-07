@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show SystemChannels;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:http/http.dart' as http;
@@ -497,6 +498,72 @@ void main() {
         await tester.pumpAndSettle();
         expect(fetcher.latestCalls, 1);
         expect(find.text('Update available: 0.2.5'), findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('"Update and restart" for a pre-release shows the download '
+        'link instead', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await tester.pumpWidget(DefaultAssetBundle(
+          bundle: FakeBundle(),
+          child: MaterialApp(
+            home: AboutScreen(
+              version: '0.2.4',
+              release: release('v0.2.6-dev.1', prerelease: true),
+              installedViaInstallSh: () async => true,
+            ),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('about-update-and-restart')),
+            findsNothing);
+        expect(find.byKey(const ValueKey('about-download-update')),
+            findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('a failed "Update and restart" shows the error with a Copy '
+        'action', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      String? copied;
+      tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      });
+      addTearDown(() => tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null));
+      try {
+        await tester.pumpWidget(DefaultAssetBundle(
+          bundle: FakeBundle(),
+          child: MaterialApp(
+            home: AboutScreen(
+              version: '0.2.4',
+              release: release('v0.2.5'),
+              // Pretend install.sh is there; it is not next to the test
+              // binary, so running it fails.
+              installedViaInstallSh: () async => true,
+            ),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('about-update-and-restart')));
+        await tester.pumpAndSettle();
+        // Confirm in the dialog.
+        await tester.tap(find.text('Update and restart').last);
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Update failed:'), findsOneWidget);
+        await tester.tap(find.text('Copy'));
+        await tester.pump();
+        expect(copied, isNotNull);
+        expect(copied, contains('Update failed:'));
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
