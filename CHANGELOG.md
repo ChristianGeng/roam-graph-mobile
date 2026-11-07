@@ -8,6 +8,13 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-07: The Linux installer comes with the release, with its checksum ([#270](https://github.com/ChristianGeng/roam-graph-mobile/pull/270))
+
+Added: every full release carries the Linux installer, `install.sh`, with
+`install.sh.sha256`. The README's first install downloads both from the
+newest release, checks them with `sha256sum -c`, then runs the installer;
+it no longer runs a script from `main`. Closes #249.
+
 ## 2026-11-07: Update check: four fixes left from #258 ([#272](https://github.com/ChristianGeng/roam-graph-mobile/pull/272))
 
 - Fixed: a damaged saved time of the last update check no longer resets
