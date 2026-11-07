@@ -19,6 +19,9 @@ import 'platform/chat_background.dart';
 import 'platform/desktop.dart';
 import 'platform/follow_emacs.dart';
 import 'platform/text_drop.dart';
+import 'platform/update_check.dart' show UpdateChecker, ViewSettingsUpdateSettings;
+import 'platform/update_notification.dart';
+import 'node_view/web_links.dart' show openUrlOnDevice;
 import 'platform/voice_work.dart';
 import 'settings/view_settings.dart';
 
@@ -111,36 +114,121 @@ class RoamGraphApp extends StatelessWidget {
         notifier: answerNotifier,
         child: ViewSettingsHost(
           store: viewSettings,
-          child: Builder(
-            builder: (context) => MaterialApp(
-              title: 'Roam Graph',
-              themeMode: ViewSettingsScope.of(context).theme.mode,
-              theme: ThemeData(colorSchemeSeed: Colors.indigo),
-              darkTheme: ThemeData(
-                colorSchemeSeed: Colors.indigo,
-                brightness: Brightness.dark,
-              ),
-              // Drops onto the window on the desktop (#220).
-              builder: (context, child) =>
-                  WindowDropTarget(child: child ?? const SizedBox()),
-              home: FolderScreen(
-                folderAccess: folderAccess ??
-                    (isDesktop
-                        ? const DesktopFolderAccess()
-                        : const PlatformFolderAccess()),
-                version: appVersion,
-                graphIndex: graphIndex,
-                graphScreen: graphScreen,
-                shareInbox: shareInbox,
-                nodeMemory: nodeMemory,
-                editHistory: editHistory,
-                pickTextFiles: pickTextFiles,
-                speechPost: speechPost,
-                voiceWork: voiceWork,
-              ),
-            ),
+          child: _AppBody(
+            folderAccess: folderAccess,
+            graphIndex: graphIndex,
+            graphScreen: graphScreen,
+            shareInbox: shareInbox,
+            nodeMemory: nodeMemory,
+            editHistory: editHistory,
+            pickTextFiles: pickTextFiles,
+            speechPost: speechPost,
+            voiceWork: voiceWork,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The app below the settings host: creates the one [UpdateChecker] of
+/// the app (once per settings notifier) and shares it with the start
+/// screen and the About page (#247).
+class _AppBody extends StatefulWidget {
+  const _AppBody({
+    required this.folderAccess,
+    required this.graphIndex,
+    required this.graphScreen,
+    required this.shareInbox,
+    required this.nodeMemory,
+    required this.editHistory,
+    required this.pickTextFiles,
+    required this.speechPost,
+    required this.voiceWork,
+  });
+
+  final FolderAccess? folderAccess;
+  final GraphIndex graphIndex;
+  final GraphScreenBuilder graphScreen;
+  final ShareInbox shareInbox;
+  final NodeMemory nodeMemory;
+  final EditHistory editHistory;
+  final Future<List<String>> Function() pickTextFiles;
+  final AudioPost speechPost;
+  final VoiceWork? voiceWork;
+
+  @override
+  State<_AppBody> createState() => _AppBodyState();
+}
+
+class _AppBodyState extends State<_AppBody> {
+  ValueNotifier<ViewSettings>? _notifier;
+  UpdateChecker? _checker;
+
+  @override
+  Widget build(BuildContext context) {
+    final scope =
+        context.dependOnInheritedWidgetOfExactType<ViewSettingsScope>();
+    final notifier = scope?.notifier;
+    if (notifier != null && notifier != _notifier) {
+      // The settings host creates its notifier once; build the checker
+      // with it once, too, so in-flight checks and results are kept.
+      _notifier = notifier;
+      _checker = UpdateChecker(
+        currentVersion: appVersion,
+        settings: ViewSettingsUpdateSettings(
+          notifier: notifier,
+          onSave: scope!.onChange,
+        ),
+      );
+    }
+    final checker = _checker;
+    final settings = notifier?.value ?? ViewSettings.withDefaults();
+    return MaterialApp(
+      title: 'Roam Graph',
+      themeMode: settings.theme.mode,
+      theme: ThemeData(colorSchemeSeed: Colors.indigo),
+      darkTheme: ThemeData(
+        colorSchemeSeed: Colors.indigo,
+        brightness: Brightness.dark,
+      ),
+      // Drops onto the window on the desktop (#220).
+      builder: (context, child) => checker == null
+          ? WindowDropTarget(child: child ?? const SizedBox())
+          : UpdateCheckerScope(
+              checker: checker,
+              child: UpdateCheckerWidget(
+                checker: checker,
+                loaded: scope?.loaded,
+                onUpdateAvailable: (release) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Update available: ${release.name}'),
+                      action: SnackBarAction(
+                        label: 'View',
+                        onPressed: () =>
+                            openUrlOnDevice(Uri.parse(release.htmlUrl)),
+                      ),
+                    ),
+                  );
+                },
+                child: WindowDropTarget(child: child ?? const SizedBox()),
+              ),
+            ),
+      home: FolderScreen(
+        folderAccess: widget.folderAccess ??
+            (isDesktop
+                ? const DesktopFolderAccess()
+                : const PlatformFolderAccess()),
+        version: appVersion,
+        graphIndex: widget.graphIndex,
+        graphScreen: widget.graphScreen,
+        shareInbox: widget.shareInbox,
+        nodeMemory: widget.nodeMemory,
+        editHistory: widget.editHistory,
+        pickTextFiles: widget.pickTextFiles,
+        speechPost: widget.speechPost,
+        voiceWork: widget.voiceWork,
       ),
     );
   }

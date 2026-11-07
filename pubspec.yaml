@@ -38,6 +38,10 @@ dependencies:
   # The notes folder on the desktop (#116): the system's folder picker.
   file_selector: ^1.0.3
   desktop_drop: ^0.8.4
+  # HTTP client for checking updates (#247).
+  http: ^1.2.2
+  # Path manipulation for finding install.sh (#247).
+  path: ^1.9.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

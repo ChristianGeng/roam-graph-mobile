@@ -5,7 +5,10 @@ library;
 import 'package:material_ui/material_ui.dart';
 
 import '../node_view/web_links.dart';
-import '../platform/error_text.dart' show copyToClipboard;
+import '../platform/desktop.dart';
+import '../platform/error_text.dart' show copyToClipboard, showErrorSnackBar;
+import '../platform/update_check.dart' show GitHubRelease, UpdateChecker;
+import '../platform/update_notification.dart' show UpdateCheckerScope;
 
 /// The page with all releases, pre-releases included.
 final releasesUri =
@@ -69,17 +72,40 @@ class AboutScreen extends StatefulWidget {
     super.key,
     required this.version,
     this.openUrl = openUrlOnDevice,
+    this.release,
+    this.checker,
+    this.installedViaInstallSh,
+    this.updateAndRestart,
   });
 
   final String version;
   final UrlOpener openUrl;
+  final GitHubRelease? release;
+
+  /// The app's one update checker, from the [UpdateCheckerScope]; null in
+  /// tests or when there is none.
+  final UpdateChecker? checker;
+
+  /// Tests replace the install.sh lookup.
+  final Future<bool> Function()? installedViaInstallSh;
+
+  /// Tests replace the "Update and restart" run; the app runs
+  /// [UpdateChecker.updateAndRestart].
+  final Future<void> Function()? updateAndRestart;
 
   static Future<void> open(BuildContext context,
-          {required String version, UrlOpener openUrl = openUrlOnDevice}) =>
+          {required String version,
+          UrlOpener openUrl = openUrlOnDevice,
+          GitHubRelease? release,
+          UpdateChecker? checker}) =>
       Navigator.push(
         context,
         MaterialPageRoute<void>(
-            builder: (_) => AboutScreen(version: version, openUrl: openUrl)),
+            builder: (_) => AboutScreen(
+                version: version,
+                openUrl: openUrl,
+                release: release,
+                checker: checker ?? UpdateCheckerScope.maybeOf(context))),
       );
 
   @override
@@ -89,6 +115,53 @@ class AboutScreen extends StatefulWidget {
 class _AboutScreenState extends State<AboutScreen> {
   Future<String>? _changelog;
   int _shown = changelogPageSize;
+  GitHubRelease? _effectiveRelease;
+  String? _checkStatus;
+  bool _checkingForUpdates = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final checker = widget.checker;
+    _effectiveRelease = widget.release ?? checker?.lastResult?.release;
+    // Check on open only when checking is on (on Android only if the
+    // user turned it on, #247).
+    if (_effectiveRelease == null &&
+        checker != null &&
+        checker.settings.checkForUpdates) {
+      _checkForUpdates();
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    final checker = widget.checker;
+    if (checker == null || _checkingForUpdates) return;
+    _checkingForUpdates = true;
+    try {
+      final result = await checker.checkForUpdates(force: true);
+      if (!mounted) return;
+      setState(() {
+        if (result.available && result.release != null) {
+          _effectiveRelease = result.release;
+          _checkStatus = 'Update available: ${result.release!.version}';
+        } else if (result.error != null) {
+          _checkStatus = 'Check failed: ${result.error}';
+        } else {
+          _checkStatus = 'Up to date';
+        }
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _checkingForUpdates = false);
+      }
+    }
+  }
+
+  /// Checks if the app was installed via install.sh on Linux.
+  Future<bool> _isInstalledViaInstallSh() async =>
+      isDesktop &&
+      await (widget.installedViaInstallSh ??
+          UpdateChecker.isInstalledViaInstallSh)();
 
   @override
   void didChangeDependencies() {
@@ -100,7 +173,18 @@ class _AboutScreenState extends State<AboutScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('About')),
+      appBar: AppBar(
+        title: const Text('About'),
+        actions: [
+          if (widget.checker != null)
+            IconButton(
+              key: const ValueKey('about-check-for-updates'),
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Check for updates',
+              onPressed: _checkForUpdates,
+            ),
+        ],
+      ),
       body: ListView(
         children: [
           Padding(
@@ -124,6 +208,124 @@ class _AboutScreenState extends State<AboutScreen> {
               ],
             ),
           ),
+          if (_checkStatus != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(
+                _checkStatus!,
+                key: const ValueKey('about-check-status'),
+                style: theme.textTheme.bodyMedium,
+              ),
+            ),
+          if (_effectiveRelease != null) ...[
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Update available: ${_effectiveRelease!.name}',
+                    key: const ValueKey('about-update-available'),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "What's new",
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(_effectiveRelease!.body),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          key: const ValueKey('about-view-release'),
+                          onPressed: () => openExternalLink(
+                            context,
+                            Uri.parse(_effectiveRelease!.htmlUrl),
+                            widget.openUrl,
+                          ),
+                          child: const Text('View release on GitHub'),
+                        ),
+                      ),
+                      if (isDesktop) ...[
+                        const SizedBox(width: 8),
+                        FutureBuilder<bool>(
+                          future: _isInstalledViaInstallSh(),
+                          builder: (context, snapshot) {
+                            final installedViaInstallSh = snapshot.data ?? false;
+                            // install.sh --update installs the latest full
+                            // release; a pre-release has no Linux package,
+                            // so offer the download link for it instead.
+                            if (!installedViaInstallSh ||
+                                _effectiveRelease!.isPrerelease) {
+                              return FilledButton(
+                                key: const ValueKey('about-download-update'),
+                                onPressed: () => openExternalLink(
+                                  context,
+                                  Uri.parse(_effectiveRelease!.htmlUrl),
+                                  widget.openUrl,
+                                ),
+                                child: const Text('Download update'),
+                              );
+                            }
+                            // On Linux with install.sh, show update and restart
+                            return FilledButton(
+                              key: const ValueKey('about-update-and-restart'),
+                              onPressed: () async {
+                                final messenger =
+                                    ScaffoldMessenger.of(context);
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Update and restart'),
+                                    content: const Text(
+                                      'This will run install.sh --update and restart the app. Continue?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        child: const Text('Update and restart'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirmed == true) {
+                                  try {
+                                    // Runs install.sh --update, then
+                                    // starts the new app and quits this
+                                    // one; only on success.
+                                    await (widget.updateAndRestart ??
+                                        UpdateChecker.updateAndRestart)();
+                                  } catch (e) {
+                                    if (mounted) {
+                                      // The error with its copy action
+                                      // (#182).
+                                      showErrorSnackBar(
+                                          messenger, 'Update failed: $e');
+                                    }
+                                  }
+                                }
+                              },
+                              child: const Text('Update and restart'),
+                            );
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           ListTile(
             key: const ValueKey('about-releases'),
             leading: const Icon(Icons.open_in_new),

@@ -109,8 +109,8 @@ void main() {
       const headings = ViewSettings(sectionsOnOpen: SectionsOnOpen.headings);
       expect(ViewSettings.fromJson(headings.toJson()), headings);
       expect(ViewSettings.fromJson({'sectionsOnOpen': 'sideways'}),
-          const ViewSettings());
-      expect(ViewSettings.fromJson('nonsense'), const ViewSettings());
+          ViewSettings.withDefaults());
+      expect(ViewSettings.fromJson('nonsense'), ViewSettings.withDefaults());
       expect(const ViewSettings().sectionsOnOpen, SectionsOnOpen.collapsed);
     });
 
@@ -119,12 +119,12 @@ void main() {
       final dir = Directory.systemTemp.createTempSync('view-settings');
       addTearDown(() => dir.deleteSync(recursive: true));
       final store = FileViewSettingsStore(path: '${dir.path}/s.json');
-      expect(await store.load(), const ViewSettings());
+      expect(await store.load(), ViewSettings.withDefaults());
       const expanded = ViewSettings(sectionsOnOpen: SectionsOnOpen.expanded);
       await store.save(expanded);
       expect(await store.load(), expanded);
       File('${dir.path}/s.json').writeAsStringSync('{not json');
-      expect(await store.load(), const ViewSettings());
+      expect(await store.load(), ViewSettings.withDefaults());
     });
 
     testWidgets('quick choices: saved in order, and the latest is kept',

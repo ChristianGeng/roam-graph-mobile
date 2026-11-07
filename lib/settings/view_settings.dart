@@ -24,6 +24,7 @@ import '../node_view/web_links.dart' show UrlOpener, openUrlOnDevice;
 import '../platform/desktop.dart';
 import '../platform/error_text.dart';
 import '../platform/follow_emacs.dart';
+import '../platform/update_notification.dart' show UpdateCheckerScope;
 import 'about_screen.dart';
 
 /// How far a note's sections are open when the note opens: the values
@@ -97,6 +98,10 @@ class ViewSettings {
     this.imageFolder = defaultImageFolder,
     this.emacsClient = '',
     this.followEmacs = true,
+    this.checkForUpdates = true,
+    this.includePreReleases = false,
+    this.lastUpdateCheckTime,
+    this.lastSeenVersion,
   }) : _swipeHeadings = swipeHeadings;
 
   /// Where new images go (#112), relative to `roam/`.
@@ -105,6 +110,11 @@ class ViewSettings {
   /// The graph's share of the width on a tablet in landscape (#69): 40 %,
   /// so the note gets 60 %.
   static const defaultGraphShare = 0.4;
+
+  /// Creates ViewSettings with platform-specific defaults.
+  factory ViewSettings.withDefaults() => ViewSettings(
+    checkForUpdates: isDesktop,
+  );
 
   /// By default [SectionsOnOpen.collapsed]: on a phone, the headings first.
   final SectionsOnOpen sectionsOnOpen;
@@ -155,6 +165,20 @@ class ViewSettings {
   /// `roam-graph-follow-mode` is on there.
   final bool followEmacs;
 
+  /// Whether to check for updates on start (#247); on by default on the
+  /// desktop.
+  final bool checkForUpdates;
+
+  /// Whether to include pre-releases when checking for updates (#247);
+  /// off by default.
+  final bool includePreReleases;
+
+  /// The last time an update check was performed (#247).
+  final DateTime? lastUpdateCheckTime;
+
+  /// The last seen version from an update check (#247).
+  final String? lastSeenVersion;
+
   /// The command to run: [emacsClient], or [defaultEmacsClient].
   String get emacsCommand =>
       emacsClient.trim().isEmpty ? defaultEmacsClient : emacsClient.trim();
@@ -182,6 +206,10 @@ class ViewSettings {
     String? imageFolder,
     String? emacsClient,
     bool? followEmacs,
+    bool? checkForUpdates,
+    bool? includePreReleases,
+    DateTime? lastUpdateCheckTime,
+    String? lastSeenVersion,
   }) =>
       ViewSettings(
         sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
@@ -196,6 +224,10 @@ class ViewSettings {
         imageFolder: imageFolder ?? this.imageFolder,
         emacsClient: emacsClient ?? this.emacsClient,
         followEmacs: followEmacs ?? this.followEmacs,
+        checkForUpdates: checkForUpdates ?? this.checkForUpdates,
+        includePreReleases: includePreReleases ?? this.includePreReleases,
+        lastUpdateCheckTime: lastUpdateCheckTime ?? this.lastUpdateCheckTime,
+        lastSeenVersion: lastSeenVersion ?? this.lastSeenVersion,
       );
 
   Map<String, Object?> toJson() => {
@@ -211,11 +243,16 @@ class ViewSettings {
         'imageFolder': imageFolder,
         'emacsClient': emacsClient,
         'followEmacs': followEmacs,
+        'checkForUpdates': checkForUpdates,
+        'includePreReleases': includePreReleases,
+        'lastUpdateCheckTime': lastUpdateCheckTime?.toIso8601String(),
+        'lastSeenVersion': lastSeenVersion,
       };
 
-  /// Settings from [json]; a missing or unknown value keeps its default.
+  /// Settings from [json]; a missing or unknown value keeps its default
+  /// (the platform default for "Check for updates", on Android off, #247).
   factory ViewSettings.fromJson(Object? json) {
-    const defaults = ViewSettings();
+    final defaults = ViewSettings.withDefaults();
     if (json is! Map) return defaults;
     final sections = json['sectionsOnOpen'];
     final share = json['graphShare'];
@@ -264,6 +301,22 @@ class ViewSettings {
         final bool follow => follow,
         _ => defaults.followEmacs,
       },
+      checkForUpdates: switch (json['checkForUpdates']) {
+        final bool check => check,
+        _ => defaults.checkForUpdates,
+      },
+      includePreReleases: switch (json['includePreReleases']) {
+        final bool include => include,
+        _ => defaults.includePreReleases,
+      },
+      lastUpdateCheckTime: switch (json['lastUpdateCheckTime']) {
+        final String time => DateTime.parse(time),
+        _ => defaults.lastUpdateCheckTime,
+      },
+      lastSeenVersion: switch (json['lastSeenVersion']) {
+        final String version => version,
+        _ => defaults.lastSeenVersion,
+      },
     );
   }
 
@@ -281,12 +334,14 @@ class ViewSettings {
       other._swipeHeadings == _swipeHeadings &&
       other.imageFolder == imageFolder &&
       other.emacsClient == emacsClient &&
-      other.followEmacs == followEmacs;
+      other.followEmacs == followEmacs &&
+      other.checkForUpdates == checkForUpdates &&
+      other.includePreReleases == includePreReleases;
 
   @override
   int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
       startLayout, lastLayout, theme, scripts, joinLines, _swipeHeadings,
-      imageFolder, emacsClient, followEmacs);
+      imageFolder, emacsClient, followEmacs, checkForUpdates, includePreReleases);
 }
 
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
@@ -333,10 +388,10 @@ class FileViewSettingsStore implements ViewSettingsStore {
   Future<ViewSettings> load() async {
     try {
       final file = await _file();
-      if (!file.existsSync()) return const ViewSettings();
+      if (!file.existsSync()) return ViewSettings.withDefaults();
       return ViewSettings.fromJson(jsonDecode(file.readAsStringSync()));
     } on Exception {
-      return const ViewSettings();
+      return ViewSettings.withDefaults();
     }
   }
 
@@ -353,7 +408,8 @@ class FileViewSettingsStore implements ViewSettingsStore {
 
 /// [ViewSettingsStore] in memory, for tests.
 class MemoryViewSettingsStore implements ViewSettingsStore {
-  MemoryViewSettingsStore([this.settings = const ViewSettings()]);
+  MemoryViewSettingsStore([ViewSettings? settings])
+      : settings = settings ?? ViewSettings.withDefaults();
 
   ViewSettings settings;
 
@@ -381,7 +437,7 @@ class ViewSettingsHost extends StatefulWidget {
 }
 
 class _ViewSettingsHostState extends State<ViewSettingsHost> {
-  final _settings = ValueNotifier(const ViewSettings());
+  late final _settings = ValueNotifier(ViewSettings.withDefaults());
 
   /// The saves so far, one after the other, so the file ends with the
   /// latest choice.
@@ -392,7 +448,7 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
 
   /// What the file holds as far as known: the settings loaded, then each
   /// one saved. Used when the latest save fails.
-  ViewSettings _inFile = const ViewSettings();
+  late ViewSettings _inFile = ViewSettings.withDefaults();
 
   /// Whether a save succeeded; then the file is newer than what was
   /// loaded.
@@ -410,7 +466,7 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
       try {
         settings = await widget.store.load();
       } on Exception {
-        settings = const ViewSettings();
+        settings = ViewSettings.withDefaults();
       }
       if (mounted && !_saved) {
         _inFile = settings;
@@ -487,7 +543,7 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
     if (loaded != null) {
       await loaded.timeout(limit, onTimeout: () {});
     }
-    return scope?.notifier?.value ?? const ViewSettings();
+    return scope?.notifier?.value ?? ViewSettings.withDefaults();
   }
 
   /// Saves and applies new settings; see [change].
@@ -501,7 +557,7 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
           .dependOnInheritedWidgetOfExactType<ViewSettingsScope>()
           ?.notifier
           ?.value ??
-      const ViewSettings();
+      ViewSettings.withDefaults();
 
   /// Saves [settings], then uses them. Changes are saved in the order they
   /// are made, and only the latest is used, so a slow earlier save cannot
@@ -514,7 +570,7 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
           .getInheritedWidgetOfExactType<ViewSettingsScope>()
           ?.notifier
           ?.value ??
-      const ViewSettings();
+      ViewSettings.withDefaults();
 
   static Future<void> change(BuildContext context, ViewSettings settings) async {
     final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
@@ -758,6 +814,31 @@ class SettingsScreen extends StatelessWidget {
               onChanged: (value) =>
                   _saveSettings(context, settings.copyWith(followEmacs: value)),
             ),
+          // On Android the default is off (Obtainium is the updater
+          // there), but the user can turn it on (#247).
+          SwitchListTile(
+            key: const ValueKey('settings-check-for-updates'),
+            secondary: const Icon(Icons.system_update_outlined),
+            title: const Text('Check for updates'),
+            subtitle: Text(isDesktop
+                ? 'On start, at most once a day, check for a newer release '
+                    'on GitHub. See Help, "Update checking".'
+                : 'Off by default here; Obtainium updates the app. When on, '
+                    'a notice links to the release page on GitHub.'),
+            value: settings.checkForUpdates,
+            onChanged: (value) =>
+                _saveSettings(context, settings.copyWith(checkForUpdates: value)),
+          ),
+          SwitchListTile(
+            key: const ValueKey('settings-include-pre-releases'),
+            secondary: const Icon(Icons.new_releases_outlined),
+            title: const Text('Include pre-releases'),
+            subtitle: const Text('Also check for pre-release versions when '
+                'checking for updates.'),
+            value: settings.includePreReleases,
+            onChanged: (value) =>
+                _saveSettings(context, settings.copyWith(includePreReleases: value)),
+          ),
           if (isDesktop)
             ListTile(
               key: const ValueKey('settings-follow-emacs-snippet'),
@@ -774,8 +855,12 @@ class SettingsScreen extends StatelessWidget {
             title: const Text('About'),
             subtitle: Text(versionLabel(version)),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () =>
-                AboutScreen.open(context, version: version, openUrl: openUrl),
+            onTap: () => AboutScreen.open(
+              context,
+              version: version,
+              openUrl: openUrl,
+              checker: UpdateCheckerScope.maybeOf(context),
+            ),
           ),
         ],
       ),
