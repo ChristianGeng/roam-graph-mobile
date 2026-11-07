@@ -68,9 +68,7 @@ void main() {
         workingDirectory: out);
     expect(changed.exitCode, isNot(0));
   },
-      skip: Platform.isLinux || Platform.isMacOS
-          ? false
-          : 'sha256sum is a Linux and macOS tool');
+      skip: _hasSha256sum() ? false : 'sha256sum is not installed');
 
   test('an installer in the package that differs from the source fails', () {
     final out = '${tmp.path}/out';
@@ -103,4 +101,14 @@ void main() {
             outFolder: '${tmp.path}/out'),
         throwsA(isA<InstallerAssetException>()));
   });
+}
+
+/// Whether GNU `sha256sum` is on the path: Linux has it, a stock macOS does
+/// not (it has `shasum`).
+bool _hasSha256sum() {
+  try {
+    return Process.runSync('sha256sum', ['--version']).exitCode == 0;
+  } on ProcessException {
+    return false;
+  }
 }

@@ -143,15 +143,16 @@ of the newest full release with its checksum, check it, then run it:
 ```
 curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh
 curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh.sha256
-sha256sum -c install.sh.sha256
-sh install.sh --update
+sha256sum -c install.sh.sha256 && sh install.sh --update
 ```
 
-`sha256sum -c` must print `install.sh: OK`; if it does not, do not run the
-script. The checksum is also GitHub's own: the release page shows it next to
-`install.sh` ("sha256:…"), and
-`gh release view --repo ChristianGeng/roam-graph-mobile --json assets --jq '.assets[] | select(.name == "install.sh") | .digest'`
-prints it.
+`sha256sum -c` must print `install.sh: OK`; only then does the installer
+run. The checksum file comes from the same release as the script; to check
+against GitHub's own record as well, compare `sha256sum install.sh` with the
+digest GitHub shows next to `install.sh` on the release page ("sha256:…"),
+or prints with
+`gh release view --repo ChristianGeng/roam-graph-mobile --json assets --jq '.assets[] | select(.name == "install.sh") | .digest'`.
+The two must be the same hex string; if they differ, do not run the script.
 
 The installer is a file of the release, the same one as in the Linux package,
 not whatever `main` holds now. It installs the newest full release into
