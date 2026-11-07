@@ -225,11 +225,14 @@ class Chat extends ChangeNotifier {
 
   /// The rough size of the chat in characters: what every message sends
   /// again, with old tool results counted as the stubs sent in their
-  /// place (#251).
+  /// place (#251). Without a session the setting is not known, so the
+  /// whole chat counts: the size is never too low, and the line that
+  /// suggests a new chat is never hidden.
   int get characters {
     var n = 0;
-    final sent = shortenOldToolResults(
-        transcript, session?.shortening ?? const ToolResultShortening());
+    final s = session;
+    final sent =
+        s == null ? transcript : shortenOldToolResults(transcript, s.shortening);
     for (final entry in sent) {
       switch (entry) {
         case ModelChanged():

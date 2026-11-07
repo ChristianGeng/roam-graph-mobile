@@ -4486,6 +4486,9 @@ chat keep everything.
   (`ChatSession.askOnce`, #145) sends the entries it is given, unshortened.
 - **The size of a chat (#201)** counts what is sent: `Chat.characters`
   counts the stubs, so the line that suggests a new chat comes later.
+  Without a session (a chat read from its file whose session could not be
+  made yet) the setting is not known, so the whole chat counts: the size is
+  never too low.
 
 ## Recommended, not decided
 

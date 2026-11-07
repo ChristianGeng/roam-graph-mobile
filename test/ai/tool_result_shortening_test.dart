@@ -314,6 +314,23 @@ void main() {
       return chat;
     }
 
+    test('without a session the whole chat counts, so the warning is never '
+        'hidden (#271 review)', () {
+      final store = ChatStore(MemoryChatStorage(),
+          now: () => DateTime.utc(2026, 11, 7, 12));
+      final chat = store.create(
+          providerId: 'anthropic',
+          providerName: 'Anthropic',
+          model: anthropic.model);
+      final withSession = chatWith(ToolResultShortening.off);
+      // The same transcript, read from its file, before a session exists.
+      final loaded = Chat.fromJson(store, chat.id,
+          jsonDecode(jsonEncode(withSession.toJson())));
+      expect(loaded.session, isNull);
+      expect(loaded.characters, withSession.characters);
+      expect(loaded.characters, greaterThan(60000));
+    });
+
     test('an old result counts as its stub', () {
       final whole = chatWith(ToolResultShortening.off).characters;
       final shortened = chatWith(const ToolResultShortening()).characters;
