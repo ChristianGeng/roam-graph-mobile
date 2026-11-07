@@ -61,7 +61,8 @@ folder is the only connection.
    with a prompt that names the issue and the rules of this file; or Claude,
    when the owner says so. opencode runs on the owner's laptop; its GitHub
    workflow starts only by hand and cannot push. One pull request per issue, with
-   "Closes #<issue>". Devin and opencode do not merge.
+   "Closes #<issue>". Devin and opencode do not merge; Claude may (see
+   "When a pull request is done").
 3. **Review:** CI (Android build with all tests, Linux, Windows, macOS,
    changelog, org-roam) and the review bots (CodeRabbit, Sourcery, Devin).
    Every finding is fixed or answered. Findings for Devin go to Devin as a
@@ -102,13 +103,13 @@ and do not ask for a merge, before.
    budget. Fix each finding, or answer it with the reason; then resolve the
    thread (commands below). Gitar does not review any more.
 6. **Merge** only when CI is green on the newest commit, CodeRabbit has
-   reviewed that commit and every thread is resolved. With branch protection
-   on `main`, an agent may then merge its own pull request with a merge
-   commit (`gh pr merge <PR> --merge`), then waits for the pre-release run
-   on `main` and reports its version. CodeRabbit approves a pull request
-   when its findings are resolved (`.coderabbit.yaml`, decision 136); that
-   approval is the review a merge needs. The owner may set the required
-   approvals back to 1.
+   reviewed that commit, every thread is resolved and CodeRabbit's review of
+   that commit is an approval (`.coderabbit.yaml`, decision 136); that
+   approval is the review a merge needs. Claude then merges its own pull
+   request with a merge commit (`gh pr merge <PR> --merge`), waits for the
+   pre-release run on `main` and reports its version. Devin and opencode do
+   not merge. If CodeRabbit does not approve, ask the owner. The owner may
+   set the required approvals back to 1.
 7. **When `main` moves on,** merge `main` in. Keep the entries of both sides
    in `CHANGELOG.md` and `docs/decisions.md`; if a decision number is taken,
    renumber yours.
@@ -134,13 +135,13 @@ Things to know:
   clicking through.
 - **Run Flutter locally when you can.** An agent on a machine with Flutter
   (for example opencode on the owner's laptop) runs `flutter analyze` and
-  `flutter test` before every push and pushes only when both pass. Agents
+  `flutter test --exclude-tags live` (as CI does) before every push and pushes only when both pass. Agents
   without Flutter rely on CI.
 - **Keep sessions small.** One session per task; start the review round in a
   fresh session or after compacting the context; load no MCP servers or
   tools the task does not need.
-- **Flutter runs only in CI**, not in the cloud sessions: CI is the test
-  run. Read a failure from the check run's annotations.
+- **Cloud sessions have no Flutter**, so there CI is the test run (see
+  "Run Flutter locally when you can"). Read a failure from the check run's annotations.
 - **macOS runners are sometimes not available** on GitHub ("not acquired
   by Runner"); the job is then cancelled. Run that job again; a full
   release waits for it.

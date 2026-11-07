@@ -24,8 +24,9 @@ jobs:
       - name: Check the issue number
         env:
           ISSUE: ${{ inputs.issue }}
+        shell: bash
         run: |
-          if ! printf '%s' "$ISSUE" | grep -qE '^[0-9]+$'; then
+          if [[ ! "$ISSUE" =~ ^[0-9]+$ ]]; then
             echo "issue must be a number" >&2
             exit 1
           fi
