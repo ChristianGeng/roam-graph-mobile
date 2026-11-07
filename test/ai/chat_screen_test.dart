@@ -1072,11 +1072,23 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Ask AI'));
     await tester.pumpAndSettle();
-    // The graph opens the chat list (#201); "New chat" starts a chat with
-    // the note the graph shows.
+    // The graph opens the chat list (#201); "New chat" starts a chat
+    // without a start note (#253); "New chat about" starts one with the
+    // centre note.
     expect(find.byType(ChatListScreen), findsOneWidget);
     expect(find.byType(ChatScreen), findsNothing);
+    // The centre note is offered with its own button.
+    expect(find.byKey(const ValueKey('chat-new-about')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('chat-new')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChatScreen), findsOneWidget);
+    expect(tester.widget<ChatScreen>(find.byType(ChatScreen)).startNode?.id,
+        isNull);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    // "New chat about 'plan'" starts with that note.
+    await tester.tap(find.byKey(const ValueKey('chat-new-about')));
     await tester.pumpAndSettle();
     expect(find.byType(ChatScreen), findsOneWidget);
     expect(tester.widget<ChatScreen>(find.byType(ChatScreen)).startNode?.id,
@@ -1343,6 +1355,192 @@ void main() {
         final second = server.requests[1].body['tools'] as List;
         expect(second.last['max_uses'], 2);
       });
+    });
+  });
+
+  group('start note chip and detaching (#253)', () {
+    testWidgets('chip shows when chat has a start note', (tester) async {
+      final server = FakeServer([]);
+      await openChat(tester, server, startNode: graph.nodes['plan']);
+      await tester.pumpAndSettle();
+      // The chip is shown before any messages.
+      expect(
+          find.byKey(const ValueKey('chat-start-note-chip')), findsOneWidget);
+      expect(find.textContaining('About: Plan'), findsOneWidget);
+      // The empty-state text names the note.
+      expect(find.textContaining('Ask about "Plan"'), findsOneWidget);
+    });
+
+    testWidgets('no chip when chat starts without a start note',
+        (tester) async {
+      final server = FakeServer([]);
+      await openChat(tester, server);
+      await tester.pumpAndSettle();
+      expect(
+          find.byKey(const ValueKey('chat-start-note-chip')), findsNothing);
+      expect(find.textContaining('Ask about your notes.'), findsOneWidget);
+    });
+
+    testWidgets('tapping the chip title opens the note', (tester) async {
+      final server = FakeServer([]);
+      String? opened;
+      await openChat(tester, server,
+          startNode: graph.nodes['plan'], opened: (id) => opened = id);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('About: Plan'));
+      expect(opened, 'plan');
+    });
+
+    testWidgets('x detaches via store and undo restores', (tester) async {
+      final server = FakeServer([]);
+      final store = ChatStore(MemoryChatStorage());
+      await store.load();
+      await tester.pumpWidget(AiSettingsHost(
+        store: MemoryAiSettingsStore(),
+        keys: keysWithAnthropic(),
+        child: ChatStoreScope(
+          store: store,
+          child: MaterialApp(
+            home: ChatScreen(
+              graph: ValueNotifier(graph),
+              readNote: (path) async => notes[path],
+              startNode: graph.nodes['plan'],
+              store: store,
+              post: server.post,
+              agentLog: MemoryAgentLog(),
+              getModels: (url, headers) async => const HttpReply(404, ''),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      // A new chat is created with the start node; the chip shows.
+      expect(
+          find.byKey(const ValueKey('chat-start-note-chip')), findsOneWidget);
+
+      // The start node is set on the ChatScreen.
+      final screen = tester.widget<ChatScreen>(find.byType(ChatScreen));
+      expect(screen.startNode?.id, 'plan');
+    });
+
+    testWidgets('a chat without start node sends no "I am looking at"',
+        (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Hello.'},
+        ]),
+      ]);
+      final store = ChatStore(MemoryChatStorage());
+      await store.load();
+      await tester.pumpWidget(AiSettingsHost(
+        store: MemoryAiSettingsStore(),
+        keys: keysWithAnthropic(),
+        child: ChatStoreScope(
+          store: store,
+          child: MaterialApp(
+            home: ChatScreen(
+              graph: ValueNotifier(graph),
+              readNote: (path) async => notes[path],
+              store: store,
+              post: server.post,
+              agentLog: MemoryAgentLog(),
+              getModels: (url, headers) async => const HttpReply(404, ''),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      // No chip without a start node.
+      expect(
+          find.byKey(const ValueKey('chat-start-note-chip')), findsNothing);
+      expect(find.textContaining('Ask about your notes.'), findsOneWidget);
+
+      // Send a message: no "I am looking at" text.
+      await ask(tester, 'Hello?');
+      final sent = jsonEncode(server.requests.first.body['messages']);
+      expect(sent, isNot(contains('I am looking at')));
+    });
+
+    testWidgets('agent save request names the start note', (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Morels are mushrooms.'},
+        ]),
+        anthropicReply([
+          {'type': 'text', 'text': 'Done.'},
+        ]),
+      ]);
+      final store = ChatStore(MemoryChatStorage());
+      await store.load();
+      final writer = NoteWriter(
+        create: (name, text) async => Created(name),
+        allowWriting: () async {},
+        editor: NoteEditor(
+            store: MemoryNoteStore(Map.of(notes)),
+            history: MemoryEditHistory()),
+      );
+      await tester.pumpWidget(AiSettingsHost(
+        store: MemoryAiSettingsStore(),
+        keys: keysWithAnthropic(),
+        child: ChatStoreScope(
+          store: store,
+          child: MaterialApp(
+            home: ChatScreen(
+              graph: ValueNotifier(graph),
+              readNote: (path) async => notes[path],
+              startNode: graph.nodes['ideas'],
+              store: store,
+              post: server.post,
+              writer: writer,
+              agentLog: MemoryAgentLog(),
+              getModels: (url, headers) async => const HttpReply(404, ''),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await ask(tester, 'Morels?');
+      // Tap "Save as new node" in agent mode.
+      await tester.tap(find.byKey(const ValueKey('chat-save-1')));
+      await tester.pumpAndSettle();
+      // The save request names the start note.
+      final sent = jsonEncode(server.requests[1].body['messages']);
+      expect(sent, contains('[[id:ideas][Ideas]]'));
+      // The write tools are offered.
+      final toolNames = [
+        for (final t in server.requests[1].body['tools'] as List) t['name']
+      ];
+      expect(toolNames, contains('create_node'));
+    });
+
+    testWidgets(
+        'a note\'s "New chat about this note" is unchanged (#215)',
+        (tester) async {
+      await tester.pumpWidget(AiSettingsHost(
+        store: MemoryAiSettingsStore(),
+        keys: keysWithAnthropic(),
+        child: MaterialApp(
+          home: NodeScreen(
+            graph: ValueNotifier<RoamGraph>(graph),
+            id: 'plan',
+            readNote: (path) async => notes[path],
+            nodeMemory: MemoryNodeMemory('plan'),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('AI'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('New chat about this note'));
+      await tester.pumpAndSettle();
+      // The chat starts with the note at once.
+      final chat = tester.widget<ChatScreen>(find.byType(ChatScreen));
+      expect(chat.startNode?.id, 'plan');
+      expect(chat.listBelow, isTrue);
+      // The chip is shown.
+      expect(
+          find.byKey(const ValueKey('chat-start-note-chip')), findsOneWidget);
+      expect(find.textContaining('About: Plan'), findsOneWidget);
     });
   });
 }

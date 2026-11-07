@@ -1163,7 +1163,13 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
       );
-    } else if (session != null && session.transcript.isEmpty) {
+    }
+    // The start-note chip (#253): shown when the chat has a start note.
+    if (_chat.hasStartNode) {
+      children.add(_startNoteChip(context));
+    }
+    if (session != null && session.transcript.isEmpty) {
+      // The empty-state text below the chip (or alone).
       children.add(
         Padding(
           padding: const EdgeInsets.all(16),
@@ -1595,6 +1601,48 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       if (mounted) setState(() => _undoing = null);
     }
+  }
+
+  /// Detaches the chat from its start note (#253): clears
+  /// [Chat.startNodeId], so later saves do not link it and the chip hides.
+  /// Can be undone with the snack bar.
+  void _detachStartNote() {
+    _chat.detachStartNode();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Start note removed.'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => _chat.undoDetach(),
+          ),
+        ),
+      );
+  }
+
+  /// The chip at the top of a chat that has a start note (#253):
+  /// "About: <title> ✕".  Tapping the title opens the note; the ✕ detaches.
+  Widget _startNoteChip(BuildContext context) {
+    final theme = Theme.of(context);
+    final title = _chat.startNodeTitle ?? '';
+    return Padding(
+      key: const ValueKey('chat-start-note-chip'),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: InputChip(
+        avatar: const Icon(Icons.notes, size: 18),
+        label: Text(
+          'About: $title',
+          style: theme.textTheme.bodySmall,
+        ),
+        onPressed: () {
+          final id = _chat.startNodeId;
+          if (id != null) widget.openNode?.call(context, id);
+        },
+        onDeleted: _detachStartNote,
+        deleteIcon: const Icon(Icons.close, size: 16),
+      ),
+    );
   }
 
   Widget _composer(BuildContext context) {

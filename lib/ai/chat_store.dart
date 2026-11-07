@@ -67,9 +67,44 @@ class Chat extends ChangeNotifier {
   String providerName;
   String model;
 
-  /// The note the chat was started from, if any.
-  final String? startNodeId;
-  final String? startNodeTitle;
+  /// The note the chat was started from, if any.  Cleared when the user
+  /// detaches the chat from its start note (#253).
+  String? startNodeId;
+  String? startNodeTitle;
+
+  /// The values [startNodeId] and [startNodeTitle] had before they were
+  /// cleared by [detachStartNode], so the detach can be undone.
+  String? _detachedNodeId;
+  String? _detachedNodeTitle;
+
+  /// Whether this chat has a start note (the about chip is shown).
+  bool get hasStartNode => startNodeId != null;
+
+  /// Detaches this chat from its start note: clears [startNodeId] and
+  /// [startNodeTitle], so later saves do not link it and the chip hides.
+  /// Can be undone with [undoDetach] while the old values are still
+  /// remembered.  Does nothing when the chat has no start note.
+  void detachStartNode() {
+    if (startNodeId == null) return;
+    _detachedNodeId = startNodeId;
+    _detachedNodeTitle = startNodeTitle;
+    startNodeId = null;
+    startNodeTitle = null;
+    store.save(this);
+    notifyListeners();
+  }
+
+  /// Puts back the start note that [detachStartNode] cleared.  Does
+  /// nothing when none was detached.
+  void undoDetach() {
+    if (_detachedNodeId == null) return;
+    startNodeId = _detachedNodeId;
+    startNodeTitle = _detachedNodeTitle;
+    _detachedNodeId = null;
+    _detachedNodeTitle = null;
+    store.save(this);
+    notifyListeners();
+  }
 
   /// A title the user gave; null while the first message is the title.
   String? customTitle;
