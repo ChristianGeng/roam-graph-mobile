@@ -520,11 +520,11 @@ void main() {
       await session.send('How much rain in 2025?');
       expect(session.webLeft, 2);
       final second = server.requests.last.body;
-      // The same max_uses in both rounds of the message, so the tools, which
-      // come first, stay cached (#250); the app counts the searches.
-      expect((second['tools'] as List).last['max_uses'], 5);
-      expect(jsonEncode(second['tools']),
-          jsonEncode(server.requests.first.body['tools']));
+      // Two searches and a page used 3 of the 5: the next request allows
+      // the 2 left, so the message can't search past its limit (#269).
+      expect((server.requests.first.body['tools'] as List).last['max_uses'],
+          5);
+      expect((second['tools'] as List).last['max_uses'], 2);
       // The search goes back unchanged, its encrypted content included.
       expect(jsonEncode(second['messages'][1]['content']),
           contains('"encrypted_content":"opaque"'));
@@ -598,6 +598,142 @@ void main() {
       expect(messages.last, {'role': 'assistant', 'content': paused});
       expect((session.transcript.last as AssistantMessage).text, 'Done.');
       expect(session.waiting, isFalse);
+    });
+  });
+
+  group("Anthropic's search stays within the message's limit (#269)", () {
+    final graph = graphOf(notes);
+    RoamTools tools() => RoamTools(graph,
+        readNote: (path) async => notes[path],
+        visibility: const AiVisibility({'private'}));
+
+    /// An answer that ran [searches] of Anthropic's searches and paused.
+    Map<String, Object?> searched(int searches, String id) => {
+          ...anthropicReply([
+            for (var i = 0; i < searches; i++) ...[
+              {
+                'type': 'server_tool_use',
+                'id': 'srvtoolu_$id$i',
+                'name': 'web_search',
+                'input': {'query': 'rain $id$i'},
+              },
+              {
+                'type': 'web_search_tool_result',
+                'tool_use_id': 'srvtoolu_$id$i',
+                'content': const <Object?>[],
+              },
+            ],
+          ], stop: 'pause_turn'),
+          'usage': {
+            'input_tokens': 1,
+            'output_tokens': 1,
+            'server_tool_use': {'web_search_requests': searches},
+          },
+        };
+
+    /// An answer that calls one of the app's own tools, without searching.
+    Map<String, Object?> ownTool(String id) => anthropicReply([
+          {
+            'type': 'tool_use',
+            'id': 'toolu_$id',
+            'name': 'org_roam_find',
+            'input': {'search': 'rain'},
+          },
+        ], stop: 'tool_use');
+
+    Object? maxUses(Map body) => [
+          for (final tool in body['tools'] as List)
+            if (tool['name'] == 'web_search') tool['max_uses'],
+        ].singleOrNull;
+
+    ChatSession session(FakeServer server, int limit) => ChatSession(
+        tools: tools(),
+        config: anthropic,
+        post: server.post,
+        web: WebAccess(
+            limit: limit, search: true, fetch: (url) async => 'Page $url'));
+
+    test('a limit of 3: 2 searches, then at most 1 more, then none',
+        () async {
+      final server = FakeServer([
+        searched(2, 'a'),
+        // The provider keeps to max_uses 1.
+        searched(1, 'b'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Done.'},
+        ]),
+      ]);
+      final chat = session(server, 3);
+      await chat.send('How much rain?');
+      expect([for (final r in server.requests) maxUses(r.body)], [3, 1, null]);
+      expect(toolNames(server.requests.last.body), isNot(contains('web_search')));
+      final searches = [
+        for (final entry in chat.transcript)
+          if (entry is AssistantMessage) ...entry.searches,
+      ];
+      expect(searches, hasLength(3));
+      expect(chat.webLeft, 0);
+    });
+
+    test('more searches than allowed in a reply still end the searching',
+        () async {
+      final server = FakeServer([
+        searched(2, 'a'),
+        // A provider that did more than max_uses: the app's count stays
+        // the bound, and the next request leaves the tool out.
+        searched(2, 'b'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Done.'},
+        ]),
+      ]);
+      final chat = session(server, 3);
+      await chat.send('How much rain?');
+      expect([for (final r in server.requests) maxUses(r.body)], [3, 1, null]);
+      expect(chat.webLeft, 0);
+    });
+
+    test('the tools stay byte for byte the same until the first search',
+        () async {
+      final server = FakeServer([
+        ownTool('1'),
+        ownTool('2'),
+        searched(1, 'a'),
+        ownTool('3'),
+        anthropicReply([
+          {'type': 'text', 'text': 'Done.'},
+        ]),
+      ]);
+      final chat = session(server, 3);
+      await chat.send('How much rain?');
+      final tools = [
+        for (final r in server.requests) jsonEncode(r.body['tools']),
+      ];
+      // Rounds 1 to 3 before any search: one tool definition, cached.
+      expect(tools[1], tools[0]);
+      expect(tools[2], tools[0]);
+      expect(maxUses(server.requests[2].body), 3);
+      // After the search the limit left is 2: the tools change once,
+      expect(maxUses(server.requests[3].body), 2);
+      expect(tools[3], isNot(tools[0]));
+      // and stay the same in the rounds that don't search.
+      expect(tools[4], tools[3]);
+      expect(maxUses(server.requests[4].body), 2);
+    });
+
+    test('the next message starts with the whole limit again', () async {
+      final server = FakeServer([
+        searched(2, 'a'),
+        anthropicReply([
+          {'type': 'text', 'text': 'First.'},
+        ]),
+        anthropicReply([
+          {'type': 'text', 'text': 'Second.'},
+        ]),
+      ]);
+      final chat = session(server, 3);
+      await chat.send('First question.');
+      await chat.send('Second question.');
+      expect([for (final r in server.requests) maxUses(r.body)], [3, 1, 3]);
     });
   });
 

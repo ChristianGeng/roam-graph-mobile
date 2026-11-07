@@ -331,7 +331,8 @@ abstract class ModelApi {
   /// The request for [transcript]. It starts with the same bytes in every
   /// round: the system prompt, the tools in their fixed order, then the
   /// conversation so far, which only grows. [webSearches] is the most
-  /// searches of the provider's own web search per request, 0 for none.
+  /// searches of the provider's own web search in this request: what is
+  /// left of the message's limit, 0 for none (#269).
   /// [cacheKey] ([chatCacheKey]) names the chat for the caching hints of
   /// the providers that take one (#250).
   ApiRequest request(
@@ -497,8 +498,8 @@ class AnthropicApi extends ModelApi {
             },
           // Anthropic's own web search (#137). The basic version: the later
           // ones filter results with code execution, which not every model
-          // has. [webSearches] is the same in every request of a message,
-          // as a change here would empty the whole cache (#250).
+          // has. [webSearches] changes only after a round that used the web,
+          // as a change here empties the whole cache (#250, #269).
           if (webSearches > 0)
             {
               'type': 'web_search_20250305',
@@ -896,6 +897,15 @@ class ChatSession {
   int get webLeft =>
       _activeWeb == null ? 0 : max(0, _activeWeb!.limit - _webUsed);
 
+  /// `max_uses` of the provider's own web search in the next request, 0
+  /// to leave the tool out (#269). It is what is left of the message's
+  /// limit, so one request can never search past it. That is the whole
+  /// limit until the first search of a message, so the tools, which come
+  /// first in the request, stay the same and stay cached (#250); it is
+  /// lower, and the cache starts again, only in the request after a round
+  /// that searched or fetched a page.
+  int get providerSearches => _activeWeb?.search == true ? webLeft : 0;
+
   /// [system], with the sentences on web access when it is on.
   String get _system => switch (_activeWeb) {
         null => system,
@@ -1185,9 +1195,6 @@ class ChatSession {
       throw AiError('No base URL for ${config.name}. Enter it in AI '
           'settings.');
     }
-    // The provider's own web search gets the whole limit in every request
-    // of a message, so the tools stay the same and stay cached (#250); the
-    // app counts the searches and leaves the tool out once none are left.
     final request = entries != null
         ? _api.request(config, offered, entries,
             system: system ?? _system, images: false, cacheKey: cacheKey)
@@ -1195,8 +1202,7 @@ class ChatSession {
             config, offered, shortenOldToolResults(transcript, shortening),
             system: system ?? _system,
             images: _images,
-            webSearches:
-                _activeWeb?.search == true && webLeft > 0 ? _activeWeb!.limit : 0,
+            webSearches: providerSearches,
             cacheKey: cacheKey);
     if (request.url.scheme != 'https' && config.apiKey.isNotEmpty) {
       throw AiError('The app sends an API key only over HTTPS. Use an '

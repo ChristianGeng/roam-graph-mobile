@@ -4490,6 +4490,36 @@ chat keep everything.
   made yet) the setting is not known, so the whole chat counts: the size is
   never too low.
 
+## 141. Anthropic's web search: max_uses is what is left of the limit (#269)
+
+Since #250 the request gave Anthropic's own web search the whole limit
+(*Most web searches for one message*) as `max_uses` in every request of a
+message, so the tools, which come first in the request, stayed the same
+and stayed cached. The app counted the searches and left the tool out once
+none were left, but one request could use the whole limit again: with a
+limit of 5, after 4 searches the next request could do 5 more. Now
+`max_uses` is what is left of the message's limit
+(`ChatSession.providerSearches`, `webLeft`), and the tool is left out at 0.
+
+- **Why this option (3 of the issue):** it is the only one that keeps the
+  limit exactly with the app's non-streaming requests. Ending the tool use
+  only once the limit is reached (option 1) still lets one request search
+  past it. Counting the `server_tool_use` blocks as they stream and
+  stopping the answer (option 2) would need streaming answers, which the
+  chat does not use, and would stop an answer half written.
+- **The cache:** until the first search of a message, `max_uses` is the
+  whole limit, so the tools stay byte for byte the same in every round
+  before it (the rounds that read notes first). The tools change, and the
+  provider's cache starts again, only in the request after a round that
+  searched or fetched a page (`webLeft` counts both), and then stay the
+  same in the rounds that don't use the web. A new message starts with the
+  whole limit again. The test `the tools stay byte for byte the same until
+  the first search` checks it.
+- **A provider that searched more than `max_uses`:** the app's count is the
+  bound; the next request leaves the tool out.
+- Brave (#233) and `fetch_web_page` are counted by the app per call, as
+  before.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
