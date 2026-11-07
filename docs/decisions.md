@@ -4449,6 +4449,38 @@ also sends. All keys of the app come from one table,
   Ctrl+Enter, Cmd+Enter, empty input, no send while sending, composition,
   Esc; on Android Enter adds a line and sends nothing.
 
+## 139. The Linux installer is a release asset, with its checksum (#249)
+
+**Decided:** every full release carries the installer as two assets of its
+own, `install.sh` and `install.sh.sha256`. The README's first install
+downloads both from `releases/latest/download/`, checks them with
+`sha256sum -c install.sh.sha256`, and only then runs `sh install.sh
+--update`. This replaces the "download, read, then run" from `main` of
+decision 130.
+
+- The `linux` job takes `bundle/install.sh` out of the package it just
+  built and writes the asset and its checksum file with
+  `tool/installer_asset.dart`. The step fails if that file is not
+  `linux/packaging/install.sh`, so the asset, the package's installer and
+  the reviewed source are the same file.
+- The `release` job checks again before publishing: the asset against the
+  package's `bundle/install.sh` (`cmp`), the checksum file against the asset
+  (`sha256sum -c`), and after the upload GitHub's `digest` of `install.sh`
+  against the asset's SHA-256. A mismatch stops the release before it is
+  published. A pre-release has no installer asset, like it has no desktop
+  packages (decision 100).
+- `releases/latest` is never a pre-release or a draft, so the installer a
+  reader downloads is that of the newest full release.
+
+**Why:** CodeRabbit on #248 (CWE-494): the first install ran a script
+fetched from `main`, which nothing checked, while updates check the package
+against GitHub's SHA-256. Now the first install is checked the same way: a
+file of an immutable release, with GitHub's digest and the checksum file to
+compare. The checksum file comes from the same release as the script, so it
+guards against a broken or swapped download, not against a compromised
+release; GitHub's digest, shown on the release page, is the independent
+copy. A pinned commit in the README would go stale with every release.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

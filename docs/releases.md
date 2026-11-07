@@ -7,7 +7,7 @@ three kinds (#167, decision 100):
 |---|---|---|---|
 | Pull request | every push to a pull request | the tests, Android, Linux, Windows, macOS | nothing |
 | Pre-release | every merge to `main` | the tests, the signed APK | a GitHub pre-release `v0.2.1-dev.<run number>`, with the APK only |
-| Full release | the owner, by hand ([below](#make-a-full-release)) | the tests and all four platforms | the latest GitHub release `v0.3.0`, with all four files |
+| Full release | the owner, by hand ([below](#make-a-full-release)) | the tests and all four platforms | the latest GitHub release `v0.3.0`, with all four files and the installer (`install.sh`, `install.sh.sha256`) |
 
 ## Versions
 
@@ -89,7 +89,7 @@ All jobs are in `.github/workflows/build.yml`. They run in this order
    the three desktop jobs are skipped. `org-roam` needs nothing and
    starts at once.
 3. `release` (only on `main`) publishes: for a pre-release the APK, once
-   `build` and `org-roam` have passed; for a full release the four files,
+   `build` and `org-roam` have passed; for a full release the four files and the installer asset,
    once every job has passed.
 
 `build` is still the only job that loads the release key, and only on
@@ -174,8 +174,28 @@ Each release carries `roam-graph-<version>-linux-x64.tar.gz`, built in
 Ubuntu 22.04, so it runs on Ubuntu 22.04 and newer (decision 123). It
 needs GTK 3 and libsecret, which Ubuntu has.
 
-1. Download it from the release and unpack it anywhere, for example in
-   Downloads: `tar -xzf roam-graph-*-linux-x64.tar.gz`
+The shortest way is the installer alone, a file of every full release
+(`install.sh`, with `install.sh.sha256`, #249, decision 139): download
+both, check, run.
+
+```
+curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh
+curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh.sha256
+sha256sum -c install.sh.sha256
+sh install.sh --update
+```
+
+`sha256sum -c` must print `install.sh: OK`. The same SHA-256 is GitHub's
+digest of the asset, on the release page and in
+`gh release view --json assets`. The asset is the installer from the Linux
+package of the same release; the Build workflow fails if they differ, or if
+GitHub's digest differs from the checksum file. `install.sh --update` then
+downloads the package and checks it against GitHub's SHA-256.
+
+Or by hand:
+
+1. Download the package from the release and unpack it anywhere, for
+   example in Downloads: `tar -xzf roam-graph-*-linux-x64.tar.gz`
 2. Run `bundle/install.sh`. It copies the app to
    `~/.local/share/roam-graph/app` and adds **Roam Graph** to the app menu.
 3. Start it from the menu and choose the org folder, the one that holds

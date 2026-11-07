@@ -137,20 +137,27 @@ Good to know:
 
 ### Linux, Windows and macOS
 
-See [docs/releases.md](docs/releases.md). On Linux, download the installer,
-look at it, then run it:
+See [docs/releases.md](docs/releases.md). On Linux, download the installer
+of the newest full release with its checksum, check it, then run it:
 
 ```
-curl -fsSLo install.sh https://raw.githubusercontent.com/ChristianGeng/roam-graph-mobile/main/linux/packaging/install.sh
-less install.sh
+curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh
+curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh.sha256
+sha256sum -c install.sh.sha256
 sh install.sh --update
 ```
 
-It installs the newest full release into
+`sha256sum -c` must print `install.sh: OK`; if it does not, do not run the
+script. The checksum is also GitHub's own: the release page shows it next to
+`install.sh` ("sha256:…"), and
+`gh release view --repo ChristianGeng/roam-graph-mobile --json assets --jq '.assets[] | select(.name == "install.sh") | .digest'`
+prints it.
+
+The installer is a file of the release, the same one as in the Linux package,
+not whatever `main` holds now. It installs the newest full release into
 `${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app` and adds Roam Graph to
-the app menu. The package it downloads is checked against the SHA-256 that
-GitHub gives for the release; the installer script itself is not, so read it
-before running it. To update later, run the installed copy:
+the app menu, after checking the package it downloads against the SHA-256
+that GitHub gives for it. To update later, run the installed copy:
 `${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app/install.sh --update`.
 [docs/releases.md](docs/releases.md) also explains the signing key.
 
