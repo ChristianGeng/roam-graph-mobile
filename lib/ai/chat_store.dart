@@ -38,6 +38,28 @@ const longChatCharacters = 100000;
 /// The longest title a chat gets from its first message.
 const _titleLength = 60;
 
+/// [n] with a comma between each three digits: 412,000.
+String groupedDigits(int n) {
+  final digits = n.abs().toString();
+  final out = StringBuffer(n < 0 ? '-' : '');
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) out.write(',');
+    out.write(digits[i]);
+  }
+  return out.toString();
+}
+
+/// The chat's info line on its tokens (#250): the input of all its
+/// requests, how much of it came from the providers' caches, and the
+/// output. The percentage is rounded down, so 100 % means all of it.
+String chatUsageText(TokenUsage usage) {
+  final input = 'Input so far: ${groupedDigits(usage.input)} tokens';
+  final cached = usage.input > 0
+      ? ', ${usage.cached * 100 ~/ usage.input} % from the cache'
+      : '';
+  return '$input$cached. Output: ${groupedDigits(usage.output)} tokens.';
+}
+
 /// One chat: its transcript, the session that runs it, and what the
 /// screen shows about it.
 class Chat extends ChangeNotifier {
@@ -241,9 +263,20 @@ class Chat extends ChangeNotifier {
     if (old == null) return;
     _stored = [...old.transcript];
     _storedUsage = old.usage;
+    old.onLateUsage = _addLateUsage;
     old.cancel();
     session = null;
     agent = null;
+  }
+
+  void _addLateUsage(TokenUsage late) {
+    final now = session;
+    if (now != null) {
+      now.usage += late;
+    } else {
+      _storedUsage += late;
+    }
+    changed();
   }
 
   /// Tells the listeners that something changed and saves the chat.

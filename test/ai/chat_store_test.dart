@@ -68,6 +68,51 @@ void main() {
     return chat;
   }
 
+  group('cache line (#250)', () {
+    test('sums the messages, is saved with the chat and read again',
+        () async {
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'One.'},
+        ], input: 1000, read: 0),
+        anthropicReply([
+          {'type': 'text', 'text': 'Two.'},
+        ], input: 90, read: 4000),
+      ]);
+      final chat = chatOn(server);
+      await chat.send('First?');
+      await chat.send('Second?');
+      await store.flush();
+      // 1010 and 4100 in (the 10 written to the cache count as input).
+      expect(chat.usage.input, 5110);
+      expect(chat.usage.cached, 4000);
+      expect(chatUsageText(chat.usage),
+          'Input so far: 5,110 tokens, 78 % from the cache. '
+          'Output: 40 tokens.');
+
+      final again = ChatStore(storage);
+      await again.load();
+      final loaded = again.chats.single;
+      expect(loaded.usage.input, 5110);
+      expect(loaded.usage.cached, 4000);
+      expect(chatUsageText(loaded.usage), chatUsageText(chat.usage));
+    });
+
+    test('the percentage is rounded down; no input, no percentage', () {
+      expect(chatUsageText(TokenUsage.zero),
+          'Input so far: 0 tokens. Output: 0 tokens.');
+      expect(
+          chatUsageText(
+              const TokenUsage(input: 412000, cached: 321360, output: 9000)),
+          'Input so far: 412,000 tokens, 78 % from the cache. '
+          'Output: 9,000 tokens.');
+      expect(chatUsageText(const TokenUsage(input: 1000, cached: 999)),
+          startsWith('Input so far: 1,000 tokens, 99 % from the cache.'));
+      expect(groupedDigits(1234567), '1,234,567');
+      expect(groupedDigits(999), '999');
+    });
+  });
+
   group('saving', () {
     test('a chat is saved and read again with its transcript', () async {
       final server = FakeServer([
@@ -344,6 +389,43 @@ void main() {
       expect(names(0), isNot(contains('fetch_web_page')));
       await chat.send('Second question');
       expect(names(1), contains('fetch_web_page'));
+    });
+
+    test('a one-off request (Save as new node) that ends after the chat was '
+        'closed still counts in its usage and is saved (#250)', () async {
+      final chat = chatOn(FakeServer([answer('Porcini grow in autumn.')]));
+      await chat.send('When do porcini grow?');
+      final server = GatedServer([answer('{"title": "T", "body": "B"}')]);
+      chat.detach();
+      chat.attach(
+          ChatSession(tools: tools(), config: anthropic, post: server.post));
+      final done = chat.session!
+          .askOnce(const [UserMessage('A note?')], system: 'Write a note.');
+      await pumpEventQueue();
+      chat.detach();
+      server.gate.complete();
+      await done;
+      expect(chat.usage.input, 220);
+      expect(chat.usage.output, 40);
+      await store.flush();
+      expect(jsonDecode(storage.files[chat.id]!)['usage'],
+          {'input': 220, 'cached': 0, 'output': 40});
+    });
+
+    test('a reply that arrives after the chat was closed still counts in '
+        'its usage (#250)', () async {
+      final server = GatedServer([answer('Late.')]);
+      final chat = chatOn(server);
+      final done = chat.send('Question');
+      await pumpEventQueue();
+      chat.detach();
+      server.gate.complete();
+      await done;
+      expect(chat.usage.input, 110);
+      expect(chat.usage.output, 20);
+      await store.flush();
+      expect(jsonDecode(storage.files[chat.id]!)['usage'],
+          {'input': 110, 'cached': 0, 'output': 20});
     });
 
     test('no dot for a chat that is open', () async {

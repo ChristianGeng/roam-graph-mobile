@@ -453,9 +453,8 @@ void main() {
     });
   });
 
-  test("today's date goes into the system prompt", () {
-    expect(withToday('Prompt.', DateTime(2026, 3, 4)),
-        'Prompt. Today is 2026-03-04.');
+  test("today's date for a message", () {
+    expect(todayLine(DateTime(2026, 3, 4, 23, 59)), 'Today is 2026-03-04.');
   });
 
   test('the setting: one image per message by default, saved', () {

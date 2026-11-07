@@ -605,13 +605,6 @@ class InfographicData {
   }
 }
 
-/// [system] with today's date, so "the last 5 years" is counted from
-/// today, not from the end of the model's training (#129).
-String withToday(String system, DateTime now) {
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '$system Today is ${now.year}-${two(now.month)}-${two(now.day)}.';
-}
-
 /// The system prompt in agent mode: as [systemPrompt], but notes are
 /// changed with the write tools, which save at once.
 final agentSystemPrompt = systemPrompt.replaceFirst(

@@ -2334,7 +2334,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(
           labelText: 'Most web searches for one message',
-          helperText: 'Each page the AI reads counts as one too.',
+          helperText: 'Each page the AI reads counts as one too. '
+              "Anthropic's own search can go over it in the last request.",
         ),
       ),
       TextField(

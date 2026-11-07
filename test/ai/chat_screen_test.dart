@@ -119,7 +119,9 @@ void main() {
     expect(find.textContaining('plan | Plan | plan.org'), findsOneWidget);
 
     expect(find.byKey(const ValueKey('chat-usage')), findsOneWidget);
-    expect(find.textContaining('of them 500 from the cache'), findsOneWidget);
+    // Two requests: 110 and 610 tokens in, 500 of them from the cache.
+    expect(find.text('Input so far: 720 tokens, 69 % from the cache. '
+        'Output: 40 tokens.'), findsOneWidget);
 
     await tester.tapOnText(find.textRange.ofSubstring('the Plan note'));
     expect(opened, 'plan');
@@ -422,6 +424,29 @@ void main() {
           },
           allowWriting: () async {},
         );
+
+    testWidgets('the request for the note counts in the saved usage (#250)',
+        (tester) async {
+      final server = FakeServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Porcini grow in autumn.'},
+        ]),
+        anthropicReply([
+          {'type': 'text', 'text': '{"title": "Porcini", "body": "Autumn."}'},
+        ], input: 300),
+      ]);
+      final storage = MemoryChatStorage();
+      final store = ChatStore(storage);
+      await openChat(tester, server, writer: plainWriter([]), store: store);
+      await ask(tester, 'When do porcini grow?');
+      await tester.tap(find.text('Save as new node'));
+      await tester.pumpAndSettle();
+      expect(server.requests, hasLength(2));
+      await tester.pump();
+      await tester.pump();
+      final file = jsonDecode(storage.files.values.single) as Map;
+      expect(file['usage'], {'input': 420, 'cached': 0, 'output': 40});
+    });
 
     testWidgets('off mode: a request without tools fills "New node"',
         (tester) async {

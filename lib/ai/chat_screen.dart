@@ -485,6 +485,7 @@ class _ChatScreenState extends State<ChatScreen> {
           tools: _tools(settings),
           config: config,
           post: widget.post,
+          cacheKey: chatCacheKey(chat.id),
           maxToolRounds: settings.maxToolRounds,
           toolList: switch (mode) {
             AiEditMode.off => null,
@@ -495,10 +496,10 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             AiEditMode.agent => [...aiTools, ...agent!.tools],
           },
-          system: withToday(
+          system:
               '${mode == AiEditMode.agent ? agentSystemPrompt : systemPrompt} '
               '${languagePrompt(language)}',
-              DateTime.now()),
+          today: DateTime.now,
           toolImage: agent?.imageFor,
           web: webAccessFor(settings, config, braveKey: braveKey),
           handlers: {
@@ -817,6 +818,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ));
       return;
     }
+    final chat = _chat;
     setState(() => _preparing = index);
     ({String title, String body})? note;
     String? failed;
@@ -832,6 +834,9 @@ class _ChatScreenState extends State<ChatScreen> {
       failed = e.message;
       failedDetail = e.report();
     } finally {
+      // The request's usage is saved with the chat (#250); after a new
+      // session, onLateUsage has done that.
+      if (identical(chat.session, session)) chat.changed();
       if (mounted) setState(() => _preparing = null);
     }
     // Closed, or a new chat, meanwhile.
@@ -1480,8 +1485,7 @@ class _ChatScreenState extends State<ChatScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Tokens in this chat: ${usage.input} in, of them '
-                '${usage.cached} from the cache, ${usage.output} out.',
+                chatUsageText(usage),
                 key: const ValueKey('chat-usage'),
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: colors.onSurfaceVariant,
