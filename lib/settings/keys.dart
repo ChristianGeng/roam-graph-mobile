@@ -90,6 +90,11 @@ class KeyChord {
     LogicalKeyboardKey.numpadEnter: 'Enter',
   };
 
+  /// The keypad's Enter is stored as Enter: [accepts] takes both, so two
+  /// actions must not have one each.
+  static LogicalKeyboardKey _main(LogicalKeyboardKey key) =>
+      key == LogicalKeyboardKey.numpadEnter ? LogicalKeyboardKey.enter : key;
+
   /// The keys that are only modifiers, which make no chord alone.
   static final modifiers = {
     ...LogicalKeyboardKey.expandSynonyms({
@@ -112,7 +117,7 @@ class KeyChord {
   static KeyChord? of(KeyEvent event, [HardwareKeyboard? keyboard]) {
     final keys = keyboard ?? HardwareKeyboard.instance;
     if (modifiers.contains(event.logicalKey)) return null;
-    return KeyChord(event.logicalKey,
+    return KeyChord(_main(event.logicalKey),
         control: keys.isControlPressed,
         shift: keys.isShiftPressed,
         alt: keys.isAltPressed,
@@ -132,7 +137,7 @@ class KeyChord {
     if (json is! Map || json['key'] is! int) return null;
     final key = LogicalKeyboardKey.findKeyByKeyId(json['key'] as int) ??
         LogicalKeyboardKey(json['key'] as int);
-    return KeyChord(key,
+    return KeyChord(_main(key),
         control: json['ctrl'] == true,
         shift: json['shift'] == true,
         alt: json['alt'] == true,

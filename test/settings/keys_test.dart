@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/settings/keys.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
@@ -111,6 +112,35 @@ void main() {
       expect(reset.changed, isEmpty);
       expect(reset.toJson()['changed'], isEmpty);
       expect(reset, const KeyBindings());
+    });
+
+    test('the keypad Enter is Enter, also in a file edited by hand', () {
+      final read = KeyBindings.fromJson({
+        'set': 'standard',
+        'changed': {
+          'searchInNote': {'key': LogicalKeyboardKey.numpadEnter.keyId},
+        },
+      });
+      // Enter is "Send the message": the duplicate goes.
+      expect(read.changed, isEmpty);
+      expect(
+          KeyChord.fromJson({'key': LogicalKeyboardKey.numpadEnter.keyId}),
+          const KeyChord(LogicalKeyboardKey.enter));
+    });
+
+    testWidgets('a captured keypad Enter is Enter', (tester) async {
+      KeyChord? captured;
+      await tester.pumpWidget(Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent) captured = KeyChord.of(event);
+          return KeyEventResult.handled;
+        },
+        child: const SizedBox(),
+      ));
+      await tester.sendKeyEvent(LogicalKeyboardKey.numpadEnter);
+      expect(captured, const KeyChord(LogicalKeyboardKey.enter));
+      expect(const KeyBindings().usedBy(captured!), KeyAction.chatSend);
     });
 
     test('setting the default key again stores nothing', () {

@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
@@ -126,6 +128,28 @@ void main() {
     await tester.pumpAndSettle();
     expect(store.files['ideas.org'],
         notes['ideas.org']!.replaceFirst('Open text.', 'Open, fixed text.'));
+  });
+
+  testWidgets('linux: Enter in the instruction asks, as the button (#256)',
+      (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    try {
+      final (_, server) = await open(tester, [
+        anthropicReply([
+          {'type': 'text', 'text': shownIdeas},
+        ]),
+      ]);
+      await tester.showKeyboard(
+          find.byKey(const ValueKey('ai-edit-instruction')));
+      await tester.enterText(
+          find.byKey(const ValueKey('ai-edit-instruction')), 'Fix the text');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(server.requests, hasLength(1));
+      expect(jsonEncode(server.requests.single.body), contains('Fix the text'));
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('a dropped hidden part changes nothing', (tester) async {
