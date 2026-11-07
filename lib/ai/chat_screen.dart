@@ -1607,7 +1607,8 @@ class _ChatScreenState extends State<ChatScreen> {
   /// [Chat.startNodeId], so later saves do not link it and the chip hides.
   /// Can be undone with the snack bar.
   void _detachStartNote() {
-    _chat.detachStartNode();
+    final chat = _chat;
+    chat.detachStartNode();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -1615,7 +1616,7 @@ class _ChatScreenState extends State<ChatScreen> {
           content: const Text('Start note removed.'),
           action: SnackBarAction(
             label: 'Undo',
-            onPressed: () => _chat.undoDetach(),
+            onPressed: chat.undoDetach,
           ),
         ),
       );

@@ -272,6 +272,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 FloatingActionButton.small(
                   key: const ValueKey('chat-new-about'),
                   heroTag: 'chat-new-about',
+                  tooltip: 'New chat about ${widget.centreNode!.displayTitle}',
                   onPressed: () => _open(null,
                       withStartNode: widget.centreNode),
                   child: const Icon(Icons.add_comment_outlined),

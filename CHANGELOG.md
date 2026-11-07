@@ -11,12 +11,9 @@ each entry.
 ## 2026-11-07: Ask AI from the graph starts without a note; the start note is visible, removable and its link optional ([#262](https://github.com/ChristianGeng/roam-graph-mobile/pull/262))
 
 Changed: "Ask AI" in the graph's More menu no longer sets the centre note
-as the start node of every new chat. The chat list now offers a separate
-"About" button for the centre note. Added: a chat with a start note shows
-an "About: <title>" chip at the top; tapping the title opens the note,
-tapping ✕ detaches the chat from the note. A detached chat stays detached.
-The capture screen's link checkbox can be unticked before saving. Agent
-mode's save request names the start note only while the chat has one.
+as every new chat's start note; a separate "About" button offers it.
+Added: a chat with a start note shows an "About: <title>" chip; tapping
+✕ detaches the chat with Undo, and the detached state is saved.
 Closes #253.
 
 ## 2026-11-06: Desktop: check for updates, and "Update and restart" on Linux ([#258](https://github.com/ChristianGeng/roam-graph-mobile/pull/258))
