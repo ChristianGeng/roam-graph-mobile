@@ -21,8 +21,15 @@ them, and images. This page is about the chat and the agent. See also:
 2. Open the chat list: *Ask AI* in the graph's *More* menu, or *Chats* in
    a note's *AI* menu (the sparkle icon). *New chat about this note* in the
    same menu starts a new chat with that note, above the list. In the
-   list, *New chat* starts a chat.
+   list, *New chat* starts a chat without a start note. When the chat list
+   was opened from the graph, a second button next to *New chat* offers a
+   chat about the note that was in the centre of the graph.
 3. Type the question and send it.
+
+When a chat was started from a note, an *About: <title>* chip appears at
+the top. Tap the title to open the note. Tap the ✕ to detach the chat from
+the note; later saves then do not link it, and the first message does not
+name it. The detach can be undone with *Undo* in the bar at the bottom.
 
 The AI reads the notes itself, with the tools of my org-roam MCP server:
 search, read, backlinks, paths and the
@@ -185,8 +192,9 @@ To change one note, or a note and its linked notes, without the chat, use
 ** Save an answer as a note
 *Save as new node* under an answer lets the AI make a note of it: a short,
 fitting title in the language of the answer, the content as Org text
-without chat phrases, and links to the notes the answer used and to the
-note the chat was opened from.
+without chat phrases, and links to the notes the answer used. When the
+chat has a start note (the chip is shown), a link to it is included too
+and the capture screen shows it as a ticked checkbox.
 - In agent mode, the button sends that request as my message; the AI makes
   the note itself, and it shows in the summary with *Undo all changes of
   this message* and in *Recent changes*.

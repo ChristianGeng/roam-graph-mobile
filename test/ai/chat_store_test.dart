@@ -539,4 +539,57 @@ And more.
       expect(note.title, 'Chat');
     });
   });
+
+  group('detach start note (#253)', () {
+    test('is saved and stays detached after reload', () async {
+      final server = FakeServer([answer('Hello.')]);
+      final chat = chatOn(server);
+      await chat.send('Hi');
+      expect(chat.startNodeId, 'ideas');
+      expect(chat.hasStartNode, isTrue);
+
+      chat.detachStartNode();
+      expect(chat.startNodeId, isNull);
+      expect(chat.hasStartNode, isFalse);
+      await store.flush();
+
+      // Reload: the detached state persists.
+      final again = ChatStore(storage);
+      await again.load();
+      final loaded = again.chats.single;
+      expect(loaded.startNodeId, isNull);
+      expect(loaded.hasStartNode, isFalse);
+    });
+
+    test('undo restores the start node', () {
+      final chat = store.create(
+        startNodeId: 'ideas',
+        startNodeTitle: 'Ideas',
+      );
+      chat.detachStartNode();
+      expect(chat.startNodeId, isNull);
+
+      chat.undoDetach();
+      expect(chat.startNodeId, 'ideas');
+      expect(chat.startNodeTitle, 'Ideas');
+      expect(chat.hasStartNode, isTrue);
+    });
+
+    test('undo does nothing when no detach was done', () {
+      final chat = store.create(
+        startNodeId: 'ideas',
+        startNodeTitle: 'Ideas',
+      );
+      chat.undoDetach();
+      expect(chat.startNodeId, 'ideas');
+      expect(chat.startNodeTitle, 'Ideas');
+    });
+
+    test('detach does nothing when chat has no start note', () {
+      final chat = store.create();
+      expect(chat.hasStartNode, isFalse);
+      chat.detachStartNode();
+      expect(chat.hasStartNode, isFalse);
+    });
+  });
 }

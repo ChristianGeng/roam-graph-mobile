@@ -25,6 +25,7 @@ class ChatListScreen extends StatefulWidget {
     this.startNode,
     this.openNewChat = false,
     this.aboutStartNode = false,
+    this.centreNode,
     this.openChatId,
     this.initialInput,
     this.store,
@@ -40,7 +41,7 @@ class ChatListScreen extends StatefulWidget {
   final ValueListenable<RoamGraph> graph;
   final NoteTextReader readNote;
 
-  /// The node a new chat starts from.
+  /// The node a new chat starts from (a note's AI menu, #215).
   final RoamNode? startNode;
 
   /// Starts a new chat with [startNode] at once, as from a note's AI menu.
@@ -49,6 +50,11 @@ class ChatListScreen extends StatefulWidget {
   /// Puts the chats that started from [startNode] first, under "About this
   /// note", as from a note's AI menu (#215).
   final bool aboutStartNode;
+
+  /// The note that was in the centre of the graph when "Ask AI" was tapped
+  /// (#253).  Not used as the start node of every new chat; offered as a
+  /// "New chat about …" button next to "New chat".
+  final RoamNode? centreNode;
 
   /// The store of the chats; by default the app's, from [ChatStoreScope].
   final ChatStore? store;
@@ -77,6 +83,7 @@ class ChatListScreen extends StatefulWidget {
     RoamNode? startNode,
     bool openNewChat = false,
     bool aboutStartNode = false,
+    RoamNode? centreNode,
     String? openChatId,
     String? initialInput,
     NoteWriter? writer,
@@ -92,6 +99,7 @@ class ChatListScreen extends StatefulWidget {
         startNode: startNode,
         openNewChat: openNewChat,
         aboutStartNode: aboutStartNode,
+        centreNode: centreNode,
         openChatId: openChatId,
         initialInput: initialInput,
         writer: writer,
@@ -187,10 +195,14 @@ class _ChatListScreenState extends State<ChatListScreen> {
   /// [ChatListScreen.initialInput] until a chat took it.
   late String? _input = widget.initialInput;
 
-  /// Opens [chat], or a new chat.
-  Future<void> _open(Chat? chat) {
+  /// Opens [chat], or a new chat without a start node (#253).
+  /// "New chat about …" passes [withStartNode].
+  Future<void> _open(Chat? chat, {RoamNode? withStartNode}) {
     final input = _input;
     if (input != null) setState(() => _input = null);
+    final effectiveStart = chat == null
+        ? (withStartNode ?? widget.startNode)
+        : null;
     return Navigator.push(
     context,
     MaterialPageRoute<void>(
@@ -200,7 +212,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         store: _store,
         chat: chat,
         initialInput: input,
-        startNode: chat == null ? widget.startNode : null,
+        startNode: effectiveStart,
         // The chat's "Chats" button goes back to this list (#215).
         listBelow: true,
         writer: widget.writer,
@@ -252,12 +264,35 @@ class _ChatListScreenState extends State<ChatListScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const ValueKey('chat-new'),
-        onPressed: () => _open(null),
-        icon: const Icon(Icons.add_comment_outlined),
-        label: const Text('New chat'),
-      ),
+      floatingActionButton: widget.centreNode != null
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FloatingActionButton.small(
+                  key: const ValueKey('chat-new-about'),
+                  heroTag: 'chat-new-about',
+                  tooltip: 'New chat about ${widget.centreNode!.displayTitle}',
+                  onPressed: () => _open(null,
+                      withStartNode: widget.centreNode),
+                  child: const Icon(Icons.add_comment_outlined),
+                ),
+                const SizedBox(height: 12),
+                FloatingActionButton.extended(
+                  key: const ValueKey('chat-new'),
+                  heroTag: 'chat-new',
+                  onPressed: () => _open(null),
+                  icon: const Icon(Icons.add_comment_outlined),
+                  label: const Text('New chat'),
+                ),
+              ],
+            )
+          : FloatingActionButton.extended(
+              key: const ValueKey('chat-new'),
+              onPressed: () => _open(null),
+              icon: const Icon(Icons.add_comment_outlined),
+              label: const Text('New chat'),
+            ),
       body: Column(
         children: [
           if (_input != null)

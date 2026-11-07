@@ -8,6 +8,14 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-07: Ask AI from the graph starts without a note; the start note is visible, removable and its link optional ([#262](https://github.com/ChristianGeng/roam-graph-mobile/pull/262))
+
+Changed: "Ask AI" in the graph's More menu no longer sets the centre note
+as every new chat's start note; a separate "About" button offers it.
+Added: a chat with a start note shows an "About: <title>" chip; tapping
+✕ detaches the chat with Undo, and the detached state is saved.
+Closes #253.
+
 ## 2026-11-06: Desktop: check for updates, and "Update and restart" on Linux ([#258](https://github.com/ChristianGeng/roam-graph-mobile/pull/258))
 
 Added: on the desktop, the app checks for a newer release on GitHub on start (at most once a day). A setting "Check for updates" (on by default) turns it off. If a newer release exists, a short notice appears on the start screen, and Settings → About shows "Update available: 0.2.x" with "What's new" (the CHANGELOG entries since this version) and a link to the release page. On Linux, if the app was installed via install.sh, an "Update and restart" button runs install.sh --update and restarts the app. On Windows and macOS, a download link is shown instead. On Android, update checking is off by default (Obtainium is the updater there); if turned on, a notice links to the release page. A setting "Include pre-releases" (off) checks for pre-release versions too. Closes #247.

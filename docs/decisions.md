@@ -4299,6 +4299,23 @@ checks for pre-release versions too.
   next to an install.sh, the setting off means no request. Desktop end-to-end
   checks run under xvfb-run, never on the developer's display.
 
+105. **Ask AI from the graph starts without a note; the start note is
+     visible, removable and its link optional** (#253). "Ask AI" in the
+     graph's More menu used the centre note as the start node of every new
+     chat, which was often just where the user happened to be. Now it opens
+     the chat list without a start note; a separate button offers a new
+     chat about the centre note. A chat with a start note shows an
+     "About: <title> ✕" chip at the top: tapping the title opens the note,
+     tapping ✕ detaches the chat from the note (with an Undo snack bar).
+     The detached state is saved, so the chat stays detached when reopened,
+     and later saves and agent requests do not link the note. The capture
+     screen's link checkbox appears only when the chat has a start note,
+     ticked by default, and can be unticked. The note's "New chat about
+     this note" menu entry is unchanged. `Chat`.startNodeId is now
+     mutable with `detachStartNode()` and `undoDetach()`; both save the
+     chat. The centre note is passed to the chat list as `centreNode`,
+     separate from `startNode`.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

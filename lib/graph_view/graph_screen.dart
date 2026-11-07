@@ -400,11 +400,15 @@ class _GraphScreenState extends State<GraphScreen> {
   }
 
   void _openChats({String? chatId}) {
+    // The centre note: offered as "New chat about …" in the list (#253),
+    // but no longer the start node of every new chat.
+    final centre =
+        chatId == null ? _graph.nodes[_centre] : null;
     ChatListScreen.open(
       context,
       graph: widget.graph,
       readNote: widget.readNote,
-      startNode: chatId == null ? _graph.nodes[_centre] : null,
+      centreNode: centre,
       openChatId: chatId,
       writer: widget.writer,
       searchText: widget.files?.searchText,
