@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-11-07: Desktop: Enter sends in the chat, and a key table in Settings → Keyboard ([#266](https://github.com/ChristianGeng/roam-graph-mobile/pull/266))
+## 2026-11-07: Desktop: Enter sends in the chat, and a key table in Settings → Keyboard ([#267](https://github.com/ChristianGeng/roam-graph-mobile/pull/267))
 
 Added: on the desktop Enter sends a chat message, Shift+Enter makes a new
 line, Ctrl+Enter (Cmd+Enter) sends or saves in the edit screens too.
