@@ -15,6 +15,13 @@ long chat costs less. Changed: Anthropic's own web search keeps the same
 limit in every request of a message, so the cache holds. Changed: under a
 chat, "Input so far: … tokens, … % from the cache". Closes #250.
 
+## 2026-11-07: Desktop: Enter sends in the chat, and a key table in Settings → Keyboard ([#267](https://github.com/ChristianGeng/roam-graph-mobile/pull/267))
+
+Added: on the desktop Enter sends a chat message, Shift+Enter makes a new
+line, Ctrl+Enter (Cmd+Enter) sends or saves in the edit screens too.
+Added: Settings → Keyboard with a Default and an Emacs set; each key can
+be changed or reset. Android keeps Enter as a new line. Closes #256.
+
 ## 2026-11-07: Ask AI from the graph starts without a note; the start note is visible, removable and its link optional ([#262](https://github.com/ChristianGeng/roam-graph-mobile/pull/262))
 
 Changed: "Ask AI" in the graph's More menu no longer sets the centre note

@@ -7,6 +7,7 @@ import '../capture/capture_screen.dart';
 import '../capture/new_node.dart';
 import '../graph/roam_graph.dart';
 import '../platform/error_text.dart';
+import '../settings/field_keys.dart';
 import 'add_link.dart';
 import 'diff_screen.dart';
 import 'node_text.dart';
@@ -359,18 +360,21 @@ class _EditScreenState extends State<EditScreen> {
                     ),
                     const SizedBox(height: 12),
                   ],
-                  TextField(
-                    key: const ValueKey('edit-text'),
-                    controller: _text,
-                    // Typing during a save would be lost: the save has its
-                    // text.
-                    readOnly: _saving,
-                    minLines: 10,
-                    maxLines: null,
-                    keyboardType: TextInputType.multiline,
-                    style: mono,
-                    decoration:
-                        const InputDecoration(border: OutlineInputBorder()),
+                  FieldKeys(
+                    onSubmit: _saving || !_changed ? null : _review,
+                    child: TextField(
+                      key: const ValueKey('edit-text'),
+                      controller: _text,
+                      // Typing during a save would be lost: the save has its
+                      // text.
+                      readOnly: _saving,
+                      minLines: 10,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      style: mono,
+                      decoration:
+                          const InputDecoration(border: OutlineInputBorder()),
+                    ),
                   ),
                   if (_saving) ...[
                     const SizedBox(height: 16),

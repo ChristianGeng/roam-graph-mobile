@@ -11,21 +11,41 @@ import 'package:org_flutter/org_flutter.dart';
 
 import '../edit/node_text.dart' show headingLine;
 import '../edit/structure_edits.dart';
+import '../settings/keys.dart';
 
 /// What the heading menu offers, in its order.
 enum HeadingAction {
-  promote('Promote', 'Alt+Shift+Left'),
-  demote('Demote', 'Alt+Shift+Right'),
-  moveUp('Move up', 'Alt+Up'),
-  moveDown('Move down', 'Alt+Down'),
-  todo('TODO state…', 'Shift+Left/Right'),
-  delete('Delete heading', 'Delete');
+  promote('Promote', [KeyAction.promote]),
+  demote('Demote', [KeyAction.demote]),
+  moveUp('Move up', [KeyAction.moveUp]),
+  moveDown('Move down', [KeyAction.moveDown]),
+  todo('TODO state…', [KeyAction.todoPrevious, KeyAction.todoNext]),
+  delete('Delete heading', [KeyAction.deleteHeading]);
 
-  const HeadingAction(this.label, this.shortcut);
+  const HeadingAction(this.label, this.keyActions);
   final String label;
 
-  /// The desktop's key for it, as in Org.
-  final String shortcut;
+  /// The desktop's keys for it in the key table (#256), as in Org.
+  final List<KeyAction> keyActions;
+
+  /// The keys of [keyActions] in [keys], as the menu shows them: keys
+  /// with the same modifiers once, as "Shift+Left/Right".
+  String shortcutIn(KeyBindings keys) {
+    final labels = [
+      for (final action in keyActions)
+        if (keys.of(action) case final chord?) chord.label,
+    ];
+    String modifiers(String label) =>
+        label.substring(0, label.lastIndexOf('+') + 1);
+    final shared = labels.isEmpty ? '' : modifiers(labels.first);
+    if (labels.length < 2 ||
+        shared.isEmpty ||
+        labels.any((label) => modifiers(label) != shared)) {
+      return labels.join('/');
+    }
+    return shared +
+        labels.map((label) => label.substring(shared.length)).join('/');
+  }
 
   StructureAction? get structure => switch (this) {
         promote => StructureAction.promote,
