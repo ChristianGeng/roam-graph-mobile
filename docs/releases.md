@@ -176,20 +176,30 @@ needs GTK 3 and libsecret, which Ubuntu has.
 
 The shortest way is the installer alone, a file of every full release
 (`install.sh`, with `install.sh.sha256`, #249, decision 139): download
-both, check, run.
+both, check, compare, then run.
 
 ```
 curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh
 curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh.sha256
+sha256sum -c install.sh.sha256
+```
+
+It must print `install.sh: OK`. To check against GitHub's own record as
+well, compare `sha256sum install.sh` with GitHub's digest of the asset, on
+the release page or from:
+
+```
+gh release view --repo ChristianGeng/roam-graph-mobile --json assets \
+  --jq '.assets[] | select(.name == "install.sh") | .digest'
+```
+
+If they differ, stop and do not run the script. Otherwise:
+
+```
 sha256sum -c install.sh.sha256 && sh install.sh --update
 ```
 
-`sha256sum -c` must print `install.sh: OK`; only then does the installer
-run. To check against GitHub's own record as well, compare
-`sha256sum install.sh` with GitHub's digest of the asset (on the release
-page, or from `gh release view --json assets`); they must be the same. The
-asset is the installer from the Linux
-package of the same release; the Build workflow fails if they differ, or if
+The asset is the installer from the Linux package of the same release; the Build workflow fails if they differ, or if
 GitHub's digest differs from the checksum file. `install.sh --update` then
 downloads the package and checks it against GitHub's SHA-256.
 
