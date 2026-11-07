@@ -343,7 +343,13 @@ class UpdateChecker {
     try {
       // A stalled resolver must not hang the check: after [onlineTimeout]
       // it counts as offline (#268).
-      if (!kIsWeb && !await _onlineWithinTimeout()) {
+      final online = kIsWeb ? true : await _onlineWithinTimeout();
+      if (online == null) {
+        // Cancelled by dispose(): not a check, so nothing is saved and the
+        // last result stays.
+        return const UpdateCheckResult(available: false, error: 'Cancelled');
+      }
+      if (!online) {
         return await _finish(
             const UpdateCheckResult(available: false, error: 'Offline'),
             checkedAt);
@@ -387,30 +393,46 @@ class UpdateChecker {
     return result;
   }
 
-  /// The timer of a running connectivity check; [dispose] cancels it.
-  Timer? _onlineTimer;
+  /// The connectivity checks still waiting for their lookup, each with its
+  /// own timer; [dispose] settles them.
+  final _pendingLookups = <_PendingLookup>{};
+
+  /// Whether [dispose] was called; later checks end at once, cancelled.
+  bool _disposed = false;
 
   /// [_isOnline], but false once [onlineTimeout] has passed or when the
-  /// lookup fails (#268). Its own timer, not `Future.timeout`, so [dispose]
-  /// can cancel it when the app closes.
-  Future<bool> _onlineWithinTimeout() {
-    final online = Completer<bool>();
-    void finish(bool value) {
-      _onlineTimer?.cancel();
-      _onlineTimer = null;
-      if (!online.isCompleted) online.complete(value);
-    }
-
-    _onlineTimer = Timer(onlineTimeout, () => finish(false));
-    _isOnline().then(finish, onError: (Object _) => finish(false));
-    return online.future;
+  /// lookup fails, also synchronously (#268); null when [dispose] cancelled
+  /// it. Each lookup has its own timer (not `Future.timeout`, which [dispose]
+  /// could not cancel), and the first outcome wins: a lookup that answers
+  /// after its time-out changes nothing, also not a later lookup's timer.
+  Future<bool?> _onlineWithinTimeout() {
+    if (_disposed) return Future.value(null);
+    final lookup = _PendingLookup();
+    _pendingLookups.add(lookup);
+    lookup.timer = Timer(onlineTimeout, () => _settle(lookup, false));
+    Future.sync(_isOnline).then(
+      (online) => _settle(lookup, online),
+      onError: (Object _) => _settle(lookup, false),
+    );
+    return lookup.result.future;
   }
 
-  /// Cancels a running connectivity check's timer. A check still waiting
-  /// for its lookup then never finishes; call this when the app closes.
+  void _settle(_PendingLookup lookup, bool? online) {
+    if (lookup.result.isCompleted) return;
+    lookup.timer?.cancel();
+    _pendingLookups.remove(lookup);
+    lookup.result.complete(online);
+  }
+
+  /// Ends the checker: cancels the timers of waiting connectivity checks
+  /// and lets those checks end at once as cancelled, without saving a
+  /// check time or changing the last result. Called when the app closes
+  /// or replaces the checker.
   void dispose() {
-    _onlineTimer?.cancel();
-    _onlineTimer = null;
+    _disposed = true;
+    for (final lookup in _pendingLookups.toList()) {
+      _settle(lookup, null);
+    }
   }
 
   static Future<bool> _lookupOnline() async {
@@ -474,4 +496,10 @@ class UpdateChecker {
     await startDetached(exe, const []);
     exit(0);
   }
+}
+
+/// One connectivity check waiting for its lookup: its result and timer.
+class _PendingLookup {
+  final result = Completer<bool?>();
+  Timer? timer;
 }

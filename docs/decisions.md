@@ -4449,6 +4449,36 @@ also sends. All keys of the app come from one table,
   Ctrl+Enter, Cmd+Enter, empty input, no send while sending, composition,
   Esc; on Android Enter adds a line and sends nothing.
 
+## 139. Update check: a bounded lookup that dispose() can end, results kept, one installer (#268)
+
+The four points left from #258 (decision 135, #247), and what the review
+of #272 added:
+
+- **The saved check time can't break the settings.** `ViewSettings.fromJson`
+  reads `lastUpdateCheckTime` with `DateTime.tryParse`; a bad string falls
+  back for that field only.
+- **The connectivity lookup has the request's limit** (`onlineTimeout`,
+  default `requestTimeout`, 15 s). A lookup that stalls, fails or throws at
+  once counts as offline. Each lookup has its own `Timer` (not
+  `Future.timeout`), and its first outcome wins, so a lookup that answers
+  after its time-out changes neither its check nor a later lookup's timer.
+- **`UpdateChecker.dispose()` ends the checker:** it cancels the timers of
+  waiting lookups and ends their checks at once with the result
+  "Cancelled", which is not a check: no check time is saved and the last
+  result stays. Later checks on a disposed checker end the same way. The
+  app's state calls it when it closes or replaces the checker. Without it,
+  a closed app kept a 15 s timer, and every desktop widget test that
+  starts the app failed on the pending timer.
+- **A failed save of the check time keeps the result:** the found update
+  is still shown; the next start checks again.
+- **One installer at a time:** "Update and restart" is disabled and shows
+  "Updating…" while `install.sh --update` runs; a failure enables it again
+  and keeps the error's Copy action. The guard is shared by all About
+  pages, so a second page can't start a second installer.
+
+**Why:** a hanging check or a double installer run is worse than a missed
+update notice, and a check the app cancelled must not count as one made.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

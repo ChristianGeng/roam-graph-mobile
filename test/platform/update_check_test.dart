@@ -648,6 +648,74 @@ void main() {
       checker.dispose();
     });
 
+    test('a lookup that throws at once counts as offline', () async {
+      final fetcher = FakeFetcher(latest: release('v0.2.5'));
+      final checker = UpdateChecker(
+        currentVersion: '0.2.4',
+        settings: MemoryUpdateSettings(),
+        fetcher: fetcher,
+        // Throws before returning a Future.
+        isOnline: () => throw const SocketException('no resolver'),
+        onlineTimeout: const Duration(milliseconds: 50),
+      );
+      final result = await checker.checkForUpdates();
+      expect(result.error, 'Offline');
+      expect(fetcher.latestCalls, 0);
+    });
+
+    test('a late first lookup does not stop the next lookup timing out',
+        () async {
+      final lookups = <Completer<bool>>[];
+      final checker = UpdateChecker(
+        currentVersion: '0.2.4',
+        settings: MemoryUpdateSettings(),
+        fetcher: FakeFetcher(latest: release('v0.2.5')),
+        isOnline: () {
+          final lookup = Completer<bool>();
+          lookups.add(lookup);
+          return lookup.future;
+        },
+        onlineTimeout: const Duration(milliseconds: 50),
+      );
+      // The first lookup stalls: offline after the limit.
+      expect((await checker.checkForUpdates(force: true)).error, 'Offline');
+      // A retry whose lookup stalls too; meanwhile the first answers late.
+      final retry = checker.checkForUpdates(force: true);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      lookups.first.complete(true);
+      final result =
+          await retry.timeout(const Duration(seconds: 2), onTimeout: () {
+        fail('the retry hung after the first lookup answered late');
+      });
+      expect(result.error, 'Offline');
+      expect(lookups, hasLength(2));
+    });
+
+    test('dispose ends a waiting check as cancelled, without saving it',
+        () async {
+      final settings = MemoryUpdateSettings();
+      final lookup = Completer<bool>();
+      final checker = UpdateChecker(
+        currentVersion: '0.2.4',
+        settings: settings,
+        fetcher: FakeFetcher(latest: release('v0.2.5')),
+        isOnline: () => lookup.future,
+      );
+      final check = checker.checkForUpdates();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      checker.dispose();
+      final result = await check.timeout(const Duration(seconds: 2),
+          onTimeout: () => fail('the check hung after dispose()'));
+      expect(result.error, 'Cancelled');
+      expect(settings.lastCheckTime, isNull);
+      expect(checker.lastResult, isNull);
+      // A late answer changes nothing, and later checks end at once.
+      lookup.complete(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(checker.lastResult, isNull);
+      expect((await checker.checkForUpdates(force: true)).error, 'Cancelled');
+    });
+
     test('the app waits as long for the lookup as for the request', () {
       final checker = UpdateChecker(
           currentVersion: '0.2.4', settings: MemoryUpdateSettings());
@@ -724,6 +792,61 @@ void main() {
         await tester.tap(find.text('Copy'));
         await tester.pump();
         expect(copied, contains('no network'));
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+    testWidgets('a second About page starts no second installer',
+        (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        final running = Completer<void>();
+        var firstRuns = 0;
+        var secondRuns = 0;
+        Widget page(Key key, Future<void> Function() update) =>
+            DefaultAssetBundle(
+              bundle: FakeBundle(),
+              child: MaterialApp(
+                home: AboutScreen(
+                  key: key,
+                  version: '0.2.4',
+                  release: release('v0.2.5'),
+                  installedViaInstallSh: () async => true,
+                  updateAndRestart: update,
+                ),
+              ),
+            );
+        final button = find.byKey(const ValueKey('about-update-and-restart'));
+        await tester.pumpWidget(page(const ValueKey('first'), () {
+          firstRuns++;
+          return running.future;
+        }));
+        await tester.pumpAndSettle();
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Update and restart').last);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(firstRuns, 1);
+        // Another About page while the first installer runs.
+        await tester.pumpWidget(page(const ValueKey('second'), () async {
+          secondRuns++;
+        }));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(tester.widget<FilledButton>(button).onPressed, isNull);
+        await tester.tap(button, warnIfMissed: false);
+        await tester.pump();
+        expect(secondRuns, 0);
+        expect(find.byType(AlertDialog), findsNothing);
+        // The first installer ends; the guard is free again.
+        running.complete();
+        await tester.pump();
+        await tester.pumpWidget(page(const ValueKey('third'), () async {
+          secondRuns++;
+        }));
+        await tester.pumpAndSettle();
+        expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

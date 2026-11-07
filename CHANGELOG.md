@@ -17,7 +17,8 @@ each entry.
 - Fixed: an update that was found is still shown when the time of the
   check can't be saved.
 - Fixed: "Update and restart" is disabled, with "Updating…", while the
-  installer runs, so it can't run twice. Closes [#268](https://github.com/ChristianGeng/roam-graph-mobile/issues/268).
+  installer runs, so it can't run twice, also not from a second About
+  page. Closes [#268](https://github.com/ChristianGeng/roam-graph-mobile/issues/268).
 
 ## 2026-11-07: Prompt caching for Mistral, Vercel and OpenRouter, and a cache line per chat ([#265](https://github.com/ChristianGeng/roam-graph-mobile/pull/265))
 

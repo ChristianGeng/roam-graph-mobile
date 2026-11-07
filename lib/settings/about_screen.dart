@@ -123,6 +123,10 @@ class _AboutScreenState extends State<AboutScreen> {
   /// button is disabled and shows progress until it ends (#268).
   bool _updating = false;
 
+  /// Whether any About page is running the installer: one install.sh
+  /// --update at a time for the app, also when two pages are open (#268).
+  static bool _installerRunning = false;
+
   /// The install.sh lookup, once per page: a new Future on every build
   /// would show "Download update" for a moment after each setState.
   Future<bool>? _installedViaInstallShFuture;
@@ -287,7 +291,9 @@ class _AboutScreenState extends State<AboutScreen> {
                               key: const ValueKey('about-update-and-restart'),
                               // Disabled while install.sh --update runs, so
                               // it can't run twice (#268).
-                              onPressed: _updating ? null : () async {
+                              onPressed: _updating || _installerRunning
+                                  ? null
+                                  : () async {
                                 final messenger =
                                     ScaffoldMessenger.of(context);
                                 final confirmed = await showDialog<bool>(
@@ -310,6 +316,13 @@ class _AboutScreenState extends State<AboutScreen> {
                                   ),
                                 );
                                 if (confirmed != true || !mounted) return;
+                                if (_installerRunning) {
+                                  messenger.showSnackBar(const SnackBar(
+                                      content: Text(
+                                          'An update is already running.')));
+                                  return;
+                                }
+                                _installerRunning = true;
                                 setState(() => _updating = true);
                                 try {
                                   // Runs install.sh --update, then
@@ -325,6 +338,7 @@ class _AboutScreenState extends State<AboutScreen> {
                                         messenger, 'Update failed: $e');
                                   }
                                 } finally {
+                                  _installerRunning = false;
                                   if (mounted) {
                                     setState(() => _updating = false);
                                   }
