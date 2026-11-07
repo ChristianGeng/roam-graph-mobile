@@ -180,8 +180,8 @@ both into a new, empty folder, check, compare, then run. A failed download
 stops the chain, so no older file is checked.
 
 ```
-cd "$(mktemp -d)"
-curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh &&
+d=$(mktemp -d) && cd "$d" &&
+  curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh &&
   curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh.sha256 &&
   sha256sum -c install.sh.sha256
 ```

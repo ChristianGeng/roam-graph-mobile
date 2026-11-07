@@ -142,8 +142,8 @@ of the newest full release with its checksum into a new, empty folder and
 check it (the `&&` stops at a failed download, so no older file is checked):
 
 ```
-cd "$(mktemp -d)"
-curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh &&
+d=$(mktemp -d) && cd "$d" &&
+  curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh &&
   curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh.sha256 &&
   sha256sum -c install.sh.sha256
 ```
