@@ -10,7 +10,7 @@ each entry.
 
 ## 2026-11-07: Anthropic's web search keeps to "Most web searches" in every request ([#274](https://github.com/ChristianGeng/roam-graph-mobile/pull/274))
 
-- Fixed: with Anthropic's own web search, one request could search the whole limit again after earlier searches in the same message (with 5: 4, then 5 more). Each request now allows only what is left of the limit, so a message never searches more than "Most web searches for one message". The search tool stays the same, and cached, in every request until the first search or page fetch. Closes #269.
+- Fixed: with Anthropic's own web search, pages the AI read with "fetch web page" did not count against Anthropic's search limit, so a message could search and read more than "Most web searches for one message" (with 5: 4 pages, then 5 searches). Anthropic now gets the limit less the pages read, so searches and pages together stay within it. Searches don't change the request's start any more, so the cache keeps working; only a page read does, once. Closes #269.
 
 ## 2026-11-07: The Linux installer comes with the release, with its checksum ([#270](https://github.com/ChristianGeng/roam-graph-mobile/pull/270))
 

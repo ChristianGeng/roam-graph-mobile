@@ -4376,10 +4376,10 @@ per chat whether it works.
   - A custom OpenAI-compatible provider gets none, so no unknown field can
     break a request.
 - **Anthropic's own web search `max_uses`:** superseded by decision 142
-  (#269). It was the setting's limit in every request of a message, so
-  one request could run more searches than were left; it is now what is
-  left of the message's limit, the whole limit until the first search or
-  page fetch.
+  (#269). It was the setting's limit in every request of a message;
+  Anthropic counts it over the whole turn, so its own searches kept to it,
+  but the pages the app fetched were not counted. It is now the limit less
+  those pages.
 - **The start of the request stays the same in a chat:** the system text
   changes only with a setting (web access, the language, agent mode); the
   tools keep their order. Today's date (#129) is no longer in the system
@@ -4551,33 +4551,46 @@ guards against a broken or swapped download, not against a compromised
 release; GitHub's digest, shown on the release page, is the independent
 copy. A pinned commit in the README would go stale with every release.
 
-## 142. Anthropic's web search: max_uses is what is left of the limit (#269)
+## 142. Anthropic's web search: max_uses is the limit less the pages fetched (#269)
 
 Since #250 the request gave Anthropic's own web search the whole limit
 (*Most web searches for one message*) as `max_uses` in every request of a
 message, so the tools, which come first in the request, stayed the same
-and stayed cached. The app counted the searches and left the tool out once
-none were left, but one request could use the whole limit again: with a
-limit of 5, after 4 searches the next request could do 5 more. Now
-`max_uses` is what is left of the message's limit
-(`ChatSession.providerSearches`, `webLeft`), and the tool is left out at 0.
+and stayed cached. #269 asked to keep the limit for the whole message.
 
-- **Why this option (3 of the issue):** it is the only one that keeps the
-  limit exactly with the app's non-streaming requests. Ending the tool use
-  only once the limit is reached (option 1) still lets one request search
-  past it. Counting the `server_tool_use` blocks as they stream and
-  stopping the answer (option 2) would need streaming answers, which the
-  chat does not use, and would stop an answer half written.
-- **The cache:** until the first search or page fetch of a message,
-  `max_uses` is the whole limit, so the tools stay byte for byte the same
-  in every round before it (the rounds that read notes first). The tools change, and the
+- **How Anthropic counts:** `max_uses` "limits the number of searches in a
+  single turn. … A turn can span several requests. A request continues a
+  turn when it resumes after `pause_turn` or when its last message contains
+  only `tool_result` blocks. Searches from earlier requests in that turn
+  count against the limit" ([web search tool, Max
+  uses](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool#max-uses),
+  read 2026-11-07). One message of mine is one such turn: every later
+  request of it ends in tool results only, or goes on after `pause_turn`;
+  the next message starts with my text, a new turn. So the fixed
+  `max_uses` already kept Anthropic's own searches within the limit; an
+  extra search ends with `max_uses_exceeded`.
+- **What went past the limit:** the pages the app fetches with
+  `fetch_web_page` count against the same limit in the app (`webLeft`),
+  but Anthropic does not see them. With 5, after 4 pages Anthropic still
+  allowed 5 searches: 9 in all.
+- **Decided (option 3 of the issue, with the turn counted right):**
+  `max_uses` is the limit less the pages the app fetched in the message
+  (`ChatSession.providerSearches`), and the tool is left out once nothing
+  is left (`webLeft`, which counts searches and pages). Lowering it by the
+  searches as well, as the first version of #274 did, would count them
+  twice: Anthropic would then refuse searches still allowed.
+- **The cache:** searches no longer change the tools. They change, and the
   provider's cache starts again, only in the request after a round that
-  searched or fetched a page (`webLeft` counts both), and then stay the
-  same in the rounds that don't use the web. A new message starts with the
-  whole limit again. The test `the tools stay byte for byte the same until
-  the first search` checks it.
-- **A provider that searched more than `max_uses`:** the app's count is the
-  bound; the next request leaves the tool out.
+  fetched a page, and stay the same after it. The test `searches keep the
+  tools byte for byte the same; a page changes them` checks it. A new
+  message starts with the whole limit again.
+- **Why not the other options:** ending the tool use only once the limit is
+  reached (1) still lets pages and searches together pass it; counting the
+  `server_tool_use` blocks while the answer streams and stopping it (2)
+  needs streaming answers, which the chat does not use.
+- **The tests** use a fake API (`AnthropicTurns` in
+  `test/ai/web_access_test.dart`) that keeps `max_uses` over the turn as
+  the docs describe and answers further searches with `max_uses_exceeded`.
 - Brave (#233) and `fetch_web_page` are counted by the app per call, as
   before.
 

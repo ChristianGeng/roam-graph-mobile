@@ -330,9 +330,9 @@ abstract class ModelApi {
 
   /// The request for [transcript]. It starts with the same bytes in every
   /// round: the system prompt, the tools in their fixed order, then the
-  /// conversation so far, which only grows. [webSearches] is the most
-  /// searches of the provider's own web search in this request: what is
-  /// left of the message's limit, 0 for none (#269).
+  /// conversation so far, which only grows. [webSearches] is `max_uses` of
+  /// the provider's own web search, counted by the provider over the whole
+  /// turn: the limit less the pages the app fetched, 0 for none (#269).
   /// [cacheKey] ([chatCacheKey]) names the chat for the caching hints of
   /// the providers that take one (#250).
   ApiRequest request(
@@ -498,8 +498,8 @@ class AnthropicApi extends ModelApi {
             },
           // Anthropic's own web search (#137). The basic version: the later
           // ones filter results with code execution, which not every model
-          // has. [webSearches] changes only after a round that used the web,
-          // as a change here empties the whole cache (#250, #269).
+          // has. [webSearches] changes only after a round that fetched a
+          // page, as a change here empties the whole cache (#250, #269).
           if (webSearches > 0)
             {
               'type': 'web_search_20250305',
@@ -886,6 +886,10 @@ class ChatSession {
   /// The web searches and fetched pages of the current message.
   int _webUsed = 0;
 
+  /// The searches of the provider's own web search in the current message,
+  /// part of [_webUsed].
+  int _providerSearchesUsed = 0;
+
   /// The web access of the message under way: [web] as it was when the
   /// message started, so a setting changed meanwhile applies from the
   /// next message (#232). Null between messages.
@@ -898,13 +902,16 @@ class ChatSession {
       _activeWeb == null ? 0 : max(0, _activeWeb!.limit - _webUsed);
 
   /// `max_uses` of the provider's own web search in the next request, 0
-  /// to leave the tool out (#269). It is what is left of the message's
-  /// limit, so one request can never search past it. That is the whole
-  /// limit until the first search or fetched page of a message, so the
-  /// tools, which come first in the request, stay the same and stay
-  /// cached (#250); it is lower, and the cache starts again, only in the
-  /// request after a round that searched or fetched a page.
-  int get providerSearches => _activeWeb?.search == true ? webLeft : 0;
+  /// to leave the tool out (#269). Anthropic counts `max_uses` over the
+  /// whole turn, and one message of mine is one turn: every later request
+  /// of it ends in tool results only, or goes on after `pause_turn`. So
+  /// its own searches are counted by Anthropic already; only the pages
+  /// the app fetched are not, and they come off the limit. The tools,
+  /// which come first in the request, change only in the request after a
+  /// round that fetched a page, and stay cached otherwise (#250).
+  int get providerSearches => _activeWeb?.search == true && webLeft > 0
+      ? _activeWeb!.limit - (_webUsed - _providerSearchesUsed)
+      : 0;
 
   /// [system], with the sentences on web access when it is on.
   String get _system => switch (_activeWeb) {
@@ -989,6 +996,7 @@ class ChatSession {
         UserMessage(text, context: parts.isEmpty ? null : parts.join('\n\n')));
     _rounds = 0;
     _webUsed = 0;
+    _providerSearchesUsed = 0;
     _turn = (web: web);
     onUpdate?.call();
     await resume(onUpdate: onUpdate);
@@ -1037,6 +1045,7 @@ class ChatSession {
         return;
       }
       _webUsed += reply.webSearches;
+      _providerSearchesUsed += reply.webSearches;
       final message = reply.message;
       if (reply.cut) {
         // Not kept, so "Send again" asks again; a part of an answer, or of
