@@ -4375,12 +4375,11 @@ per chat whether it works.
     themselves.
   - A custom OpenAI-compatible provider gets none, so no unknown field can
     break a request.
-- **Anthropic's own web search keeps a fixed `max_uses`:** the setting's
-  limit, in every request of a message. The tools come first in the
-  request, so the old count of the searches left changed the start of
-  every round and emptied the whole cache. The app still counts the
-  searches of the message and leaves the tool out once none are left; one
-  request may then run more searches than were left, at most the limit.
+- **Anthropic's own web search `max_uses`:** superseded by decision 142
+  (#269). It was the setting's limit in every request of a message;
+  Anthropic counts it over the whole turn, so its own searches kept to it,
+  but the pages the app fetched were not counted. It is now the limit less
+  those pages.
 - **The start of the request stays the same in a chat:** the system text
   changes only with a setting (web access, the language, agent mode); the
   tools keep their order. Today's date (#129) is no longer in the system
@@ -4551,6 +4550,49 @@ compare. The checksum file comes from the same release as the script, so it
 guards against a broken or swapped download, not against a compromised
 release; GitHub's digest, shown on the release page, is the independent
 copy. A pinned commit in the README would go stale with every release.
+
+## 142. Anthropic's web search: max_uses is the limit less the pages fetched (#269)
+
+Since #250 the request gave Anthropic's own web search the whole limit
+(*Most web searches for one message*) as `max_uses` in every request of a
+message, so the tools, which come first in the request, stayed the same
+and stayed cached. #269 asked to keep the limit for the whole message.
+
+- **How Anthropic counts:** `max_uses` "limits the number of searches in a
+  single turn. … A turn can span several requests. A request continues a
+  turn when it resumes after `pause_turn` or when its last message contains
+  only `tool_result` blocks. Searches from earlier requests in that turn
+  count against the limit" ([web search tool, Max
+  uses](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool#max-uses),
+  read 2026-11-07). One message of mine is one such turn: every later
+  request of it ends in tool results only, or goes on after `pause_turn`;
+  the next message starts with my text, a new turn. So the fixed
+  `max_uses` already kept Anthropic's own searches within the limit; an
+  extra search ends with `max_uses_exceeded`.
+- **What went past the limit:** the pages the app fetches with
+  `fetch_web_page` count against the same limit in the app (`webLeft`),
+  but Anthropic does not see them. With 5, after 4 pages Anthropic still
+  allowed 5 searches: 9 in all.
+- **Decided (option 3 of the issue, with the turn counted right):**
+  `max_uses` is the limit less the pages the app fetched in the message
+  (`ChatSession.providerSearches`), and the tool is left out once nothing
+  is left (`webLeft`, which counts searches and pages). Lowering it by the
+  searches as well, as the first version of #274 did, would count them
+  twice: Anthropic would then refuse searches still allowed.
+- **The cache:** searches no longer change the tools. They change, and the
+  provider's cache starts again, only in the request after a round that
+  fetched a page, and stay the same after it. The test `searches keep the
+  tools byte for byte the same; a page changes them` checks it. A new
+  message starts with the whole limit again.
+- **Why not the other options:** ending the tool use only once the limit is
+  reached (1) still lets pages and searches together pass it; counting the
+  `server_tool_use` blocks while the answer streams and stopping it (2)
+  needs streaming answers, which the chat does not use.
+- **The tests** use a fake API (`AnthropicTurns` in
+  `test/ai/web_access_test.dart`) that keeps `max_uses` over the turn as
+  the docs describe and answers further searches with `max_uses_exceeded`.
+- Brave (#233) and `fetch_web_page` are counted by the app per call, as
+  before.
 
 ## Recommended, not decided
 

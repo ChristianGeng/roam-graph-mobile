@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-07: Anthropic's web search keeps to "Most web searches" in every request ([#274](https://github.com/ChristianGeng/roam-graph-mobile/pull/274))
+
+- Fixed: with Anthropic's own web search, pages the AI read with "fetch web page" did not count against Anthropic's search limit, so a message could search and read more than "Most web searches for one message" (with 5: 4 pages, then 5 searches). Anthropic now gets the limit less the pages read, so searches and pages together stay within it. Searches don't change the request's start any more, so the cache keeps working; only a page read does, once. Closes #269.
+
 ## 2026-11-07: The Linux installer comes with the release, with its checksum ([#270](https://github.com/ChristianGeng/roam-graph-mobile/pull/270))
 
 Added: every full release carries the Linux installer, `install.sh`, with

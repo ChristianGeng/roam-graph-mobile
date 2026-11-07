@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -21,6 +22,131 @@ import 'ai_settings_test.dart'
         pumpIn,
         scrollTo;
 import 'ai_visibility_test.dart' show graphOf, notes;
+
+/// A fake Anthropic API that keeps `max_uses` of its web search over the
+/// whole turn, as the API does: a turn goes on while a request's last
+/// message holds only `tool_result` blocks, or resumes after `pause_turn`,
+/// and the searches of its earlier requests count against the limit.
+/// Each scripted reply asks for some searches, of which only those still
+/// allowed run; the rest end with `max_uses_exceeded`. [enforce] false
+/// runs them all, as a provider that ignores the limit.
+class AnthropicTurns {
+  AnthropicTurns(this.script, {this.enforce = true});
+
+  final List<({int searches, String then})> script;
+  final bool enforce;
+  final maxUses = <int?>[];
+  final tools = <String>[];
+  var ran = 0;
+  var refused = 0;
+  var _step = 0;
+
+  Future<HttpReply> post(
+      Uri url, Map<String, String> headers, String body) async {
+    final request = jsonDecode(body) as Map<String, Object?>;
+    tools.add(jsonEncode(request['tools']));
+    final search = [
+      for (final tool in request['tools'] as List)
+        if ((tool as Map)['name'] == 'web_search') tool,
+    ].singleOrNull;
+    final limit = search?['max_uses'] as int?;
+    maxUses.add(limit);
+    final (:searches, :then) = script[_step++];
+    final allowed =
+        !enforce ? searches : max(0, (limit ?? 0) - _searchesInTurn(request));
+    final content = <Map<String, Object?>>[];
+    var run = 0;
+    for (var i = 0; i < searches; i++) {
+      final id = 'srvtoolu_${_step}_$i';
+      content.add({
+        'type': 'server_tool_use',
+        'id': id,
+        'name': 'web_search',
+        'input': {'query': 'rain $i'},
+      });
+      if (i < allowed) {
+        run++;
+        content.add({
+          'type': 'web_search_tool_result',
+          'tool_use_id': id,
+          'content': const <Object?>[],
+        });
+      } else {
+        refused++;
+        content.add({
+          'type': 'web_search_tool_result',
+          'tool_use_id': id,
+          'content': {
+            'type': 'web_search_tool_result_error',
+            'error_code': 'max_uses_exceeded',
+          },
+        });
+      }
+    }
+    ran += run;
+    final stop = switch (then) {
+      'pause' => 'pause_turn',
+      'tool' || 'fetch' => 'tool_use',
+      _ => 'end_turn',
+    };
+    content.addAll(switch (then) {
+      'tool' => [
+          {
+            'type': 'tool_use',
+            'id': 'toolu_$_step',
+            'name': 'org_roam_find',
+            'input': {'search': 'rain'},
+          },
+        ],
+      'fetch' => [
+          {
+            'type': 'tool_use',
+            'id': 'toolu_$_step',
+            'name': 'fetch_web_page',
+            'input': {'url': 'https://example.org/$_step'},
+          },
+        ],
+      'answer' => [
+          {'type': 'text', 'text': 'Done.'},
+        ],
+      _ => const <Map<String, Object?>>[],
+    });
+    return HttpReply(
+        200,
+        jsonEncode({
+          ...anthropicReply(content, stop: stop),
+          'usage': {
+            'input_tokens': 1,
+            'output_tokens': 1,
+            'server_tool_use': {'web_search_requests': run},
+          },
+        }));
+  }
+
+  /// The searches already in this turn: in the assistant messages since
+  /// the last user message that is not only tool results.
+  static int _searchesInTurn(Map<String, Object?> request) {
+    final messages = (request['messages'] as List).cast<Map>();
+    var start = 0;
+    for (final (i, message) in messages.indexed) {
+      final content = message['content'];
+      final onlyResults = content is List &&
+          content.every((block) => (block as Map)['type'] == 'tool_result');
+      if (message['role'] == 'user' && !onlyResults) start = i;
+    }
+    var count = 0;
+    for (final message in messages.skip(start)) {
+      if (message['role'] != 'assistant') continue;
+      for (final block in message['content'] as List) {
+        if ((block as Map)['type'] == 'web_search_tool_result' &&
+            block['content'] is List) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+}
 
 /// Names and the addresses they stand for, as DNS would answer.
 final names = {
@@ -520,11 +646,11 @@ void main() {
       await session.send('How much rain in 2025?');
       expect(session.webLeft, 2);
       final second = server.requests.last.body;
-      // The same max_uses in both rounds of the message, so the tools, which
-      // come first, stay cached (#250); the app counts the searches.
-      expect((second['tools'] as List).last['max_uses'], 5);
-      expect(jsonEncode(second['tools']),
-          jsonEncode(server.requests.first.body['tools']));
+      // Anthropic counts its own 2 searches over the turn; the page the app
+      // fetched comes off the limit, so the next request allows 4 (#269).
+      expect((server.requests.first.body['tools'] as List).last['max_uses'],
+          5);
+      expect((second['tools'] as List).last['max_uses'], 4);
       // The search goes back unchanged, its encrypted content included.
       expect(jsonEncode(second['messages'][1]['content']),
           contains('"encrypted_content":"opaque"'));
@@ -598,6 +724,101 @@ void main() {
       expect(messages.last, {'role': 'assistant', 'content': paused});
       expect((session.transcript.last as AssistantMessage).text, 'Done.');
       expect(session.waiting, isFalse);
+    });
+  });
+
+  group("Anthropic's search stays within the message's limit (#269)", () {
+    final graph = graphOf(notes);
+    RoamTools tools() => RoamTools(graph,
+        readNote: (path) async => notes[path],
+        visibility: const AiVisibility({'private'}));
+
+    ChatSession session(AnthropicTurns server, int limit) => ChatSession(
+        tools: tools(),
+        config: anthropic,
+        post: server.post,
+        web: WebAccess(
+            limit: limit, search: true, fetch: (url) async => 'Page $url'));
+
+    test('a limit of 3: 2 searches, then 1 more of the 2 asked, then none',
+        () async {
+      final server = AnthropicTurns([
+        (searches: 2, then: 'pause'),
+        // Anthropic counts the 2 of this turn: 1 is run, 1 refused.
+        (searches: 2, then: 'pause'),
+        (searches: 0, then: 'answer'),
+      ]);
+      final chat = session(server, 3);
+      await chat.send('How much rain?');
+      expect(server.maxUses, [3, 3, null]);
+      expect(server.ran, 3);
+      expect(server.refused, 1);
+      expect(chat.webLeft, 0);
+    });
+
+    test('a fetched page comes off the limit: max_uses is lower by it',
+        () async {
+      final server = AnthropicTurns([
+        (searches: 0, then: 'fetch'),
+        // 3 asked; Anthropic allows 2 in this turn, as max_uses is 2.
+        (searches: 3, then: 'pause'),
+        (searches: 0, then: 'answer'),
+      ]);
+      final chat = session(server, 3);
+      await chat.send('How much rain?');
+      expect(server.maxUses, [3, 2, null]);
+      expect(server.ran, 2);
+      // 1 page and 2 searches: the limit of 3, no more.
+      expect(chat.webLeft, 0);
+    });
+
+    test('searches keep the tools byte for byte the same; a page changes them',
+        () async {
+      final server = AnthropicTurns([
+        (searches: 0, then: 'tool'),
+        (searches: 1, then: 'tool'),
+        (searches: 1, then: 'pause'),
+        (searches: 0, then: 'fetch'),
+        (searches: 0, then: 'tool'),
+        (searches: 0, then: 'answer'),
+      ]);
+      final chat = session(server, 5);
+      await chat.send('How much rain?');
+      final tools = server.tools;
+      // Rounds 1 to 4, with and after searches: one tool definition, cached.
+      for (final i in [1, 2, 3]) {
+        expect(tools[i], tools[0], reason: 'request ${i + 1}');
+      }
+      // After the page the tools change once, and stay so.
+      expect(server.maxUses, [5, 5, 5, 5, 4, 4]);
+      expect(tools[4], isNot(tools[0]));
+      expect(tools[5], tools[4]);
+    });
+
+    test('a reply with more searches than allowed ends the searching',
+        () async {
+      // A provider that ran more than it should: the app's count is the
+      // bound, and the next request leaves the tool out.
+      final server = AnthropicTurns([
+        (searches: 4, then: 'pause'),
+        (searches: 0, then: 'answer'),
+      ], enforce: false);
+      final chat = session(server, 3);
+      await chat.send('How much rain?');
+      expect(server.maxUses, [3, null]);
+      expect(chat.webLeft, 0);
+    });
+
+    test('the next message is a new turn with the whole limit', () async {
+      final server = AnthropicTurns([
+        (searches: 0, then: 'fetch'),
+        (searches: 1, then: 'answer'),
+        (searches: 1, then: 'answer'),
+      ]);
+      final chat = session(server, 3);
+      await chat.send('First question.');
+      await chat.send('Second question.');
+      expect(server.maxUses, [3, 2, 3]);
     });
   });
 
