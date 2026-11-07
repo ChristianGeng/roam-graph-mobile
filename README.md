@@ -138,12 +138,14 @@ Good to know:
 ### Linux, Windows and macOS
 
 See [docs/releases.md](docs/releases.md). On Linux, download the installer
-of the newest full release with its checksum and check it:
+of the newest full release with its checksum into a new, empty folder and
+check it (the `&&` stops at a failed download, so no older file is checked):
 
 ```
-curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh
-curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh.sha256
-sha256sum -c install.sh.sha256
+cd "$(mktemp -d)"
+curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh &&
+  curl -fsSLO https://github.com/ChristianGeng/roam-graph-mobile/releases/latest/download/install.sh.sha256 &&
+  sha256sum -c install.sh.sha256
 ```
 
 It must print `install.sh: OK`. The checksum file comes from the same release
@@ -157,7 +159,8 @@ gh release view --repo ChristianGeng/roam-graph-mobile --json assets \
 ```
 
 If the two differ, stop here and do not run the script. Then run the
-installer; the `&&` runs it only if the checksum still matches:
+installer, in the same folder; the `&&` runs it only if the checksum still
+matches:
 
 ```
 sha256sum -c install.sh.sha256 && sh install.sh --update
