@@ -263,9 +263,20 @@ class Chat extends ChangeNotifier {
     if (old == null) return;
     _stored = [...old.transcript];
     _storedUsage = old.usage;
+    old.onLateUsage = _addLateUsage;
     old.cancel();
     session = null;
     agent = null;
+  }
+
+  void _addLateUsage(TokenUsage late) {
+    final now = session;
+    if (now != null) {
+      now.usage += late;
+    } else {
+      _storedUsage += late;
+    }
+    notifyListeners();
   }
 
   /// Tells the listeners that something changed and saves the chat.

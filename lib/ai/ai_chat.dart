@@ -930,6 +930,10 @@ class ChatSession {
   /// example when its screen closes during a request.
   void cancel() => _cancelled = true;
 
+  /// Gets the usage of a reply that arrived after [cancel]: the provider
+  /// charged for it, so the chat still counts it.
+  void Function(TokenUsage usage)? onLateUsage;
+
   /// Sends [text] and runs tool rounds until the model answers.
   /// [onUpdate] runs after each step. Throws [AiError]; then [resume] tries
   /// again from where it stopped.
@@ -981,8 +985,11 @@ class ChatSession {
         if (_cancelled) return;
         reply = await _request(offered);
       }
-      if (_cancelled) return;
       usage += reply.usage;
+      if (_cancelled) {
+        onLateUsage?.call(reply.usage);
+        return;
+      }
       _webUsed += reply.webSearches;
       final message = reply.message;
       if (reply.cut) {

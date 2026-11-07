@@ -4349,9 +4349,14 @@ per chat whether it works.
   request may then run more searches than were left, at most the limit.
 - **The start of the request stays the same in a chat:** the system text
   changes only with a setting (web access, the language, agent mode); the
-  tools keep their order. The date in the system text (`withToday`) is set
-  when the chat's session is made, so it changes at most once a day, when
-  the chat is opened again; the caches live minutes, so it stays.
+  tools keep their order. The date in the system text is the day the chat
+  started (`withChatDate`, was today's date, `withToday`, #129): "This
+  chat started on 2026-11-07." A chat opened again on another day keeps
+  it, so the model counts "the last 5 years" from the chat's start, a few
+  days off at most.
+- **A reply that arrives after its chat was closed still counts:** the
+  session adds its usage, and `onLateUsage` gives it to the chat, which
+  saves it with the next save.
 - **The cache line:** the chat's info shows "Input so far: 412,000 tokens,
   78 % from the cache. Output: 9,000 tokens." in place of the old token
   line. It is the sum over the chat's requests, saved with the chat

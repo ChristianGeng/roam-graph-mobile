@@ -391,6 +391,22 @@ void main() {
       expect(names(1), contains('fetch_web_page'));
     });
 
+    test('a reply that arrives after the chat was closed still counts in '
+        'its usage (#250)', () async {
+      final server = GatedServer([answer('Late.')]);
+      final chat = chatOn(server);
+      final done = chat.send('Question');
+      await pumpEventQueue();
+      chat.detach();
+      server.gate.complete();
+      await done;
+      expect(chat.usage.input, 110);
+      expect(chat.usage.output, 20);
+      await store.flush();
+      expect(jsonDecode(storage.files[chat.id]!)['usage'],
+          {'input': 110, 'cached': 0, 'output': 20});
+    });
+
     test('no dot for a chat that is open', () async {
       final chat = chatOn(FakeServer([answer('Hi.')]));
       chat.viewers++;

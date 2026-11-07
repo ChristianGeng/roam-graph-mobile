@@ -605,11 +605,13 @@ class InfographicData {
   }
 }
 
-/// [system] with today's date, so "the last 5 years" is counted from
-/// today, not from the end of the model's training (#129).
-String withToday(String system, DateTime now) {
+/// [system] with the date the chat started, so "the last 5 years" is
+/// counted from then, not from the end of the model's training (#129).
+/// It is the same in every request of the chat, so the cache holds (#250).
+String withChatDate(String system, DateTime started) {
   String two(int n) => n.toString().padLeft(2, '0');
-  return '$system Today is ${now.year}-${two(now.month)}-${two(now.day)}.';
+  return '$system This chat started on '
+      '${started.year}-${two(started.month)}-${two(started.day)}.';
 }
 
 /// The system prompt in agent mode: as [systemPrompt], but notes are

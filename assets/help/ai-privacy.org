@@ -77,8 +77,11 @@ answer:
     reads pages whose address it knows.
 
 Searches and pages together are at most *Most web searches for one
-message* (5 by default). The AI names its sources as links, also in the
-notes it writes from facts of the web. Notes hidden from AI stay hidden:
+message* (5 by default). With Anthropic's own search, the last request
+of a message may still search up to that number, so a message can have a
+few more searches than the limit; the app stops after that request. The
+AI names its sources as links, also in the notes it writes from facts of
+the web. Notes hidden from AI stay hidden:
 the AI does not see them, so it cannot put them into a search.
 Turning the switch on or off, or changing the number of searches, applies
 to open chats from their next message.
