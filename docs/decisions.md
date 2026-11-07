@@ -4316,6 +4316,50 @@ checks for pre-release versions too.
      chat. The centre note is passed to the chat list as `centreNode`,
      separate from `startNode`.
 
+## 136. Desktop keys: Enter sends, and one key table in Settings → Keyboard (#256)
+
+On the desktop (`isDesktop`), Enter in the AI chat input sends the
+message and Shift+Enter makes a new line; Ctrl+Enter (Cmd+Enter on macOS)
+also sends. All keys of the app come from one table,
+`lib/settings/keys.dart`, that Settings → Keyboard shows and changes.
+
+- **One table:** `KeyAction` lists every action with a key (send, send or
+  save, leave the field, search in the note, new note from clipboard, the
+  heading keys of decision 121, undo). `KeyScheme` gives the defaults of
+  two sets: *Default* (Enter sends, Ctrl+F searches, Esc leaves) and
+  *Emacs* (Ctrl+Enter sends, Enter makes a new line, Ctrl+S searches,
+  Ctrl+G cancels). Only single chords: Ctrl+X Ctrl+S and Ctrl+C Ctrl+C
+  would need a key sequence. The heading keys keep their defaults in both
+  sets. On macOS Cmd takes the place of Ctrl where the app used Cmd
+  before.
+- **Stored:** `view-settings.json` keeps the chosen set and only the keys
+  that differ from it (`keys.changed`), so a later change of a default
+  reaches everyone who did not change that key. Choosing a set drops the
+  changed keys. A key that another action has is refused with that
+  action's name; a file edited by hand with one key twice gets the
+  defaults back for those actions.
+- **Fields:** `FieldKeys` wraps a field or a page of fields. It does
+  nothing on Android and iOS, so Enter stays a new line there and the
+  arrow button sends. It lets every key through while an input method
+  composes, so the Enter that ends a composition does not send. A key
+  that would send while sending is not possible (empty input, the chat
+  works) is still taken, so it neither sends nor makes a new line.
+- **Where:** Enter and Ctrl+Enter send in the AI chat, *Edit with AI*
+  (Ask) and *Create image* (Make); Ctrl+Enter saves in capture and
+  Append, and opens the review in *Edit text* and *Title and tags*;
+  Enter makes a new line in those, as they hold note text. Esc leaves
+  the chat input. The note search and *New note from clipboard* read
+  their keys from the table too.
+- **Not now:** the other places listed in #256 (graph, note view
+  navigation, search results, dialogs, Ctrl+N/Ctrl+P between headings)
+  wait for the owner's choice; adding an action to the table is enough to
+  make its key configurable.
+- **Tests:** the table's defaults, refused duplicates, a changed key stored
+  in `view-settings.json` and read back, Reset; Settings → Keyboard; in
+  the chat on Linux and macOS Enter, keypad Enter, Shift+Enter,
+  Ctrl+Enter, Cmd+Enter, empty input, no send while sending, composition,
+  Esc; on Android Enter adds a line and sends nothing.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

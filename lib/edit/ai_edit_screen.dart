@@ -17,6 +17,7 @@ import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
 import '../platform/error_text.dart';
 import '../platform/screen_awake.dart';
+import '../settings/field_keys.dart';
 import 'agent_changes.dart';
 import 'change_set.dart';
 import 'change_set_screen.dart';
@@ -467,23 +468,29 @@ class _AiEditScreenState extends State<AiEditScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
-            key: const ValueKey('ai-edit-instruction'),
+          FieldKeys(
             controller: _instruction,
-            autofocus: true,
-            readOnly: plan != null,
-            minLines: 2,
-            maxLines: 6,
-            decoration: InputDecoration(
-              labelText: linked
-                  ? 'What should the AI change in these notes?'
-                  : 'What should the AI change in this note?',
-              hintText: linked
-                  ? 'For example: remove all links to this note, or rename '
-                      'X to Y here and in the notes that link here.'
-                  : 'For example: fix the typos, or add a short summary at '
-                      'the top.',
-              border: const OutlineInputBorder(),
+            enterSends: true,
+            onSubmit: plan == null && !_working ? _ask : null,
+            onCancel: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: TextField(
+              key: const ValueKey('ai-edit-instruction'),
+              controller: _instruction,
+              autofocus: true,
+              readOnly: plan != null,
+              minLines: 2,
+              maxLines: 6,
+              decoration: InputDecoration(
+                labelText: linked
+                    ? 'What should the AI change in these notes?'
+                    : 'What should the AI change in this note?',
+                hintText: linked
+                    ? 'For example: remove all links to this note, or rename '
+                        'X to Y here and in the notes that link here.'
+                    : 'For example: fix the typos, or add a short summary at '
+                        'the top.',
+                border: const OutlineInputBorder(),
+              ),
             ),
           ),
           const SizedBox(height: 8),

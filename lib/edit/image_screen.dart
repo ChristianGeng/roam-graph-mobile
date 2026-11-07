@@ -15,6 +15,7 @@ import '../capture/new_node.dart';
 import '../graph/roam_graph.dart';
 import '../platform/error_text.dart';
 import '../platform/screen_awake.dart';
+import '../settings/field_keys.dart';
 import '../settings/view_settings.dart';
 import 'node_text.dart';
 import 'note_editor.dart';
@@ -303,15 +304,21 @@ class _ImageScreenState extends State<ImageScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
-            key: const ValueKey('image-prompt'),
+          FieldKeys(
             controller: _prompt,
-            autofocus: true,
-            minLines: 2,
-            maxLines: 6,
-            decoration: const InputDecoration(
-              labelText: 'What should the image show?',
-              border: OutlineInputBorder(),
+            enterSends: true,
+            onSubmit: _working ? null : () => _run(_make),
+            onCancel: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: TextField(
+              key: const ValueKey('image-prompt'),
+              controller: _prompt,
+              autofocus: true,
+              minLines: 2,
+              maxLines: 6,
+              decoration: const InputDecoration(
+                labelText: 'What should the image show?',
+                border: OutlineInputBorder(),
+              ),
             ),
           ),
           const SizedBox(height: 8),

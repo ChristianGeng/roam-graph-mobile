@@ -29,6 +29,7 @@ import '../graph/backlinks.dart';
 import '../graph/roam_graph.dart';
 import '../graph_view/node_memory.dart';
 import '../platform/error_text.dart';
+import '../settings/keys.dart';
 import '../settings/view_settings.dart';
 import 'folding.dart';
 import 'heading_actions.dart';
@@ -1016,7 +1017,10 @@ class _NodeScreenState extends State<NodeScreen> {
                 enabled: reason == null,
                 title: Text(action.label),
                 subtitle: reason == null ? null : Text(reason),
-                trailing: isDesktop ? Text(action.shortcut) : null,
+                trailing: isDesktop
+                    ? Text(action
+                        .shortcutIn(ViewSettingsScope.read(context).keys))
+                    : null,
               ),
             ),
       ],
@@ -1177,10 +1181,9 @@ class _NodeScreenState extends State<NodeScreen> {
             focused.findAncestorWidgetOfExactType<EditableText>() != null)) {
       return KeyEventResult.ignored;
     }
-    final keys = HardwareKeyboard.instance;
-    bool pressed(SingleActivator activator) => activator.accepts(event, keys);
-    if (pressed(const SingleActivator(LogicalKeyboardKey.keyZ, control: true)) ||
-        pressed(const SingleActivator(LogicalKeyboardKey.keyZ, meta: true))) {
+    final keys = ViewSettingsScope.read(context).keys;
+    bool pressed(KeyAction action) => keys.of(action)?.accepts(event) ?? false;
+    if (pressed(KeyAction.undo)) {
       if (_editWriter == null || _undoSteps.isEmpty) {
         return KeyEventResult.ignored;
       }
@@ -1189,25 +1192,19 @@ class _NodeScreenState extends State<NodeScreen> {
     }
     final index = _current.value;
     if (_headings == null || index == null) return KeyEventResult.ignored;
-    const left = LogicalKeyboardKey.arrowLeft,
-        right = LogicalKeyboardKey.arrowRight;
     final Future<void> Function()? run = switch (null) {
-      _ when pressed(const SingleActivator(left, alt: true, shift: true)) =>
+      _ when pressed(KeyAction.promote) =>
         () => _structureHeading(HeadingAction.promote, index),
-      _ when pressed(const SingleActivator(right, alt: true, shift: true)) =>
+      _ when pressed(KeyAction.demote) =>
         () => _structureHeading(HeadingAction.demote, index),
-      _ when pressed(
-          const SingleActivator(LogicalKeyboardKey.arrowUp, alt: true)) =>
+      _ when pressed(KeyAction.moveUp) =>
         () => _structureHeading(HeadingAction.moveUp, index),
-      _ when pressed(
-          const SingleActivator(LogicalKeyboardKey.arrowDown, alt: true)) =>
+      _ when pressed(KeyAction.moveDown) =>
         () => _structureHeading(HeadingAction.moveDown, index),
-      _ when pressed(const SingleActivator(left, shift: true)) =>
+      _ when pressed(KeyAction.todoPrevious) =>
         () => _cycleTodo(index, forward: false),
-      _ when pressed(const SingleActivator(right, shift: true)) =>
-        () => _cycleTodo(index),
-      _ when pressed(const SingleActivator(LogicalKeyboardKey.delete)) =>
-        () => _deleteHeading(index),
+      _ when pressed(KeyAction.todoNext) => () => _cycleTodo(index),
+      _ when pressed(KeyAction.deleteHeading) => () => _deleteHeading(index),
       _ => null,
     };
     if (run == null) return KeyEventResult.ignored;
@@ -1479,15 +1476,16 @@ class _NodeScreenState extends State<NodeScreen> {
   Widget build(BuildContext context) {
     final node = _node;
     final onShowInGraph = widget.onShowInGraph;
-    // Ctrl+F (Cmd+F on macOS) opens the search on the desktop (#116);
-    // Escape and Back close it.
+    // The search keys of the key table (#256), Ctrl+F (Cmd+F on macOS)
+    // and Escape by default, open and close the search on the desktop
+    // (#116); Back closes it too.
+    final keys = ViewSettingsScope.of(context).keys;
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
-            _startSearch,
-        const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
-            _startSearch,
-        const SingleActivator(LogicalKeyboardKey.escape): _closeSearch,
+        if (keys.of(KeyAction.searchInNote) case final search?)
+          search.activator: _startSearch,
+        if (keys.of(KeyAction.cancel) case final cancel?)
+          cancel.activator: _closeSearch,
       },
       child: Focus(
         focusNode: _keysFocus,

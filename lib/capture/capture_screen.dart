@@ -8,6 +8,7 @@ import '../edit/tag_field.dart';
 import '../graph/roam_graph.dart';
 import 'new_node.dart';
 import '../edit/unsaved_text.dart';
+import '../settings/field_keys.dart';
 
 /// What happened when a note was to be written.
 sealed class CreateResult {
@@ -375,89 +376,92 @@ class _CaptureScreenState extends State<CaptureScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (widget.notice case final notice?)
-            Padding(
-              key: const ValueKey('capture-notice'),
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Text(notice),
-            ),
-          if (_problem case final problem?)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 8,
-                children: [
-                  Text(
-                    problem,
-                    key: const ValueKey('capture-problem'),
-                    style: TextStyle(
-                        color: Theme.of(context).colorScheme.error),
-                  ),
-                  if (_needsWriteAccess)
-                    OutlinedButton(
-                      onPressed: widget.writer.allowWriting,
-                      child: const Text('Choose folder'),
+      body: FieldKeys(
+        onSubmit: title.isEmpty || _saving || _written ? null : _save,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (widget.notice case final notice?)
+              Padding(
+                key: const ValueKey('capture-notice'),
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Text(notice),
+              ),
+            if (_problem case final problem?)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 8,
+                  children: [
+                    Text(
+                      problem,
+                      key: const ValueKey('capture-problem'),
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error),
                     ),
-                ],
+                    if (_needsWriteAccess)
+                      OutlinedButton(
+                        onPressed: widget.writer.allowWriting,
+                        child: const Text('Choose folder'),
+                      ),
+                  ],
+                ),
               ),
+            TextField(
+              key: const ValueKey('capture-title'),
+              controller: _title,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Title'),
+              textInputAction: TextInputAction.next,
             ),
-          TextField(
-            key: const ValueKey('capture-title'),
-            controller: _title,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Title'),
-            textInputAction: TextInputAction.next,
-          ),
-          if (title.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'File: roam/${nodeFileName(widget.now(), title)}',
-                style: Theme.of(context).textTheme.bodySmall,
+            if (title.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'File: roam/${nodeFileName(widget.now(), title)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
+            const SizedBox(height: 16),
+            TagField(
+              key: const ValueKey('capture-tags'),
+              controller: _tags,
+              known: _known,
             ),
-          const SizedBox(height: 16),
-          TagField(
-            key: const ValueKey('capture-tags'),
-            controller: _tags,
-            known: _known,
-          ),
-          if (widget.linkTo case final linkTo?)
-            CheckboxListTile(
-              key: const ValueKey('capture-link'),
-              contentPadding: EdgeInsets.zero,
-              value: _link,
-              onChanged: (on) => setState(() => _link = on ?? false),
-              title: Text('Link to ${linkTo.title}'),
-              subtitle: const Text('In the new file; it shows as a backlink.'),
+            if (widget.linkTo case final linkTo?)
+              CheckboxListTile(
+                key: const ValueKey('capture-link'),
+                contentPadding: EdgeInsets.zero,
+                value: _link,
+                onChanged: (on) => setState(() => _link = on ?? false),
+                title: Text('Link to ${linkTo.title}'),
+                subtitle: const Text('In the new file; it shows as a backlink.'),
+              ),
+            if (widget.recording != null && widget.writer.createFile != null)
+              CheckboxListTile(
+                key: const ValueKey('capture-keep-recording'),
+                contentPadding: EdgeInsets.zero,
+                value: _keepRecording,
+                onChanged: (on) => setState(() => _keepRecording = on ?? false),
+                title: const Text('Keep the recording with the note'),
+                subtitle: const Text('The audio file is copied next to the '
+                    'note and linked from it.'),
+              ),
+            const SizedBox(height: 16),
+            TextField(
+              key: const ValueKey('capture-body'),
+              controller: _body,
+              decoration: const InputDecoration(
+                labelText: 'Text',
+                alignLabelWithHint: true,
+              ),
+              minLines: 6,
+              maxLines: null,
+              keyboardType: TextInputType.multiline,
             ),
-          if (widget.recording != null && widget.writer.createFile != null)
-            CheckboxListTile(
-              key: const ValueKey('capture-keep-recording'),
-              contentPadding: EdgeInsets.zero,
-              value: _keepRecording,
-              onChanged: (on) => setState(() => _keepRecording = on ?? false),
-              title: const Text('Keep the recording with the note'),
-              subtitle: const Text('The audio file is copied next to the '
-                  'note and linked from it.'),
-            ),
-          const SizedBox(height: 16),
-          TextField(
-            key: const ValueKey('capture-body'),
-            controller: _body,
-            decoration: const InputDecoration(
-              labelText: 'Text',
-              alignLabelWithHint: true,
-            ),
-            minLines: 6,
-            maxLines: null,
-            keyboardType: TextInputType.multiline,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -12,6 +12,7 @@ import 'package:roam_graph_mobile/folder/org_files.dart';
 import 'package:roam_graph_mobile/graph_view/graph_screen.dart';
 import 'package:roam_graph_mobile/node_view/heading_actions.dart';
 import 'package:roam_graph_mobile/node_view/node_screen.dart';
+import 'package:roam_graph_mobile/settings/keys.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 import '../graph_view/graph_screen_test.dart' show MemoryNodeMemory;
@@ -215,8 +216,13 @@ void main() {
         await tester.pumpAndSettle();
         for (final action in HeadingAction.values) {
           expect(item(action), findsOneWidget);
-          expect(find.text(action.shortcut), findsOneWidget);
+          expect(find.text(action.shortcutIn(const KeyBindings())),
+              findsOneWidget);
         }
+        // The defaults of decision 121, now from the key table (#256).
+        expect(find.text('Alt+Shift+Left'), findsOneWidget);
+        expect(find.text('Shift+Left/Right'), findsOneWidget);
+        expect(find.text('Delete'), findsWidgets);
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

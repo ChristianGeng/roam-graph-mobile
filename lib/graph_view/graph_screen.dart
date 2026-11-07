@@ -22,6 +22,7 @@ import '../node_view/node_screen.dart';
 import '../platform/desktop.dart';
 import '../platform/follow_emacs.dart';
 import '../search/search_screen.dart';
+import '../settings/keys.dart';
 import '../settings/view_settings.dart';
 import 'node_memory.dart';
 import 'two_panes.dart';
@@ -1089,7 +1090,10 @@ class _GraphScreenState extends State<GraphScreen> {
                     spacing: 16,
                     children: [
                       const Expanded(child: Text('New note from clipboard')),
-                      Text(pasteKeys,
+                      Text(
+                          ViewSettingsScope.of(context)
+                              .keys
+                              .labelOf(KeyAction.newFromClipboard),
                           style: Theme.of(context).textTheme.bodySmall),
                     ],
                   ),

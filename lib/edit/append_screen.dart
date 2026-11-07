@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
 import '../platform/error_text.dart';
+import '../settings/field_keys.dart';
 import 'append.dart';
 import 'note_editor.dart';
 import 'unsaved_text.dart';
@@ -142,33 +143,36 @@ class _AppendScreenState extends State<AppendScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            node.isFile
-                ? 'Goes to the end of ${node.file}.'
-                : 'Goes to the end of the heading "${node.displayTitle}", '
-                    'after its subheadings.',
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            key: const ValueKey('append-text'),
-            controller: _text,
-            autofocus: true,
-            minLines: 6,
-            maxLines: null,
-            keyboardType: TextInputType.multiline,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              hintText: 'Org text, for example a thought or [[id:…][a link]]',
+      body: FieldKeys(
+        onSubmit: _saving || _text.text.trim().isEmpty ? null : _save,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              node.isFile
+                  ? 'Goes to the end of ${node.file}.'
+                  : 'Goes to the end of the heading "${node.displayTitle}", '
+                      'after its subheadings.',
             ),
-          ),
-          if (_saving) ...[
-            const SizedBox(height: 16),
-            const Center(child: CircularProgressIndicator()),
+            const SizedBox(height: 12),
+            TextField(
+              key: const ValueKey('append-text'),
+              controller: _text,
+              autofocus: true,
+              minLines: 6,
+              maxLines: null,
+              keyboardType: TextInputType.multiline,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Org text, for example a thought or [[id:…][a link]]',
+              ),
+            ),
+            if (_saving) ...[
+              const SizedBox(height: 16),
+              const Center(child: CircularProgressIndicator()),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
