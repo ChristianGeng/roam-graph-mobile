@@ -368,10 +368,17 @@ bool _onHost(ProviderConfig config, String host) {
 
 /// Whether OpenRouter caches [model] only with `cache_control` markers in
 /// the messages: Anthropic's and Google's Gemini models (#250).
-bool _openRouterNeedsMarks(String model) {
-  var m = model.trim().toLowerCase();
-  if (m.startsWith('~')) m = m.substring(1);
-  return m.startsWith('anthropic/') || m.startsWith('google/gemini');
+bool _openRouterNeedsMarks(String model) =>
+    _openRouterClaude(model) ||
+    _openRouterModel(model).startsWith('google/gemini');
+
+/// Whether [model] is one of Anthropic's on OpenRouter.
+bool _openRouterClaude(String model) =>
+    _openRouterModel(model).startsWith('anthropic/');
+
+String _openRouterModel(String model) {
+  final m = model.trim().toLowerCase();
+  return m.startsWith('~') ? m.substring(1) : m;
 }
 
 /// Anthropic's Messages API (also Claude on AWS Bedrock's).
@@ -719,6 +726,10 @@ class OpenAiApi extends ModelApi {
         if (mistral && cacheKey != null) 'prompt_cache_key': cacheKey,
         // OpenRouter keeps a session on one upstream provider.
         if (openRouter && cacheKey != null) 'session_id': cacheKey,
+        // Claude's automatic caching: one more mark that moves to the end
+        // of the request, so tool results of earlier rounds are cached too.
+        if (openRouter && _openRouterClaude(config.model))
+          'cache_control': _ephemeral,
         if (vercel || config.euOnly)
           'providerOptions': {
             'gateway': {

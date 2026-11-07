@@ -823,7 +823,9 @@ void main() {
       ]);
       // The first message of mine stays as it was.
       expect(messages[1]['content'], 'I am at Ideas.\n\nFirst?');
-      expect(marks(r), 2);
+      // Automatic caching also covers the tool results after my message.
+      expect(r.body['cache_control'], {'type': 'ephemeral'});
+      expect(marks(r), 3);
     });
 
     test('OpenRouter marks Gemini, and the last text part of a list', () {
@@ -848,6 +850,8 @@ void main() {
       expect(parts.first['cache_control'], {'type': 'ephemeral'});
       expect(parts.last['type'], 'image_url');
       expect(parts.last.containsKey('cache_control'), isFalse);
+      // OpenRouter has automatic caching only for Claude.
+      expect(r.body.containsKey('cache_control'), isFalse);
       expect(marks(r), 2);
     });
 

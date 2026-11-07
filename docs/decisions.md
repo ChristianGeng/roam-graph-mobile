@@ -4337,7 +4337,10 @@ per chat whether it works.
     models, which OpenRouter caches only with explicit marks, a
     `cache_control: {type: ephemeral}` on the system message's text and on
     the last text part of my last message, as `AnthropicApi` does for
-    Anthropic direct. Other models (`deepseek/…`, OpenAI's) cache by
+    Anthropic direct. For `anthropic/…` also the top-level
+    `cache_control` of OpenRouter's automatic caching: its mark moves to
+    the end of the request, so the tool results after my last message are
+    cached too (the OpenAI format sends them as `tool` messages, after it). Other models (`deepseek/…`, OpenAI's) cache by
     themselves.
   - A custom OpenAI-compatible provider gets none, so no unknown field can
     break a request.
