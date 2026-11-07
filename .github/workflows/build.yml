@@ -443,7 +443,7 @@ jobs:
       - name: Make the installer a release asset
         # The first install downloads install.sh from the newest full
         # release, not from main, and checks it with install.sh.sha256
-        # (#249, decision 140). The asset is the file in the package, and
+        # (#249, decision 141). The asset is the file in the package, and
         # the step fails if that is not linux/packaging/install.sh.
         env:
           VERSION: ${{ needs.version.outputs.name }}
@@ -730,7 +730,7 @@ jobs:
           files=("$APK")
           mark=(--prerelease)
           if [ "$KIND" = full ]; then
-            # The installer asset (#249, decision 140): the same file as in
+            # The installer asset (#249, decision 141): the same file as in
             # the Linux package, and its checksum file matches it.
             tar -xzOf "$LINUX" bundle/install.sh | cmp - installer/install.sh
             (cd installer && sha256sum -c install.sh.sha256)

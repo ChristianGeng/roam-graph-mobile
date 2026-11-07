@@ -15,6 +15,18 @@ Added: every full release carries the Linux installer, `install.sh`, with
 newest release, checks them with `sha256sum -c`, then runs the installer;
 it no longer runs a script from `main`. Closes #249.
 
+## 2026-11-07: Update check: four fixes left from #258 ([#272](https://github.com/ChristianGeng/roam-graph-mobile/pull/272))
+
+- Fixed: a damaged saved time of the last update check no longer resets
+  all settings; only that time falls back.
+- Fixed: the update check no longer hangs on a stalled name lookup; after
+  15 s it counts as offline.
+- Fixed: an update that was found is still shown when the time of the
+  check can't be saved.
+- Fixed: "Update and restart" is disabled, with "Updating…", while the
+  installer runs, so it can't run twice, also not from a second About
+  page. Closes [#268](https://github.com/ChristianGeng/roam-graph-mobile/issues/268).
+
 ## 2026-11-07: Old tool results are shortened in chat requests ([#271](https://github.com/ChristianGeng/roam-graph-mobile/pull/271))
 
 - Changed: in a long chat, a tool result older than 3 of your messages and longer than 2,000 characters (a note the AI read, a web page) goes to the AI as a short note that says what it was; the AI can read it again. It happens in steps, so the provider's cache keeps working: only once such old results add up to about 50,000 characters are they all shortened together, so a single long result is sent whole until then. The chat on screen and the saved chat keep everything, and the chat's size counts what is sent.
