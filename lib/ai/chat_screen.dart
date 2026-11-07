@@ -24,6 +24,7 @@ import '../node_view/web_links.dart';
 import '../platform/error_text.dart';
 import '../platform/screen_awake.dart';
 import '../platform/text_drop.dart';
+import '../settings/field_keys.dart';
 import '../settings/view_settings.dart';
 import 'agent_tools.dart';
 import 'ai_chat.dart';
@@ -1662,16 +1663,22 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Row(
           children: [
             Expanded(
-              child: TextField(
-                key: const ValueKey('chat-input'),
+              child: FieldKeys(
                 controller: _input,
-                focusNode: _inputFocus,
-                minLines: 1,
-                maxLines: 5,
-                textInputAction: TextInputAction.newline,
-                decoration: const InputDecoration(
-                  hintText: 'Ask about your notes',
-                  border: OutlineInputBorder(),
+                enterSends: true,
+                onSubmit: ready ? _send : null,
+                onCancel: _inputFocus.unfocus,
+                child: TextField(
+                  key: const ValueKey('chat-input'),
+                  controller: _input,
+                  focusNode: _inputFocus,
+                  minLines: 1,
+                  maxLines: 5,
+                  textInputAction: TextInputAction.newline,
+                  decoration: const InputDecoration(
+                    hintText: 'Ask about your notes',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
               ),
             ),

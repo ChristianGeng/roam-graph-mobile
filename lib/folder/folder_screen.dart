@@ -34,6 +34,7 @@ import '../node_view/note_images.dart';
 import '../platform/desktop.dart';
 import '../platform/text_drop.dart';
 import '../platform/voice_work.dart';
+import '../settings/keys.dart';
 import '../settings/view_settings.dart';
 import 'folder_access.dart';
 import 'folder_report.dart';
@@ -1260,8 +1261,10 @@ class _FolderScreenState extends State<FolderScreen>
       final graph = widget.graphScreen(
           notifier, _readNote, _openElsewhere, _writer, _files, _controls);
       if (!isDesktop) return graph;
+      final paste = ViewSettingsScope.of(context).keys.of(
+          KeyAction.newFromClipboard);
       return CallbackShortcuts(
-        bindings: {pasteShortcut: _newFromClipboard},
+        bindings: {if (paste != null) paste.activator: _newFromClipboard},
         child: Focus(autofocus: true, child: graph),
       );
     }

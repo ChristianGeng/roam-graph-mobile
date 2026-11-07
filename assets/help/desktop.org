@@ -89,8 +89,42 @@ only the node's ID; nothing is written. With the app closed, Emacs sends
 nothing and shows no error. *Follow Emacs* in Settings (desktop only)
 turns following off.
 
+* Keys
+
+In a message field (the AI chat, /Edit with AI/, /Create image/), Enter
+sends and Shift+Enter makes a new line. Ctrl+Enter (Cmd+Enter on macOS)
+sends too, and in the capture and edit screens it saves or opens the
+review, as their /Save/ or /Review/ button; Enter makes a new line there.
+Escape in the chat field gives the focus back to the page. Nothing is
+sent while the chat still works on an answer, and the Enter that ends a
+composition of an input method (accents with dead keys, Japanese) only
+ends it. On Android Enter always makes a new line; the arrow button
+sends.
+
+Settings → Keyboard shows the keys in use: choose the *Default* or the
+*Emacs* set, then tap an action and press its new key. *Reset* takes the
+set's key back; a key that another action already has is refused, with
+the name of that action. Only the changed keys are saved, in
+~view-settings.json~.
+
+| Action                        | Default              | Emacs        |
+|-------------------------------+----------------------+--------------|
+| Send the message              | Enter                | (none)       |
+| Send or save                  | Ctrl+Enter           | Ctrl+Enter   |
+| Leave the field, close search | Esc                  | Ctrl+G       |
+| Search in the note            | Ctrl+F               | Ctrl+S       |
+| New note from clipboard       | Ctrl+Shift+V         | Ctrl+Shift+V |
+| Promote / demote the heading  | Alt+Shift+Left/Right | the same     |
+| Move the heading up / down    | Alt+Up / Alt+Down    | the same     |
+| Previous / next TODO state    | Shift+Left/Right     | the same     |
+| Delete the heading            | Delete               | Delete       |
+| Undo the last quick edit      | Ctrl+Z               | Ctrl+Z       |
+
+On macOS, Cmd takes the place of Ctrl in the default set.
+
 * Other differences
-- Search inside a note: Ctrl+F (Cmd+F on macOS); Escape closes it. See
+- Search inside a note: Ctrl+F (Cmd+F on macOS); Escape closes it (keys
+  of Settings → Keyboard). See
   [[id:roam-graph-help-search-in-note][Search inside a note]].
 - In the graph, *right click* on a node opens the menu that a long press
   opens on a phone.

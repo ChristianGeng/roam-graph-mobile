@@ -26,6 +26,8 @@ import '../platform/error_text.dart';
 import '../platform/follow_emacs.dart';
 import '../platform/update_notification.dart' show UpdateCheckerScope;
 import 'about_screen.dart';
+import 'keyboard_screen.dart';
+import 'keys.dart';
 
 /// How far a note's sections are open when the note opens: the values
 /// Org's `#+STARTUP:` keyword has for this.
@@ -102,6 +104,7 @@ class ViewSettings {
     this.includePreReleases = false,
     this.lastUpdateCheckTime,
     this.lastSeenVersion,
+    this.keys = const KeyBindings(),
   }) : _swipeHeadings = swipeHeadings;
 
   /// Where new images go (#112), relative to `roam/`.
@@ -179,6 +182,9 @@ class ViewSettings {
   /// The last seen version from an update check (#247).
   final String? lastSeenVersion;
 
+  /// The desktop's keys (#256): a set and the keys changed from it.
+  final KeyBindings keys;
+
   /// The command to run: [emacsClient], or [defaultEmacsClient].
   String get emacsCommand =>
       emacsClient.trim().isEmpty ? defaultEmacsClient : emacsClient.trim();
@@ -210,6 +216,7 @@ class ViewSettings {
     bool? includePreReleases,
     DateTime? lastUpdateCheckTime,
     String? lastSeenVersion,
+    KeyBindings? keys,
   }) =>
       ViewSettings(
         sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
@@ -228,6 +235,7 @@ class ViewSettings {
         includePreReleases: includePreReleases ?? this.includePreReleases,
         lastUpdateCheckTime: lastUpdateCheckTime ?? this.lastUpdateCheckTime,
         lastSeenVersion: lastSeenVersion ?? this.lastSeenVersion,
+        keys: keys ?? this.keys,
       );
 
   Map<String, Object?> toJson() => {
@@ -247,6 +255,7 @@ class ViewSettings {
         'includePreReleases': includePreReleases,
         'lastUpdateCheckTime': lastUpdateCheckTime?.toIso8601String(),
         'lastSeenVersion': lastSeenVersion,
+        'keys': keys.toJson(),
       };
 
   /// Settings from [json]; a missing or unknown value keeps its default
@@ -317,6 +326,7 @@ class ViewSettings {
         final String version => version,
         _ => defaults.lastSeenVersion,
       },
+      keys: KeyBindings.fromJson(json['keys']),
     );
   }
 
@@ -336,12 +346,14 @@ class ViewSettings {
       other.emacsClient == emacsClient &&
       other.followEmacs == followEmacs &&
       other.checkForUpdates == checkForUpdates &&
-      other.includePreReleases == includePreReleases;
+      other.includePreReleases == includePreReleases &&
+      other.keys == keys;
 
   @override
   int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
       startLayout, lastLayout, theme, scripts, joinLines, _swipeHeadings,
-      imageFolder, emacsClient, followEmacs, checkForUpdates, includePreReleases);
+      imageFolder, emacsClient, followEmacs, checkForUpdates, includePreReleases,
+      keys);
 }
 
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
@@ -774,6 +786,16 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => ViewSettingsScreen.open(context),
           ),
+          if (isDesktop)
+            ListTile(
+              key: const ValueKey('settings-keyboard'),
+              leading: const Icon(Icons.keyboard_outlined),
+              title: const Text('Keyboard'),
+              subtitle: Text('${settings.keys.set.label} keys'
+                  '${settings.keys.changed.isEmpty ? '' : ', ${settings.keys.changed.length} changed'}'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => KeyboardSettingsScreen.open(context),
+            ),
           const Divider(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),

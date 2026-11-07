@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 import 'package:roam_graph_mobile/node_view/web_links.dart';
+import 'package:roam_graph_mobile/settings/keys.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 import '../ai/ai_settings_test.dart' show MemoryAiSettingsStore, MemoryKeyStore;
@@ -230,6 +232,95 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('settings-check-for-updates')));
       await tester.pumpAndSettle();
       expect(store.settings.checkForUpdates, isTrue);
+    });
+  });
+
+  group('Settings → Keyboard (#256)', () {
+    Future<MemoryViewSettingsStore> openKeys(WidgetTester tester,
+        {ViewSettings settings = const ViewSettings()}) async {
+      final store = await pumpSettings(tester, settings: settings);
+      await tester.tap(find.byKey(const ValueKey('settings-keyboard')));
+      await tester.pumpAndSettle();
+      return store;
+    }
+
+    String label(WidgetTester tester, KeyAction action) => tester
+        .widget<Text>(find.byKey(ValueKey('key-label-${action.name}')))
+        .data!;
+
+    Future<void> pressChord(WidgetTester tester, LogicalKeyboardKey key,
+        {LogicalKeyboardKey? held}) async {
+      if (held != null) await tester.sendKeyDownEvent(held);
+      await tester.sendKeyEvent(key);
+      if (held != null) await tester.sendKeyUpEvent(held);
+      await tester.pumpAndSettle();
+    }
+
+    void onLinux(String name, Future<void> Function(WidgetTester) body) {
+      testWidgets(name, (tester) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+        try {
+          await body(tester);
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+      });
+    }
+
+    testWidgets('is not there on Android', (tester) async {
+      await pumpSettings(tester);
+      expect(find.byKey(const ValueKey('settings-keyboard')), findsNothing);
+    });
+
+    onLinux('lists every action with its key', (tester) async {
+      await openKeys(tester);
+      for (final action in KeyAction.values) {
+        expect(find.byKey(ValueKey('key-${action.name}')), findsOneWidget);
+      }
+      expect(label(tester, KeyAction.chatSend), 'Enter');
+      expect(label(tester, KeyAction.searchInNote), 'Ctrl+F');
+    });
+
+    onLinux('a new key is stored, and Reset takes it back', (tester) async {
+      final store = await openKeys(tester);
+      await tester.tap(find.byKey(const ValueKey('key-searchInNote')));
+      await tester.pumpAndSettle();
+      await pressChord(tester, LogicalKeyboardKey.keyJ,
+          held: LogicalKeyboardKey.controlLeft);
+      expect(label(tester, KeyAction.searchInNote), 'Ctrl+J');
+      expect(store.settings.keys.changed, {
+        KeyAction.searchInNote:
+            const KeyChord(LogicalKeyboardKey.keyJ, control: true),
+      });
+
+      await tester.tap(find.byKey(const ValueKey('key-reset-searchInNote')));
+      await tester.pumpAndSettle();
+      expect(label(tester, KeyAction.searchInNote), 'Ctrl+F');
+      expect(store.settings.keys.changed, isEmpty);
+    });
+
+    onLinux('a key of another action is refused with its name',
+        (tester) async {
+      final store = await openKeys(tester);
+      await tester.tap(find.byKey(const ValueKey('key-searchInNote')));
+      await tester.pumpAndSettle();
+      await pressChord(tester, LogicalKeyboardKey.enter);
+      expect(find.text('Enter is already "Send the message".'),
+          findsOneWidget);
+      expect(store.settings.keys.changed, isEmpty);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(label(tester, KeyAction.searchInNote), 'Ctrl+F');
+    });
+
+    onLinux('the Emacs set changes the defaults', (tester) async {
+      final store = await openKeys(tester);
+      await tester.tap(find.byKey(const ValueKey('key-set-emacs')));
+      await tester.pumpAndSettle();
+      expect(store.settings.keys.set, KeyScheme.emacs);
+      expect(label(tester, KeyAction.chatSend), 'No key');
+      expect(label(tester, KeyAction.searchInNote), 'Ctrl+S');
+      expect(label(tester, KeyAction.cancel), 'Ctrl+G');
     });
   });
 }

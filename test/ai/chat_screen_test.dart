@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -1541,6 +1542,185 @@ void main() {
       expect(
           find.byKey(const ValueKey('chat-start-note-chip')), findsOneWidget);
       expect(find.textContaining('About: Plan'), findsOneWidget);
+    });
+  });
+
+  group('keys in the chat input (#256)', () {
+    Future<void> type(WidgetTester tester, String text) async {
+      await tester.showKeyboard(find.byKey(const ValueKey('chat-input')));
+      await tester.enterText(find.byKey(const ValueKey('chat-input')), text);
+      await tester.pump();
+    }
+
+    String input(WidgetTester tester) => tester
+        .widget<TextField>(find.byKey(const ValueKey('chat-input')))
+        .controller!
+        .text;
+
+    Future<bool> press(WidgetTester tester, LogicalKeyboardKey key,
+        {LogicalKeyboardKey? held}) async {
+      if (held != null) await tester.sendKeyDownEvent(held);
+      final handled = await tester.sendKeyEvent(key);
+      if (held != null) await tester.sendKeyUpEvent(held);
+      await tester.pumpAndSettle();
+      return handled;
+    }
+
+    FakeServer hi() => FakeServer([
+          anthropicReply([
+            {'type': 'text', 'text': 'Hi.'},
+          ]),
+        ]);
+
+    void onDesktop(String name, Future<void> Function(WidgetTester) body,
+        {TargetPlatform platform = TargetPlatform.linux}) {
+      testWidgets('${platform.name}: $name', (tester) async {
+        debugDefaultTargetPlatformOverride = platform;
+        try {
+          await body(tester);
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+      });
+    }
+
+    onDesktop('Enter sends the text and clears the field', (tester) async {
+      final server = hi();
+      await openChat(tester, server);
+      await type(tester, 'Hello by Enter');
+      expect(await press(tester, LogicalKeyboardKey.enter), isTrue);
+      expect(server.requests, hasLength(1));
+      expect(
+          server.requests.single.body['messages'][0]['content'][0]['text'],
+          contains('Hello by Enter'));
+      expect(input(tester), isEmpty);
+      expect(find.text('Hi.'), findsOneWidget);
+    });
+
+    onDesktop('the keypad Enter sends too', (tester) async {
+      final server = hi();
+      await openChat(tester, server);
+      await type(tester, 'Hello');
+      await press(tester, LogicalKeyboardKey.numpadEnter);
+      expect(server.requests, hasLength(1));
+    });
+
+    onDesktop('Shift+Enter goes to the field for a new line and sends nothing',
+        (tester) async {
+      final server = hi();
+      await openChat(tester, server);
+      await type(tester, 'First line');
+      final handled = await press(tester, LogicalKeyboardKey.enter,
+          held: LogicalKeyboardKey.shiftLeft);
+      // Not taken by the keys: the platform's text input makes the new
+      // line.
+      expect(handled, isFalse);
+      expect(server.requests, isEmpty);
+      expect(input(tester), 'First line');
+      // A widget test has no platform text input that would turn the key
+      // into a line; the field takes the line it gets, and still nothing
+      // is sent.
+      await type(tester, 'First line\nSecond line');
+      expect(input(tester), 'First line\nSecond line');
+      expect(server.requests, isEmpty);
+    });
+
+    onDesktop('Ctrl+Enter sends', (tester) async {
+      final server = hi();
+      await openChat(tester, server);
+      await type(tester, 'Hello by Ctrl+Enter');
+      await press(tester, LogicalKeyboardKey.enter,
+          held: LogicalKeyboardKey.controlLeft);
+      expect(server.requests, hasLength(1));
+      expect(input(tester), isEmpty);
+    });
+
+    onDesktop('Cmd+Enter sends', platform: TargetPlatform.macOS,
+        (tester) async {
+      final server = hi();
+      await openChat(tester, server);
+      await type(tester, 'Hello by Cmd+Enter');
+      await press(tester, LogicalKeyboardKey.enter,
+          held: LogicalKeyboardKey.metaLeft);
+      expect(server.requests, hasLength(1));
+      expect(input(tester), isEmpty);
+    });
+
+    onDesktop('an empty input sends nothing', (tester) async {
+      final server = hi();
+      await openChat(tester, server);
+      await type(tester, '   ');
+      await press(tester, LogicalKeyboardKey.enter);
+      expect(server.requests, isEmpty);
+      expect(find.text('Hi.'), findsNothing);
+    });
+
+    onDesktop('nothing is sent while the chat sends', (tester) async {
+      final server = GatedServer([
+        anthropicReply([
+          {'type': 'text', 'text': 'Late answer.'},
+        ]),
+      ]);
+      await openChat(tester, server);
+      await type(tester, 'Slow question');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(server.arrived, 1);
+
+      await type(tester, 'Second question');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(server.arrived, 1);
+      expect(input(tester), 'Second question');
+
+      server.gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Late answer.'), findsOneWidget);
+      expect(server.requests, hasLength(1));
+    });
+
+    onDesktop('the Enter that ends an input method composition sends nothing',
+        (tester) async {
+      final server = hi();
+      await openChat(tester, server);
+      await type(tester, '');
+      tester.testTextInput.updateEditingValue(const TextEditingValue(
+        text: 'ka',
+        selection: TextSelection.collapsed(offset: 2),
+        composing: TextRange(start: 0, end: 2),
+      ));
+      await tester.pump();
+      expect(await press(tester, LogicalKeyboardKey.enter), isFalse);
+      expect(server.requests, isEmpty);
+    });
+
+    onDesktop('Esc gives the focus back to the page', (tester) async {
+      await openChat(tester, hi());
+      await type(tester, 'Draft');
+      final field = find.descendant(
+          of: find.byKey(const ValueKey('chat-input')),
+          matching: find.byType(EditableText));
+      expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
+      await press(tester, LogicalKeyboardKey.escape);
+      expect(tester.widget<EditableText>(field).focusNode.hasFocus, isFalse);
+      expect(input(tester), 'Draft');
+    });
+
+    testWidgets('android: Enter is left to the field and sends nothing',
+        (tester) async {
+      final server = hi();
+      await openChat(tester, server);
+      await type(tester, 'First line');
+      expect(await press(tester, LogicalKeyboardKey.enter), isFalse);
+      expect(await press(tester, LogicalKeyboardKey.enter,
+              held: LogicalKeyboardKey.controlLeft),
+          isFalse);
+      expect(server.requests, isEmpty);
+      expect(input(tester), 'First line');
+      // The arrow button still sends.
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      expect(server.requests, hasLength(1));
     });
   });
 }

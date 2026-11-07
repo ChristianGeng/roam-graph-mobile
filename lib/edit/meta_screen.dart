@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../capture/capture_screen.dart';
 import '../graph/roam_graph.dart';
 import '../platform/error_text.dart';
+import '../settings/field_keys.dart';
 import 'diff_screen.dart';
 import 'node_meta.dart';
 import 'note_editor.dart';
@@ -168,38 +169,41 @@ class _MetaScreenState extends State<MetaScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(widget.node.isFile
-              ? 'The note\'s #+title, #+filetags and aliases. The :ID: and '
-                  'the file name stay.'
-              : 'The heading\'s text and own tags, and its aliases. Its TODO '
-                  'keyword, priority and :ID: stay.'),
-          const SizedBox(height: 12),
-          TextField(
-            key: const ValueKey('meta-title'),
-            controller: _title,
-            decoration: const InputDecoration(labelText: 'Title'),
-          ),
-          TagField(
-            key: const ValueKey('meta-tags'),
-            controller: _tags,
-            known: _known,
-          ),
-          TextField(
-            key: const ValueKey('meta-aliases'),
-            controller: _aliases,
-            minLines: 2,
-            maxLines: null,
-            decoration: const InputDecoration(
-                labelText: 'Aliases', hintText: 'One per line'),
-          ),
-          if (_saving) ...[
-            const SizedBox(height: 16),
-            const Center(child: CircularProgressIndicator()),
+      body: FieldKeys(
+        onSubmit: _saving ? null : _review,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(widget.node.isFile
+                ? 'The note\'s #+title, #+filetags and aliases. The :ID: and '
+                    'the file name stay.'
+                : 'The heading\'s text and own tags, and its aliases. Its TODO '
+                    'keyword, priority and :ID: stay.'),
+            const SizedBox(height: 12),
+            TextField(
+              key: const ValueKey('meta-title'),
+              controller: _title,
+              decoration: const InputDecoration(labelText: 'Title'),
+            ),
+            TagField(
+              key: const ValueKey('meta-tags'),
+              controller: _tags,
+              known: _known,
+            ),
+            TextField(
+              key: const ValueKey('meta-aliases'),
+              controller: _aliases,
+              minLines: 2,
+              maxLines: null,
+              decoration: const InputDecoration(
+                  labelText: 'Aliases', hintText: 'One per line'),
+            ),
+            if (_saving) ...[
+              const SizedBox(height: 16),
+              const Center(child: CircularProgressIndicator()),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
