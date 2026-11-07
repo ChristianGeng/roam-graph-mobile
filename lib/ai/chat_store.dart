@@ -29,6 +29,7 @@ import 'ai_chat.dart';
 import 'ai_settings.dart';
 import 'ai_visibility.dart';
 import 'note_language.dart';
+import 'tool_result_shortening.dart';
 import 'web_access.dart';
 
 /// Above this many characters, the chat suggests a new chat: every message
@@ -223,10 +224,13 @@ class Chat extends ChangeNotifier {
   }
 
   /// The rough size of the chat in characters: what every message sends
-  /// again.
+  /// again, with old tool results counted as the stubs sent in their
+  /// place (#251).
   int get characters {
     var n = 0;
-    for (final entry in transcript) {
+    final sent = shortenOldToolResults(
+        transcript, session?.shortening ?? const ToolResultShortening());
+    for (final entry in sent) {
       switch (entry) {
         case ModelChanged():
           break;

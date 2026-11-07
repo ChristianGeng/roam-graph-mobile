@@ -4449,6 +4449,44 @@ also sends. All keys of the app come from one table,
   Ctrl+Enter, Cmd+Enter, empty input, no send while sending, composition,
   Esc; on Android Enter adds a line and sends nothing.
 
+## 139. Old tool results go to the model as stubs, shortened in steps (#251)
+
+In agent chats most of every request is old tool results: notes the AI
+read with `read_node`, search results with text, web pages (up to 100,000
+characters each) and graph output. Every later request sent all of it
+again. Now the *requests* carry a stub for a tool result that is old and
+long; the transcript in `ChatSession`, the chat on screen and the saved
+chat keep everything.
+
+- **Which results:** older than *N* of my messages (a result belongs to the
+  message of mine it followed; it is old once *N* more came after it) and
+  longer than 2,000 characters. *N* is the setting "Shorten old tool
+  results" under AI → Agent and limits, on by default, 3.
+- **The stub** names the tool, its first string argument, the length and
+  the first line, and says to read it again if needed:
+  `[Earlier result of read_node "kgv" (12,400 characters), shortened. It
+  began: "* kgv". Read it again if you need it.]`. An image given with the
+  result (#129) is left out with it; the stub says so.
+- **In steps, for the cache (#250):** shortening every turn would change the
+  start of each request and empty the provider's cache every time. So the
+  old, long results not yet shortened count up, and only when they reach
+  50,000 characters are all results old enough by then shortened at once.
+  Between two steps every request starts with the same bytes as the one
+  before: the test `between two steps the start of the request is the
+  same, byte for byte` checks it for the Anthropic and the
+  OpenAI-compatible API.
+- **The same requests after a restart:** the steps are not kept anywhere;
+  they are found again by replaying the chat message by message, so which
+  results are stubs depends only on the transcript.
+- **One function:** `shortenOldToolResults` in
+  `lib/ai/tool_result_shortening.dart` works on the list given to
+  `ModelApi.request`, so both APIs get it, and `ai_chat.dart` only calls it
+  once in `ChatSession._request`. My messages and the model's answers are
+  never shortened. A single request outside the conversation
+  (`ChatSession.askOnce`, #145) sends the entries it is given, unshortened.
+- **The size of a chat (#201)** counts what is sent: `Chat.characters`
+  counts the stubs, so the line that suggests a new chat comes later.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
