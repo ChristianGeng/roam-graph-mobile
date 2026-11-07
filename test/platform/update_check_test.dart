@@ -15,6 +15,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:http/http.dart' as http;
 import 'package:roam_graph_mobile/platform/update_check.dart';
 import 'package:roam_graph_mobile/settings/about_screen.dart';
+import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 /// A fetcher with scripted results, counting the calls.
 class FakeFetcher implements ReleaseFetcher {
@@ -82,6 +83,14 @@ class FakeClient extends http.BaseClient {
       headers: response.headers,
     );
   }
+}
+
+/// Settings whose save always fails, as a full disk or a read-only data
+/// folder would.
+class ThrowingSaveSettings extends MemoryUpdateSettings {
+  @override
+  Future<void> saveLastCheckTime(DateTime time) async =>
+      throw const FileSystemException('disk full');
 }
 
 UpdateChecker checkerWith(
@@ -566,6 +575,155 @@ void main() {
         await tester.pump();
         expect(copied, isNotNull);
         expect(copied, contains('Update failed:'));
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+  });
+
+  group('left from #258 (#268)', () {
+    test('an invalid saved check time keeps the other settings', () {
+      final settings = ViewSettings.fromJson(const {
+        'theme': 'dark',
+        'checkForUpdates': false,
+        'includePreReleases': true,
+        'lastUpdateCheckTime': 'not a time',
+      });
+      expect(settings.lastUpdateCheckTime, isNull);
+      expect(settings.theme, AppTheme.dark);
+      expect(settings.checkForUpdates, isFalse);
+      expect(settings.includePreReleases, isTrue);
+      // A valid time still reads back.
+      final time = DateTime.utc(2026, 11, 7, 9, 30);
+      expect(
+          ViewSettings.fromJson({'lastUpdateCheckTime': time.toIso8601String()})
+              .lastUpdateCheckTime,
+          time);
+    });
+
+    test('a connectivity lookup that never completes counts as offline',
+        () async {
+      final fetcher = FakeFetcher(latest: release('v0.2.5'));
+      final checker = UpdateChecker(
+        currentVersion: '0.2.4',
+        settings: MemoryUpdateSettings(),
+        fetcher: fetcher,
+        // A stalled resolver: the lookup never answers.
+        isOnline: () => Completer<bool>().future,
+        onlineTimeout: const Duration(milliseconds: 50),
+      );
+      final result = await checker.checkForUpdates();
+      expect(result.available, isFalse);
+      expect(result.error, 'Offline');
+      expect(fetcher.latestCalls, 0);
+    });
+
+    test('a connectivity lookup that fails counts as offline', () async {
+      final fetcher = FakeFetcher(latest: release('v0.2.5'));
+      final checker = UpdateChecker(
+        currentVersion: '0.2.4',
+        settings: MemoryUpdateSettings(),
+        fetcher: fetcher,
+        isOnline: () async => throw const SocketException('no resolver'),
+        onlineTimeout: const Duration(milliseconds: 50),
+      );
+      final result = await checker.checkForUpdates();
+      expect(result.error, 'Offline');
+      expect(fetcher.latestCalls, 0);
+    });
+
+    testWidgets('dispose leaves no timer of a waiting lookup behind',
+        (tester) async {
+      // The test framework fails a test that ends with a pending timer:
+      // with the app's 15 s limit and a lookup that never answers, only
+      // dispose() cancels it.
+      final checker = UpdateChecker(
+        currentVersion: '0.2.4',
+        settings: MemoryUpdateSettings(),
+        fetcher: FakeFetcher(latest: release('v0.2.5')),
+        isOnline: () => Completer<bool>().future,
+      );
+      unawaited(checker.checkForUpdates());
+      await tester.pump(const Duration(seconds: 1));
+      checker.dispose();
+    });
+
+    test('the app waits as long for the lookup as for the request', () {
+      final checker = UpdateChecker(
+          currentVersion: '0.2.4', settings: MemoryUpdateSettings());
+      expect(checker.onlineTimeout, requestTimeout);
+    });
+
+    test('a failed save of the check time keeps the found update', () async {
+      final fetcher = FakeFetcher(latest: release('v0.2.5'));
+      final checker = checkerWith(fetcher, ThrowingSaveSettings());
+      final result = await checker.checkForUpdates();
+      expect(result.available, isTrue);
+      expect(result.error, isNull);
+      expect(result.release?.version, '0.2.5');
+      expect(checker.isUpdateAvailable, isTrue);
+    });
+
+    testWidgets('"Update and restart" is disabled while the installer runs, '
+        'and a failure keeps the Copy action', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      String? copied;
+      tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      });
+      addTearDown(() => tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null));
+      try {
+        // A fake installer that runs until the test lets it fail.
+        final running = Completer<void>();
+        var runs = 0;
+        await tester.pumpWidget(DefaultAssetBundle(
+          bundle: FakeBundle(),
+          child: MaterialApp(
+            home: AboutScreen(
+              version: '0.2.4',
+              release: release('v0.2.5'),
+              installedViaInstallSh: () async => true,
+              updateAndRestart: () {
+                runs++;
+                return running.future;
+              },
+            ),
+          ),
+        ));
+        await tester.pumpAndSettle();
+        final button = find.byKey(const ValueKey('about-update-and-restart'));
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Update and restart').last);
+        // The progress indicator spins, so pump instead of settling; long
+        // enough for the dialog's closing animation.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(runs, 1);
+        expect(tester.widget<FilledButton>(button).onPressed, isNull);
+        expect(find.byKey(const ValueKey('about-updating')), findsOneWidget);
+        expect(find.text('Updating…'), findsOneWidget);
+        // A second tap does nothing while it runs.
+        await tester.tap(button, warnIfMissed: false);
+        await tester.pump();
+        expect(runs, 1);
+        expect(find.byType(AlertDialog), findsNothing);
+        // The installer fails: the button is back, with the error and
+        // its Copy action.
+        running.completeError(const ProcessException(
+            'install.sh', ['--update'], 'no network', 1));
+        await tester.pumpAndSettle();
+        expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
+        expect(find.byKey(const ValueKey('about-updating')), findsNothing);
+        expect(find.textContaining('Update failed:'), findsOneWidget);
+        await tester.tap(find.text('Copy'));
+        await tester.pump();
+        expect(copied, contains('no network'));
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

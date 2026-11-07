@@ -284,9 +284,11 @@ class UpdateChecker {
     ReleaseFetcher? fetcher,
     Future<bool> Function()? isOnline,
     DateTime Function()? now,
+    Duration? onlineTimeout,
   })  : fetcher = fetcher ?? GitHubReleaseFetcher(),
         _isOnline = isOnline ?? _lookupOnline,
-        _now = now ?? DateTime.now;
+        _now = now ?? DateTime.now,
+        onlineTimeout = onlineTimeout ?? requestTimeout;
 
   final String currentVersion;
   final UpdateSettings settings;
@@ -297,6 +299,11 @@ class UpdateChecker {
 
   /// Tests replace the clock.
   final DateTime Function() _now;
+
+  /// How long the connectivity check may take; a check that takes longer
+  /// counts as offline (#268). [requestTimeout] in the app, shorter in
+  /// tests.
+  final Duration onlineTimeout;
 
   /// The check currently running; a second call gets the same Future.
   Future<UpdateCheckResult>? _inFlight;
@@ -334,7 +341,9 @@ class UpdateChecker {
   Future<UpdateCheckResult> _performCheck() async {
     final checkedAt = _now();
     try {
-      if (!kIsWeb && !await _isOnline()) {
+      // A stalled resolver must not hang the check: after [onlineTimeout]
+      // it counts as offline (#268).
+      if (!kIsWeb && !await _onlineWithinTimeout()) {
         return await _finish(
             const UpdateCheckResult(available: false, error: 'Offline'),
             checkedAt);
@@ -368,8 +377,40 @@ class UpdateChecker {
   Future<UpdateCheckResult> _finish(
       UpdateCheckResult result, DateTime checkedAt) async {
     _lastResult = result;
-    await settings.saveLastCheckTime(checkedAt);
+    // A failed save must not lose the result: the found update is still
+    // shown, and the next start simply checks again (#268).
+    try {
+      await settings.saveLastCheckTime(checkedAt);
+    } catch (e) {
+      debugPrint('Could not save the update check time: $e');
+    }
     return result;
+  }
+
+  /// The timer of a running connectivity check; [dispose] cancels it.
+  Timer? _onlineTimer;
+
+  /// [_isOnline], but false once [onlineTimeout] has passed or when the
+  /// lookup fails (#268). Its own timer, not `Future.timeout`, so [dispose]
+  /// can cancel it when the app closes.
+  Future<bool> _onlineWithinTimeout() {
+    final online = Completer<bool>();
+    void finish(bool value) {
+      _onlineTimer?.cancel();
+      _onlineTimer = null;
+      if (!online.isCompleted) online.complete(value);
+    }
+
+    _onlineTimer = Timer(onlineTimeout, () => finish(false));
+    _isOnline().then(finish, onError: (Object _) => finish(false));
+    return online.future;
+  }
+
+  /// Cancels a running connectivity check's timer. A check still waiting
+  /// for its lookup then never finishes; call this when the app closes.
+  void dispose() {
+    _onlineTimer?.cancel();
+    _onlineTimer = null;
   }
 
   static Future<bool> _lookupOnline() async {
