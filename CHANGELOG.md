@@ -10,7 +10,7 @@ each entry.
 
 ## 2026-11-07: Old tool results are shortened in chat requests ([#271](https://github.com/ChristianGeng/roam-graph-mobile/pull/271))
 
-- Changed: in a long chat, a tool result older than 3 of your messages and longer than 2,000 characters (a note the AI read, a web page) goes to the AI as a short note that says what it was; the AI can read it again. It happens in steps, so the provider's cache keeps working. The chat on screen and the saved chat keep everything, and the chat's size counts what is sent.
+- Changed: in a long chat, a tool result older than 3 of your messages and longer than 2,000 characters (a note the AI read, a web page) goes to the AI as a short note that says what it was; the AI can read it again. It happens in steps, so the provider's cache keeps working: only once such old results add up to about 50,000 characters are they all shortened together, so a single long result is sent whole until then. The chat on screen and the saved chat keep everything, and the chat's size counts what is sent.
 - Added: "Shorten old tool results" under AI → Agent and limits, on by default, with the number of messages. Closes #251.
 
 ## 2026-11-07: Prompt caching for Mistral, Vercel and OpenRouter, and a cache line per chat ([#265](https://github.com/ChristianGeng/roam-graph-mobile/pull/265))

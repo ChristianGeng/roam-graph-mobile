@@ -1376,8 +1376,11 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
           'The chats working at the same time must be at least 1.');
       return;
     }
+    // Checked only while "Shorten old tool results" is on: the field is
+    // hidden otherwise, and its saved value is kept (#251 review).
     final shortenTurns = int.tryParse(_shortenTurns.text.trim());
-    if (shortenTurns == null || shortenTurns < 1) {
+    final shortenTurnsOk = shortenTurns != null && shortenTurns >= 1;
+    if (_shortenToolResults && !shortenTurnsOk) {
       setState(() => _problem = 'The messages after which a tool result is '
           'shortened must be at least 1.');
       return;
@@ -1433,7 +1436,8 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
       keepChatsDays: _keepChats,
       notifyAnswers: _notifyAnswers,
       shortenToolResults: _shortenToolResults,
-      shortenAfterTurns: shortenTurns,
+      shortenAfterTurns:
+          shortenTurnsOk ? shortenTurns : loaded.shortenAfterTurns,
     );
     final keys = AiSettingsScope.keysOf(context);
     setState(() {
