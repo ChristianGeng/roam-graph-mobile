@@ -119,6 +119,18 @@ class _AboutScreenState extends State<AboutScreen> {
   String? _checkStatus;
   bool _checkingForUpdates = false;
 
+  /// Whether "Update and restart" is running `install.sh --update`; the
+  /// button is disabled and shows progress until it ends (#268).
+  bool _updating = false;
+
+  /// Whether any About page is running the installer: one install.sh
+  /// --update at a time for the app, also when two pages are open (#268).
+  static bool _installerRunning = false;
+
+  /// The install.sh lookup, once per page: a new Future on every build
+  /// would show "Download update" for a moment after each setState.
+  Future<bool>? _installedViaInstallShFuture;
+
   @override
   void initState() {
     super.initState();
@@ -255,7 +267,8 @@ class _AboutScreenState extends State<AboutScreen> {
                       if (isDesktop) ...[
                         const SizedBox(width: 8),
                         FutureBuilder<bool>(
-                          future: _isInstalledViaInstallSh(),
+                          future: _installedViaInstallShFuture ??=
+                              _isInstalledViaInstallSh(),
                           builder: (context, snapshot) {
                             final installedViaInstallSh = snapshot.data ?? false;
                             // install.sh --update installs the latest full
@@ -276,7 +289,11 @@ class _AboutScreenState extends State<AboutScreen> {
                             // On Linux with install.sh, show update and restart
                             return FilledButton(
                               key: const ValueKey('about-update-and-restart'),
-                              onPressed: () async {
+                              // Disabled while install.sh --update runs, so
+                              // it can't run twice (#268).
+                              onPressed: _updating || _installerRunning
+                                  ? null
+                                  : () async {
                                 final messenger =
                                     ScaffoldMessenger.of(context);
                                 final confirmed = await showDialog<bool>(
@@ -298,24 +315,50 @@ class _AboutScreenState extends State<AboutScreen> {
                                     ],
                                   ),
                                 );
-                                if (confirmed == true) {
-                                  try {
-                                    // Runs install.sh --update, then
-                                    // starts the new app and quits this
-                                    // one; only on success.
-                                    await (widget.updateAndRestart ??
-                                        UpdateChecker.updateAndRestart)();
-                                  } catch (e) {
-                                    if (mounted) {
-                                      // The error with its copy action
-                                      // (#182).
-                                      showErrorSnackBar(
-                                          messenger, 'Update failed: $e');
-                                    }
+                                if (confirmed != true || !mounted) return;
+                                if (_installerRunning) {
+                                  messenger.showSnackBar(const SnackBar(
+                                      content: Text(
+                                          'An update is already running.')));
+                                  return;
+                                }
+                                _installerRunning = true;
+                                setState(() => _updating = true);
+                                try {
+                                  // Runs install.sh --update, then
+                                  // starts the new app and quits this
+                                  // one; only on success.
+                                  await (widget.updateAndRestart ??
+                                      UpdateChecker.updateAndRestart)();
+                                } catch (e) {
+                                  if (mounted) {
+                                    // The error with its copy action
+                                    // (#182).
+                                    showErrorSnackBar(
+                                        messenger, 'Update failed: $e');
+                                  }
+                                } finally {
+                                  _installerRunning = false;
+                                  if (mounted) {
+                                    setState(() => _updating = false);
                                   }
                                 }
                               },
-                              child: const Text('Update and restart'),
+                              child: _updating
+                                  ? const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox.square(
+                                          key: ValueKey('about-updating'),
+                                          dimension: 16,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text('Updating…'),
+                                      ],
+                                    )
+                                  : const Text('Update and restart'),
                             );
                           },
                         ),

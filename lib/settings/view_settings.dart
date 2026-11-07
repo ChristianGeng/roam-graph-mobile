@@ -319,7 +319,10 @@ class ViewSettings {
         _ => defaults.includePreReleases,
       },
       lastUpdateCheckTime: switch (json['lastUpdateCheckTime']) {
-        final String time => DateTime.parse(time),
+        // A bad saved time falls back for this field only, not for every
+        // setting (#268).
+        final String time =>
+          DateTime.tryParse(time) ?? defaults.lastUpdateCheckTime,
         _ => defaults.lastUpdateCheckTime,
       },
       lastSeenVersion: switch (json['lastSeenVersion']) {

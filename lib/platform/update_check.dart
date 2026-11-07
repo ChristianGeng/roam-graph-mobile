@@ -284,9 +284,11 @@ class UpdateChecker {
     ReleaseFetcher? fetcher,
     Future<bool> Function()? isOnline,
     DateTime Function()? now,
+    Duration? onlineTimeout,
   })  : fetcher = fetcher ?? GitHubReleaseFetcher(),
         _isOnline = isOnline ?? _lookupOnline,
-        _now = now ?? DateTime.now;
+        _now = now ?? DateTime.now,
+        onlineTimeout = onlineTimeout ?? requestTimeout;
 
   final String currentVersion;
   final UpdateSettings settings;
@@ -297,6 +299,11 @@ class UpdateChecker {
 
   /// Tests replace the clock.
   final DateTime Function() _now;
+
+  /// How long the connectivity check may take; a check that takes longer
+  /// counts as offline (#268). [requestTimeout] in the app, shorter in
+  /// tests.
+  final Duration onlineTimeout;
 
   /// The check currently running; a second call gets the same Future.
   Future<UpdateCheckResult>? _inFlight;
@@ -334,7 +341,15 @@ class UpdateChecker {
   Future<UpdateCheckResult> _performCheck() async {
     final checkedAt = _now();
     try {
-      if (!kIsWeb && !await _isOnline()) {
+      // A stalled resolver must not hang the check: after [onlineTimeout]
+      // it counts as offline (#268).
+      final online = kIsWeb ? true : await _onlineWithinTimeout();
+      if (online == null) {
+        // Cancelled by dispose(): not a check, so nothing is saved and the
+        // last result stays.
+        return const UpdateCheckResult(available: false, error: 'Cancelled');
+      }
+      if (!online) {
         return await _finish(
             const UpdateCheckResult(available: false, error: 'Offline'),
             checkedAt);
@@ -368,8 +383,56 @@ class UpdateChecker {
   Future<UpdateCheckResult> _finish(
       UpdateCheckResult result, DateTime checkedAt) async {
     _lastResult = result;
-    await settings.saveLastCheckTime(checkedAt);
+    // A failed save must not lose the result: the found update is still
+    // shown, and the next start simply checks again (#268).
+    try {
+      await settings.saveLastCheckTime(checkedAt);
+    } catch (e) {
+      debugPrint('Could not save the update check time: $e');
+    }
     return result;
+  }
+
+  /// The connectivity checks still waiting for their lookup, each with its
+  /// own timer; [dispose] settles them.
+  final _pendingLookups = <_PendingLookup>{};
+
+  /// Whether [dispose] was called; later checks end at once, cancelled.
+  bool _disposed = false;
+
+  /// [_isOnline], but false once [onlineTimeout] has passed or when the
+  /// lookup fails, also synchronously (#268); null when [dispose] cancelled
+  /// it. Each lookup has its own timer (not `Future.timeout`, which [dispose]
+  /// could not cancel), and the first outcome wins: a lookup that answers
+  /// after its time-out changes nothing, also not a later lookup's timer.
+  Future<bool?> _onlineWithinTimeout() {
+    if (_disposed) return Future.value(null);
+    final lookup = _PendingLookup();
+    _pendingLookups.add(lookup);
+    lookup.timer = Timer(onlineTimeout, () => _settle(lookup, false));
+    Future.sync(_isOnline).then(
+      (online) => _settle(lookup, online),
+      onError: (Object _) => _settle(lookup, false),
+    );
+    return lookup.result.future;
+  }
+
+  void _settle(_PendingLookup lookup, bool? online) {
+    if (lookup.result.isCompleted) return;
+    lookup.timer?.cancel();
+    _pendingLookups.remove(lookup);
+    lookup.result.complete(online);
+  }
+
+  /// Ends the checker: cancels the timers of waiting connectivity checks
+  /// and lets those checks end at once as cancelled, without saving a
+  /// check time or changing the last result. Called when the app closes
+  /// or replaces the checker.
+  void dispose() {
+    _disposed = true;
+    for (final lookup in _pendingLookups.toList()) {
+      _settle(lookup, null);
+    }
   }
 
   static Future<bool> _lookupOnline() async {
@@ -433,4 +496,10 @@ class UpdateChecker {
     await startDetached(exe, const []);
     exit(0);
   }
+}
+
+/// One connectivity check waiting for its lookup: its result and timer.
+class _PendingLookup {
+  final result = Completer<bool?>();
+  Timer? timer;
 }

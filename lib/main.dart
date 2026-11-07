@@ -166,6 +166,13 @@ class _AppBodyState extends State<_AppBody> {
   UpdateChecker? _checker;
 
   @override
+  void dispose() {
+    // A connectivity check may still be waiting on its timer (#268).
+    _checker?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scope =
         context.dependOnInheritedWidgetOfExactType<ViewSettingsScope>();
@@ -174,6 +181,7 @@ class _AppBodyState extends State<_AppBody> {
       // The settings host creates its notifier once; build the checker
       // with it once, too, so in-flight checks and results are kept.
       _notifier = notifier;
+      _checker?.dispose();
       _checker = UpdateChecker(
         currentVersion: appVersion,
         settings: ViewSettingsUpdateSettings(
