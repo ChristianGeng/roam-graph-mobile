@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-07: Anthropic's web search keeps to "Most web searches" in every request ([#274](https://github.com/ChristianGeng/roam-graph-mobile/pull/274))
+
+- Fixed: with Anthropic's own web search, one request could search the whole limit again after earlier searches in the same message (with 5: 4, then 5 more). Each request now allows only what is left of the limit, so a message never searches more than "Most web searches for one message". The search tool stays the same, and cached, in every request until the first search. Closes #269.
+
 ## 2026-11-07: Old tool results are shortened in chat requests ([#271](https://github.com/ChristianGeng/roam-graph-mobile/pull/271))
 
 - Changed: in a long chat, a tool result older than 3 of your messages and longer than 2,000 characters (a note the AI read, a web page) goes to the AI as a short note that says what it was; the AI can read it again. It happens in steps, so the provider's cache keeps working: only once such old results add up to about 50,000 characters are they all shortened together, so a single long result is sent whole until then. The chat on screen and the saved chat keep everything, and the chat's size counts what is sent.
