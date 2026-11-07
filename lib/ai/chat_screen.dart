@@ -818,6 +818,7 @@ class _ChatScreenState extends State<ChatScreen> {
       ));
       return;
     }
+    final chat = _chat;
     setState(() => _preparing = index);
     ({String title, String body})? note;
     String? failed;
@@ -833,6 +834,8 @@ class _ChatScreenState extends State<ChatScreen> {
       failed = e.message;
       failedDetail = e.report();
     } finally {
+      // The request's usage is saved with the chat (#250).
+      if (identical(chat.session, session)) chat.changed();
       if (mounted) setState(() => _preparing = null);
     }
     // Closed, or a new chat, meanwhile.
