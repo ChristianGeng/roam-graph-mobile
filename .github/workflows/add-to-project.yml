@@ -1,0 +1,33 @@
+# Adds every new issue of this repository to the GitHub Project
+# "Roam Tools" (https://github.com/users/ChristianGeng/projects/2).
+# Pull requests are not added: they show on the board through the issue
+# they close ("Linked pull requests").
+#
+# Token: GITHUB_TOKEN cannot write to a project owned by a user, so the
+# job uses the repository secret ADD_TO_PROJECT_PAT. It is a classic
+# personal access token with only the "project" scope (fine-grained
+# tokens cannot reach projects owned by a user; both repositories are
+# public, so no "repo" scope is needed), with an expiry date. The owner
+# keeps it in gopass. To rotate it: create a new token with the same
+# scope, store it in gopass, and set it again in every repository of the
+# project:
+#   gh secret set ADD_TO_PROJECT_PAT --repo ChristianGeng/<repository>
+#
+# The job checks out no code and runs nothing from the repository.
+
+name: Add to project
+
+on:
+  issues:
+    types: [opened, reopened, transferred]
+
+permissions: {}
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/add-to-project@f2c1f1fa649a891be84948ea89b5dfba1526ef05 # v2.0.1
+        with:
+          project-url: https://github.com/users/ChristianGeng/projects/2
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
