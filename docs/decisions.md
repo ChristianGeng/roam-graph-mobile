@@ -4594,6 +4594,30 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 - Brave (#233) and `fetch_web_page` are counted by the app per call, as
   before.
 
+## 143. New issues reach the Roam Tools project by a workflow in every repository (#275)
+
+- **What:** `.github/workflows/add-to-project.yml` adds every opened,
+  reopened or transferred issue to the GitHub Project "Roam Tools"
+  (https://github.com/users/ChristianGeng/projects/2) with
+  `actions/add-to-project`, pinned to its SHA. org-roam-mcp has the same
+  file (org-roam-mcp#6).
+- **Issues only, not pull requests:** one card per task. A pull request
+  shows on the board through the issue it closes ("Linked pull
+  requests"), so adding it too would put two cards for one task. Without a
+  `pull_request_target` trigger no pull request from a fork can start a
+  job that holds the token.
+- **The same file in every repository**, not the project's built-in
+  Auto-add: on the Free plan that covers only one repository, and a file in
+  the repository is reviewed and versioned like the rest.
+- **Token:** `GITHUB_TOKEN` cannot write to a project owned by a user, so
+  the job uses the repository secret `ADD_TO_PROJECT_PAT`: a classic token
+  with only the `project` scope (fine-grained tokens cannot reach a user's
+  project) and an expiry date. How to rotate it is at the top of the
+  workflow file. `permissions: {}`; the job checks out no code.
+- **Closed issues** stay on the board; the project's own workflows move
+  them to Done ("Item closed") and archive them later ("Auto-archive
+  items"). The board needs no rebuilding.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
