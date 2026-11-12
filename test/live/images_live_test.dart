@@ -23,6 +23,8 @@ import 'package:roam_graph_mobile/ai/ai_images.dart';
 import 'package:roam_graph_mobile/ai/ai_models.dart';
 import 'package:roam_graph_mobile/ai/ai_providers.dart';
 
+import 'live_retry.dart';
+
 const mistralKey = 'MISTRAL_API_KEY';
 const vercelKey = 'VERCEL_AI_GATEWAY_API_KEY';
 const openRouterKey = 'OPENROUTER_API_KEY';
@@ -72,10 +74,16 @@ void record(String name, bool passed, String detail) {
 
 /// An image came back: PNG, JPEG or WebP bytes, larger than 1 kB.
 String checkImage(MadeImage image) {
-  expect(imageExtension(image.bytes), isNotNull,
-      reason: 'the bytes are no PNG, JPEG or WebP image');
-  expect(image.bytes.length, greaterThan(1024),
-      reason: 'the image has ${image.bytes.length} bytes');
+  expect(
+    imageExtension(image.bytes),
+    isNotNull,
+    reason: 'the bytes are no PNG, JPEG or WebP image',
+  );
+  expect(
+    image.bytes.length,
+    greaterThan(1024),
+    reason: 'the image has ${image.bytes.length} bytes',
+  );
   return '${image.extension}, ${image.bytes.length} bytes';
 }
 
@@ -103,27 +111,43 @@ ImageConfig configFor(
   );
 }
 
-/// One case: [body] makes the image and returns what to report. The result
-/// is recorded either way; a failure stays a failed test.
+/// One case: [body] makes the image and returns what to report. A
+/// transient failure (a timeout, a broken connection, an overloaded
+/// provider) is tried once more before it counts (#278): a single hiccup at
+/// a provider is not a failure of the app. The result is recorded either
+/// way; a failure stays a failed test.
 void liveCase(String name, Future<String> Function() body) {
   test(name, () async {
+    String? firstTry;
     try {
-      final detail = await body();
+      var detail = await withOneRetry(
+        body,
+        onRetry: (e) {
+          firstTry = e is AiError ? e.message : '$e';
+          // ignore: avoid_print
+          print('$name: trying once more (${clean(firstTry!)})');
+        },
+      );
+      if (firstTry != null) {
+        detail = '$detail; on the second try, the first: $firstTry';
+      }
       // ignore: avoid_print
-      print('$name: passed ($detail)');
+      print('$name: passed (${clean(detail)})');
       record(name, true, detail);
     } on Object catch (e) {
       final text = e is AiError
           ? e.message
           : e is TestFailure
-              ? (e.message ?? '$e')
-              : '$e';
+          ? (e.message ?? '$e')
+          : '$e';
       // ignore: avoid_print
       print('$name: FAILED (${clean(text)})');
       record(name, false, text);
       rethrow;
     }
-  }, timeout: const Timeout(Duration(minutes: 5)));
+    // Two tries of up to 4 minutes each (the app's request timeout), and
+    // the wait between them.
+  }, timeout: const Timeout(Duration(minutes: 10)));
 }
 
 void main() {
@@ -132,8 +156,12 @@ void main() {
 
   group('Mistral', () {
     final preset = presetById('mistral');
-    ImageConfig config() => configFor('mistral', mistralKey,
-        model: preset.imageModel, api: preset.imageApi);
+    ImageConfig config() => configFor(
+      'mistral',
+      mistralKey,
+      model: preset.imageModel,
+      api: preset.imageApi,
+    );
 
     liveCase('Mistral, short prompt', () async {
       final image = await makeImage(config(), shortPrompt, agents: agents);
@@ -162,16 +190,19 @@ void main() {
       );
       final priced = [
         for (final m in models)
-          if (m.images == true && m.chat != true && (m.imagePrice ?? 0) > 0)
-            m,
+          if (m.images == true && m.chat != true && (m.imagePrice ?? 0) > 0) m,
       ]..sort((a, b) => a.imagePrice!.compareTo(b.imagePrice!));
       if (priced.isEmpty) {
         fail('Vercel\'s model list has no image-only model with a price');
       }
       final cheapest = priced.first;
       final image = await makeImage(
-        configFor('vercel', vercelKey,
-            model: cheapest.id, api: ImageApi.images),
+        configFor(
+          'vercel',
+          vercelKey,
+          model: cheapest.id,
+          api: ImageApi.images,
+        ),
         shortPrompt,
       );
       return '${cheapest.id} at \$${cheapest.imagePrice} per image: '
@@ -181,10 +212,13 @@ void main() {
     liveCase('Vercel, chat with google/gemini-2.5-flash-image', () async {
       // The "EU only" path of the preset.
       final image = await makeImage(
-        configFor('vercel', vercelKey,
-            model: 'google/gemini-2.5-flash-image',
-            api: ImageApi.chat,
-            euOnly: true),
+        configFor(
+          'vercel',
+          vercelKey,
+          model: 'google/gemini-2.5-flash-image',
+          api: ImageApi.chat,
+          euOnly: true,
+        ),
         shortPrompt,
       );
       return checkImage(image);
@@ -194,8 +228,12 @@ void main() {
   group('OpenRouter', () {
     liveCase('OpenRouter, google/gemini-2.5-flash-image', () async {
       final image = await makeImage(
-        configFor('openrouter', openRouterKey,
-            model: 'google/gemini-2.5-flash-image', api: ImageApi.chat),
+        configFor(
+          'openrouter',
+          openRouterKey,
+          model: 'google/gemini-2.5-flash-image',
+          api: ImageApi.chat,
+        ),
         shortPrompt,
       );
       return checkImage(image);
@@ -205,8 +243,12 @@ void main() {
     liveCase('OpenRouter, Images API, the preset model', () async {
       final preset = presetById('openrouter');
       final image = await makeImage(
-        configFor('openrouter', openRouterKey,
-            model: preset.imageModel, api: preset.imageApi),
+        configFor(
+          'openrouter',
+          openRouterKey,
+          model: preset.imageModel,
+          api: preset.imageApi,
+        ),
         shortPrompt,
       );
       return checkImage(image);
