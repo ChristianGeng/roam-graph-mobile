@@ -4633,6 +4633,9 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   action checks the commenter's permission. It may push branches and write
   comments (`contents`, `pull-requests`, `issues: write`) and read CI
   results (`actions: read`).
+- **One run at a time** for each issue or pull request (`concurrency`
+  group `claude-<number>`, `cancel-in-progress: false`), so two requests on
+  the same pull request do not push over each other.
 - **Next to the other reviewers:** CodeRabbit now skips this repository
   ("fewer than 10 stars"), so a review by Claude is asked for by comment.
   Sourcery and Devin Review stay. GitHub runs comment events with the
