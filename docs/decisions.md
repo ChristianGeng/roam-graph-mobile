@@ -4622,8 +4622,8 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 
 - **What:** `.github/workflows/claude.yml` runs `anthropics/claude-code-action`
   (pinned to its SHA, v1.0.268) when a comment on an issue or a pull
-  request, a review or a review comment contains `@claude`, or a new or
-  assigned issue does. Example: "@claude review this pull request". The
+  request, a review or a review comment contains `@claude`, or a new
+  issue does (not on `assigned`, so one issue does not start it twice). Example: "@claude review this pull request". The
   Claude GitHub app is installed on the repository.
 - **Token:** the repository secret `CLAUDE_CODE_OAUTH_TOKEN` from
   `claude setup-token`, so the runs count against the owner's Pro
