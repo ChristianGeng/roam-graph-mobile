@@ -4618,6 +4618,17 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   them to Done ("Item closed") and archive them later ("Auto-archive
   items"). The board needs no rebuilding.
 
+## 144. A widget test that reads real files waits for the result, not a fixed time (#273)
+
+- **What:** the test "Open files…" in `test/capture/bring_in_test.dart`
+  repeats `tester.runAsync(Future.delayed(20 ms))` and `tester.pump()`
+  until the capture screen's `TextField` appears. After 5 seconds of real
+  time (a `Stopwatch`) it fails with a message that names the file. Before,
+  it waited a fixed 200 ms, which was sometimes too short under the load
+  of the full suite.
+- **Not a fake file system:** the reader would need a way to inject one
+  in `lib/`; the loop changes only the test.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
