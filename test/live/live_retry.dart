@@ -10,13 +10,27 @@ library;
 
 import 'package:roam_graph_mobile/ai/ai_chat.dart';
 
-/// Whether [error] is one a user would answer with "Try again": the
-/// provider did not answer in time (`postJson` reports a timeout as not
-/// passing, so it is matched by its text), or the error says it may well
-/// pass ([AiError.passing]: a broken connection, an overloaded provider).
+/// The texts of the app's errors for a timeout or a lost connection where
+/// the error is not marked [AiError.passing]: a request that got no answer
+/// in time (`postJson`, `fetchModels`), a broken connection while fetching
+/// the model list (`fetchModels`), and a broken or too slow image download
+/// (`downloadWithDartIo`). An image download that the server refuses
+/// ("could not be downloaded (HTTP …)") is not among them.
+const transientTexts = [
+  'did not answer in time',
+  'No connection to ',
+  'The connection to ',
+  'The image download took too long',
+  'The image could not be downloaded: ',
+];
+
+/// Whether [error] is one a user would answer with "Try again": the error
+/// says it may well pass ([AiError.passing]: a broken connection or an
+/// overloaded provider in a chat or image request), or its text is one of
+/// [transientTexts].
 bool isTransient(Object error) =>
     error is AiError &&
-    (error.passing || error.message.contains('did not answer in time'));
+    (error.passing || transientTexts.any(error.message.contains));
 
 /// Runs [body]; if it fails with a transient error ([isTransient]), calls
 /// [onRetry] with that error, waits [wait] and runs [body] once more. Any

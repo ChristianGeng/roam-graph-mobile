@@ -145,9 +145,13 @@ void liveCase(String name, Future<String> Function() body) {
       record(name, false, text);
       rethrow;
     }
-    // Two tries of up to 4 minutes each (the app's request timeout), and
-    // the wait between them.
-  }, timeout: const Timeout(Duration(minutes: 10)));
+    // Long enough for two tries and the wait between them. One request may
+    // wait up to 4 minutes for the answer's start and 4 more for its body
+    // (postWithDartIo), and a Mistral case makes several requests in a
+    // row, so one try can take well over 8 minutes. Every request has its
+    // own timeout, so a case still ends; this only must not cut a retry
+    // short.
+  }, timeout: const Timeout(Duration(minutes: 30)));
 }
 
 void main() {

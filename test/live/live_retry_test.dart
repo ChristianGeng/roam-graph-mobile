@@ -16,6 +16,28 @@ void main() {
       );
     });
 
+    test('a lost connection to the model list or the image download is '
+        'transient', () {
+      for (final text in [
+        'api.example.com did not answer in time.',
+        'No connection to ai-gateway.vercel.sh: Connection reset by peer.',
+        'The connection to ai-gateway.vercel.sh failed: Connection closed.',
+        'The image download took too long. Try again.',
+        'The image could not be downloaded: Connection reset by peer.',
+      ]) {
+        expect(isTransient(AiError(text)), isTrue, reason: text);
+      }
+    });
+
+    test('a refused image download is not transient', () {
+      expect(
+        isTransient(
+          const AiError('The image could not be downloaded (HTTP 404).'),
+        ),
+        isFalse,
+      );
+    });
+
     test('a refused request, a test failure and other errors are not', () {
       expect(isTransient(const AiError('The API key was refused.')), isFalse);
       expect(isTransient(TestFailure('the bytes are no image')), isFalse);

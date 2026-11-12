@@ -4688,9 +4688,19 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   does the weekly run open or comment on the "Live image test failed"
   issue. A case that passes on the second try says so in its result line,
   with the first error. A refused request (a wrong key, a model that is
-  gone) or a failed check of the image is not retried. A case may now take
-  up to 10 minutes: two tries of up to 4 minutes each (the app's request
-  timeout, `postWithDartIo`) and the wait.
+  gone) or a failed check of the image is not retried. Transient means
+  `AiError.passing`, or the text of the app's errors for a timeout or a lost
+  connection that are not marked passing: a request without an answer in
+  time, a broken connection to the model list, and a broken or too slow
+  image download (`transientTexts`). A case may take up to 30 minutes: one
+  request waits up to 4 minutes for the start of its answer and 4 for the
+  body, and a Mistral case makes several requests, so the limit must not cut
+  a retry short; each request still has its own timeout.
+- **Accepted:** a retry may repeat work the provider already did when only
+  its answer was lost: at most one extra test image (a few cents) per case
+  and week, and on the Mistral path, if the answer to creating the agent
+  is lost, one unused agent. A user's "Try again" in the app has the same
+  effect; a false alarm in the weekly issue costs more.
 - **Why:** #278 was a single stall at OpenRouter. On 2026-11-09 the
   Images API request for `google/gemini-2.5-flash-image` got no answer for
   4 minutes, until the app's timeout, while the same model through Chat
