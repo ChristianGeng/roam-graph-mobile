@@ -4655,6 +4655,29 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   Sourcery and Devin Review stay. GitHub runs comment events with the
   workflow file from `main`, so it works only after the merge.
 
+## 146. "@claude" runs have no concurrency group; the fork check covers every pull request event (#284)
+
+- **What:** `.github/workflows/claude.yml` no longer has a job-level
+  `concurrency` group. The first step, "Refuse pull requests from forks",
+  now runs for every event on a pull request (a comment, a review or a
+  review comment), not only for comments. This replaces the point "One run
+  at a time" in decision 145.
+- **Why:** GitHub keeps one running and one pending run per concurrency
+  group, and a newer pending run replaces the older one. So of three quick
+  `@claude` requests on one thread, the middle one was never answered.
+  Without the group, runs on one pull request may overlap; a push that
+  loses the race fails instead of overwriting. The fork check used to run
+  only for issue comments; review events from a fork skipped it and relied
+  only on GitHub withholding secrets from them.
+- **Source:** the same fix as ChristianGeng/trading-bot#63 and
+  ChristianGeng/quant_lib#49, found by Devin in trading-bot#60 and
+  quant_lib#46. The workflow now matches the template of the
+  `/claude-github-action` command (cgeng-ai-skills,
+  `commands/devops/claude-github-action.md`), apart from this repository's
+  comment lines.
+- **Changelog:** not visible to app users, so the pull request has the
+  `skip-changelog` label, as #282 did (decision 48).
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this

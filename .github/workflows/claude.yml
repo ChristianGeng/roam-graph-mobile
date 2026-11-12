@@ -10,8 +10,14 @@ name: Claude
 # `claude setup-token`; it uses the owner's Pro subscription. No
 # ANTHROPIC_API_KEY: that is billed per token.
 #
-# Pull requests from forks: review events from a fork get no secrets, and a
-# comment on a fork's pull request is refused by the first step of the job.
+# Pull requests from forks: the first step of the job refuses every event
+# on a fork's pull request (comment, review or review comment), in addition
+# to GitHub withholding secrets from fork review events.
+#
+# No concurrency group: GitHub keeps one pending run per group and drops
+# the older pending ones, so a burst of requests on one thread would lose
+# some. Runs on one pull request may therefore overlap; a push that loses
+# the race fails instead of overwriting.
 on:
   issue_comment:
     types: [created]
@@ -29,11 +35,6 @@ jobs:
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
-    # One run at a time for each issue or pull request; a running job is not
-    # cancelled.
-    concurrency:
-      group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
-      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
@@ -42,11 +43,11 @@ jobs:
       actions: read
     steps:
       - name: Refuse pull requests from forks
-        if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+        if: github.event.issue.pull_request || github.event.pull_request
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          PR: ${{ github.event.issue.number }}
+          PR: ${{ github.event.issue.number || github.event.pull_request.number }}
         run: |
           head=$(gh api "repos/$GH_REPO/pulls/$PR" --jq '.head.repo.full_name')
           if [ "$head" != "$GH_REPO" ]; then
