@@ -10,8 +10,8 @@ name: Claude
 # `claude setup-token`; it uses the owner's Pro subscription. No
 # ANTHROPIC_API_KEY: that is billed per token.
 #
-# Pull requests from forks get no secrets, so Claude cannot run there. That
-# is on purpose: it is the safe default.
+# Pull requests from forks: review events from a fork get no secrets, and a
+# comment on a fork's pull request is refused by the first step of the job.
 on:
   issue_comment:
     types: [created]
@@ -41,6 +41,18 @@ jobs:
       id-token: write
       actions: read
     steps:
+      - name: Refuse pull requests from forks
+        if: github.event_name == 'issue_comment' && github.event.issue.pull_request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.issue.number }}
+        run: |
+          head=$(gh api "repos/$GH_REPO/pulls/$PR" --jq '.head.repo.full_name')
+          if [ "$head" != "$GH_REPO" ]; then
+            echo "::error::Claude does not run on pull requests from forks ($head)."
+            exit 1
+          fi
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 1
