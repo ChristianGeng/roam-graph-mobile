@@ -278,14 +278,21 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Open files…'));
       await tester.pumpAndSettle();
-      // The files are read with real file operations.
-      for (var i = 0; i < 10; i++) {
+      // The files are read with real file operations: wait for the capture
+      // screen, up to a few seconds of real time.
+      final title = find.widgetWithText(TextField, 'todo');
+      final waited = Stopwatch()..start();
+      while (title.evaluate().isEmpty) {
+        if (waited.elapsed > const Duration(seconds: 5)) {
+          fail('The capture screen for todo.md did not open within '
+              '${waited.elapsed.inMilliseconds} ms of reading the file.');
+        }
         await tester.runAsync(
             () => Future<void>.delayed(const Duration(milliseconds: 20)));
         await tester.pump();
       }
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(TextField, 'todo'), findsOneWidget);
+      expect(title, findsOneWidget);
       expect(find.widgetWithText(TextField, 'Buy milk.'), findsOneWidget);
     }, variant: linux);
 
