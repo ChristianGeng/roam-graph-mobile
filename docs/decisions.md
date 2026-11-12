@@ -4630,7 +4630,9 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   subscription. Not `ANTHROPIC_API_KEY`: the API is billed per token, on
   top of the subscription.
 - **Who:** only users with write access to the repository start it; the
-  action checks the commenter's permission. It may push branches and write
+  action checks the commenter's permission. The owner is the only such user, and
+  he starts Claude only on his own issues and pull requests, so the issue
+  or pull request text Claude reads as its task comes from him. It may push branches and write
   comments (`contents`, `pull-requests`, `issues: write`) and read CI
   results (`actions: read`).
 - **One run at a time** for each issue or pull request (`concurrency`

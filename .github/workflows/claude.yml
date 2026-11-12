@@ -2,7 +2,9 @@ name: Claude
 # A comment with "@claude" on an issue or a pull request (also in a review
 # or a review comment) starts Claude, for example "@claude review this pull
 # request" (decision 145, #281). Only users with write access can start it;
-# the action checks this. The Claude GitHub app must be installed.
+# the action checks this. The owner is the only such user, and he starts
+# Claude only on his own issues and pull requests, so the text Claude reads
+# comes from him. The Claude GitHub app must be installed.
 #
 # Token: the repository secret CLAUDE_CODE_OAUTH_TOKEN, made with
 # `claude setup-token`; it uses the owner's Pro subscription. No
