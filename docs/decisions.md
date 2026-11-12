@@ -4629,6 +4629,32 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 - **Not a fake file system:** the reader would need a way to inject one
   in `lib/`; the loop changes only the test.
 
+## 145. "@claude" in a comment starts Claude through a GitHub Action (#281)
+
+- **What:** `.github/workflows/claude.yml` runs `anthropics/claude-code-action`
+  (pinned to its SHA, v1.0.268) when a comment on an issue or a pull
+  request, a review or a review comment contains `@claude`, or a new
+  issue does (not on `assigned`, so one issue does not start it twice).
+  Example: "@claude review this pull request". The Claude GitHub app is
+  installed on the repository.
+- **Token:** the repository secret `CLAUDE_CODE_OAUTH_TOKEN` from
+  `claude setup-token`, so the runs count against the owner's Pro
+  subscription. Not `ANTHROPIC_API_KEY`: the API is billed per token, on
+  top of the subscription.
+- **Who:** only users with write access to the repository start it; the
+  action checks the commenter's permission. The owner is the only such
+  user, and he starts Claude only on his own issues and pull requests, so
+  the issue or pull request text Claude reads as its task comes from him.
+  It may push branches and write comments (`contents`, `pull-requests`,
+  `issues: write`) and read CI results (`actions: read`).
+- **One run at a time** for each issue or pull request (`concurrency`
+  group `claude-<number>`, `cancel-in-progress: false`), so two requests on
+  the same pull request do not push over each other.
+- **Next to the other reviewers:** CodeRabbit now skips this repository
+  ("fewer than 10 stars"), so a review by Claude is asked for by comment.
+  Sourcery and Devin Review stay. GitHub runs comment events with the
+  workflow file from `main`, so it works only after the merge.
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
