@@ -9,6 +9,9 @@ name: Claude
 # Token: the repository secret CLAUDE_CODE_OAUTH_TOKEN, made with
 # `claude setup-token`; it uses the owner's Pro subscription. No
 # ANTHROPIC_API_KEY: that is billed per token.
+#
+# Pull requests from forks get no secrets, so Claude cannot run there. That
+# is on purpose: it is the safe default.
 on:
   issue_comment:
     types: [created]
