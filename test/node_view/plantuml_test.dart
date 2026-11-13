@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show PictureRecorder;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -101,12 +102,35 @@ void main() {
       expect(drawPlantuml('').scene, isNull);
     });
 
+    test('a source that is too large is not drawn, and says so', () {
+      final huge = 'A -> B : x\n' * (maxPlantumlSource ~/ 10);
+      final drawn = drawPlantuml(huge);
+      expect(drawn.scene, isNull);
+      expect('${drawn.error}', contains('too large'));
+    });
+
     test('a drawing is laid out once for each source', () {
       final source = drawingsIn(section('State')).single;
       final first = drawPlantuml(source);
       expect(first.scene, isNotNull);
       expect(identical(drawPlantuml(source).scene, first.scene), isTrue);
     });
+  });
+
+  testWidgets('the painter paints the diagram', (tester) async {
+    final scene = drawPlantuml(drawingsIn(section('State')).single).scene!;
+    final width = scene.size.width.ceil(), height = scene.size.height.ceil();
+    final painted = await tester.runAsync(() async {
+      final recorder = PictureRecorder();
+      PlantumlPainter(scene).paint(Canvas(recorder), scene.size);
+      final image = await recorder.endRecording().toImage(width, height);
+      final bytes = await image.toByteData();
+      image.dispose();
+      return bytes!;
+    });
+    // Some pixel is not transparent: lines, boxes or text were drawn.
+    final pixels = painted!.buffer.asUint32List();
+    expect(pixels.any((pixel) => pixel != 0), isTrue);
   });
 
   Future<void> show(WidgetTester tester, String text,

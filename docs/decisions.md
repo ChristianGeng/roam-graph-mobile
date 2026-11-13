@@ -4796,10 +4796,13 @@ and stayed cached. #269 asked to keep the limit for the whole message.
     `@start...` line of its own, as `org-babel-plantuml-make-body` does;
     `puml_canvas` rejects such a body otherwise.
   - **A source that cannot be drawn** shows one line with `puml_canvas`'s
-    message and the line in the block (for example "Expected
+    message and, when `puml_canvas` gives one (its parser, lexer and
+    preprocessor do), the line in the block (for example "Expected
     TokenType.endUml, got TokenType.eof (line 6)"); the rest of the note
     is shown. Every error is caught, so a bad block never stops the node
-    view.
+    view. A source longer than 20,000 characters is not drawn but shows
+    such a line, because parsing and layout run while the note is shown;
+    real diagrams are far shorter.
   - **Dark theme: on a light card.** `puml_canvas` has no theme or dark
     setting; its lines, arrows and loose text are always black. So in the
     dark theme the drawing is on a white card with rounded corners and a
@@ -4820,8 +4823,10 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   readable but rough; `while` loops (no loop-back edge) and notes (placed
   over other text, or under the wrong class) are the weak spots; `!theme`
   is ignored without a warning. This is acceptable because the Emacs
-  image wins whenever it is in the folder. The APK grows by about 1 MB
-  (estimated from the Linux build: +950 KB of compiled Dart code).
+  image wins whenever it is in the folder. The release APK grows by 2.9 MB
+  (89.2 to 92.2 MB, +3.3 %, measured on this pull request's CI build):
+  about 950 KB of compiled Dart code for each of the three Android
+  architectures.
 - **The package is young** (no verified publisher, 16 releases in one
   week of May 2026 and none since). The owner chose it on 2026-11-13
   because it is expected to mature. So its use is kept in one file,

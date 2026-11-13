@@ -81,6 +81,28 @@ const _maxDrawn = 32;
 PlantumlDrawn drawPlantuml(String source) {
   if (_drawn.remove(source) case final drawn?) return _drawn[source] = drawn;
   PlantumlDrawn drawn;
+  if (source.length > maxPlantumlSource) {
+    // Parsing and layout run while the note is shown; a huge source
+    // would stop the view for too long.
+    drawn = (
+      scene: null,
+      error: 'the diagram is too large to draw on the device '
+          '(more than $maxPlantumlSource characters)',
+    );
+  } else {
+    drawn = _parsedAndLaidOut(source);
+  }
+  _drawn[source] = drawn;
+  if (_drawn.length > _maxDrawn) _drawn.remove(_drawn.keys.first);
+  return drawn;
+}
+
+/// The longest source drawn on the device. Real diagrams are far shorter;
+/// a longer one shows an error line, so it cannot stop the node view.
+const maxPlantumlSource = 20000;
+
+PlantumlDrawn _parsedAndLaidOut(String source) {
+  PlantumlDrawn drawn;
   try {
     final text = puml.Preprocessor().preprocess(plantumlSource(source));
     final diagram = puml.Parser().parse(puml.Lexer().tokenize(text));
@@ -92,8 +114,6 @@ PlantumlDrawn drawPlantuml(String source) {
   } on Object catch (error) {
     drawn = (scene: null, error: error);
   }
-  _drawn[source] = drawn;
-  if (_drawn.length > _maxDrawn) _drawn.remove(_drawn.keys.first);
   return drawn;
 }
 
@@ -162,8 +182,9 @@ class PlantumlDrawing extends StatelessWidget {
   }
 }
 
-/// The first line of [error]'s message, with the line counted in the
-/// block's own [source] (without an added `@startuml`).
+/// The first line of [error]'s message. When `puml_canvas` gives a line
+/// (its parser, lexer and preprocessor do), it is counted in the block's
+/// own [source], without an added `@startuml`; other errors have none.
 String _errorLine(String source, Object error) {
   final added = _ownStart.hasMatch(source) ? 0 : 1;
   String at(int line) => ' (line ${line - added < 1 ? 1 : line - added})';
