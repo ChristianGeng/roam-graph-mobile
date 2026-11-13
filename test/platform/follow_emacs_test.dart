@@ -114,10 +114,21 @@ void main() {
         InternetAddress.loopbackIPv4,
         server.port,
       );
-      final closed = socket.drain<void>().catchError((Object _) {});
+      // When the app closes the connection while a byte is unread or on
+      // its way, the system resets it, and the reset can come on the
+      // writing side as well as the reading side. Both are expected here;
+      // without a handler on `done`, the reset failed the test now and
+      // then (#287).
+      unawaited(socket.done.catchError((Object _) {}));
+      var isClosed = false;
+      final closed = socket
+          .drain<void>()
+          .catchError((Object _) {})
+          .whenComplete(() => isClosed = true);
       final watch = Stopwatch()..start();
-      // A byte now and then, never a whole line.
+      // A byte now and then, never a whole line, until the app closes.
       final drip = Timer.periodic(const Duration(milliseconds: 500), (_) {
+        if (isClosed) return;
         try {
           socket.add([0x7b]);
         } on Object {
