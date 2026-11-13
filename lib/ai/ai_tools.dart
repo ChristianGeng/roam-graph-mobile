@@ -140,8 +140,7 @@ final aiTools = <AiTool>[
     'org_roam_search_text',
     'Find notes whose text contains the words: all of them, each also as '
         'the start of a longer word, case and accents ignored. Best matches '
-        'first, with a snippet of the text around the match. Not in the '
-        'laptop\'s MCP server; the app has its own full-text index.',
+        'first, with a snippet of the text around the match.',
     _object({
       'query': _string('The words to find'),
       'limit': _integer('Number of notes to return', 20),
