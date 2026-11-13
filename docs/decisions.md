@@ -4716,6 +4716,26 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 - **Changelog:** not visible to app users, so the pull request has the
   `skip-changelog` label, as #282 and #285 did (decision 48).
 
+## 148. The follow test expects a reset on the writing side too (#287)
+
+- **What:** the test "closes a connection that takes too long" in
+  `test/platform/follow_emacs_test.dart` gives `socket.done` an error
+  handler, as it already did for the reading side, and stops writing once
+  the app has closed the connection. The checks stay: closed in less than
+  4 seconds, and no ID passed on.
+- **Why:** the test writes a byte every 500 ms and never a whole line,
+  until the app closes the connection after its 2-second deadline. When a
+  byte is unread or on its way at that moment, the system resets the
+  connection, and Dart reports the reset on `done`. Nothing listened there,
+  so the error reached the test zone and failed the test now and then in
+  CI ("Connection reset by peer" at `Socket.connect`, run 42357505772). A
+  small test that writes into a connection the server destroys unread gave
+  the same error without the handler and passed with it.
+- **Not changed:** the app. Closing a slow client is what the test checks;
+  the reset is the expected result of it.
+- **Changelog:** not visible to app users, so the pull request has the
+  `skip-changelog` label (decision 48).
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
