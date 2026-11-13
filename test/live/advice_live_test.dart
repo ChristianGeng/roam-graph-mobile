@@ -57,8 +57,11 @@ void main() {
       Set<String> listed;
       if (key.isEmpty) {
         for (final a in advice) {
-          record('${preset.id} ${a.model}', 'error',
-              'The secret ${entry.value} is not set');
+          record(
+            '${preset.id} ${a.model}',
+            'error',
+            'The secret ${entry.value} is not set',
+          );
         }
         fail('The secret ${entry.value} is not set');
       }

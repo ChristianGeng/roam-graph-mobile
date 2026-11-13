@@ -4678,6 +4678,44 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 - **Changelog:** not visible to app users, so the pull request has the
   `skip-changelog` label, as #282 did (decision 48).
 
+## 147. A live image case is tried once more after a timeout or a dropped connection (#278)
+
+- **What:** each case in `test/live/images_live_test.dart` runs through
+  `withOneRetry` (`test/live/live_retry.dart`). When it fails with a
+  transient error (the provider did not answer in time, the connection
+  broke, or the provider is overloaded: `AiError.passing`), it waits 30
+  seconds and tries once more. Only a second failure counts, and only then
+  does the weekly run open or comment on the "Live image test failed"
+  issue. A case that passes on the second try says so in its result line,
+  with the first error. A refused request (a wrong key, a model that is
+  gone) or a failed check of the image is not retried. Transient means
+  `AiError.passing`, or the text of the app's errors for a timeout or a lost
+  connection that are not marked passing: a request without an answer in
+  time, a broken connection to the model list, and a broken or too slow
+  image download (`transientTexts`). A case may take up to 30 minutes: one
+  request waits up to 4 minutes for the start of its answer and 4 for the
+  body, and a Mistral case makes several requests, so the limit must not cut
+  a retry short; each request still has its own timeout.
+- **Accepted:** a retry may repeat work the provider already did when only
+  its answer was lost: at most one extra test image (a few cents) per case
+  and week, and on the Mistral path, if the answer to creating the agent
+  is lost, one unused agent. A user's "Try again" in the app has the same
+  effect; a false alarm in the weekly issue costs more.
+- **Why:** #278 was a single stall at OpenRouter. On 2026-11-09 the
+  Images API request for `google/gemini-2.5-flash-image` got no answer for
+  4 minutes, until the app's timeout, while the same model through Chat
+  Completions answered in 6 seconds a moment before, and the same case
+  passed in 6 seconds on 2026-11-02 and 2026-10-26. A user meets such a
+  stall as "did not answer in time. Try again." and tries again; the live
+  test now does the same, so the issue is kept for failures that repeat.
+- **Not changed:** the app. Its 4-minute timeout is generous for image
+  models (they answer in seconds to about a minute), and a timeout stays
+  "not passing" in `postJson`, so the chat does not retry it on its own:
+  three tries of up to 4 minutes would keep the user waiting up to 12
+  minutes.
+- **Changelog:** not visible to app users, so the pull request has the
+  `skip-changelog` label, as #282 and #285 did (decision 48).
+
 ## Recommended, not decided
 
 - **No MCP server on the device, for now** (#14). The owner decides; this
