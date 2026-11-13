@@ -691,6 +691,13 @@ void main() {
     });
   });
 
+  test('org_roam_search_text does not say the MCP server lacks it (#290)', () {
+    // org-roam-mcp has a tool of the same name since v0.3.0.
+    final tool = aiTools.firstWhere((t) => t.name == 'org_roam_search_text');
+    expect(tool.description, isNot(contains('MCP server')));
+    expect(tool.description, contains('snippet'));
+  });
+
   test('every tool has a name, a description and an object schema', () {
     expect(aiTools.map((t) => t.name).toSet().length, aiTools.length);
     expect(aiTools.length, 17);
