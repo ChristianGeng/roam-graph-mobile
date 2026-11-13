@@ -4736,10 +4736,12 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 - **Changelog:** not visible to app users, so the pull request has the
   `skip-changelog` label (decision 48).
 
-## Recommended, not decided
+## 149. No MCP server on the device (#14)
 
-- **No MCP server on the device, for now** (#14). The owner decides; this
-  is the recommendation, with its reasons:
+- **What:** the app has no MCP server, and none is planned. The owner
+  agreed with the recommendation on 2026-11-13 and closed #14. A remote
+  server for an AI on the device stays a plan for later, in #42, to build
+  only if sharing (#40, #41) is not enough. The reasons:
   - **Writing needs no MCP.** An AI app shares text, and the app turns it
     into a node (#15, decision 34). That covers the Claude Android app,
     which cannot write files.
@@ -4761,7 +4763,11 @@ and stayed cached. #269 asked to keep the limit for the whole message.
     read-only half of org-roam-mcp could serve the database the app
     builds itself (decision 23; Emacs's `org-roam.db` stays on the laptop,
     decision 3) as it is.
-  - **If the owner agrees:** close #14 and the v3 milestone.
+
+## Recommended, not decided
+
+No recommendation is waiting for a decision. The comparison below is kept
+as background for choosing Flutter (#1).
 
 ### Flutter or PWA
 
@@ -4797,11 +4803,7 @@ matter less here, because the laptop has Emacs.
 
 ## Open
 
-- **MCP on the device** (#14). Adding nodes needs no MCP (see 11 and 34).
-  MCP would only matter if an AI on the device had to read or query the
-  graph without the laptop, and it needs a client there. The Claude
-  Android app only connects to remote MCP servers. The recommendation
-  above is not to build it for now; the owner decides.
+Nothing at the moment.
 
 ## My data, for checks
 
