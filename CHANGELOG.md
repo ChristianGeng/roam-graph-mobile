@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-11-13: PlantUML blocks are drawn on the device ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-11-13: PlantUML blocks are drawn on the device ([#292](https://github.com/ChristianGeng/roam-graph-mobile/pull/292))
 
 - Added: a `plantuml` source block without a result image is drawn right below it, as `mermaid` blocks are, labelled "Drawn on the device"; tap it to zoom. The image Emacs made with `:file` is still shown instead when it is in the folder. A block without `@startuml` gets it added, as in Emacs. A source that cannot be drawn shows one line with the error. In the dark theme the drawing is on a light card. Nothing is sent anywhere. Closes #283.
 
