@@ -109,6 +109,24 @@ void main() {
       expect('${drawn.error}', contains('too large'));
     });
 
+    test('a source whose macros expand too far is not drawn', () {
+      final body = 'A -> B : x ' * 200;
+      final source = '@startuml\n!define BIG $body\n'
+          '${'BIG\n' * 100}@enduml\n';
+      expect(source.length, lessThan(maxPlantumlSource));
+      final drawn = drawPlantuml(source);
+      expect(drawn.scene, isNull);
+      expect('${drawn.error}', contains('after its macros are expanded'));
+    });
+
+    test('an error line gives the line in the block, or none', () {
+      // No directive: the parser's line is the block's line.
+      expect(errorLineOf('@startuml\nA -> B\n/\''), endsWith('(line 3)'));
+      // A directive line is removed before the lexer counts: no number.
+      expect(errorLineOf('@startuml\n!define UNUSED 1\n/\''),
+          isNot(contains('(line')));
+    });
+
     test('a drawing is laid out once for each source', () {
       final source = drawingsIn(section('State')).single;
       final first = drawPlantuml(source);

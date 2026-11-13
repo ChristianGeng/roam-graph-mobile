@@ -101,10 +101,25 @@ PlantumlDrawn drawPlantuml(String source) {
 /// a longer one shows an error line, so it cannot stop the node view.
 const maxPlantumlSource = 20000;
 
+/// The longest text after the preprocessor has expanded `!define` and
+/// other macros: a short source can expand to far more. The expansion
+/// itself is bounded only inside `puml_canvas`.
+const maxPlantumlExpanded = 100000;
+
 PlantumlDrawn _parsedAndLaidOut(String source) {
   PlantumlDrawn drawn;
+  final wrapped = plantumlSource(source);
+  String? text;
   try {
-    final text = puml.Preprocessor().preprocess(plantumlSource(source));
+    text = puml.Preprocessor().preprocess(wrapped);
+    if (text.length > maxPlantumlExpanded) {
+      return (
+        scene: null,
+        error: 'the diagram is too large to draw on the device '
+            '(more than $maxPlantumlExpanded characters after its macros '
+            'are expanded)',
+      );
+    }
     final diagram = puml.Parser().parse(puml.Lexer().tokenize(text));
     final scene = const puml.AutoLayout()
         .layout(diagram, const puml.FlutterTextMeasurer());
@@ -112,7 +127,22 @@ PlantumlDrawn _parsedAndLaidOut(String source) {
         ? (scene: null, error: 'the diagram is empty')
         : (scene: scene, error: null);
   } on Object catch (error) {
-    drawn = (scene: null, error: error);
+    // The lexer and the parser count lines in the preprocessed text. When
+    // the preprocessor removed or added lines (directives, macros), those
+    // numbers are not lines of the block, so the message goes without one.
+    final shifted = text != null &&
+        '\n'.allMatches(text).length != '\n'.allMatches(wrapped).length;
+    drawn = switch (error) {
+      puml.LexerException(:final message) when shifted => (
+          scene: null,
+          error: message,
+        ),
+      puml.ParserException(:final message) when shifted => (
+          scene: null,
+          error: message,
+        ),
+      _ => (scene: null, error: error),
+    };
   }
   return drawn;
 }
@@ -181,6 +211,13 @@ class PlantumlDrawing extends StatelessWidget {
     );
   }
 }
+
+/// The error line shown for [source], or null if it can be drawn.
+@visibleForTesting
+String? errorLineOf(String source) => switch (drawPlantuml(source).error) {
+      final error? => _errorLine(source, error),
+      null => null,
+    };
 
 /// The first line of [error]'s message. When `puml_canvas` gives a line
 /// (its parser, lexer and preprocessor do), it is counted in the block's
