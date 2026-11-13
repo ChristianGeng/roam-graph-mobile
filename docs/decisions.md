@@ -4764,6 +4764,21 @@ and stayed cached. #269 asked to keep the limit for the whole message.
     builds itself (decision 23; Emacs's `org-roam.db` stays on the laptop,
     decision 3) as it is.
 
+## 150. The AI tool text no longer says the MCP server lacks full-text search (#290)
+
+- **What:** the description of the AI tool `org_roam_search_text` in
+  `lib/ai/ai_tools.dart` ends after "with a snippet of the text around the
+  match". The sentence "Not in the laptop's MCP server; the app has its own
+  full-text index." is gone, and a test keeps it out.
+- **Why:** org-roam-mcp v0.3.0 added a tool of the same name, so the
+  sentence was wrong. The model reads tool descriptions as facts; a wrong
+  one about the laptop's tools could make it tell the user something
+  untrue.
+- **Not changed:** the tool itself, and the app's own full-text index
+  (decision 64).
+- **Changelog:** the text goes only to the AI model, not to the screen,
+  so the pull request has the `skip-changelog` label (decision 48).
+
 ## 151. PlantUML blocks are drawn on the device with `puml_canvas`; D2 is not (#283)
 
 - **What:** `plantuml` source blocks are drawn on the device as `mermaid`
