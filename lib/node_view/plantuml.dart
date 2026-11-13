@@ -221,7 +221,9 @@ String? errorLineOf(String source) => switch (drawPlantuml(source).error) {
 
 /// The first line of [error]'s message. When `puml_canvas` gives a line
 /// (its parser, lexer and preprocessor do), it is counted in the block's
-/// own [source], without an added `@startuml`; other errors have none.
+/// own [source], without an added `@startuml`. Other errors have none, and
+/// neither have lexer and parser errors after the preprocessor removed or
+/// added lines ([_parsedAndLaidOut] passes those on as plain messages).
 String _errorLine(String source, Object error) {
   final added = _ownStart.hasMatch(source) ? 0 : 1;
   String at(int line) => ' (line ${line - added < 1 ? 1 : line - added})';

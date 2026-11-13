@@ -4798,11 +4798,16 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   - **A source that cannot be drawn** shows one line with `puml_canvas`'s
     message and, when `puml_canvas` gives one (its parser, lexer and
     preprocessor do), the line in the block (for example "Expected
-    TokenType.endUml, got TokenType.eof (line 6)"); the rest of the note
+    TokenType.endUml, got TokenType.eof (line 6)"). The lexer and the
+    parser count lines after the preprocessor; when it removed or added
+    lines (`!define`, `!theme` and other directives), their number would
+    not be a line of the block, so it is left out. The rest of the note
     is shown. Every error is caught, so a bad block never stops the node
-    view. A source longer than 20,000 characters is not drawn but shows
-    such a line, because parsing and layout run while the note is shown;
-    real diagrams are far shorter.
+    view. A source longer than 20,000 characters, or one whose macros
+    expand to more than 100,000, is not drawn but shows such a line,
+    because parsing and layout run while the note is shown; real diagrams
+    are far shorter. (The expansion itself can only be bounded inside
+    `puml_canvas`: issue ChristianGeng/puml_canvas#11.)
   - **Dark theme: on a light card.** `puml_canvas` has no theme or dark
     setting; its lines, arrows and loose text are always black. So in the
     dark theme the drawing is on a white card with rounded corners and a
