@@ -1,5 +1,6 @@
 /// Mermaid diagrams drawn on the device (#49, decision 41), for mermaid
-/// blocks that have no result image.
+/// blocks that have no result image. What PlantUML (#283) shares with it
+/// is in `diagram_blocks.dart`.
 library;
 
 import 'package:material_ui/material_ui.dart';
@@ -7,18 +8,15 @@ import 'package:mermaid_core/mermaid_core.dart' as core;
 import 'package:mermaid_flutter/mermaid_flutter.dart';
 import 'package:org_flutter/org_flutter.dart';
 
+import 'diagram_blocks.dart';
+
 /// The mermaid source of each link that [withMermaidDrawings] added, by the
 /// link itself: the node view's `loadImage` shows a drawing for these.
 final _drawingSource = Expando<String>('mermaid source');
 
-/// The location of the added links. `org_flutter` hands only links whose
-/// location looks like an image to `loadImage`; the location itself is not
-/// read: a link the note writes with it stays a link ([_drawingSource]).
+/// The location of the added links. The location itself is not read: a
+/// link the note writes with it stays a link ([_drawingSource]).
 const _drawingLocation = 'mermaid-drawing.png';
-
-/// A `#+RESULTS:` keyword, also with a hash (`#+RESULTS[hash]:`), as Org's
-/// `org-babel-result-regexp` matches it.
-final _resultsKey = RegExp(r'^#\+results(?:\[[^\]]*\])?:$', caseSensitive: false);
 
 /// [document] with a drawing after each mermaid source block that has no
 /// result image, as Emacs shows the result below the block. [showsImage]
@@ -37,59 +35,18 @@ final _resultsKey = RegExp(r'^#\+results(?:\[[^\]]*\])?:$', caseSensitive: false
 OrgDocument withMermaidDrawings(
   OrgDocument document, {
   required bool Function(String location) showsImage,
-}) {
-  var changed = false;
-  final edited = document.edit().visit((location) {
-    final node = location.node;
-    if (node is OrgSrcBlock &&
-        node.language == 'mermaid' &&
-        !_hasResultImage(location, showsImage)) {
-      changed = true;
-      return (true, location.insertRight(_drawing(mermaidSource(node))));
-    }
-    return (true, null);
-  });
-  return changed ? edited.commit<OrgDocument>() : document;
-}
-
-bool _hasResultImage(OrgZipper block, bool Function(String) showsImage) {
-  if (!block.canGoRight()) return false;
-  final keyword = block.goRight();
-  final meta = keyword.node;
-  if (meta is! OrgMeta || !_resultsKey.hasMatch(meta.key)) return false;
-  if (!keyword.canGoRight()) return false;
-  final paragraph = keyword.goRight().node;
-  if (paragraph is! OrgParagraph) return false;
-  var shown = false;
-  paragraph.visit<OrgLink>((link) {
-    // As org_flutter: only a link without a description is shown as an
-    // image; any such link in the paragraph counts.
-    shown = (link is! OrgBracketLink || link.description == null) &&
-        showsImage(link.location);
-    return !shown;
-  });
-  return shown;
-}
+}) =>
+    withBlockDrawings(
+      document,
+      language: 'mermaid',
+      showsImage: showsImage,
+      drawing: (source) =>
+          drawingLink(_drawingLocation, _drawingSource, source),
+    );
 
 /// The text of a mermaid block as `ob-mermaid` hands it to `mmdc`: the
 /// body without Org's comma escapes (`,*` and `,#+` at a line's start).
-String mermaidSource(OrgSrcBlock block) => block.body
-    .toMarkup()
-    .replaceAllMapped(RegExp(r'^([ \t]*,*),(?=\*|#\+)', multiLine: true),
-        (match) => match.group(1)!);
-
-/// A paragraph with one link that stands for the drawing of [source].
-OrgParagraph _drawing(String source) {
-  final paragraph = OrgDocument.parse('[[$_drawingLocation]]\n')
-      .content!
-      .children
-      .single as OrgParagraph;
-  paragraph.visit<OrgLink>((link) {
-    _drawingSource[link] = source;
-    return false;
-  });
-  return paragraph;
-}
+String mermaidSource(OrgSrcBlock block) => blockSource(block);
 
 /// The drawing for [link], if [withMermaidDrawings] added it; else null.
 Widget? loadMermaidDrawing(OrgLink link) => switch (_drawingSource[link]) {
@@ -167,40 +124,14 @@ class MermaidDrawing extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final drawn = drawMermaid(source, dark: dark);
-    final textTheme = Theme.of(context).textTheme;
     final scene = drawn.scene;
     if (scene == null) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.error_outline,
-              size: 18, color: Theme.of(context).colorScheme.error),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              'Mermaid cannot draw this: ${_errorLine(drawn.error!)}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.bodySmall,
-            ),
-          ),
-        ],
-      );
+      return DiagramError(
+          'Mermaid cannot draw this: ${_errorLine(drawn.error!)}');
     }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        GestureDetector(
-          onTap: () => MermaidPage.open(context, source),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: _painted(context, source, scene),
-          ),
-        ),
-        Text('Drawn on the device', style: textTheme.labelSmall),
-      ],
+    return DrawnDiagram(
+      onTap: () => MermaidPage.open(context, source),
+      child: _painted(context, source, scene),
     );
   }
 }
@@ -233,20 +164,9 @@ class MermaidPage extends StatelessWidget {
     final scene = drawMermaid(source,
             dark: Theme.of(context).brightness == Brightness.dark)
         .scene;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mermaid diagram')),
-      body: scene == null
-          ? const SizedBox.shrink()
-          : InteractiveViewer(
-              maxScale: 8,
-              // Drawn anew at each zoom, so it stays sharp.
-              child: Center(
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: _painted(context, source, scene),
-                ),
-              ),
-            ),
+    return DiagramPage(
+      title: 'Mermaid diagram',
+      child: scene == null ? null : _painted(context, source, scene),
     );
   }
 }
