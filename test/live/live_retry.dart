@@ -15,7 +15,9 @@ import 'package:roam_graph_mobile/ai/ai_chat.dart';
 /// in time (`postJson`, `fetchModels`), a broken connection while fetching
 /// the model list (`fetchModels`), and a broken or too slow image download
 /// (`downloadWithDartIo`). An image download that the server refuses
-/// ("could not be downloaded (HTTP …)") is not among them.
+/// ("could not be downloaded (HTTP …)") is not among them. They are
+/// compared without regard to case: Mistral's image code wraps a download
+/// error as "Mistral made an image, but the image download …".
 const transientTexts = [
   'did not answer in time',
   'No connection to ',
@@ -28,9 +30,12 @@ const transientTexts = [
 /// says it may well pass ([AiError.passing]: a broken connection or an
 /// overloaded provider in a chat or image request), or its text is one of
 /// [transientTexts].
-bool isTransient(Object error) =>
-    error is AiError &&
-    (error.passing || transientTexts.any(error.message.contains));
+bool isTransient(Object error) {
+  if (error is! AiError) return false;
+  if (error.passing) return true;
+  final text = error.message.toLowerCase();
+  return transientTexts.any((t) => text.contains(t.toLowerCase()));
+}
 
 /// Runs [body]; if it fails with a transient error ([isTransient]), calls
 /// [onRetry] with that error, waits [wait] and runs [body] once more. Any

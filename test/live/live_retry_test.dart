@@ -29,13 +29,26 @@ void main() {
       }
     });
 
+    test('a lost Mistral image download is transient', () {
+      // _mistralFile wraps the download error and lowercases its start.
+      for (final text in [
+        'Mistral made an image, but the image download took too long. '
+            'Try again.',
+        'Mistral made an image, but the image could not be downloaded: '
+            'Connection reset by peer.',
+      ]) {
+        expect(isTransient(AiError(text)), isTrue, reason: text);
+      }
+    });
+
     test('a refused image download is not transient', () {
-      expect(
-        isTransient(
-          const AiError('The image could not be downloaded (HTTP 404).'),
-        ),
-        isFalse,
-      );
+      for (final text in [
+        'The image could not be downloaded (HTTP 404).',
+        'Mistral made an image, but the image could not be downloaded '
+            '(HTTP 404).',
+      ]) {
+        expect(isTransient(AiError(text)), isFalse, reason: text);
+      }
     });
 
     test('a refused request, a test failure and other errors are not', () {
