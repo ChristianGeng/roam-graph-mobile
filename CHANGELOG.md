@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-13: PlantUML blocks are drawn on the device ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Added: a `plantuml` source block without a result image is drawn right below it, as `mermaid` blocks are, labelled "Drawn on the device"; tap it to zoom. The image Emacs made with `:file` is still shown instead when it is in the folder. A block without `@startuml` gets it added, as in Emacs. A source that cannot be drawn shows one line with the error. In the dark theme the drawing is on a light card. Nothing is sent anywhere. Closes #283.
+
 ## 2026-11-07: Anthropic's web search keeps to "Most web searches" in every request ([#274](https://github.com/ChristianGeng/roam-graph-mobile/pull/274))
 
 - Fixed: with Anthropic's own web search, pages the AI read with "fetch web page" did not count against Anthropic's search limit, so a message could search and read more than "Most web searches for one message" (with 5: 4 pages, then 5 searches). Anthropic now gets the limit less the pages read, so searches and pages together stay within it. Searches don't change the request's start any more, so the cache keeps working; only a page read does, once. Closes #269.

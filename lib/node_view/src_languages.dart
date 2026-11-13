@@ -57,8 +57,9 @@ String? highlightLanguage(String? language) {
 /// without one, whose own name org_flutter would still colour (it also
 /// tries the name in lower case, so `Python` would be coloured as
 /// `python`), gets an empty language, which org_flutter shows plain. Other
-/// plain blocks keep their language (`mermaid`, for #49). Only the
-/// language changes; the block's header line is shown as written.
+/// plain blocks keep their language (`mermaid` and `plantuml`, for #49
+/// and #283). Only the language changes; the block's header line is shown
+/// as written.
 OrgDocument withHighlightLanguages(OrgDocument document) {
   var changed = false;
   final edited = document.edit().visit((location) {

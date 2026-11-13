@@ -1,0 +1,100 @@
+# Synthetic PlantUML blocks for test/node_view/plantuml_test.dart (#283).
+# Made up for the tests; not taken from any real note. Each top-level
+# heading is one case; the tests read the text under it.
+
+* Sequence
+#+begin_src plantuml
+@startuml
+actor User
+participant "Web App" as W
+database Store as S
+User -> W : open page
+W -> S : query
+S --> W : rows
+W --> User : render list
+@enduml
+#+end_src
+
+After the sequence.
+
+* State
+#+begin_src plantuml
+@startuml
+[*] --> Idle
+Idle --> Running : start
+Running --> Idle : stop
+Running --> [*] : fail
+@enduml
+#+end_src
+
+* Mindmap
+#+begin_src plantuml
+@startmindmap
+,* Garden
+,** Vegetables
+,*** Beans
+,** Flowers
+@endmindmap
+#+end_src
+
+* Result image present
+#+begin_src plantuml :file ./img/sequence.png
+@startuml
+Alice -> Bob : hello
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:./img/sequence.png]]
+
+* Result image missing
+#+begin_src plantuml :file ./img/missing.png
+@startuml
+Alice -> Bob : hello
+@enduml
+#+end_src
+
+#+RESULTS:
+[[file:./img/missing.png]]
+
+* Broken
+#+begin_src plantuml
+@startuml
+class Foo {
+  +bar()
+Foo -->> : ???
+@enduml
+#+end_src
+
+After the broken one.
+
+* Without startuml
+#+begin_src plantuml
+Alice -> Bob : no @startuml line
+Bob --> Alice : as ob-plantuml blocks often are
+#+end_src
+
+* Other spellings
+#+begin_src puml
+@startuml
+Alice -> Bob : hello
+@enduml
+#+end_src
+
+#+begin_src PlantUML
+@startuml
+Alice -> Bob : hello
+@enduml
+#+end_src
+
+* Both languages
+#+begin_src mermaid
+graph TD
+  A[Start] --> B[Stop]
+#+end_src
+
+#+begin_src plantuml
+@startuml
+Alice -> Bob : hello
+@enduml
+#+end_src

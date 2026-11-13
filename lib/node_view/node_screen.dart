@@ -39,6 +39,7 @@ import 'quick_edits.dart';
 import 'scripts.dart';
 import 'latex.dart';
 import 'mermaid.dart';
+import 'plantuml.dart';
 import 'src_languages.dart';
 import '../search/search_screen.dart';
 import 'note_images.dart';
@@ -1801,7 +1802,8 @@ class _NodeScreenState extends State<NodeScreen> {
   /// tree, so a tree made again for the same text would fold everything
   /// (#254). When the input changed, the sections that were open in the
   /// tree before are returned in `carried`, by their place in the heading
-  /// tree. A mermaid block's drawing depends on the images in the folder:
+  /// tree. A mermaid or plantuml block's drawing depends on the images in
+  /// the folder:
   /// the answers given then are asked again, and a different one parses
   /// the note again.
   ({
@@ -1833,21 +1835,27 @@ class _NodeScreenState extends State<NodeScreen> {
         ? _foldingByPath()
         : null;
     // Source blocks coloured as Emacs colours them (#45); display formulas
-    // in display mode (#50); mermaid blocks without a result image drawn
-    // (#49); sub- and superscripts as the mode says (#213); the lines of
-    // a paragraph joined, if the setting says so (#219).
+    // in display mode (#50); mermaid and plantuml blocks without a result
+    // image drawn (#49, #283); sub- and superscripts as the mode says
+    // (#213); the lines of a paragraph joined, if the setting says so
+    // (#219).
     final scripted = withScripts(
       withDisplayFormulas(withHighlightLanguages(parseNote(text))),
       scriptMode,
     );
     final asked = <(String, bool)>[];
-    final document = withMermaidDrawings(
-      view.joinLines ? withJoinedLines(scripted) : scripted,
-      showsImage: (location) {
-        final shown = imageShown(location);
-        asked.add((location, shown));
-        return shown;
-      },
+    bool showsImage(String location) {
+      final shown = imageShown(location);
+      asked.add((location, shown));
+      return shown;
+    }
+
+    final document = withPlantumlDrawings(
+      withMermaidDrawings(
+        view.joinLines ? withJoinedLines(scripted) : scripted,
+        showsImage: showsImage,
+      ),
+      showsImage: showsImage,
     );
     final version = ++_parsedVersion;
     _parsed = (
@@ -2010,6 +2018,7 @@ class _NodeScreenState extends State<NodeScreen> {
               },
         loadImage: (link) =>
             loadMermaidDrawing(link) ??
+            loadPlantumlDrawing(link) ??
             switch (files) {
               final files? => loadNoteImage(files, node.file, tree, link,
                   share: widget.shareFiles,

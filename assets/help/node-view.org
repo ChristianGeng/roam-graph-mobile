@@ -39,8 +39,9 @@ Other things the page shows:
 - *Images* from the notes folder show at their Org width; tap one to zoom.
   SVG is drawn too. Web images stay links: the app reads only the folder.
 - *LaTeX* formulas are rendered; ~\[ \]~ and ~$$ $$~ on their own line.
-- *Mermaid* blocks show the image Emacs made; a block without one is drawn
-  on the device, marked as such.
+- *Mermaid* and *PlantUML* blocks show the image Emacs made; a block
+  without one is drawn on the device, marked as such. In the dark theme a
+  PlantUML drawing is on a light card.
 - *Source blocks* are coloured as Emacs colours them.
 - Changes made in Emacs show within about 30 seconds while the app is
   open, once Syncthing has brought them.
