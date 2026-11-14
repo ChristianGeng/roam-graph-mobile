@@ -42,6 +42,10 @@ dependencies:
   http: ^1.2.2
   # Path manipulation for finding install.sh (#247).
   path: ^1.9.0
+  # PlantUML diagrams without a result image (#283, decision 151): parsed,
+  # laid out and drawn in Dart; no server, no WebView. Young package: its
+  # use is kept in lib/node_view/plantuml.dart, easy to update or remove.
+  puml_canvas: ^0.13.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

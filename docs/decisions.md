@@ -4779,6 +4779,76 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 - **Changelog:** the text goes only to the AI model, not to the screen,
   so the pull request has the `skip-changelog` label (decision 48).
 
+## 151. PlantUML blocks are drawn on the device with `puml_canvas`; D2 is not (#283)
+
+- **What:** `plantuml` source blocks are drawn on the device as `mermaid`
+  blocks are (decision 41), in `lib/node_view/plantuml.dart`, with
+  `puml_canvas` (MIT; parses PlantUML in Dart and paints on a Canvas).
+  Both languages work side by side; the block's language decides.
+  - **The result image first.** A block whose `#+RESULTS:` paragraph
+    links to an image the app shows (the image `ob-plantuml` wrote with
+    `:file`) is left as it is: that image is exact. Every other `plantuml`
+    block gets a drawing right below it, labelled "Drawn on the device";
+    tapping it opens it alone with zoom.
+  - **The language is compared as written,** `plantuml`, as Emacs runs
+    only that with `ob-plantuml`; `puml` or `PlantUML` stay plain blocks.
+  - **`@startuml` and `@enduml` are added** around a body that has no
+    `@start...` line of its own, as `org-babel-plantuml-make-body` does;
+    `puml_canvas` rejects such a body otherwise.
+  - **A source that cannot be drawn** shows one line with `puml_canvas`'s
+    message and, when `puml_canvas` gives one (its parser, lexer and
+    preprocessor do), the line in the block (for example "Expected
+    TokenType.endUml, got TokenType.eof (line 6)"). The lexer and the
+    parser count lines after the preprocessor; when it removed or added
+    lines (`!define`, `!theme` and other directives), their number would
+    not be a line of the block, so it is left out. The rest of the note
+    is shown. Every error is caught, so a bad block never stops the node
+    view. A source longer than 20,000 characters, or one whose macros
+    expand to more than 100,000, is not drawn but shows such a line,
+    because parsing and layout run while the note is shown; real diagrams
+    are far shorter. (The expansion itself can only be bounded inside
+    `puml_canvas`: issue ChristianGeng/puml_canvas#11.)
+  - **Dark theme: on a light card.** `puml_canvas` has no theme or dark
+    setting; its lines, arrows and loose text are always black. So in the
+    dark theme the drawing is on a white card with rounded corners and a
+    margin. Mermaid keeps its own dark theme.
+  - **Cached by source** (32 at most). Unlike Mermaid's, the drawing is
+    the same in both themes, so the theme is not part of the key.
+  - **Shared with Mermaid:** finding the blocks, the result-image check,
+    the link that stands for a drawing, the error line, the label and the
+    zoom page are in `lib/node_view/diagram_blocks.dart`. Mermaid behaves
+    as before; its tests are unchanged.
+  - **Nothing is sent anywhere:** no PlantUML server, no WebView. An
+    `!include` cannot be read and shows as the error line.
+- **Why `puml_canvas`, and its limits.** The trial in #283 drew 14
+  synthetic diagrams with `puml_canvas` 0.13.0 and with PlantUML
+  1.2026.10. It never crashed and reported bad sources as errors with a
+  line number. Sequence, state and `skinparam` diagrams were right; class,
+  activity, component, use case, mindmap, Gantt and ER diagrams were
+  readable but rough; `while` loops (no loop-back edge) and notes (placed
+  over other text, or under the wrong class) are the weak spots; `!theme`
+  is ignored without a warning. This is acceptable because the Emacs
+  image wins whenever it is in the folder. The release APK grows by 2.9 MB
+  (89.2 to 92.2 MB, +3.3 %, measured on this pull request's CI build):
+  about 950 KB of compiled Dart code for each of the three Android
+  architectures.
+- **The package is young** (no verified publisher, 16 releases in one
+  week of May 2026 and none since). The owner chose it on 2026-11-13
+  because it is expected to mature. So its use is kept in one file,
+  `plantuml.dart`: to update or remove it, change that file, the two
+  calls in `node_screen.dart` and the line in `pubspec.yaml`
+  (`^0.13.0`; `pubspec.lock` pins 0.13.0).
+- **D2 is not drawn on the device.** There is no Dart library for D2, and
+  D2.js needs WebAssembly in a JavaScript engine or a WebView. A `d2`
+  block is shown only through the image Emacs wrote with `:file`, like
+  any other result image.
+- **Tests:** `test/node_view/plantuml_test.dart` with the synthetic
+  `test/fixtures/plantuml.org`. In `flutter test` the text in a drawing
+  may show as boxes, so the tests check structure (the drawing is there,
+  below the block, the error line, the card in the dark theme), not
+  pixels. The owner checks the drawings on the phone and on the Linux
+  desktop with the node "Rendering test".
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept
