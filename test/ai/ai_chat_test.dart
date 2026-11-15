@@ -198,6 +198,56 @@ void main() {
               contains('Raise "Most tokens per answer"'))));
       expect(session.transcript.whereType<AssistantMessage>(), isEmpty);
     });
+
+    test('an empty answer is left out of the history', () async {
+      // Anthropic rejects an assistant message with empty content, or with
+      // a text block of only white space, as Mistral does (#79).
+      final server = FakeServer([
+        anthropicReply([
+          {
+            'type': 'tool_use',
+            'id': 'toolu_1',
+            'name': 'org_roam_find',
+            'input': {'search': 'Plan'},
+          },
+        ], stop: 'tool_use'),
+        anthropicReply([]),
+        anthropicReply([
+          {'type': 'text', 'text': '\n\n'},
+        ]),
+        anthropicReply([
+          {'type': 'text', 'text': 'Hello.'},
+        ]),
+      ]);
+      final session =
+          ChatSession(tools: tools(), config: anthropic, post: server.post);
+      await session.send('Where is my plan?');
+      expect((session.transcript.last as AssistantMessage).text, '');
+      await session.send('Hello?');
+      expect((session.transcript.last as AssistantMessage).text.trim(), '');
+      await session.send('Anyone?');
+      expect((session.transcript.last as AssistantMessage).text, 'Hello.');
+
+      final messages = server.requests.last.body['messages'] as List;
+      // Roles alternate: the tool result and the next two messages are
+      // one user message.
+      expect([for (final m in messages) (m as Map)['role']],
+          ['user', 'assistant', 'user']);
+      final last = [
+        for (final block in (messages.last as Map)['content'] as List)
+          (block as Map)['type'] == 'text' ? block['text'] : block['type'],
+      ];
+      expect(last, ['tool_result', 'Hello?', 'Anyone?']);
+      for (final message in messages) {
+        final content = (message as Map)['content'] as List;
+        expect(content, isNotEmpty);
+        for (final block in content) {
+          if ((block as Map)['type'] == 'text') {
+            expect((block['text'] as String).trim(), isNotEmpty);
+          }
+        }
+      }
+    });
   });
 
   group('Mistral: content as a list of parts (#79)', () {

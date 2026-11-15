@@ -424,6 +424,16 @@ class AnthropicApi extends ModelApi {
             {'type': 'text', 'text': entry.forModel},
           ]);
         case AssistantMessage():
+          // An answer with no text and nothing else is rejected, as with
+          // Mistral (decision 53): empty content, or a text block of only
+          // white space. Leave it out; the next user blocks join the user
+          // message before it.
+          if (entry.text.trim().isEmpty &&
+              entry.toolCalls.isEmpty &&
+              entry.searches.isEmpty &&
+              !entry.paused) {
+            continue;
+          }
           messages.add({
             'role': 'assistant',
             'content': entry.raw ??

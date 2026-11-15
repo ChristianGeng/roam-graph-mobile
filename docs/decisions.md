@@ -4849,6 +4849,29 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   pixels. The owner checks the drawings on the phone and on the Linux
   desktop with the node "Rendering test".
 
+## 154. Anthropic: an empty answer is left out of the history, as with Mistral (#79)
+
+- **What:** `AnthropicApi.request` in `lib/ai/ai_chat.dart` leaves out an
+  assistant answer whose text is empty or only white space and that has
+  no tool calls, no web searches of Anthropic's own and no `pause_turn`.
+  The user blocks that follow join the user message before it, so roles
+  still alternate. The chat shows "The model sent no text." for it, as
+  for every provider.
+- **Why:** Anthropic rejects an assistant message with empty content, and
+  a text block of only white space, with HTTP 400; Claude can end a turn
+  with no content after tool results. The answer was sent back as it
+  came (`raw`), so the next message in that chat failed. Decision 53 did
+  this for the OpenAI-compatible APIs only.
+- **Left out, not replaced by a note:** an old local change (worktree
+  `mistral-content-parts`, never pushed) sent "(The model sent no text.)"
+  in its place, for both APIs. Leaving it out keeps one rule for all
+  providers and puts no text into the history that the model did not
+  write.
+- **Tests:** `test/ai/ai_chat_test.dart`, "Anthropic Messages API: an
+  empty answer is left out of the history": an empty answer after a tool
+  round and one of only white space; the next request has alternating
+  roles and no empty content.
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept
