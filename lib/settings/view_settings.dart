@@ -593,8 +593,8 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
   /// Two limits: a change only to fields that [ViewSettings.==] leaves out
   /// (`lastUpdateCheckTime`, `lastSeenVersion`) is saved, but [read] keeps
   /// the earlier object until another field changes; and a failed save
-  /// before the file is read goes back to the defaults, not the file
-  /// (#296).
+  /// before the file is read goes back to the last save that succeeded,
+  /// or to the defaults if none did, not to the file (#296).
   static Future<void> change(BuildContext context, ViewSettings settings) async {
     final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
     if (scope == null) return;
