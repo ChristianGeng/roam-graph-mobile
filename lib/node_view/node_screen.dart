@@ -1998,9 +1998,9 @@ class _NodeScreenState extends State<NodeScreen> {
         _ => null,
       },
       child: OrgRootWidget(
-        // ~code~ and =verbatim= in a monospace font (#238).
-        lightTheme: MonospaceOrgThemeData.light,
-        darkTheme: MonospaceOrgThemeData.dark,
+        // Code, verbatim and blocks in a monospace font (#238, #239).
+        lightTheme: MonospaceOrgThemes.light,
+        darkTheme: MonospaceOrgThemes.dark,
         onLinkTap: _openLink,
         onLocalSectionLinkTap: _openSection,
         // Ticking a checkbox and changing a TODO state, saved at once
