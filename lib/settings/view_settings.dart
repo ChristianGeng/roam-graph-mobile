@@ -576,7 +576,8 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
 
   /// The settings in use, without rebuilding [context] when they change:
   /// for code outside build. Until the file is read, these are the
-  /// defaults, or a change made before that; [current] waits for the file.
+  /// defaults, or a change made before that; [current] waits for the file
+  /// (but not past a change, nor longer than its limit).
   static ViewSettings read(BuildContext context) =>
       context
           .getInheritedWidgetOfExactType<ViewSettingsScope>()
@@ -588,6 +589,12 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
   /// order they are made, so a slow earlier save cannot bring back an
   /// older choice. If the latest save fails, the settings go back to what
   /// the file holds, and the error is thrown.
+  ///
+  /// Two limits: a change only to fields that [ViewSettings.==] leaves out
+  /// (`lastUpdateCheckTime`, `lastSeenVersion`) is saved, but [read] keeps
+  /// the earlier object until another field changes; and a failed save
+  /// before the file is read goes back to the defaults, not the file
+  /// (#296).
   static Future<void> change(BuildContext context, ViewSettings settings) async {
     final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
     if (scope == null) return;
