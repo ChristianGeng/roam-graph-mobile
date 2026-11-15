@@ -1,14 +1,15 @@
-/// Org's ~code~ and =verbatim= in a monospace font (#238), as Emacs and
-/// Org's export show them. org_flutter's own theme changes only their
-/// colour, because its main user, Orgro, shows the whole document in a
-/// monospace font.
+/// Code in a monospace font (#238, #239), as Emacs and Org's export show
+/// it: inline ~code~ and =verbatim=, fixed-width lines, source, example
+/// and export blocks, and inline source blocks. org_flutter's own themes
+/// leave the font alone, because its main user, Orgro, shows the whole
+/// document in a monospace font.
 library;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:org_flutter/org_flutter.dart';
 
-/// org_flutter's [OrgText] with [MonospaceOrgThemeData]: [OrgText] makes
+/// org_flutter's [OrgText] with [MonospaceOrgThemes]: [OrgText] makes
 /// its own themes and takes none. The rest is as [OrgText] builds it:
 /// markup hidden, no padding, shrink-wrapped.
 class MonospaceOrgText extends StatefulWidget {
@@ -36,8 +37,8 @@ class _MonospaceOrgTextState extends State<MonospaceOrgText> {
     settings: OrgSettings.hideMarkup,
     child: OrgRootWidget(
       onLinkTap: widget.onLinkTap,
-      lightTheme: MonospaceOrgThemeData.lightTight,
-      darkTheme: MonospaceOrgThemeData.darkTight,
+      lightTheme: MonospaceOrgThemes.lightTight,
+      darkTheme: MonospaceOrgThemes.darkTight,
       child: OrgDocumentWidget(_doc, shrinkWrap: true, safeArea: false),
     ),
   );
@@ -62,55 +63,36 @@ const monospaceFallback = [
   'monospace',
 ];
 
-/// [OrgThemeData] that keeps every colour of [base] and adds the
-/// monospace font to ~code~ and =verbatim=; the text around them keeps
-/// its font. Source blocks, example blocks and fixed-width lines are not
-/// reached through the theme in org_flutter 13.4.2 and stay as they are.
-class MonospaceOrgThemeData extends OrgThemeData {
-  MonospaceOrgThemeData(OrgThemeData base)
-    : super(
-        todoColor: base.todoColor,
-        doneColor: base.doneColor,
-        priorityColor: base.priorityColor,
-        drawerColor: base.drawerColor,
-        dateColor: base.dateColor,
-        codeColor: base.codeColor,
-        linkColor: base.linkColor,
-        metaColor: base.metaColor,
-        infoColor: base.infoColor,
-        macroColor: base.macroColor,
-        tableColor: base.tableColor,
-        keywordColor: base.keywordColor,
-        highlightColor: base.highlightColor,
-        footnoteColor: base.footnoteColor,
-        citationColor: base.citationColor,
-        transcludeColor: base.transcludeColor,
-        rootPadding: base.rootPadding,
-        levelColors: base.levelColors,
-        srcTheme: base.srcTheme,
-      );
+/// The text style that puts code in [monospaceFamily]. It sets only the
+/// font; the size is the size of the text around, and org_flutter's
+/// colours stay.
+TextStyle get monospaceTextStyle => TextStyle(
+  fontFamily: monospaceFamily,
+  fontFamilyFallback: monospaceFallback,
+);
 
-  /// org_flutter's light and dark themes with the monospace font.
-  static final light = MonospaceOrgThemeData(OrgThemeData.light());
-  static final dark = MonospaceOrgThemeData(OrgThemeData.dark());
+/// [base] with the monospace font for org_flutter's three code styles:
+/// `codeTextStyle` (~code~ and `: ` fixed-width lines), `verbatimTextStyle`
+/// (=verbatim=) and `blockTextStyle` (source, example and export blocks,
+/// inline source blocks). Every colour of [base] stays; quote and verse
+/// blocks and the rest of the text keep their font.
+OrgThemeData withMonospaceCode(OrgThemeData base) => base.copyWith(
+  codeTextStyle: monospaceTextStyle,
+  verbatimTextStyle: monospaceTextStyle,
+  blockTextStyle: monospaceTextStyle,
+);
+
+/// org_flutter's light and dark themes with [withMonospaceCode]. Getters,
+/// because [monospaceFamily] depends on the platform.
+abstract final class MonospaceOrgThemes {
+  static OrgThemeData get light => withMonospaceCode(OrgThemeData.light());
+  static OrgThemeData get dark => withMonospaceCode(OrgThemeData.dark());
 
   /// The same without padding around the document, as [OrgText] has.
-  static final lightTight = MonospaceOrgThemeData(
+  static OrgThemeData get lightTight => withMonospaceCode(
     OrgThemeData.light().copyWith(rootPadding: EdgeInsets.zero),
   );
-  static final darkTight = MonospaceOrgThemeData(
+  static OrgThemeData get darkTight => withMonospaceCode(
     OrgThemeData.dark().copyWith(rootPadding: EdgeInsets.zero),
   );
-
-  @override
-  TextStyle fontStyleForOrgStyle(TextStyle base, OrgStyle style) {
-    final styled = super.fontStyleForOrgStyle(base, style);
-    return switch (style) {
-      OrgStyle.code || OrgStyle.verbatim => styled.copyWith(
-        fontFamily: monospaceFamily,
-        fontFamilyFallback: monospaceFallback,
-      ),
-      _ => styled,
-    };
-  }
 }
