@@ -275,7 +275,9 @@ class AssistantMessage extends ChatEntry {
 
   /// The answer as the API returned it, sent back as it was: Anthropic's
   /// content blocks keep their thinking and its signature, which the API
-  /// requires back with tool results.
+  /// requires back with tool results. An answer with no text, tool calls,
+  /// searches or pause is left out of the next request instead (decision
+  /// 154; decision 53 for the OpenAI-compatible APIs).
   final Object? raw;
 }
 
