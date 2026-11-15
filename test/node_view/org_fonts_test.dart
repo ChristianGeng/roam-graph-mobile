@@ -74,13 +74,13 @@ void tallWindow(WidgetTester tester) {
 void expectMonospace(WidgetTester tester) {
   for (final needle in monospaceNeedles) {
     final style = styleOf(tester, needle);
-    expect(style.fontFamily, 'monospace', reason: needle);
+    expect(style.fontFamily, monospaceFamily, reason: needle);
     expect(style.fontFamilyFallback, monospaceFallback, reason: needle);
   }
   for (final needle in documentNeedles) {
     expect(
       styleOf(tester, needle).fontFamily,
-      isNot('monospace'),
+      isNot(monospaceFamily),
       reason: needle,
     );
   }
@@ -101,14 +101,14 @@ void main() {
         ),
       ),
     );
-    expect(styleOf(tester, 'BRAVE_API_KEY').fontFamily, 'monospace');
-    expect(styleOf(tester, 'config.yaml').fontFamily, 'monospace');
+    expect(styleOf(tester, 'BRAVE_API_KEY').fontFamily, monospaceFamily);
+    expect(styleOf(tester, 'config.yaml').fontFamily, monospaceFamily);
     expect(
       styleOf(tester, 'BRAVE_API_KEY').fontFamilyFallback,
       monospaceFallback,
     );
-    expect(styleOf(tester, 'plain words').fontFamily, isNot('monospace'));
-    expect(styleOf(tester, 'Set').fontFamily, isNot('monospace'));
+    expect(styleOf(tester, 'plain words').fontFamily, isNot(monospaceFamily));
+    expect(styleOf(tester, 'Set').fontFamily, isNot(monospaceFamily));
   });
 
   testWidgets('the code colour of org_flutter stays', (tester) async {
