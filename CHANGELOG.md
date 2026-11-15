@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-11-15: Source blocks, example blocks and fixed-width lines in a monospace font ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-11-15: Source blocks, example blocks and fixed-width lines in a monospace font ([#293](https://github.com/ChristianGeng/roam-graph-mobile/pull/293))
 
 - Changed: source blocks (coloured or plain), example and export blocks, `: ` fixed-width lines and inline source blocks are now shown in a monospace font, as inline `~code~` and `=verbatim=` already were; in notes, help pages and chat answers. Quote and verse blocks and normal text keep their font, and the colours are unchanged. Closes #239 and #238.
 
