@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-11-15: Anthropic: a follow-up after an empty answer works ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-11-15: Anthropic: a follow-up after an empty answer works ([#295](https://github.com/ChristianGeng/roam-graph-mobile/pull/295))
 
 - Fixed: when Claude ended a turn without any text, for example after its tool calls, the next message in that chat failed with HTTP 400. The empty answer is now left out of what is sent, as it already was for Mistral (#79); the chat still shows "The model sent no text." for it.
 
