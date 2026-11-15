@@ -4926,6 +4926,24 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   round and one of only white space; the next request has alternating
   roles and no empty content.
 
+## 155. The doc comments of ViewSettingsScope.read and change are on their own methods
+
+- **What:** in `lib/settings/view_settings.dart`, `read()` has its own doc
+  comment (the settings in use: until the file is read, the defaults or a
+  change made before that; `current()` waits for the file),
+  and `change()` has its doc back, describing what the code does: the
+  settings are used at once, saves run in order, and if the latest save
+  fails the settings go back to what the file holds and the error is
+  thrown.
+- **Why:** Gitar's review of #78 found `change()`'s comment sitting above
+  `read()`. The fix was in a commit dropped before #78 was merged; the
+  rest of that commit landed through #91. The old text also said a failed
+  save leaves the settings as they were, which stopped being true with
+  #72's review.
+- **Not changed:** any code.
+- **Changelog:** not visible to users, so the pull request has the
+  `skip-changelog` label (decision 48).
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept
