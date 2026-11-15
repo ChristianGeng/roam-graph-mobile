@@ -4183,6 +4183,8 @@ follow-up issue.
   theme value or builder for them; highlighted source blocks merge the
   surrounding style over org_flutter's own `monospace`. They need a
   change in org_flutter (#239).
+  *Done in decision 152, which also replaces the `fontStyleForOrgStyle`
+  override above with org_flutter's own text styles.*
 - **Tables stay as they are:** org_flutter draws an Org table as a grid
   (`Table` with one cell per value and `IntrinsicColumnWidth`), so the
   columns line up in any font.
@@ -4848,6 +4850,58 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   below the block, the error line, the card in the dark theme), not
   pixels. The owner checks the drawings on the phone and on the Linux
   desktop with the node "Rendering test".
+
+## 152. Code, verbatim and blocks in a monospace font through org_flutter's theme (#239)
+
+- **What:** besides inline `~code~` and `=verbatim=` (decision 131),
+  fixed-width lines (`: `), source blocks (highlighted or not), example
+  and export blocks, and inline source blocks (`src_sh{...}`) are now in
+  the platform's monospace font: in the note view, the help pages and the
+  chat answers. Quote and verse blocks and the body text keep the
+  document's font. Every colour stays as it was.
+- **How:** org_flutter's `OrgThemeData` gets three optional text styles,
+  named after the Emacs faces: `codeTextStyle` (`org-code`: inline code
+  and fixed-width lines), `verbatimTextStyle` (`org-verbatim`) and
+  `blockTextStyle` (`org-block`: source, example and export blocks,
+  inline source blocks). They set the font and other text attributes;
+  colours still come from `codeColor`, `metaColor` and `srcTheme`. The
+  app sets all three to the same style, `monospaceTextStyle`
+  (`monospaceFamily` with `monospaceFallback`, no size, no colour), with
+  `withMonospaceCode(base)` in `lib/node_view/org_fonts.dart`, on the
+  light and the dark theme. `MonospaceOrgThemes.light`/`.dark` go to the
+  note view's `OrgRootWidget`, `.lightTight`/`.darkTight` to
+  `MonospaceOrgText` in the chat. They are getters, because the font
+  depends on the platform.
+- **Why in org_flutter:** the app cannot reach these elements; they take
+  their font from the surrounding `DefaultTextStyle` inside org_flutter
+  (the analysis is in #239). The maintainer, amake, agreed to the three
+  styles in amake/org_flutter#19 and wrote them in his pull request
+  amake/org_flutter#21, an alternative to our amake/org_flutter#20.
+- **The git pin:** #21 is not released yet, and the owner wants the
+  change in the app now. So `pubspec.yaml` takes org_flutter from
+  `https://github.com/amake/org_flutter.git`, pinned to the full commit
+  `dc466eecbcd819c9f80bbff1e1f4d3ba7251ac71` (the head of #21, version
+  13.4.3 in its pubspec). A commit, not the branch, so a build does not
+  change when the branch moves. Once a pub.dev release contains the three
+  styles, go back to `org_flutter: ^<that version>` and remove the
+  comment. If #21 changes before it is merged, move the pin and run the
+  tests in `test/node_view/org_fonts_test.dart`. The pin also moves
+  `flutter_slidable` to 5.2.0 and `more` to 4.9.0 in `pubspec.lock`, as
+  org_flutter 13.4.3 needs.
+- **What replaces decision 131's workaround:** `MonospaceOrgThemeData`, a
+  subclass of `OrgThemeData` that copied every colour of the base theme
+  and overrode `fontStyleForOrgStyle` for `OrgStyle.code` and
+  `OrgStyle.verbatim`, is removed. A plain `copyWith` with the three
+  styles does the same for inline markup and reaches the blocks too.
+  `MonospaceOrgText` stays: org_flutter's `OrgText` still makes its own
+  themes and takes none. The fonts and fallbacks of decision 131 are
+  unchanged. The app's other monospace text (chat input, diff, edit
+  screens) does not use these themes and is unchanged.
+- **Tests:** `test/node_view/org_fonts_test.dart`, with a synthetic note:
+  in the note view, the dark theme and `MonospaceOrgText`, each element
+  above gets the monospace family and fallbacks, and quote, verse and
+  body text do not; the code and meta colours stay; the three styles set
+  only the font, on every platform.
 
 ## 155. The doc comments of ViewSettingsScope.read and change are on their own methods
 

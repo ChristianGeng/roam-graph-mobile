@@ -1264,8 +1264,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     // Selectable, as the Copy button copies it all (#94).
                     SelectionArea(
-                      // OrgText with ~code~ and =verbatim= in
-                      // monospace (#238).
+                      // OrgText with code, verbatim and blocks in
+                      // monospace (#238, #239).
                       child: MonospaceOrgText(entry.text.trim(),
                           onLinkTap: _openLink),
                     ),
