@@ -4852,7 +4852,8 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 ## 155. The doc comments of ViewSettingsScope.read and change are on their own methods
 
 - **What:** in `lib/settings/view_settings.dart`, `read()` has its own doc
-  comment (it gives the defaults while the file is read; see `current()`),
+  comment (the settings in use: until the file is read, the defaults or a
+  change made before that; `current()` waits for the file),
   and `change()` has its doc back, describing what the code does: the
   settings are used at once, saves run in order, and if the latest save
   fails the settings go back to what the file holds and the error is

@@ -574,9 +574,9 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
           ?.value ??
       ViewSettings.withDefaults();
 
-  /// The settings, without rebuilding [context] when they change: for
-  /// code outside build. While the file is read, the defaults; see
-  /// [current].
+  /// The settings in use, without rebuilding [context] when they change:
+  /// for code outside build. Until the file is read, these are the
+  /// defaults, or a change made before that; [current] waits for the file.
   static ViewSettings read(BuildContext context) =>
       context
           .getInheritedWidgetOfExactType<ViewSettingsScope>()
