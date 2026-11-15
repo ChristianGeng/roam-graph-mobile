@@ -574,12 +574,9 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
           ?.value ??
       ViewSettings.withDefaults();
 
-  /// Saves [settings], then uses them. Changes are saved in the order they
-  /// are made, and only the latest is used, so a slow earlier save cannot
-  /// bring back an older choice. If saving fails, the settings in use stay
-  /// as they were, and the error is thrown.
   /// The settings, without rebuilding [context] when they change: for
-  /// code outside build, such as a screen's start.
+  /// code outside build. While the file is read, the defaults; see
+  /// [current].
   static ViewSettings read(BuildContext context) =>
       context
           .getInheritedWidgetOfExactType<ViewSettingsScope>()
@@ -587,6 +584,10 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
           ?.value ??
       ViewSettings.withDefaults();
 
+  /// Uses [settings] at once, then saves them. Changes are saved in the
+  /// order they are made, so a slow earlier save cannot bring back an
+  /// older choice. If the latest save fails, the settings go back to what
+  /// the file holds, and the error is thrown.
   static Future<void> change(BuildContext context, ViewSettings settings) async {
     final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
     if (scope == null) return;
