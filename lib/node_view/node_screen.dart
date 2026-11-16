@@ -37,6 +37,7 @@ import 'heading_link.dart';
 import 'join_lines.dart';
 import 'quick_edits.dart';
 import 'scripts.dart';
+import 'drawn_latex.dart';
 import 'latex.dart';
 import 'mermaid.dart';
 import 'plantuml.dart';
@@ -1838,7 +1839,8 @@ class _NodeScreenState extends State<NodeScreen> {
     // in display mode (#50); mermaid and plantuml blocks without a result
     // image drawn (#49, #283); sub- and superscripts as the mode says
     // (#213); the lines of a paragraph joined, if the setting says so
-    // (#219).
+    // (#219); LaTeX blocks drawn by the app on the desktop (#300), last, as
+    // the added links are told apart by their class.
     final scripted = withScripts(
       withDisplayFormulas(withHighlightLanguages(parseNote(text))),
       scriptMode,
@@ -1850,13 +1852,13 @@ class _NodeScreenState extends State<NodeScreen> {
       return shown;
     }
 
-    final document = withPlantumlDrawings(
+    final document = withDrawnFormulas(withPlantumlDrawings(
       withMermaidDrawings(
         view.joinLines ? withJoinedLines(scripted) : scripted,
         showsImage: showsImage,
       ),
       showsImage: showsImage,
-    );
+    ));
     final version = ++_parsedVersion;
     _parsed = (
       key: key,
@@ -2017,6 +2019,7 @@ class _NodeScreenState extends State<NodeScreen> {
                 }
               },
         loadImage: (link) =>
+            loadDrawnFormula(link) ??
             loadMermaidDrawing(link) ??
             loadPlantumlDrawing(link) ??
             switch (files) {

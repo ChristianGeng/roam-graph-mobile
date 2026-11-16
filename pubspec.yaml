@@ -48,6 +48,14 @@ dependencies:
   # laid out and drawn in Dart; no server, no WebView. Young package: its
   # use is kept in lib/node_view/plantuml.dart, easy to update or remove.
   puml_canvas: ^0.13.0
+  # LaTeX blocks drawn by the app on the desktop (#300, decision 157);
+  # Android keeps flutter_tex_js through org_flutter. katex draws the box
+  # tree of katex_dart (a port of KaTeX to Dart, which mermaid_core uses
+  # too); the app calls katex_dart itself to check a formula and keep its
+  # layout. Young packages: their use is kept in
+  # lib/node_view/drawn_latex.dart.
+  katex: ^1.0.0
+  katex_dart: ^0.1.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
