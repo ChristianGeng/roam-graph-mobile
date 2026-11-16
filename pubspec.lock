@@ -397,8 +397,16 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  katex:
+    dependency: "direct main"
+    description:
+      name: katex
+      sha256: dd9e043367ddf668b915db10005e101049f0f767db58bb2dd594c40c3a412892
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   katex_dart:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: katex_dart
       sha256: "9ffb18e394a3817f4cdfa04fd497ca30d3e3b45661e3e17f7705b8ae68dd5be9"
