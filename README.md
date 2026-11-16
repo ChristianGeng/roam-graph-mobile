@@ -1,112 +1,95 @@
 # roam-graph-mobile
 
-Browse my org-roam node graph on Android (tablet and phone), offline and
-without Emacs. The org files reach the devices through Syncthing.
+Roam Graph shows an org-roam knowledge graph on Android (phone and tablet)
+and on Linux, Windows and macOS, offline and without Emacs. The org files
+reach the devices through Syncthing; the app reads the folder, builds the
+same graph org-roam builds, and draws it. It can also create and edit
+notes, and it has an AI chat that works on the notes.
 
-Status: v1 in progress. The app reads the org folder, builds the graph
-(#3, #4), stores it in an SQLite database with org-roam's schema (#5),
-shows its counts, and draws the graph like `org-roam-graph`, as a whole or
-around one node, with a circular (`circo`) or a force-directed layout (#6).
-A tap on a node opens it as formatted Org, with tappable `id:` links and its
-backlinks (#8). Search finds nodes by title, alias and tag as you type (#9).
-A button opens the node's file in another app, chosen in Android's app
-chooser, read-only (#10, #218). On a tablet in landscape, graph and node view are side by side (#16). Graph views show
-communities, importance and shortest paths, as my org-roam MCP server
-computes them (#7). A "New node" button creates a node as org-roam's
-capture would, in a file Syncthing brings to the laptop (#11); captured
-from a node, it links back to it, so it shows as a backlink (#12). Files are
-written safely next to Syncthing, and its conflict copies are listed (#13).
-Text shared from another app, such as the Claude app, becomes a new node
-(#15), and chosen nodes with their texts (#41) can be shared to such an
-app. Source blocks are coloured as Emacs colours them (#45), and
-images from the notes folder, also SVG, are
-shown at their Org width (#46, #47). LaTeX display formulas are shown in
-display mode (#50). Mermaid and PlantUML blocks show their result
-image; a block without one is drawn on the device (#49, #283). Notes with a tag such as
-`:private:` are never shared with an AI, and private headings and titles
-are left out of the notes that are (#57). Notes open with their sections
-collapsed, a setting that can also show all headings or everything; a
-note's own `#+STARTUP:` line comes first (#63). The tools of my org-roam
-MCP server (search, backlinks, paths, PageRank, communities and the
-others) run on the app's own index, for an AI chat in the app (#58), which
-talks to the provider I choose: Anthropic, Claude on AWS Bedrock in the
-EU, Mistral, DeepSeek and others, with the key in Android's secure storage
-(#59). "Ask AI" in the graph and node views opens the chat: tool calls
-are shown, `id:` links in answers open the node, and an answer can be
-saved as a new node after review (#60). Help pages, linked Org files shown
-like notes, explain the views and layouts (#62). The rules for editing
-existing notes are agreed (#34): an edit is saved only over the version it
-was made on, through a temporary file, with the old version kept, and the
-`:ID:` and property drawer stay as they are. The app saves edits that way,
-keeping the newest 20 old versions of each note (#35). "Add to this node"
-adds text at the end of a note or heading (#36). A diff shows what an edit
-changes before it is saved, and earlier versions can be restored through
-it (#38). "Edit text" changes a note's text, with its ID, drawer and title
-locked (#37). An AI can propose edits, in the chat or through the share
-menu; they are saved only after the diff (#39). The AI can also propose a
-change set, edits to several notes reviewed and saved together, and undone
-together (#76). In agent mode, the default, the AI creates, edits and
-links notes itself, under the same rules, and the chat shows what it
-changed afterwards, with "Undo all" (#82). "Recent AI changes" undoes them later too, after the chat is closed (#99). "Edit with AI" changes the note shown, by an instruction, after a diff (#103), and with "Also the linked notes" the notes that link to it and that it links to, after a plan you accept and a review of all changes together (#122). Web, mail and phone links open in their app (#108). "Create image" draws a picture with an AI image model and adds it to the note, in an image folder set in Settings (#112). The same app runs on Linux, Windows and macOS, where notes open in Emacs (#116); the Linux app runs on Ubuntu 22.04 and newer (#229). The desktop graph follows the node at point in Emacs, with `roam-graph-follow-mode` from `emacs/roam-graph-follow.el` (#117). The desktop packages carry that file, so Emacs loads it from the installed app, and Settings copies the code that does (#241); Emacs finds the app where it keeps its data: for an app installed with install.sh, `$XDG_DATA_HOME/roam-graph` (by default `~/.local/share/roam-graph`), or the app ID's folder if that exists (#245). On Android, "Open with" in a file manager opens an Org file as its note, or read-only with "Add to my notes" when it is not in the notes folder, and turns a recording into a voice memo (#243). What changed in each
-release is in [CHANGELOG.md](CHANGELOG.md), and the release text repeats it
-(#70). On a tablet in landscape, the divider between graph and note can be
-dragged, and the graph folded away (#69). The graph starts force-directed,
-or as set in Settings (#71). The theme is light, dark, or as Android is
-set, a choice in Settings (#90). The AI model can be picked from the
-provider's list, with prices and tool support where the list gives them
-(#75). Mistral's answers after tool calls, which come as a list of parts,
-are shown, and follow-ups work (#79). Search also finds the words inside notes, and so can the AI, except in notes hidden from it (#98). What is decided and why is in
-[docs/decisions.md](docs/decisions.md); the work is in the
-[issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
+## What it does
 
-## Stack
+**Graph**
+- Draws the graph like `org-roam-graph`: the whole graph, the part
+  connected to a node, or its neighbourhood of 1 to 3 links.
+- Layouts: circular, force-directed, radial, grouped by communities and
+  hierarchical; the one at start is a setting.
+- Views from graph algorithms: communities, PageRank, number of links and
+  shortest paths.
+- On a tablet held sideways, graph and note side by side, with a divider
+  to drag and a graph to fold away.
 
-Flutter (decided in #1). `org_parser` and `org_flutter` are the parser and
-renderer that Orgro uses, so my files are already known to parse and render
-correctly; Flutter can also hand a file to another app with `ACTION_VIEW`. The full
-reasoning, including the comparison with a PWA, is in
-[docs/decisions.md](docs/decisions.md).
+**Note view**
+- Notes as formatted Org, with tappable `id:` links (also to a heading),
+  links and backlinks, and web, mail and phone links that open in their
+  app.
+- Sections open collapsed or expanded, as set; a note's own `#+STARTUP:`
+  line comes first.
+- Images from the notes folder at their Org width, SVG too.
+- Mermaid and PlantUML blocks show the image Emacs made; a block without
+  one is drawn on the device.
+- LaTeX formulas on Android, display formulas on their own line.
+- Source blocks coloured as Emacs colours them, code in a monospace font.
+- Search inside a note; tick checkboxes and change TODO states.
+- On Android, a note opens read-only in another app, such as Orgro, and
+  can be shared as text or as an Org file.
 
-## Check the parser against org-roam
+**Search**
+- Finds notes by title, alias and tag as you type, and the words inside
+  notes.
+- Selected results can be shared with an AI app, deleted, or given a
+  language.
 
-The app builds the graph from the org files itself. To compare it with the
-`org-roam.db` Emacs keeps on the laptop, with Flutter and Python 3 installed:
+**Capture and editing**
+- New notes as org-roam's capture makes them; one made from a note can
+  link to it.
+- Text, text files and Org files shared from another app become new
+  notes; a shared audio file becomes a transcribed voice memo.
+- Edit a note's text, title, tags and aliases, its headings and links;
+  delete notes.
+- Every edit shows a diff first, is saved only over the version it was
+  made on, and keeps the old version, so it can be undone. The `:ID:` and
+  the property drawer stay as they are.
+- Files are written safely next to Syncthing; its conflict copies are
+  listed.
 
-```
-python3 tool/org_roam_parity.py check \
-    ~/doom-emacs/.local/cache/org-roam.db ~/work/cgeng/org/roam
-```
+**AI chat**
+- The chat works on the app's own index of the notes, with the tools of
+  the org-roam MCP server (search, backlinks, paths, PageRank,
+  communities and others).
+- Providers: Anthropic, Claude on AWS Bedrock (EU), Mistral, Scaleway,
+  Vercel AI Gateway, DeepSeek, Qwen, OpenRouter, Hugging Face, or a custom
+  one, with your own key. The model is chosen from the provider's list.
+- In agent mode (the default) the AI creates, edits and links notes
+  itself, under the same rules as hand edits, with "Undo all"; in review
+  mode it proposes edits that are saved only after the diff.
+- "Edit with AI" changes a note, or also its linked notes, by an
+  instruction.
+- Images, infographics and charts made by the AI and added to a note.
+- Optional web access; chats are kept on the device and can run in
+  parallel and in the background.
+- Notes with a tag such as `:private:` are never sent to an AI.
 
-It prints the counts of files, nodes, `id:` links, tags, aliases and refs on
-both sides, and every difference; for a link, also the file and line where
-only one side finds it, with the lines around it. Nothing leaves the laptop. CI runs the
-same comparison on the sample files in `test/fixtures/roam/`, against a
-database real org-roam built from them
-(`tool/org_roam_parity/build-fixture-expectations.sh`).
+**Desktop**
+- Notes open in Emacs at their heading.
+- The graph follows the node at point in Emacs, with
+  `roam-graph-follow-mode` from `emacs/roam-graph-follow.el`, which the
+  desktop packages carry.
+- Files and text can be dropped on the window; keys can be set, with an
+  Emacs set.
+- The app checks for a new release; on Linux it can update and restart
+  itself.
 
-## Check the database against org-roam
+Read more:
 
-The app keeps the graph in an SQLite database with org-roam's tables and
-encoding (#5). To build the same database on the laptop and compare every
-table with Emacs's, with Flutter and Python 3 installed, first run
-`M-x org-roam-db-sync` in Emacs, so its database is current, then:
-
-```
-flutter pub get
-uv run tool/org_roam_parity.py check-db \
-    ~/doom-emacs/.local/cache/org-roam.db ~/work/cgeng/org/roam
-```
-
-To get the database itself, for example to run the org-roam MCP server's
-queries on it:
-
-```
-dart run tool/build_roam_db.dart ~/work/cgeng/org/roam /tmp/app-org-roam.db
-```
-
-Point the MCP server's database path at `/tmp/app-org-roam.db`; its read-only
-queries should return the same results as on `org-roam.db`. Running the
-command again reads only new and changed files.
+- [The help pages](assets/help/start.org): how to use each part, also in
+  the app.
+- [CHANGELOG.md](CHANGELOG.md): what changed when.
+- [docs/decisions.md](docs/decisions.md): what was decided and why.
+- [docs/releases.md](docs/releases.md): releases, the signing key and the
+  desktop installs.
+- [docs/development.md](docs/development.md): checks against org-roam
+  for developers.
+- The work: [issues](https://github.com/ChristianGeng/roam-graph-mobile/issues).
 
 ## Install
 
@@ -135,11 +118,11 @@ Good to know:
   with Syncthing; it asks for the folder at the first start. The AI chat uses
   your own provider and API key, set in Settings → AI.
 
-### Linux, Windows and macOS
+### Linux
 
-See [docs/releases.md](docs/releases.md). On Linux, download the installer
-of the newest full release with its checksum into a new, empty folder and
-check it (the `&&` stops at a failed download, so no older file is checked):
+Download the installer of the newest full release with its checksum into a
+new, empty folder and check it (the `&&` stops at a failed download, so no
+older file is checked):
 
 ```
 d=$(mktemp -d) && cd "$d" &&
@@ -149,7 +132,7 @@ d=$(mktemp -d) && cd "$d" &&
 ```
 
 It must print `install.sh: OK`. The checksum file comes from the same release
-as the script; to check against GitHub's own record as well, compare the hex
+as the script. To check against GitHub's own record as well, compare the hex
 string `sha256sum install.sh` prints with the digest GitHub shows next to
 `install.sh` on the release page ("sha256:…"), or prints with:
 
@@ -158,25 +141,34 @@ gh release view --repo ChristianGeng/roam-graph-mobile --json assets \
   --jq '.assets[] | select(.name == "install.sh") | .digest'
 ```
 
-If the two differ, stop here and do not run the script. Then run the
-installer, in the same folder; the `&&` runs it only if the checksum still
+If the two differ, stop and do not run the script. Otherwise run the
+installer in the same folder; the `&&` runs it only if the checksum still
 matches:
 
 ```
 sha256sum -c install.sh.sha256 && sh install.sh --update
 ```
 
-The installer is a file of the release, the same one as in the Linux package,
-not whatever `main` holds now. It installs the newest full release into
-`${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app` and adds Roam Graph to
-the app menu, after checking the package it downloads against the SHA-256
-that GitHub gives for it. To update later, run the installed copy:
+The installer is a file of the release, the same one as in the Linux
+package, not whatever `main` holds now. It installs the newest full release
+into `${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app` and adds Roam
+Graph to the app menu, after checking the package it downloads against the
+SHA-256 that GitHub gives for it. To update later, run the installed copy:
 `${XDG_DATA_HOME:-$HOME/.local/share}/roam-graph/app/install.sh --update`.
-[docs/releases.md](docs/releases.md) also explains the signing key.
+The app runs on Ubuntu 22.04 and newer.
+
+### Windows and macOS
+
+Each full release has a zip file for Windows and one for macOS. The apps are
+not signed yet; [docs/releases.md](docs/releases.md) says how to open them
+the first time, and explains the signing key.
 
 ## Build locally
 
-With Flutter 3.47.7 installed (the version the workflow pins):
+The app is written in Flutter, with `org_parser` and `org_flutter`, the
+parser and renderer that Orgro uses; the reasons are in
+[docs/decisions.md](docs/decisions.md). With Flutter 3.47.7 installed (the
+version the workflow pins):
 
 ```
 flutter pub get
