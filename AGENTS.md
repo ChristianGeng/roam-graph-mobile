@@ -46,6 +46,12 @@ folder is the only connection.
   `android/` without a new entry heading; the label
   `skip-changelog` lets a change through that users do not see
   (decision 48).
+- **The README describes what the app does today, by area** (graph, note
+  view, search, capture and editing, AI chat, desktop). A new feature
+  changes or adds a line in its area, without an issue number. History
+  goes to `CHANGELOG.md`, reasons to `docs/decisions.md`, developer tools
+  to `docs/development.md`. No personal paths: write `<org-roam.db>` or
+  `<notes folder>` (decision 158).
 - **Match org-roam exactly** where the app imitates it: which files are
   nodes, how titles, tags, aliases, refs and links are read, how values are
   stored (Emacs Lisp quoted strings), and how new files are named. When

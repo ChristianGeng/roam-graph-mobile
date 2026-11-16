@@ -4956,6 +4956,28 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 - **Changelog:** not visible to users, so the pull request has the
   `skip-changelog` label (decision 48).
 
+## 158. The README describes the app by area; developer tools are in docs/development.md (#302)
+
+- **What:** the README says what the app is, then what it does, in short
+  lists by area: graph, note view, search, capture and editing, AI chat,
+  desktop. No issue numbers and no history. Then install and build, as
+  before, and links to `CHANGELOG.md`, this file, `docs/releases.md` and
+  the help pages. The two checks against org-roam and the database build
+  moved to the new `docs/development.md`, with `<org-roam.db>` and
+  `<notes folder>` instead of the owner's paths, and with `uv run` for
+  the Python script. AGENTS.md has the rule.
+- **Why:** almost every feature pull request added a sentence with its
+  issue number to the README's first paragraph, so it grew into a second
+  changelog of about 940 words with 50 issue numbers, which a new reader
+  cannot use. Its "v1 in progress" was out of date. The checks against
+  org-roam are tools for the owner's laptop and showed the owner's own
+  paths in a public repository. Nothing said what belongs in the README,
+  so nothing stopped this.
+- **Not changed:** the app, and the facts of the install and build
+  sections.
+- **Changelog:** not visible to users, so the pull request has the
+  `skip-changelog` label (decision 48).
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept
