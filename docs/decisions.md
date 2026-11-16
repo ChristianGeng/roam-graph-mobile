@@ -4983,7 +4983,7 @@ and stayed cached. #269 asked to keep the limit for the whole message.
     environments inside a formula (`aligned`, `cases`, `pmatrix`, ...)
     but not most of the ones that stand alone: `equation` and `equation*`
     become the bare formula; `align` becomes `aligned`; `gather`,
-    `gather*`, `multline` and `multline*` become `array{c}` with the same
+    `gather*`, `multline` and `multline*` become `darray{c}` with the same
     lines. Every other environment is passed as it is (`align*`,
     `alignat`, `split` and the matrices work as they are).
   - **Equation numbers are lost.** `katex_dart` numbers nothing, so

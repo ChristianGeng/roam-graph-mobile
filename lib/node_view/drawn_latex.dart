@@ -80,8 +80,12 @@ OrgDocument withDrawnFormulas(OrgDocument document) {
 }
 
 /// `\label{...}`, `\nonumber` and `\notag`: they only label or number an
-/// equation. KaTeX in Dart knows none of them and numbers nothing.
-final _numbering = RegExp(r'\\label\{[^{}]*\}|\\nonumber\b|\\notag\b');
+/// equation. KaTeX in Dart knows none of them and numbers nothing. The
+/// backslash must start a command: after an even number of backslashes
+/// (`\\notag` is a row break followed by the letters "notag").
+final _numbering = RegExp(
+  r'(?<=(?:^|[^\\])(?:\\\\)*)\\(?:label\{[^{}]*\}|nonumber\b|notag\b)',
+);
 
 /// The formula of [block] as `katex_dart` can draw it. It knows the
 /// environments inside a formula (`aligned`, `cases`, `pmatrix`, ...) but

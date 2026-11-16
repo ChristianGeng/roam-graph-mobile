@@ -93,6 +93,20 @@ void main() {
       expect(layOutFormula(tex).box, isNotNull);
     });
 
+    test('a row break before notag is kept', () {
+      // \\\\notag is a row break followed by the letters notag, not \\notag.
+      final tex = formulaToDraw(
+        blockOf('\\begin{align}\na &= b \\\\notag &= c\n\\end{align}\n'),
+      );
+      expect(tex, contains(r'b \\notag'));
+      // A real \\notag after a row break is still removed.
+      final real = formulaToDraw(
+        blockOf('\\begin{align}\na &= b \\\\\\notag\nc &= d\n\\end{align}\n'),
+      );
+      expect(real, isNot(contains('notag')));
+      expect(real, contains(r'\\'));
+    });
+
     test('other environments are passed as they are', () {
       for (final environment in ['align*', 'pmatrix', 'cases']) {
         final text = '\\begin{$environment}\na & b\n\\end{$environment}';
