@@ -8,7 +8,7 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
-## 2026-11-16: LaTeX formulas on their own line are drawn on the desktop ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+## 2026-11-16: LaTeX formulas on their own line are drawn on the desktop ([#301](https://github.com/ChristianGeng/roam-graph-mobile/pull/301))
 
 - Added: on Linux, Windows and macOS, display formulas (`\[ \]`, `$$ $$`) and LaTeX environments such as `equation`, `align` and `gather` are drawn by the app instead of showing their source, in the text colour (also in the dark theme); a wide one scrolls sideways. Equation numbers are not shown. A formula that cannot be drawn shows its source. Inline formulas and Android are unchanged. Part of #300.
 
