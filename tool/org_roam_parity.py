@@ -32,10 +32,9 @@ Commands:
   compare-tables EXPECTED.json APP_DB ROAM_DIR
       Compare an export-tables file with the tables of APP_DB.
 
-Example, on the laptop:
+Example (see docs/development.md):
 
-  python3 tool/org_roam_parity.py check \\
-      ~/doom-emacs/.local/cache/org-roam.db ~/work/cgeng/org/roam
+  uv run tool/org_roam_parity.py check <org-roam.db> <notes folder>
 
 The database is opened read-only. Nothing is written anywhere, and nothing
 from the notes leaves the machine.
