@@ -63,7 +63,7 @@ void main() {
       );
     });
 
-    test('gather and multline become array{c}', () {
+    test('gather and multline become darray{c}, in display style', () {
       for (final environment in [
         'gather',
         'gather*',
@@ -77,10 +77,20 @@ void main() {
               '\\end{$environment}\n',
             ),
           ),
-          '\\begin{array}{c}\na \\\\\nb\n\\end{array}',
+          '\\begin{darray}{c}\na \\\\\nb\n\\end{darray}',
           reason: environment,
         );
       }
+    });
+
+    test('a removed label leaves the commands around it apart', () {
+      final tex = formulaToDraw(
+        blockOf(
+          '\\begin{equation}\n\\pi\\label{eq:area}r^2\n\\end{equation}\n',
+        ),
+      );
+      expect(tex, isNot(contains(r'\pir')));
+      expect(layOutFormula(tex).box, isNotNull);
     });
 
     test('other environments are passed as they are', () {
@@ -98,7 +108,7 @@ void main() {
             '\\end{equation}\n',
           ),
         ),
-        '\nx \n',
+        '\nx  \n',
       );
       expect(
         formulaToDraw(
@@ -107,7 +117,7 @@ void main() {
             'c &= d \\notag\n\\end{align}\n',
           ),
         ),
-        '\\begin{aligned}\na &= b  \\\\\nc &= d \n\\end{aligned}',
+        '\\begin{aligned}\na &= b   \\\\\nc &= d  \n\\end{aligned}',
       );
     });
 
@@ -281,6 +291,39 @@ void main() {
         isNot(const Color(0xFFCC0000)),
       );
       expect(tester.takeException(), isNull);
+    }, variant: desktop);
+
+    testWidgets(
+      'a formula under #+ATTR_ORG: :align is drawn at its own width',
+      (tester) async {
+        // org_flutter puts an aligned link into a Row, with unbounded width.
+        const note =
+            ':PROPERTIES:\n:ID: $_id\n:END:\n#+title: Aligned\n\n'
+            '#+ATTR_ORG: :align center\n'
+            '\\begin{equation}\nx = 1\n\\end{equation}\n';
+        await tester.pumpWidget(
+          MaterialApp(
+            home: NodeScreen(
+              graph: ValueNotifier(graphOf({'aligned.org': note})),
+              id: _id,
+              readNote: (path) async => note,
+              nodeMemory: MemoryNodeMemory(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(find.byType(DrawnFormula), findsOneWidget);
+        expect(tester.getSize(find.byType(DrawnFormula)).width, lessThan(400));
+      },
+      variant: desktop,
+    );
+
+    testWidgets('a screen reader reads the formula\'s source', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await show(tester);
+      expect(find.bySemanticsLabel(RegExp(r'\\frac')), findsWidgets);
+      semantics.dispose();
     }, variant: desktop);
 
     testWidgets('a wide formula scrolls sideways', (tester) async {

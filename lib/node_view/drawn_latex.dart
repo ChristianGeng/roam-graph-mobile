@@ -31,8 +31,9 @@ const katexEm = 1.21;
 /// formula to draw ([formulaToDraw]), [source] the block as written, with
 /// its delimiters, shown when the formula cannot be drawn.
 ///
-/// The search inside a note finds the formula's source in it, as in the
-/// LaTeX block it replaces.
+/// [contains] gives the formula's source, so a section with a match in a
+/// formula still shows when the note is searched, as with the LaTeX block
+/// it replaces. As there, the match itself is not marked or jumped to.
 class FormulaLink extends OrgBracketLink {
   FormulaLink(this.tex, {required this.source}) : super(_formulaLocation, null);
 
@@ -89,21 +90,24 @@ final _numbering = RegExp(r'\\label\{[^{}]*\}|\\nonumber\b|\\notag\b');
 /// - a display formula (no environment), `equation` and `equation*`: the
 ///   formula itself;
 /// - `align`: `aligned`;
-/// - `gather`, `gather*`, `multline` and `multline*`: `array{c}`, one
-///   centred line for each line;
+/// - `gather`, `gather*`, `multline` and `multline*`: `darray{c}`, one
+///   centred line for each line, in display style (`array` would set its
+///   cells in text style);
 /// - every other environment is passed as it is.
 ///
 /// Equation numbers are lost: `katex_dart` numbers nothing, and the
-/// commands that label or number ([_numbering]) are removed.
+/// commands that label or number ([_numbering]) are removed, each replaced
+/// by a space so the commands around it stay apart (`\pi\label{a}r` must
+/// not become `\pir`).
 String formulaToDraw(OrgLatexBlock block) {
-  final body = block.content.replaceAll(_numbering, '');
+  final body = block.content.replaceAll(_numbering, ' ');
   return switch (block.environment) {
     '' || 'equation' || 'equation*' => body,
     'align' => '\\begin{aligned}$body\\end{aligned}',
     'gather' ||
     'gather*' ||
     'multline' ||
-    'multline*' => '\\begin{array}{c}$body\\end{array}',
+    'multline*' => '\\begin{darray}{c}$body\\end{darray}',
     _ => '${block.begin}$body${block.end}',
   };
 }
@@ -169,17 +173,28 @@ class DrawnFormula extends StatelessWidget {
       context,
     ).scale((style.fontSize ?? 14) * katexEm);
     final size = boxSizePxPadded(box, fontSize);
-    return ConstrainedBox(
-      constraints: const BoxConstraints.tightFor(width: double.infinity),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: CustomPaint(
-          size: size,
-          painter: KatexBoxPainter(
-            box,
-            fontSize: fontSize,
-            color: style.color ?? Theme.of(context).colorScheme.onSurface,
-            inkPadEm: kInkOverflowPadEm,
+    // The full width of the text column, so a wide formula scrolls inside
+    // it. Where the width is unbounded (org_flutter puts a link with
+    // `#+ATTR_ORG: :align` into a Row), the formula's own width instead:
+    // LimitedBox acts only then, and keeps intrinsic sizes working.
+    return LimitedBox(
+      maxWidth: size.width,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints.tightFor(width: double.infinity),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          // Screen readers read the formula's source.
+          child: Semantics(
+            label: source,
+            child: CustomPaint(
+              size: size,
+              painter: KatexBoxPainter(
+                box,
+                fontSize: fontSize,
+                color: style.color ?? Theme.of(context).colorScheme.onSurface,
+                inkPadEm: kInkOverflowPadEm,
+              ),
+            ),
           ),
         ),
       ),
