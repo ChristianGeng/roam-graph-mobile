@@ -4944,6 +4944,18 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 - **Changelog:** not visible to users, so the pull request has the
   `skip-changelog` label (decision 48).
 
+## 156. org_flutter from pub.dev again: 13.5.0 (#239)
+
+- **What:** `pubspec.yaml` takes `org_flutter: ^13.5.0` from pub.dev instead
+  of the git pin to the unreleased pull request (decision 152). The lock
+  file changes only org_flutter.
+- **Why:** amake merged amake/org_flutter#21 on 2026-11-15 and released it
+  as 13.5.0, as decision 152 planned. 13.5.0 holds the same two commits,
+  rebased, plus import ordering, a format check in its CI and dependency
+  updates; the app's tests pass unchanged.
+- **Changelog:** not visible to users, so the pull request has the
+  `skip-changelog` label (decision 48).
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept
