@@ -46,8 +46,9 @@ notes, and it has an AI chat that works on the notes.
   notes; a shared audio file becomes a transcribed voice memo.
 - Edit a note's text, title, tags and aliases, its headings and links;
   delete notes.
-- Every edit shows a diff first, is saved only over the version it was
-  made on, and keeps the old version, so it can be undone. The `:ID:` and
+- Every edit is saved only over the version it was made on and keeps the
+  old version, so it can be undone; edits of the text show a diff first
+  (ticking a checkbox or changing a TODO state is saved at once). The `:ID:` and
   the property drawer stay as they are.
 - Files are written safely next to Syncthing; its conflict copies are
   listed.
