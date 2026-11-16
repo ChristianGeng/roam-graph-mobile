@@ -20,13 +20,9 @@ dependencies:
   # SQLite into the APK.
   sqlite3: ^2.7.0
   sqlite3_flutter_libs: ^0.5.32
-  # The unreleased pull request amake/org_flutter#21 (#239): code,
-  # verbatim and block text styles in the theme. Switch back to the
-  # pub.dev version once a release contains it.
-  org_flutter:
-    git:
-      url: https://github.com/amake/org_flutter.git
-      ref: dc466eecbcd819c9f80bbff1e1f4d3ba7251ac71
+  # 13.5.0 brings the code, verbatim and block text styles of the theme
+  # (amake/org_flutter#21, for #239).
+  org_flutter: ^13.5.0
   # Finds a heading node's text by its ID, for sharing it (#41); the parser
   # behind org_flutter.
   org_parser: ^12.0.1
