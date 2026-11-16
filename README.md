@@ -21,7 +21,8 @@ Text shared from another app, such as the Claude app, becomes a new node
 app. Source blocks are coloured as Emacs colours them (#45), and
 images from the notes folder, also SVG, are
 shown at their Org width (#46, #47). LaTeX display formulas are shown in
-display mode (#50). Mermaid and PlantUML blocks show their result
+display mode (#50); on the desktop the app draws display formulas and
+environments itself, without equation numbers (#300). Mermaid and PlantUML blocks show their result
 image; a block without one is drawn on the device (#49, #283). Notes with a tag such as
 `:private:` are never shared with an AI, and private headings and titles
 are left out of the notes that are (#57). Notes open with their sections

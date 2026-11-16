@@ -783,7 +783,9 @@ devices through Syncthing.
       text style's font size without the system's text scaling, so with a
       larger system font, formulas stay at the normal size. The app cannot
       change this from outside; it needs a change in `org_flutter`, to be
-      offered upstream if it matters on the device.
+      offered upstream if it matters on the device. On the desktop the
+      app draws LaTeX blocks itself since #300 (decision 157), and they
+      follow the system's text scaling there; inline formulas do not yet.
     - The sample note `test/fixtures/roam/20240112120000-mu.org` has an
       inline, a `\[ \]`, a `$$` and a broken formula and an `equation`
       environment. Widget tests cannot run the WebView; they check which
@@ -4955,6 +4957,87 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   updates; the app's tests pass unchanged.
 - **Changelog:** not visible to users, so the pull request has the
   `skip-changelog` label (decision 48).
+
+## 157. LaTeX blocks are drawn by the app on the desktop with `katex` (#300)
+
+- **What:** on Linux, Windows and macOS, LaTeX blocks are drawn by the
+  app with the `katex` package (1.0.0; Flutter widgets on top of
+  `katex_dart` 0.1.1, a port of KaTeX to Dart by the same author), in
+  `lib/node_view/drawn_latex.dart`. Before, `org_flutter` gave them to
+  `flutter_tex_js`, which has no desktop version, so the desktop showed
+  their source. Android and iOS keep
+  `flutter_tex_js` (decision 40); nothing changes there.
+  - **Which formulas:** every LaTeX block: the environments
+    (`\begin{...}`) and the display formulas `\[ \]` and `$$ $$`, which
+    `latex.dart` already turns into blocks (decision 40). Inline formulas
+    (`\( \)`, `$ $`) stay as they are (see "Not done").
+  - **How, as Mermaid and PlantUML** (decisions 41 and 151): after
+    parsing, each block is replaced by a link to `latex-formula.png` that
+    carries the formula (a subclass of the link, so the node view's
+    `loadImage` tells it from a link the note writes), and `loadImage`
+    draws it. A display formula becomes the link alone, inside its
+    paragraph; an environment becomes a paragraph with the link, with the
+    block's indent and blank lines. The search inside a note still finds
+    the formula's source.
+  - **The environments are rewritten,** because `katex_dart` knows the
+    environments inside a formula (`aligned`, `cases`, `pmatrix`, ...)
+    but not most of the ones that stand alone: `equation` and `equation*`
+    become the bare formula; `align` becomes `aligned`; `gather`,
+    `gather*`, `multline` and `multline*` become `array{c}` with the same
+    lines. Every other environment is passed as it is (`align*`,
+    `alignat`, `split` and the matrices work as they are).
+  - **Equation numbers are lost.** `katex_dart` numbers nothing, so
+    `\label{...}`, `\nonumber` and `\notag`, which it does not know, are
+    removed before drawing; otherwise a labelled `equation` would show its
+    source.
+  - **A formula that cannot be drawn** (an unknown command, a missing
+    brace) shows its source with its delimiters, in the normal text
+    style, as on Android; never red text, never a crash. The `katex`
+    widget would draw such a formula in red, so the app calls
+    `katex_dart`'s `renderToBox` itself, which throws instead; the same
+    call gives the layout that is drawn.
+  - **Colour and size:** the text colour of the theme, so light on a
+    dark page; KaTeX's size, 1.21 times the text size, as KaTeX's style
+    sheet and so Android draw it. Unlike Android, the size follows the
+    system's text scaling, as the text around it does (see decision 40,
+    "Not done").
+  - **Placement:** on its own line, at its start, as on Android; a
+    formula wider than the text column scrolls sideways.
+  - **Cached by the formula's text** (256 at most, the oldest dropped).
+    The layout is in em and has no colour; the colour and size are
+    applied when it is painted, so one entry serves both themes.
+- **Why `katex`:** the trial in #300 compared three candidates on a
+  synthetic note with real KaTeX 0.18.9 (the version Android uses). The
+  owner chose `katex` on 2026-11-16: right or close on almost every
+  formula, root signs and arrows included; the fastest; the smallest
+  (about +0.5 to 0.7 MB APK, mostly the KaTeX fonts, since `katex_dart`
+  is already in the app through `mermaid_core`). `katex_dart` renders to
+  SVG too, but `flutter_svg` drops the nested SVG of root signs and
+  `\vec` arrows; `flutter_math_fork` is the most exact but has had no
+  release since May 2025 and knows no `equation`, `align` or `gather`.
+- **Limits:** small spacing faults in nested or small formulas
+  (`e^{-x^2/2}`, small denominators); no equation numbers; `gathered`
+  and other environments `katex_dart` does not know show their source.
+  Both packages are young, with one maintainer, so their use is kept in
+  `drawn_latex.dart`: to update or remove them, change that file, the two
+  calls in `node_screen.dart` and the two lines in `pubspec.yaml`
+  (`katex: ^1.0.0` and `katex_dart: ^0.1.1`, which the app calls
+  directly; `pubspec.lock` pins 1.0.0 and 0.1.1).
+- **`loadImage` runs only while inline images are on.** In a note with
+  `#+STARTUP: noinlineimages`, `org_flutter` never calls it, so the
+  blocks are left to `org_flutter` there, as before.
+- **Not done: inline formulas** (step 2 of #300). Through `loadImage`
+  they would sit at the bottom of the line, not on the text baseline, so
+  fractions and subscripts would be too high; and `loadImage` draws
+  nothing while inline images are off. This needs an optional LaTeX hook
+  in `org_flutter`, to be asked for upstream.
+- **Tests:** `test/node_view/drawn_latex_test.dart` with the synthetic
+  `test/fixtures/latex.org` (display formulas, each environment kind, a
+  broken and a wide formula): the rewrite; on Linux, Windows and macOS
+  the blocks are drawn by the app; on Android `flutter_tex_js` still
+  draws them; the colour in both themes and the size; the broken formula
+  shows its source; the wide one scrolls. The tests check structure, not
+  pixels.
 
 ## Recommended, not decided
 

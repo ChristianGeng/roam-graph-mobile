@@ -39,6 +39,9 @@ Other things the page shows:
 - *Images* from the notes folder show at their Org width; tap one to zoom.
   SVG is drawn too. Web images stay links: the app reads only the folder.
 - *LaTeX* formulas are rendered; ~\[ \]~ and ~$$ $$~ on their own line.
+  On Linux, Windows and macOS the app draws formulas on their own line
+  and environments such as ~equation~ and ~align~ itself, without
+  equation numbers; one it cannot draw shows its source.
 - *Mermaid* and *PlantUML* blocks show the image Emacs made; a block
   without one is drawn on the device, marked as such. In the dark theme a
   PlantUML drawing is on a light card.
