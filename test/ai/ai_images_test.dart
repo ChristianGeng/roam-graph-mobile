@@ -850,6 +850,175 @@ void main() {
     });
   });
 
+  group('a refusal for the content says so (#298)', () {
+    ImageConfig openRouter() => ImageConfig(
+          const ProviderConfig(
+            name: 'OpenRouter',
+            api: ApiKind.openAi,
+            baseUrl: 'https://openrouter.ai/api/v1',
+            model: 'google/gemini-2.5-flash-image',
+            apiKey: 'or-key',
+          ),
+          api: ImageApi.images,
+          imagesPath: '/images',
+        );
+
+    test('Gemini through OpenRouter: HTTP 400, flagged as copyrighted',
+        () async {
+      // The answer of the live test on 2026-11-16 (#298).
+      await expectLater(
+          makeImage(openRouter(), 'x',
+              post: answer({
+                'error': {
+                  'message': 'Gemini blocked this request: it was flagged '
+                      'for copyrighted or trademarked material.',
+                  'code': 400,
+                },
+              }, status: 400)),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message',
+                  'OpenRouter refused the request because of its content '
+                  'rules: Gemini blocked this request: it was flagged for '
+                  'copyrighted or trademarked material. Change the prompt '
+                  'and send it again.')
+              .having((e) => e.contentRefused, 'contentRefused', isTrue)
+              .having((e) => e.passing, 'passing', isFalse)
+              .having((e) => e.status, 'status', 400)));
+    });
+
+    test('OpenRouter moderation: HTTP 403 is not a refused key', () async {
+      await expectLater(
+          makeImage(openRouter(), 'x',
+              post: answer({
+                'error': {
+                  'code': 403,
+                  'message': 'openai/gpt-image-2 requires moderation on '
+                      'OpenRouter. Your input was flagged for "violence".',
+                },
+              }, status: 403)),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message',
+                  startsWith('OpenRouter refused the request because of '
+                      'its content rules: '))
+              .having((e) => e.contentRefused, 'contentRefused', isTrue)));
+    });
+
+    test('OpenAI\'s safety system says so too', () async {
+      await expectLater(
+          makeImage(config(), 'x',
+              post: answer({
+                'error': {
+                  'message': 'Your request was rejected as a result of our '
+                      'safety system.',
+                  'code': 'moderation_blocked',
+                },
+              }, status: 400)),
+          throwsA(isA<AiError>().having((e) => e.message, 'message',
+              contains('refused the request because of its content rules'))));
+    });
+
+    test('a code with underscores is a refusal too', () async {
+      for (final message in [
+        'PROHIBITED_CONTENT',
+        'content_policy_violation',
+        'Blocked by safety_system',
+        'moderation_blocked',
+        'INPUT_FLAGGED',
+        'flagged_content',
+      ]) {
+        await expectLater(
+            makeImage(openRouter(), 'x',
+                post: answer({
+                  'error': {'message': message, 'code': 400},
+                }, status: 400)),
+            throwsA(isA<AiError>()
+                .having((e) => e.contentRefused, 'contentRefused', isTrue)),
+            reason: message);
+      }
+    });
+
+    test('a refusal word inside a model ID or a name is no refusal',
+        () async {
+      for (final message in [
+        'Model acme/moderation-preview does not exist',
+        'omni-moderation-latest is not available',
+        'Unknown parameter: copyright_check',
+      ]) {
+        await expectLater(
+            makeImage(openRouter(), 'x',
+                post: answer({
+                  'error': {'message': message},
+                }, status: 400)),
+            throwsA(isA<AiError>()
+                .having((e) => e.message, 'message',
+                    contains('answered with an error (HTTP 400)'))
+                .having((e) => e.contentRefused, 'contentRefused', isFalse)),
+            reason: message);
+      }
+    });
+
+    test('OpenRouter: the upstream refusal in error.metadata.raw', () async {
+      // OpenRouter's shape for an error of the provider behind it.
+      await expectLater(
+          makeImage(openRouter(), 'x',
+              post: answer({
+                'error': {
+                  'code': 403,
+                  'message': 'Provider returned error',
+                  'metadata': {
+                    'provider_name': 'Google',
+                    'raw': jsonEncode({
+                      'error': {
+                        'message': 'Gemini blocked this request: it was '
+                            'flagged for copyrighted or trademarked '
+                            'material.',
+                      },
+                    }),
+                  },
+                },
+              }, status: 403)),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message',
+                  'OpenRouter refused the request because of its content '
+                  'rules: Provider returned error: Gemini blocked this '
+                  'request: it was flagged for copyrighted or trademarked '
+                  'material. Change the prompt and send it again.')
+              .having((e) => e.contentRefused, 'contentRefused', isTrue)));
+    });
+
+    test('a message without a full stop gets one', () async {
+      await expectLater(
+          makeImage(openRouter(), 'x',
+              post: answer({
+                'error': {'code': 403, 'message': 'Your input was flagged'},
+              }, status: 403)),
+          throwsA(isA<AiError>().having(
+              (e) => e.message,
+              'message',
+              'OpenRouter refused the request because of its content rules: '
+                  'Your input was flagged. Change the prompt and send it '
+                  'again.')));
+    });
+
+    test('other refused requests are unchanged', () async {
+      for (final (status, message, expected) in [
+        (401, 'No auth credentials found', 'refused the API key'),
+        (403, 'Key limit exceeded', 'refused the API key'),
+        (400, 'model is not a valid model ID', 'answered with an error'),
+      ]) {
+        await expectLater(
+            makeImage(openRouter(), 'x',
+                post: answer({
+                  'error': {'message': message},
+                }, status: status)),
+            throwsA(isA<AiError>()
+                .having((e) => e.message, 'message', contains(expected))
+                .having((e) => e.contentRefused, 'contentRefused', isFalse)),
+            reason: message);
+      }
+    });
+  });
+
   test('"EU only" and a model without an EU route: said plainly', () async {
     await expectLater(
         makeImage(config(euOnly: true), 'x',

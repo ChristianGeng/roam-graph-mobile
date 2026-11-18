@@ -80,6 +80,7 @@ class AiError implements Exception {
     this.message, {
     this.status,
     this.passing = false,
+    this.contentRefused = false,
     this.provider,
     this.model,
     this.api,
@@ -91,6 +92,11 @@ class AiError implements Exception {
   /// Whether the same request may well work a moment later: the
   /// connection broke, or the provider is overloaded for now.
   final bool passing;
+
+  /// Whether the provider refused the request because of its content
+  /// rules (#298): the prompt was flagged, for example as copyrighted
+  /// material. The same request fails again; a changed prompt may not.
+  final bool contentRefused;
 
   /// The HTTP status the provider answered with, where it refused the
   /// request.
@@ -1198,8 +1204,12 @@ class ChatSession {
     return false;
   }
 
+  /// A refused request, but not one refused for its content (#298): the
+  /// model took the request and its rules said no; sending it without the
+  /// images would not tell whether the model takes images.
   static bool _refusedRequest(AiError e) =>
-      e.status == 400 || e.status == 415 || e.status == 422;
+      !e.contentRefused &&
+      (e.status == 400 || e.status == 415 || e.status == 422);
 
   Future<ApiReply> _request(List<AiTool> offered,
       {List<ChatEntry>? entries, String? system}) async {
@@ -1254,10 +1264,14 @@ Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
     Map<String, String> headers, Object? body, HttpPost post) async {
   // Every error carries where the request went (#180).
   AiError fail(String message,
-          {int? status, bool passing = false, String? answer}) =>
+          {int? status,
+          bool passing = false,
+          bool contentRefused = false,
+          String? answer}) =>
       AiError(redactSecrets(message, secrets: [config.apiKey]),
           status: status,
           passing: passing,
+          contentRefused: contentRefused,
           provider: config.name,
           model: config.model,
           api: config.api.name,
@@ -1294,10 +1308,20 @@ Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
         answer: answerOf(reply.body));
   }
   if (reply.status < 200 || reply.status >= 300) {
-    throw fail(_httpError(config, reply.status, _message(json, reply.body)),
+    var message = _message(json, reply.body);
+    var refused = _contentRefusal(reply.status, message);
+    // OpenRouter passes the error of the provider behind it in
+    // error.metadata.raw, under its own "Provider returned error".
+    final upstream = refused ? null : _upstream(json);
+    if (upstream != null && _contentRefusal(reply.status, upstream)) {
+      message = '$message: $upstream';
+      refused = true;
+    }
+    throw fail(_httpError(config, reply.status, message, refused: refused),
         status: reply.status,
         // A gateway or an overloaded provider (Anthropic's 529), for now.
         passing: const {502, 503, 504, 529}.contains(reply.status),
+        contentRefused: refused,
         answer: answerOf(reply.body));
   }
   if (json is! Map) {
@@ -1320,8 +1344,35 @@ String _message(Object? json, String body) {
   return text.length > 300 ? '${text.substring(0, 300)}…' : text;
 }
 
-String _httpError(ProviderConfig config, int status, String message) {
+/// The upstream provider's error that OpenRouter passes in
+/// `error.metadata.raw` (#298): a string with the provider's error JSON
+/// or text. Its message where it is JSON, else the text; null if there
+/// is none.
+String? _upstream(Object? json) {
+  if (json is! Map) return null;
+  final error = json['error'];
+  final metadata = error is Map ? error['metadata'] : null;
+  final raw = metadata is Map ? metadata['raw'] : null;
+  if (raw is! String || raw.trim().isEmpty) return null;
+  Object? inner;
+  try {
+    inner = jsonDecode(raw);
+  } on FormatException {
+    inner = null;
+  }
+  final message = _message(inner, raw);
+  return message.isEmpty ? null : message;
+}
+
+String _httpError(ProviderConfig config, int status, String message,
+    {bool refused = false}) {
   final detail = message.isEmpty ? '' : ' $message';
+  if (refused) {
+    final stop = RegExp(r'[.!?]$').hasMatch(message.trimRight()) ? '' : '.';
+    return '${config.name} refused the request because of its content '
+        'rules: ${message.trimRight()}$stop Change the prompt and send it '
+        'again.';
+  }
   return switch (status) {
     401 || 403 => '${config.name} refused the API key (HTTP $status). Check '
         'it in AI settings.$detail',
@@ -1336,6 +1387,33 @@ String _httpError(ProviderConfig config, int status, String message) {
     _ => '${config.name} answered with an error (HTTP $status).$detail',
   };
 }
+
+/// Whether a refused request ([status] 400, 403 or 422) was refused for
+/// what it asks, by the provider's content rules (#298): Gemini through
+/// OpenRouter ("Gemini blocked this request: it was flagged for
+/// copyrighted or trademarked material."), OpenRouter's moderation (HTTP
+/// 403, "Your input was flagged"), OpenAI's safety system, and codes such
+/// as `PROHIBITED_CONTENT`, `content_policy_violation`,
+/// `moderation_blocked` or `INPUT_FLAGGED`. A key that is
+/// refused, a model that is gone or a wrong request is not; nor is a
+/// model ID or a parameter name that has one of the words in it
+/// (`omni-moderation-latest`, `acme/moderation-preview`,
+/// `copyright_check`).
+bool _contentRefusal(int status, String message) =>
+    const {400, 403, 422}.contains(status) &&
+    _refusalWords.hasMatch(message);
+
+final _refusalWords = RegExp(
+  r'blocked this request'
+  r'|safety[ _]system|content[ _]polic|content[ _]filter'
+  r'|prohibited[ _]content|moderation[ _]blocked'
+  // flagged also in codes (INPUT_FLAGGED, flagged_content).
+  r'|(?<![a-z0-9/-])flagged(?![a-z0-9-])'
+  // Only as words: not inside a model ID or a name.
+  r'|(?<![\w/-])(?:moderation|copyright(?:ed|s)?|trademark(?:ed|s)?)'
+  r'(?![\w-])',
+  caseSensitive: false,
+);
 
 /// Whether a provider's error says that the model cannot use tools, and
 /// not just mentions them (Mistral: "must have either content or

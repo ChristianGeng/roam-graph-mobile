@@ -5061,6 +5061,50 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 - **Changelog:** not visible to users, so the pull request has the
   `skip-changelog` label (decision 48).
 
+## 159. A request refused for its content says so, and the app does not retry it (#298)
+
+- **What:** when a provider refuses a request because of its content
+  rules, the app now says "<provider> refused the request because of its
+  content rules: <the provider's message>. Change the prompt and send it
+  again." (the full stop only where the message has none). `postJson`
+  (`lib/ai/ai_chat.dart`) treats an answer with HTTP 400, 403 or 422 as
+  such a refusal when the provider's message says the request was
+  flagged or blocked, or names a safety system, a content policy or
+  filter or prohibited content (with a space or `_` between the words),
+  moderation, copyright or a trademark (`_contentRefusal`). The last
+  three count only as words, not inside a model ID or a name
+  (`omni-moderation-latest`, `acme/moderation-preview`,
+  `copyright_check`). For OpenRouter's "Provider returned error" the
+  provider's own error in `error.metadata.raw` is read too, and shown
+  after it when it is the refusal. The error is marked
+  `AiError.contentRefused` and is not passing, so the app itself does
+  not retry it: no automatic retry, no "send again without the image"
+  for models that take no images (#129), and not the live test's one
+  retry (`isTransient` says no to it, decision 147). The AI may still
+  call `create_image` again in the same message; the tool result of a
+  refused image tells it that the same prompt is refused again, so it
+  changes the prompt or makes no image. The live image tests ask for "A blue cube and a
+  green ball on a grey table, simple 3D rendering" instead of "A red
+  circle on white", for every provider.
+- **Why:** on 2026-11-16 the weekly live test failed (run 43881677182):
+  OpenRouter's Images API with `google/gemini-2.5-flash-image` answered
+  HTTP 400 "Gemini blocked this request: it was flagged for copyrighted
+  or trademarked material." for "A red circle on white". That is the flag
+  of Japan and close to a well-known logo; the same model with the same
+  prompt through Chat Completions passed a moment before, so Gemini's
+  check is not always the same. The app showed it as "OpenRouter answered
+  with an error (HTTP 400). …", which does not tell a user that the
+  prompt is the problem. OpenRouter's own moderation answers HTTP 403
+  ("Your input was flagged"), which the app showed as a refused API key.
+  A chat that had sent an image took such a refusal for a model without
+  image input and stopped sending images.
+- **Not changed:** other refused requests (a wrong key, a model that is
+  gone, a wrong request) keep their messages. A model that answers with
+  HTTP 200 and no image, as Gemini may do for its safety check, still gets
+  "sent no image". The long infographic prompt of the Mistral case stays.
+- **Changelog:** users see the clearer message, so the pull request has
+  an entry.
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept

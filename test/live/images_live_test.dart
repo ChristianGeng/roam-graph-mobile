@@ -29,8 +29,12 @@ const mistralKey = 'MISTRAL_API_KEY';
 const vercelKey = 'VERCEL_AI_GATEWAY_API_KEY';
 const openRouterKey = 'OPENROUTER_API_KEY';
 
-/// Short and synthetic: no real notes in a live test.
-const shortPrompt = 'A red circle on white';
+/// Short and synthetic: no real notes in a live test. Plain objects that
+/// look like no flag, logo or brand: "A red circle on white" is the flag
+/// of Japan and close to a well-known logo, and Gemini refused it once as
+/// "copyrighted or trademarked material" (#298).
+const shortPrompt =
+    'A blue cube and a green ball on a grey table, simple 3D rendering';
 
 /// The long infographic prompt of #181: it names data and sources, which
 /// once made Mistral answer with text and links instead of an image. The
