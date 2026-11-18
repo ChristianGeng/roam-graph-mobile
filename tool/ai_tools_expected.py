@@ -14,7 +14,7 @@ test/ai/ai_tools_test.dart compares with the app:
 
 Run it in the server's environment, from this repo's root:
 
-    uv run --project ~/work/myfiles/org-roam-mcp \\
+    uv run --project <org-roam-mcp checkout> \\
         python tool/ai_tools_expected.py
 
 The server finds its database through Emacs; here it is given the test
@@ -240,7 +240,12 @@ def main():
             "path_hops": path_hops(graph, [n for n, _ in nodes]),
         }
     out = ROOT / "test/fixtures/ai_tools_expected.json"
-    out.write_text(json.dumps(expected, sort_keys=True, separators=(",", ":")) + "\n")
+    text = json.dumps(expected, sort_keys=True, separators=(",", ":"))
+    # The server gives absolute paths below this checkout; the repository
+    # keeps a neutral root instead (#303). The app's test compares files by
+    # name.
+    text = text.replace(str(ROOT / "test/fixtures/roam"), "/notes/roam")
+    out.write_text(text + "\n")
     print(f"wrote {out} ({out.stat().st_size // 1000} KB)")
 
 

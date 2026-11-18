@@ -16,6 +16,7 @@ import 'package:org_flutter/org_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../ai/ai_settings.dart';
+import '../graph/graph_index.dart' show cleanRoot;
 import '../graph/graph_layout.dart';
 import '../graph/roam_graph.dart';
 import '../main.dart' show appVersion;
@@ -99,6 +100,7 @@ class ViewSettings {
     bool? swipeHeadings,
     this.imageFolder = defaultImageFolder,
     this.emacsClient = '',
+    this.emacsRoamDirectory = '',
     this.followEmacs = true,
     this.checkForUpdates = true,
     this.includePreReleases = false,
@@ -163,6 +165,12 @@ class ViewSettings {
   /// empty for the system's default, see [emacsCommand].
   final String emacsClient;
 
+  /// "Notes folder on the computer with Emacs" (#303): `org-roam-directory`
+  /// there, the folder the paths in the app's database start with, so they
+  /// match org-roam's own database and the MCP tools. Empty when not set;
+  /// see [databaseRoot] for what is used then.
+  final String emacsRoamDirectory;
+
   /// Whether the graph follows the node at point in Emacs on the desktop
   /// (#117); on by default. Emacs sends nothing unless
   /// `roam-graph-follow-mode` is on there.
@@ -211,6 +219,7 @@ class ViewSettings {
     bool? swipeHeadings,
     String? imageFolder,
     String? emacsClient,
+    String? emacsRoamDirectory,
     bool? followEmacs,
     bool? checkForUpdates,
     bool? includePreReleases,
@@ -230,6 +239,7 @@ class ViewSettings {
         swipeHeadings: swipeHeadings ?? _swipeHeadings,
         imageFolder: imageFolder ?? this.imageFolder,
         emacsClient: emacsClient ?? this.emacsClient,
+        emacsRoamDirectory: emacsRoamDirectory ?? this.emacsRoamDirectory,
         followEmacs: followEmacs ?? this.followEmacs,
         checkForUpdates: checkForUpdates ?? this.checkForUpdates,
         includePreReleases: includePreReleases ?? this.includePreReleases,
@@ -250,6 +260,7 @@ class ViewSettings {
         'swipeHeadings': ?_swipeHeadings,
         'imageFolder': imageFolder,
         'emacsClient': emacsClient,
+        'emacsRoamDirectory': emacsRoamDirectory,
         'followEmacs': followEmacs,
         'checkForUpdates': checkForUpdates,
         'includePreReleases': includePreReleases,
@@ -306,6 +317,10 @@ class ViewSettings {
         final String command => command,
         _ => defaults.emacsClient,
       },
+      emacsRoamDirectory: switch (json['emacsRoamDirectory']) {
+        final String folder => cleanRoot(folder) ?? '',
+        _ => defaults.emacsRoamDirectory,
+      },
       followEmacs: switch (json['followEmacs']) {
         final bool follow => follow,
         _ => defaults.followEmacs,
@@ -347,6 +362,7 @@ class ViewSettings {
       other._swipeHeadings == _swipeHeadings &&
       other.imageFolder == imageFolder &&
       other.emacsClient == emacsClient &&
+      other.emacsRoamDirectory == emacsRoamDirectory &&
       other.followEmacs == followEmacs &&
       other.checkForUpdates == checkForUpdates &&
       other.includePreReleases == includePreReleases &&
@@ -355,8 +371,8 @@ class ViewSettings {
   @override
   int get hashCode => Object.hash(sectionsOnOpen, graphShare, graphCollapsed,
       startLayout, lastLayout, theme, scripts, joinLines, _swipeHeadings,
-      imageFolder, emacsClient, followEmacs, checkForUpdates, includePreReleases,
-      keys);
+      imageFolder, emacsClient, emacsRoamDirectory, followEmacs,
+      checkForUpdates, includePreReleases, keys);
 }
 
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
@@ -721,6 +737,30 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
+  /// What "Notes folder on the computer with Emacs" uses while it is not
+  /// set (#303, decision 160).
+  static String get roamDirectoryDefault => isDesktop
+      ? 'the notes folder on this computer'
+      : '/notes/ and the name of the notes folder';
+
+  /// Asks for the notes folder on the computer with Emacs (#303); empty is
+  /// not set. Saving another value rebuilds the index, whose paths start
+  /// with it.
+  Future<void> _chooseRoamDirectory(
+      BuildContext context, ViewSettings settings) async {
+    final chosen = await showDialog<String>(
+      context: context,
+      builder: (context) =>
+          _RoamDirectoryDialog(initial: settings.emacsRoamDirectory),
+    );
+    if (chosen != null &&
+        chosen != settings.emacsRoamDirectory &&
+        context.mounted) {
+      await _saveSettings(
+          context, settings.copyWith(emacsRoamDirectory: chosen));
+    }
+  }
+
   /// Asks for the image folder; saves it when it is a folder in `roam/`.
   Future<void> _chooseImageFolder(
       BuildContext context, ViewSettings settings) async {
@@ -826,6 +866,17 @@ class SettingsScreen extends StatelessWidget {
                 ' · images the AI makes go here'),
             onTap: () => _chooseImageFolder(context, settings),
           ),
+          ListTile(
+            key: const ValueKey('settings-roam-directory'),
+            leading: const Icon(Icons.folder_outlined),
+            title: const Text('Notes folder on the computer with Emacs'),
+            subtitle: Text(
+                '${settings.emacsRoamDirectory.isEmpty ? 'Not set: $roamDirectoryDefault' : settings.emacsRoamDirectory}'
+                " · org-roam-directory there; note paths in the app's "
+                'database start with it, to match org-roam and the MCP '
+                'tools'),
+            onTap: () => _chooseRoamDirectory(context, settings),
+          ),
           if (isDesktop)
             ListTile(
               key: const ValueKey('settings-emacs'),
@@ -899,6 +950,63 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The dialog of "Notes folder on the computer with Emacs" (#303). It owns
+/// its text field's controller, so the controller lives as long as the
+/// dialog, also while it closes. Pops the new value, empty for not set.
+class _RoamDirectoryDialog extends StatefulWidget {
+  const _RoamDirectoryDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_RoamDirectoryDialog> createState() => _RoamDirectoryDialogState();
+}
+
+class _RoamDirectoryDialogState extends State<_RoamDirectoryDialog> {
+  late final _field = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _field.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Notes folder on the computer with Emacs'),
+        content: TextField(
+          key: const ValueKey('roam-directory-field'),
+          controller: _field,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: 'Not set: ${SettingsScreen.roamDirectoryDefault}',
+            helperText: 'The full path of org-roam-directory there, as '
+                '(expand-file-name org-roam-directory) gives it. Note paths '
+                "in the app's database start with it, as in org-roam's own "
+                'database. Changing it rebuilds the index.',
+            helperMaxLines: 4,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            key: const ValueKey('roam-directory-clear'),
+            onPressed: () => Navigator.pop(context, ''),
+            child: const Text('Not set'),
+          ),
+          FilledButton(
+            key: const ValueKey('roam-directory-save'),
+            onPressed: () =>
+                Navigator.pop(context, cleanRoot(_field.text) ?? ''),
+            child: const Text('Save'),
+          ),
+        ],
+      );
 }
 
 /// The page "View" (#189): the theme, the sections when a note opens, the

@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-18: The notes folder on the computer with Emacs is a setting ([#306](https://github.com/ChristianGeng/roam-graph-mobile/pull/306))
+
+- Added: Settings, "Note files", has "Notes folder on the computer with Emacs": the `org-roam-directory` there. The paths in the app's database start with it, so they match org-roam's own database and the MCP tools; changing it rebuilds the index. Not set, the desktop uses the notes folder itself and Android uses `/notes/<folder name>`. The index is rebuilt once after the update; to keep the paths as before, set it once to your `org-roam-directory`. Closes #303.
+
 ## 2026-11-18: A request refused for its content says so ([#305](https://github.com/ChristianGeng/roam-graph-mobile/pull/305))
 
 - Fixed: when an AI provider refuses a chat or image request because of its content rules (for example Gemini through OpenRouter: "flagged for copyrighted or trademarked material"), the app now says "<provider> refused the request because of its content rules: …" and asks to change the prompt, instead of a plain "answered with an error (HTTP 400)", or "refused the API key" for OpenRouter's moderation. The app does not retry such a refusal itself (no automatic retry, no resend without the image), a chat no longer stops sending images to the model after one, and when the AI's image is refused it is told that the same prompt is refused again. Closes #298.

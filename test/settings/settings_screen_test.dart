@@ -119,6 +119,74 @@ void main() {
       expect(find.text('Emacs command'), findsNothing);
     });
 
+    testWidgets(
+        '"Notes folder on the computer with Emacs" shows, saves and clears '
+        'its value (#303)', (tester) async {
+      final store = await pumpSettings(tester);
+      final row = find.byKey(const ValueKey('settings-roam-directory'));
+      expect(top(tester, 'settings-note-files'),
+          lessThan(top(tester, 'settings-roam-directory')));
+      expect(find.text('Notes folder on the computer with Emacs'),
+          findsOneWidget);
+      // Not set: on Android the neutral root.
+      expect(
+          find.descendant(
+              of: row,
+              matching: find.textContaining(
+                  'Not set: /notes/ and the name of the notes folder')),
+          findsOneWidget);
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+          find.byKey(const ValueKey('roam-directory-field')), ' /notes/roam/ ');
+      await tester.tap(find.byKey(const ValueKey('roam-directory-save')));
+      await tester.pumpAndSettle();
+      expect(store.settings.emacsRoamDirectory, '/notes/roam');
+      expect(
+          find.descendant(
+              of: row, matching: find.textContaining('/notes/roam · ')),
+          findsOneWidget);
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, '/notes/roam'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('roam-directory-clear')));
+      await tester.pumpAndSettle();
+      expect(store.settings.emacsRoamDirectory, '');
+    });
+
+    testWidgets('not set on the desktop: the notes folder (#303)',
+        (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      try {
+        await pumpSettings(tester);
+        expect(
+            find.textContaining('Not set: the notes folder on this computer'),
+            findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    test('the setting is kept in the file, and missing means not set', () {
+      expect(ViewSettings.fromJson(const {}).emacsRoamDirectory, '');
+      const set = ViewSettings(emacsRoamDirectory: '/notes/roam');
+      expect(ViewSettings.fromJson(set.toJson()), set);
+      expect(ViewSettings.fromJson({'emacsRoamDirectory': '/notes/roam/'})
+              .emacsRoamDirectory,
+          '/notes/roam');
+      expect(ViewSettings.fromJson({'emacsRoamDirectory': 3})
+              .emacsRoamDirectory,
+          '');
+      // A line break, as from a file edited by hand, counts as not set
+      // (#306).
+      expect(ViewSettings.fromJson({'emacsRoamDirectory': '/notes\n/roam'})
+              .emacsRoamDirectory,
+          '');
+      expect(set, isNot(const ViewSettings()));
+    });
+
     testWidgets('AI opens the AI settings page', (tester) async {
       await pumpSettings(tester);
       await tester.tap(find.byKey(const ValueKey('settings-ai')));

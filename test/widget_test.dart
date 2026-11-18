@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -73,8 +74,16 @@ class FakeFolderAccess implements FolderAccess {
     return picked;
   }
 
+  /// How often the folder was listed.
+  int listCalls = 0;
+
+  /// While set, listing the folder waits for it, as a slow folder does.
+  Completer<void>? listGate;
+
   @override
   Future<List<FolderFile>> listFiles(ChosenFolder folder) async {
+    listCalls++;
+    await listGate?.future;
     final error = listError;
     if (error != null) throw error;
     return files;
@@ -224,15 +233,20 @@ class FakeShareInbox implements ShareInbox {
 /// A [GraphIndex] on a real org-roam database in memory, without another
 /// isolate, which tests cannot wait for.
 class TestGraphIndex implements GraphIndex {
-  final db = RoamDatabase.inMemory(root: '/roam');
+  /// The database; opened again when the root changes, which rebuilds it.
+  RoamDatabase db = RoamDatabase.inMemory(root: '/notes/org/roam');
   String? folder;
   int rebuilds = 0;
 
   @override
-  Future<String?> indexedFolder() async => folder;
+  Future<IndexedFolder?> indexedFolder() async {
+    final folder = this.folder;
+    return folder == null ? null : (folder: folder, root: db.root);
+  }
 
   @override
-  Future<List<String>> filesToRead(indexer.Listing listing) async =>
+  Future<List<String>> filesToRead(indexer.Listing listing,
+          {required String root}) async =>
       indexer.filesToRead(db, listing);
 
   @override
@@ -240,12 +254,14 @@ class TestGraphIndex implements GraphIndex {
     indexer.Listing listing,
     Map<String, Uint8List?> contents, {
     required String folder,
+    required String root,
     bool replace = false,
   }) async {
-    final sameFolder = this.folder == folder;
-    if (replace || !sameFolder) rebuilds++;
+    final same = this.folder == folder && db.root == root;
+    if (replace || !same) rebuilds++;
+    if (db.root != root) db = RoamDatabase.inMemory(root: root);
     final graph = indexer.updateIndex(db, listing, contents,
-        replace: replace || !sameFolder, keepUnreadable: sameFolder);
+        replace: replace || !same, keepUnreadable: same);
     this.folder = folder;
     return graph;
   }
@@ -312,6 +328,7 @@ Future<TestGraphIndex> start(
   ApiKeyStore? apiKeys,
   AudioPost? speechPost,
   VoiceWork? voiceWork,
+  bool settle = true,
 }) async {
   final index = TestGraphIndex();
   final nodeMemory = memory ?? MemoryNodeMemory();
@@ -344,7 +361,7 @@ Future<TestGraphIndex> start(
       },
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) await tester.pumpAndSettle();
   return index;
 }
 
@@ -1824,6 +1841,106 @@ void main() {
     expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
   });
 
+  group('the notes folder on the computer with Emacs (#303)', () {
+    testWidgets('not set: the paths start with /notes/ and the folder name',
+        (tester) async {
+      final index = await start(tester, withNotes(saved: org));
+      expect(index.db.root, '/notes/org/roam');
+      expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+      await openFolderSheet(tester);
+      expectSomeNotes(tester);
+    });
+
+    testWidgets('set: the paths start with it, from the first index',
+        (tester) async {
+      final index = await start(tester, withNotes(saved: org),
+          viewSettings: MemoryViewSettingsStore(
+              const ViewSettings(emacsRoamDirectory: '/emacs/org/roam')));
+      expect(index.db.root, '/emacs/org/roam');
+      // Indexed once, below the setting, not first below the default.
+      expect(index.rebuilds, 1);
+      expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+    });
+
+    testWidgets('changing it rebuilds the index below the new root',
+        (tester) async {
+      final access = withNotes(saved: org);
+      final store = MemoryViewSettingsStore();
+      final index = await start(tester, access, viewSettings: store);
+      expect(index.rebuilds, 1);
+      expect(index.db.root, '/notes/org/roam');
+
+      final context = tester.element(find.byType(FolderScreen));
+      await ViewSettingsScope.change(
+          context, store.settings.copyWith(emacsRoamDirectory: '/emacs/roam'));
+      await tester.pumpAndSettle();
+
+      expect(index.rebuilds, 2);
+      expect(index.db.root, '/emacs/roam');
+      expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+      expect(await index.indexedFolder(),
+          (folder: org.uri, root: '/emacs/roam'));
+
+      // The same value again changes nothing.
+      await ViewSettingsScope.change(
+          context, store.settings.copyWith(emacsRoamDirectory: '/emacs/roam'));
+      await tester.pumpAndSettle();
+      expect(index.rebuilds, 2);
+      await openFolderSheet(tester);
+      expectSomeNotes(tester);
+    });
+
+    testWidgets('changed while the first scan lists the files: indexed '
+        'below the new root (#306)', (tester) async {
+      final access = withNotes(saved: org)..listGate = Completer();
+      final store = MemoryViewSettingsStore();
+      final index =
+          await start(tester, access, viewSettings: store, settle: false);
+      await tester.pump();
+      await tester.pump();
+      expect(access.listCalls, 1);
+
+      final context = tester.element(find.byType(FolderScreen));
+      await ViewSettingsScope.change(
+          context, store.settings.copyWith(emacsRoamDirectory: '/emacs/roam'));
+      await tester.pump();
+      access.listGate!.complete();
+      access.listGate = null;
+      await tester.pumpAndSettle();
+
+      // Not first below the old root: one more scan, one index.
+      expect(index.db.root, '/emacs/roam');
+      expect(await index.indexedFolder(),
+          (folder: org.uri, root: '/emacs/roam'));
+      expect(index.rebuilds, 1);
+      expect(access.listCalls, 2);
+      expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+    });
+
+    testWidgets('settings that load after the scan gave up waiting: '
+        'indexed below the loaded root (#306)', (tester) async {
+      final access = withNotes(saved: org)..listGate = Completer();
+      final store = _SlowViewSettingsStore(
+          const ViewSettings(emacsRoamDirectory: '/emacs/org/roam'));
+      final index =
+          await start(tester, access, viewSettings: store, settle: false);
+      // ViewSettingsScope.current gives up after 1 s: the scan goes on
+      // with the defaults and lists the folder.
+      await tester.pump(const Duration(seconds: 2));
+      expect(access.listCalls, 1);
+
+      store.loaded.complete();
+      await tester.pump();
+      access.listGate!.complete();
+      access.listGate = null;
+      await tester.pumpAndSettle();
+
+      expect(index.db.root, '/emacs/org/roam');
+      expect(index.rebuilds, 1);
+      expect(access.listCalls, 2);
+    });
+  });
+
   testWidgets('a rebuild keeps a file it cannot read', (tester) async {
     final access = withNotes(saved: org);
     final index = await start(tester, access);
@@ -1923,4 +2040,17 @@ void main() {
     await openFolderSheet(tester);
     expectSomeNotes(tester);
   });
+}
+
+/// A [ViewSettingsStore] whose file is read only when [loaded] completes.
+class _SlowViewSettingsStore extends MemoryViewSettingsStore {
+  _SlowViewSettingsStore(super.settings);
+
+  final loaded = Completer<void>();
+
+  @override
+  Future<ViewSettings> load() async {
+    await loaded.future;
+    return settings;
+  }
 }

@@ -11,9 +11,19 @@ to bottom:
   provider and model, for example "Mistral · mistral-large-4".
 - *View*: opens the page *View*. Under the name it shows the theme and the
   graph layout at start, for example "System · Radial".
-- *Note files*: a heading with two rows:
+- *Note files*: a heading with these rows:
   - *Folder for new images*: where images made by the AI go, relative to
     ~roam/~ (~img~ by default). *Default* sets it back.
+  - *Notes folder on the computer with Emacs*: the full path of
+    ~org-roam-directory~ on the computer that runs Emacs, as
+    ~(expand-file-name org-roam-directory)~ gives it there. The app's
+    database stores each note with its path below this folder, as
+    org-roam's own database does, so the paths match org-roam and the
+    org-roam MCP tools. Changing it rebuilds the index. *Not set* (the
+    default): on Linux, Windows and macOS the notes folder the app reads;
+    on Android ~/notes/~ and the name of the notes folder, for example
+    ~/notes/org/roam~. The graph, search and the AI chat work the same
+    either way.
   - *Emacs command* (desktop only): what *Open in Emacs* runs; see
     [[id:roam-graph-help-desktop][The desktop app]]. On Android the row is
     not shown.
