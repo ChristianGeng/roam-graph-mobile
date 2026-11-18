@@ -178,7 +178,9 @@ void main() {
           'content rules, and it refuses the same prompt again. Do not send '
           'it again: change the prompt, or make no image. OpenRouter refused '
           'the request because of its content rules: Your input was '
-          'flagged. Change the prompt and send it again.');
+          'flagged.');
+      // Not the user's "Change the prompt and send it again.".
+      expect(result, isNot(contains('and send it again')));
       expect(store.files['open.org'], start['open.org']);
     });
 

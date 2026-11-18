@@ -922,6 +922,9 @@ void main() {
         'PROHIBITED_CONTENT',
         'content_policy_violation',
         'Blocked by safety_system',
+        'moderation_blocked',
+        'INPUT_FLAGGED',
+        'flagged_content',
       ]) {
         await expectLater(
             makeImage(openRouter(), 'x',

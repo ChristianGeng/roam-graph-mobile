@@ -47,7 +47,8 @@ const createNodeTool = AiTool(
       },
       'language': {
         'type': 'string',
-        'description': 'The language code of the note, such as de or en, '
+        'description':
+            'The language code of the note, such as de or en, '
             'only when my request asks for a language; otherwise the app '
             'writes the language the system prompt names',
       },
@@ -203,8 +204,11 @@ const agentTools = [
 /// One image model for `create_image` (#183): how to ask it, and what
 /// the tool says about it.
 class ImageModel {
-  const ImageModel(
-      {required this.make, required this.name, this.maxPrompt = 4000});
+  const ImageModel({
+    required this.make,
+    required this.name,
+    this.maxPrompt = 4000,
+  });
 
   /// Asks the image model; throws [AiError].
   final Future<MadeImage> Function(String prompt) make;
@@ -311,22 +315,26 @@ AiTool createImageTool(ImageMaker maker) {
         'kind': {
           'type': 'string',
           'enum': [for (final kind in ImageKind.values) kind.name],
-          'description': '"infographic" for numbers, labels or text; else '
+          'description':
+              '"infographic" for numbers, labels or text; else '
               '"illustration" (the default)',
         },
         'prompt': {
           'type': 'string',
-          'description': 'What the image shows, with all facts and labels; '
+          'description':
+              'What the image shows, with all facts and labels; '
               'for an infographic a layout brief, without links',
         },
         'caption': {
           'type': 'string',
-          'description': 'A short caption for the note, one line, in the '
+          'description':
+              'A short caption for the note, one line, in the '
               'language of the note',
         },
         'data': {
           'type': 'object',
-          'description': 'Only for an infographic, and needed there: the '
+          'description':
+              'Only for an infographic, and needed there: the '
               'values it shows, written into the note below the image',
           'properties': {
             'columns': {
@@ -340,7 +348,8 @@ AiTool createImageTool(ImageMaker maker) {
                 'type': 'array',
                 'items': {'type': 'string'},
               },
-              'description': 'The rows, one value per column, as written '
+              'description':
+                  'The rows, one value per column, as written '
                   'in the picture',
             },
             'source': {
@@ -395,7 +404,8 @@ const createChartTool = AiTool(
       'type': {
         'type': 'string',
         'enum': ['line', 'bar', 'area'],
-        'description': 'line for change over time, bar for comparisons, '
+        'description':
+            'line for change over time, bar for comparisons, '
             'area for a total over time',
       },
       'title': {'type': 'string', 'description': 'The title of the chart'},
@@ -421,7 +431,8 @@ const createChartTool = AiTool(
                 'properties': {
                   'x': {
                     'type': 'string',
-                    'description': 'A date (YYYY-MM-DD or YYYY-MM) or a '
+                    'description':
+                        'A date (YYYY-MM-DD or YYYY-MM) or a '
                         'category',
                   },
                   'y': {'type': 'number'},
@@ -450,7 +461,8 @@ const createChartTool = AiTool(
       },
       'caption': {
         'type': 'string',
-        'description': 'A short caption for the note, one line, in the '
+        'description':
+            'A short caption for the note, one line, in the '
             'language of the note',
       },
       'marks': {
@@ -512,22 +524,25 @@ class InfographicData {
   /// [json], the tool's `data`, checked; a [ToolError] says what is wrong.
   factory InfographicData.from(Object? json) {
     if (json is! Map) {
-      throw const ToolError('an infographic needs data: columns, rows, '
-          'source (name and url) and retrieved.');
+      throw const ToolError(
+        'an infographic needs data: columns, rows, '
+        'source (name and url) and retrieved.',
+      );
     }
     String cell(Object? value) => switch (value) {
-          final String text => tableCell(text),
-          final num number => '$number',
-          null => '',
-          _ => throw const ToolError('data values must be text or numbers.'),
-        };
+      final String text => tableCell(text),
+      final num number => '$number',
+      null => '',
+      _ => throw const ToolError('data values must be text or numbers.'),
+    };
     final columns = json['columns'];
     if (columns is! List || columns.isEmpty) {
       throw const ToolError('data.columns is missing.');
     }
     if (columns.length > maxColumns) {
       throw const ToolError(
-          'data has more than $maxColumns columns; keep the table small.');
+        'data has more than $maxColumns columns; keep the table small.',
+      );
     }
     final rows = json['rows'];
     if (rows is! List || rows.isEmpty) {
@@ -535,7 +550,8 @@ class InfographicData {
     }
     if (rows.length > maxRows) {
       throw const ToolError(
-          'data has more than $maxRows rows; keep the table small.');
+        'data has more than $maxRows rows; keep the table small.',
+      );
     }
     final table = <List<String>>[];
     for (final row in rows) {
@@ -543,8 +559,10 @@ class InfographicData {
         throw const ToolError('each row in data.rows must be a list.');
       }
       if (row.length > columns.length) {
-        throw const ToolError('a row in data.rows has more values than '
-            'data.columns has columns.');
+        throw const ToolError(
+          'a row in data.rows has more values than '
+          'data.columns has columns.',
+        );
       }
       table.add([
         for (var i = 0; i < columns.length; i++)
@@ -562,14 +580,19 @@ class InfographicData {
       throw const ToolError('data.source needs a name and a url.');
     }
     if (!RegExp(r'^(https?://|id:)[^\s\[\]]+$').hasMatch(url)) {
-      throw const ToolError('data.source.url must be an https:// link, or '
-          'id:<ID> for a note.');
+      throw const ToolError(
+        'data.source.url must be an https:// link, or '
+        'id:<ID> for a note.',
+      );
     }
-    final retrieved =
-        json['retrieved'] is String ? (json['retrieved'] as String).trim() : '';
+    final retrieved = json['retrieved'] is String
+        ? (json['retrieved'] as String).trim()
+        : '';
     if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(retrieved)) {
-      throw const ToolError('data.retrieved must be the date the data was '
-          'read, as YYYY-MM-DD.');
+      throw const ToolError(
+        'data.retrieved must be the date the data was '
+        'read, as YYYY-MM-DD.',
+      );
     }
     return InfographicData(
       columns: [for (final c in columns) cell(c)],
@@ -587,14 +610,13 @@ class InfographicData {
   String get org {
     final widths = [
       for (var i = 0; i < columns.length; i++)
-        [columns[i], for (final row in rows) row[i]]
-            .map((c) => c.runes.length)
-            .reduce(max),
+        [
+          columns[i],
+          for (final row in rows) row[i],
+        ].map((c) => c.runes.length).reduce(max),
     ];
-    String line(List<String> cells) => '| ${[
-          for (var i = 0; i < cells.length; i++)
-            cells[i] + ' ' * (widths[i] - cells[i].runes.length),
-        ].join(' | ')} |';
+    String line(List<String> cells) =>
+        '| ${[for (var i = 0; i < cells.length; i++) cells[i] + ' ' * (widths[i] - cells[i].runes.length)].join(' | ')} |';
     return [
       line(columns),
       '|${[for (final w in widths) '-' * (w + 2)].join('+')}|',
@@ -638,8 +660,8 @@ class AgentWriter {
     this.language = defaultNoteLanguage,
     DateTime Function()? now,
     Random? random,
-  })  : _now = now ?? DateTime.now,
-        _random = random;
+  }) : _now = now ?? DateTime.now,
+       _random = random;
 
   /// The image model for `create_image`; null where there is none (#129).
   final ImageMaker? images;
@@ -676,10 +698,10 @@ class AgentWriter {
   /// The tools this writer offers: [agentTools], and `create_image` where
   /// there is an image model, and `create_chart` where charts can be saved.
   List<AiTool> get tools => [
-        ...agentTools,
-        if (images case final maker?) createImageTool(maker),
-        if (chartFolder != null && writer.createFile != null) createChartTool,
-      ];
+    ...agentTools,
+    if (images case final maker?) createImageTool(maker),
+    if (chartFolder != null && writer.createFile != null) createChartTool,
+  ];
 
   final NoteWriter writer;
 
@@ -720,7 +742,8 @@ class AgentWriter {
     _chartCount = 0;
     _infographicTries.clear();
     return changes = AgentChanges(
-      messageId: '${time.microsecondsSinceEpoch.toRadixString(36)}-'
+      messageId:
+          '${time.microsecondsSinceEpoch.toRadixString(36)}-'
           '${(_random ?? Random()).nextInt(1 << 30).toRadixString(36)}',
       prompt: words.length <= 80 ? words : '${words.substring(0, 79)}…',
       time: time,
@@ -729,8 +752,8 @@ class AgentWriter {
 
   /// The tools this writer runs, by name, for [ChatSession.handlers].
   Map<String, Future<String> Function(ToolCall call)> get handlers => {
-        for (final tool in tools) tool.name: run,
-      };
+    for (final tool in tools) tool.name: run,
+  };
 
   /// Runs one tool call; the text goes back to the model. A call that
   /// breaks a rule changes nothing and returns an error the model can act
@@ -751,8 +774,7 @@ class AgentWriter {
         'delete_node' => await _delete(editor, call.input),
         'rename_node' ||
         'set_tags' ||
-        'set_aliases' =>
-          await _meta(editor, call.name, call.input),
+        'set_aliases' => await _meta(editor, call.name, call.input),
         'set_language' => await _setLanguage(editor, call.input),
         'create_image' => await _image(editor, call),
         'create_chart' => await _chart(editor, call),
@@ -763,8 +785,11 @@ class AgentWriter {
     }
   }
 
-  static String _string(Map<String, Object?> args, String key,
-      {bool required = true}) {
+  static String _string(
+    Map<String, Object?> args,
+    String key, {
+    bool required = true,
+  }) {
     final value = args[key];
     if (value is String && value.trim().isNotEmpty) return value;
     if (!required && (value == null || value is String)) return '';
@@ -788,25 +813,34 @@ class AgentWriter {
         if (!graph.nodes.containsKey(id)) id,
     ];
     if (unknown.isNotEmpty) {
-      throw ToolError('These link targets are no notes you may see: '
-          '${unknown.join(', ')}. Use IDs the tools gave you.');
+      throw ToolError(
+        'These link targets are no notes you may see: '
+        '${unknown.join(', ')}. Use IDs the tools gave you.',
+      );
     }
   }
 
   /// The file of [node] as it is now, checked: still visible, and the node
   /// still in it.
-  Future<(NoteVersion, NodeLines)> _read(NoteEditor editor, RoamNode node) async {
+  Future<(NoteVersion, NodeLines)> _read(
+    NoteEditor editor,
+    RoamNode node,
+  ) async {
     _folderKey = editor.store.historyKey(node.file);
     final base = await editor.read(node.file);
     if (base == null) throw ToolError('${node.file} cannot be read as text.');
     if (visibility.hidesInText(node, base.text)) {
-      throw ToolError('There is no note with the ID ${node.id} that you may '
-          'see.');
+      throw ToolError(
+        'There is no note with the ID ${node.id} that you may '
+        'see.',
+      );
     }
     final lines = NodeLines.find(base.text, node);
     if (lines == null) {
-      throw ToolError('The note ${node.id} is no longer in ${node.file} with '
-          'its :ID:. Search for it again.');
+      throw ToolError(
+        'The note ${node.id} is no longer in ${node.file} with '
+        'its :ID:. Search for it again.',
+      );
     }
     return (base, lines);
   }
@@ -822,27 +856,37 @@ class AgentWriter {
     };
     _checkLinks(text);
     if (!sameLockedKeywords('', text)) {
-      throw const ToolError('#+title: and #+filetags: lines go in title and '
-          'tags, not in the text.');
+      throw const ToolError(
+        '#+title: and #+filetags: lines go in title and '
+        'tags, not in the text.',
+      );
     }
     if (!sameLanguageLines('', text)) {
-      throw const ToolError('a #+language: line goes in language, not in '
-          'the text.');
+      throw const ToolError(
+        'a #+language: line goes in language, not in '
+        'the text.',
+      );
     }
     final asked = _string(args, 'language', required: false);
     final code = asked.isEmpty ? language : languageCode(asked);
     if (code == null) {
-      throw ToolError('$asked is no language code; give one such as de or '
-          'en.');
+      throw ToolError(
+        '$asked is no language code; give one such as de or '
+        'en.',
+      );
     }
     if (propertyDrawers(text).isNotEmpty) {
-      throw const ToolError('the text may not hold property drawers or '
-          ':ID:s; a new note gets its own.');
+      throw const ToolError(
+        'the text may not hold property drawers or '
+        ':ID:s; a new note gets its own.',
+      );
     }
     final hidden = tags.where(visibility.hiddenTags.contains).toList();
     if (hidden.isNotEmpty) {
-      throw ToolError('The tag ${hidden.first} hides a note from you; '
-          'leave it out.');
+      throw ToolError(
+        'The tag ${hidden.first} hides a note from you; '
+        'leave it out.',
+      );
     }
     var time = _now();
     final last = _lastCreated;
@@ -851,7 +895,12 @@ class AgentWriter {
     }
     final id = newOrgId(_random);
     final content = nodeFileText(
-        id: id, title: title, tags: tags, body: text, language: code);
+      id: id,
+      title: title,
+      tags: tags,
+      body: text,
+      language: code,
+    );
     for (var attempt = 0; attempt < 5; attempt++) {
       final name = nodeFileName(time, title);
       final result = await writer.create(name, content);
@@ -863,8 +912,10 @@ class AgentWriter {
         case FileExists():
           time = time.add(const Duration(seconds: 1));
         case NoWriteAccess():
-          throw const ToolError('the app may only read the folder. Tell me '
-              'to choose the folder again in the app to allow writing.');
+          throw const ToolError(
+            'the app may only read the folder. Tell me '
+            'to choose the folder again in the app to allow writing.',
+          );
         case CreateFailed(:final message):
           throw ToolError('the note could not be written: $message');
       }
@@ -878,17 +929,27 @@ class AgentWriter {
     _checkLinks(addition);
     final (base, lines) = await _read(editor, node);
     if (!sameLockedKeywords('', addition)) {
-      throw const ToolError('#+title: and #+filetags: lines cannot be added; '
-          'they would change the title or tags.');
+      throw const ToolError(
+        '#+title: and #+filetags: lines cannot be added; '
+        'they would change the title or tags.',
+      );
     }
     if (!sameLanguageLines('', addition)) {
-      throw const ToolError('a #+language: line cannot be added here; use '
-          'set_language when I ask for a language.');
+      throw const ToolError(
+        'a #+language: line cannot be added here; use '
+        'set_language when I ask for a language.',
+      );
     }
     final after = appendToNode(base.text, node, _withNewline(addition, lines));
     if (after == null) throw ToolError('The note ${node.id} was not found.');
-    return _save(editor, 'append_to_node', node, base, after,
-        'Added the text to "${node.displayTitle}".');
+    return _save(
+      editor,
+      'append_to_node',
+      node,
+      base,
+      after,
+      'Added the text to "${node.displayTitle}".',
+    );
   }
 
   Future<String> _edit(NoteEditor editor, Map<String, Object?> args) async {
@@ -901,27 +962,41 @@ class AgentWriter {
     // Parts hidden from the AI must stay as they are; it never saw them.
     final shown = visibility.filterText(body, hiddenIds());
     if (shown != body.replaceAll('\r\n', '\n')) {
-      throw const ToolError('this note has parts hidden from you, so its '
-          'text cannot be replaced; use append_to_node or add_link.');
+      throw const ToolError(
+        'this note has parts hidden from you, so its '
+        'text cannot be replaced; use append_to_node or add_link.',
+      );
     }
-    final old = _withNewline(oldText, lines), replacement =
-        _withNewline(newText, lines);
+    final old = _withNewline(oldText, lines),
+        replacement = _withNewline(newText, lines);
     final count = old.allMatches(body).length;
     if (count == 0) {
-      throw const ToolError('"old" is not in the note\'s text. Read the '
-          'note again and copy the text exactly.');
+      throw const ToolError(
+        '"old" is not in the note\'s text. Read the '
+        'note again and copy the text exactly.',
+      );
     }
     if (count > 1) {
-      throw ToolError('"old" occurs $count times; give more of the text '
-          'around it, so it occurs once.');
+      throw ToolError(
+        '"old" occurs $count times; give more of the text '
+        'around it, so it occurs once.',
+      );
     }
     final newBody = body.replaceFirst(old, replacement);
     if (!sameLockedKeywords(body, newBody)) {
-      throw const ToolError('#+title: and #+filetags: lines stay as they '
-          'are: they set the note\'s title and tags.');
+      throw const ToolError(
+        '#+title: and #+filetags: lines stay as they '
+        'are: they set the note\'s title and tags.',
+      );
     }
-    return _save(editor, 'edit_node_text', node, base, lines.withBody(newBody),
-        'Changed the text of "${node.displayTitle}".');
+    return _save(
+      editor,
+      'edit_node_text',
+      node,
+      base,
+      lines.withBody(newBody),
+      'Changed the text of "${node.displayTitle}".',
+    );
   }
 
   Future<String> _link(NoteEditor editor, Map<String, Object?> args) async {
@@ -930,14 +1005,26 @@ class AgentWriter {
     if (from.id == to.id) throw const ToolError('a note cannot link itself.');
     final description = _string(args, 'description', required: false);
     final (base, lines) = await _read(editor, from);
-    final after = withSeeAlso(lines, to.id,
-        orgLink(to.id, description.trim().isEmpty ? to.displayTitle : description));
+    final after = withSeeAlso(
+      lines,
+      to.id,
+      orgLink(
+        to.id,
+        description.trim().isEmpty ? to.displayTitle : description,
+      ),
+    );
     if (after == null) {
       return '"${from.displayTitle}" links to "${to.displayTitle}" already; '
           'nothing changed.';
     }
-    return _save(editor, 'add_link', from, base, after,
-        'Linked "${from.displayTitle}" to "${to.displayTitle}".');
+    return _save(
+      editor,
+      'add_link',
+      from,
+      base,
+      after,
+      'Linked "${from.displayTitle}" to "${to.displayTitle}".',
+    );
   }
 
   /// `create_image` (#129): the image model draws the prompt; the image
@@ -948,8 +1035,10 @@ class AgentWriter {
     final maker = images;
     final createFile = writer.createFile;
     if (maker == null || createFile == null) {
-      throw const ToolError('no image model is set up; tell me to choose '
-          'one under "Images with:" in AI settings.');
+      throw const ToolError(
+        'no image model is set up; tell me to choose '
+        'one under "Images with:" in AI settings.',
+      );
     }
     final args = call.input;
     final node = _node(_string(args, 'id'));
@@ -957,43 +1046,54 @@ class AgentWriter {
       null || '' || 'illustration' => ImageKind.illustration,
       'infographic' => ImageKind.infographic,
       _ => throw const ToolError(
-          'kind must be "illustration" or "infographic".'),
+        'kind must be "illustration" or "infographic".',
+      ),
     };
     if (kind == ImageKind.illustration) {
       if (maker.noIllustrations case final why?) {
-        throw ToolError('an illustration cannot be made now: $why. Only '
-            'kind "infographic" can be made.');
+        throw ToolError(
+          'an illustration cannot be made now: $why. Only '
+          'kind "infographic" can be made.',
+        );
       }
     }
     final model = maker.forKind(kind);
     final prompt = _string(args, 'prompt').trim();
     final caption = oneLine(_string(args, 'caption', required: false));
     if (prompt.length > model.maxPrompt) {
-      throw ToolError('the prompt has ${prompt.length} characters; the image '
-          'model takes at most ${model.maxPrompt}. Shorten it.');
+      throw ToolError(
+        'the prompt has ${prompt.length} characters; the image '
+        'model takes at most ${model.maxPrompt}. Shorten it.',
+      );
     }
     final infographic = kind == ImageKind.infographic;
     final data = infographic ? InfographicData.from(args['data']) : null;
     if (data != null) {
       if (RegExp(r'https?://|www\.', caseSensitive: false).hasMatch(prompt)) {
-        throw const ToolError('the prompt has a link. Name the source and '
-            'the date in the prompt without its link; the link goes into '
-            'data.source.url.');
+        throw const ToolError(
+          'the prompt has a link. Name the source and '
+          'the date in the prompt without its link; the link goes into '
+          'data.source.url.',
+        );
       }
       if (data.sourceUrl.startsWith('id:')) {
         _checkLinks('[[${data.sourceUrl}]]');
       }
       if ((_infographicTries[node.id] ?? 0) >= 2) {
-        throw const ToolError('this note\'s infographic was made twice in '
-            'this message already. Do not make it again; tell me what is '
-            'still wrong in it.');
+        throw const ToolError(
+          'this note\'s infographic was made twice in '
+          'this message already. Do not make it again; tell me what is '
+          'still wrong in it.',
+        );
       }
     }
     if (_imageCount >= maker.limit) {
-      throw ToolError('the limit of ${maker.limit} '
-          '${maker.limit == 1 ? 'image' : 'images'} for one message is '
-          'reached. Tell me what is wrong with the image instead; I can ask '
-          'for another in the next message.');
+      throw ToolError(
+        'the limit of ${maker.limit} '
+        '${maker.limit == 1 ? 'image' : 'images'} for one message is '
+        'reached. Tell me what is wrong with the image instead; I can ask '
+        'for another in the next message.',
+      );
     }
     // The note must be one the AI may see, before anything is made.
     await _read(editor, node);
@@ -1004,10 +1104,18 @@ class AgentWriter {
       // Refused for its content (#298): the same prompt is refused again,
       // so the AI must change it or leave the image out.
       if (e.contentRefused) {
-        throw ToolError('the image model refused this prompt because of '
-            'its content rules, and it refuses the same prompt again. Do '
-            'not send it again: change the prompt, or make no image. '
-            '${e.message}');
+        // Without the user's advice ("Change the prompt and send it
+        // again."), which the model could take as "send it again".
+        final detail = e.message.replaceFirst(
+          RegExp(r'\s*Change the prompt and send it again\.\s*$'),
+          '',
+        );
+        throw ToolError(
+          'the image model refused this prompt because of '
+          'its content rules, and it refuses the same prompt again. Do '
+          'not send it again: change the prompt, or make no image. '
+          '$detail',
+        );
       }
       throw ToolError('the image model failed: ${e.message}');
     }
@@ -1017,22 +1125,29 @@ class AgentWriter {
     var time = _now();
     String? path;
     for (var attempt = 0; attempt < 5 && path == null; attempt++) {
-      final candidate =
-          imagePath(maker.folder, time, node.displayTitle, image.extension);
+      final candidate = imagePath(
+        maker.folder,
+        time,
+        node.displayTitle,
+        image.extension,
+      );
       switch (await createFile(candidate, image.bytes)) {
         case Created() || WrittenNotIndexed():
           path = candidate;
         case FileExists():
           time = time.add(const Duration(seconds: 1));
         case NoWriteAccess():
-          throw const ToolError('the app may only read the folder. Tell me '
-              'to choose the folder again in the app to allow writing.');
+          throw const ToolError(
+            'the app may only read the folder. Tell me '
+            'to choose the folder again in the app to allow writing.',
+          );
         case CreateFailed(:final message):
           throw ToolError('the image could not be written: $message');
       }
     }
     if (path == null) throw const ToolError('no free file name for the image.');
-    final block = '# image prompt: ${oneLine(prompt)}\n'
+    final block =
+        '# image prompt: ${oneLine(prompt)}\n'
         '${imageAddition(caption.isEmpty ? oneLine(prompt) : caption, relativeLink(node.file, path))}'
         '${data == null ? '' : '\n${data.org}\n'}';
     // The note as it is now: the image took a while.
@@ -1041,17 +1156,26 @@ class AgentWriter {
     final body = lines.body;
     final String after;
     final String done;
-    final old = earlier == null ? null : _withNewline(earlier.trimRight(), lines);
+    final old = earlier == null
+        ? null
+        : _withNewline(earlier.trimRight(), lines);
     if (old != null && old.allMatches(body).length == 1) {
       after = lines.withBody(
-          body.replaceFirst(old, _withNewline(block.trimRight(), lines)));
+        body.replaceFirst(old, _withNewline(block.trimRight(), lines)),
+      );
       done = 'Replaced the image of this message in "${node.displayTitle}"';
     } else {
       after = lines.withAddition(_withNewline(block, lines));
       done = 'Added the image to "${node.displayTitle}"';
     }
-    final result = await _save(editor, 'create_image', node, base, after,
-        '$done, as roam/$path, with the caption "${caption.isEmpty ? oneLine(prompt) : caption}".');
+    final result = await _save(
+      editor,
+      'create_image',
+      node,
+      base,
+      after,
+      '$done, as roam/$path, with the caption "${caption.isEmpty ? oneLine(prompt) : caption}".',
+    );
     _imageBlocks[node.id] = block;
     _imagesByCall[call.id] = ToolImage(image.bytes, switch (image.extension) {
       'jpg' => 'image/jpeg',
@@ -1059,9 +1183,10 @@ class AgentWriter {
       _ => 'image/png',
     });
     if (data == null) return '$result Made by ${model.name}.';
-    final tries =
-        _infographicTries[node.id] = (_infographicTries[node.id] ?? 0) + 1;
-    final check = 'Made by ${model.name}. The data table and the source '
+    final tries = _infographicTries[node.id] =
+        (_infographicTries[node.id] ?? 0) + 1;
+    final check =
+        'Made by ${model.name}. The data table and the source '
         'line are in the note below the image. Compare every number and '
         'label in the picture with data.';
     if (tries >= 2) {
@@ -1097,10 +1222,12 @@ class AgentWriter {
       _checkLinks('[[${spec.data.sourceUrl}]]');
     }
     if (_chartCount >= chartLimit) {
-      throw ToolError('the limit of $chartLimit '
-          '${chartLimit == 1 ? 'chart' : 'charts'} for one message is '
-          'reached. Tell me what is wrong with the chart instead; I can ask '
-          'for another in the next message.');
+      throw ToolError(
+        'the limit of $chartLimit '
+        '${chartLimit == 1 ? 'chart' : 'charts'} for one message is '
+        'reached. Tell me what is wrong with the chart instead; I can ask '
+        'for another in the next message.',
+      );
     }
     // The note must be one the AI may see, before anything is drawn.
     await _read(editor, node);
@@ -1123,15 +1250,18 @@ class AgentWriter {
         case FileExists():
           time = time.add(const Duration(seconds: 1));
         case NoWriteAccess():
-          throw const ToolError('the app may only read the folder. Tell me '
-              'to choose the folder again in the app to allow writing.');
+          throw const ToolError(
+            'the app may only read the folder. Tell me '
+            'to choose the folder again in the app to allow writing.',
+          );
         case CreateFailed(:final message):
           throw ToolError('the chart could not be written: $message');
       }
     }
     if (path == null) throw const ToolError('no free file name for the chart.');
     final caption = spec.caption.isEmpty ? spec.title : spec.caption;
-    final block = '${imageAddition(caption, relativeLink(node.file, path))}'
+    final block =
+        '${imageAddition(caption, relativeLink(node.file, path))}'
         '\n${spec.data.org}\n';
     final (base, lines) = await _read(editor, node);
     final key = '${node.id}#chart';
@@ -1139,20 +1269,30 @@ class AgentWriter {
     final body = lines.body;
     final String after;
     final String done;
-    final old = earlier == null ? null : _withNewline(earlier.trimRight(), lines);
+    final old = earlier == null
+        ? null
+        : _withNewline(earlier.trimRight(), lines);
     if (old != null && old.allMatches(body).length == 1) {
       after = lines.withBody(
-          body.replaceFirst(old, _withNewline(block.trimRight(), lines)));
+        body.replaceFirst(old, _withNewline(block.trimRight(), lines)),
+      );
       done = 'Replaced the chart of this message in "${node.displayTitle}"';
     } else {
       after = lines.withAddition(_withNewline(block, lines));
       done = 'Added the chart to "${node.displayTitle}"';
     }
-    final result = await _save(editor, 'create_chart', node, base, after,
-        '$done, as roam/$path, with the caption "$caption".');
+    final result = await _save(
+      editor,
+      'create_chart',
+      node,
+      base,
+      after,
+      '$done, as roam/$path, with the caption "$caption".',
+    );
     _imageBlocks[key] = block;
     _imagesByCall[call.id] = ToolImage(bytes, 'image/png');
-    final check = 'Drawn by the app from your values. The data table and '
+    final check =
+        'Drawn by the app from your values. The data table and '
         'the source line are in the note below the chart. Check the chart '
         'against your data: title, axis labels, units and marks.';
     if (_chartCount >= chartLimit) {
@@ -1168,7 +1308,10 @@ class AgentWriter {
   /// `rename_node`, `set_tags` and `set_aliases` (#97): the node's head,
   /// and nothing else of it.
   Future<String> _meta(
-      NoteEditor editor, String tool, Map<String, Object?> args) async {
+    NoteEditor editor,
+    String tool,
+    Map<String, Object?> args,
+  ) async {
     final node = _node(_string(args, 'id'));
     List<String> list(String key) {
       final value = args[key];
@@ -1184,28 +1327,33 @@ class AgentWriter {
     }
     final meta = switch (tool) {
       'rename_node' => NodeMeta(
-          title: oneLine(_string(args, 'title')),
-          tags: current.tags,
-          aliases: current.aliases),
+        title: oneLine(_string(args, 'title')),
+        tags: current.tags,
+        aliases: current.aliases,
+      ),
       'set_tags' => NodeMeta(
-          title: current.title,
-          tags: [
-            for (final t in list('tags'))
-              if (t.isNotEmpty) t.replaceAll(':', ''),
-          ],
-          aliases: current.aliases),
+        title: current.title,
+        tags: [
+          for (final t in list('tags'))
+            if (t.isNotEmpty) t.replaceAll(':', ''),
+        ],
+        aliases: current.aliases,
+      ),
       _ => NodeMeta(
-          title: current.title,
-          tags: current.tags,
-          aliases: [
-            for (final a in list('aliases'))
-              if (a.isNotEmpty) a,
-          ]),
+        title: current.title,
+        tags: current.tags,
+        aliases: [
+          for (final a in list('aliases'))
+            if (a.isNotEmpty) a,
+        ],
+      ),
     };
     final hidden = meta.tags.where(visibility.hiddenTags.contains).toList();
     if (hidden.isNotEmpty) {
-      throw ToolError('The tag ${hidden.first} hides a note from you; leave '
-          'it out.');
+      throw ToolError(
+        'The tag ${hidden.first} hides a note from you; leave '
+        'it out.',
+      );
     }
     final String after;
     try {
@@ -1215,34 +1363,45 @@ class AgentWriter {
     }
     final what = switch (tool) {
       'rename_node' => 'Renamed "${node.displayTitle}" to "${meta.title}".',
-      'set_tags' => meta.tags.isEmpty
-          ? 'Removed the tags of "${node.displayTitle}".'
-          : 'Set the tags of "${node.displayTitle}": ${meta.tags.join(' ')}.',
-      _ => meta.aliases.isEmpty
-          ? 'Removed the aliases of "${node.displayTitle}".'
-          : 'Set the aliases of "${node.displayTitle}": '
-              '${meta.aliases.join(', ')}.',
+      'set_tags' =>
+        meta.tags.isEmpty
+            ? 'Removed the tags of "${node.displayTitle}".'
+            : 'Set the tags of "${node.displayTitle}": ${meta.tags.join(' ')}.',
+      _ =>
+        meta.aliases.isEmpty
+            ? 'Removed the aliases of "${node.displayTitle}".'
+            : 'Set the aliases of "${node.displayTitle}": '
+                  '${meta.aliases.join(', ')}.',
     };
-    return _save(editor, tool, node, base, after, what,
-        aliasesMayChange: true);
+    return _save(editor, tool, node, base, after, what, aliasesMayChange: true);
   }
 
   /// `set_language` (#172): adds or replaces the `#+language:` of the
   /// node's file, nothing else.
   Future<String> _setLanguage(
-      NoteEditor editor, Map<String, Object?> args) async {
+    NoteEditor editor,
+    Map<String, Object?> args,
+  ) async {
     final node = _node(_string(args, 'id'));
     final asked = _string(args, 'language');
     final code = languageCode(asked);
     if (code == null) {
-      throw ToolError('$asked is no language code; give one such as de or '
-          'en.');
+      throw ToolError(
+        '$asked is no language code; give one such as de or '
+        'en.',
+      );
     }
     final (base, _) = await _read(editor, node);
     final after = withLanguage(base.text, code);
     final file = node.isFile ? '"${node.displayTitle}"' : node.file;
-    return _save(editor, 'set_language', node, base, after,
-        'Set the language of $file to $code.');
+    return _save(
+      editor,
+      'set_language',
+      node,
+      base,
+      after,
+      'Set the language of $file to $code.',
+    );
   }
 
   /// The shared delete keeps the AI's visibility checks and limit (#171).
@@ -1260,25 +1419,45 @@ class AgentWriter {
       },
       save: (node, base, after, removed) async {
         try {
-          await _save(editor, 'delete_node', node, base, after, '',
-              removed: removed);
+          await _save(
+            editor,
+            'delete_node',
+            node,
+            base,
+            after,
+            '',
+            removed: removed,
+          );
         } on ToolError catch (e) {
           throw DeleteError(e.message);
         }
       },
-      record: (node, before, after, removed, key) => _record('delete_node',
-          node.file, node.id, node.displayTitle, before, after, removed: removed, noteKey: key),
+      record: (node, before, after, removed, key) => _record(
+        'delete_node',
+        node.file,
+        node.id,
+        node.displayTitle,
+        before,
+        after,
+        removed: removed,
+        noteKey: key,
+      ),
       canChange: () => changes.length < limit,
       bracketLinksOnly: true,
       checkGoing: (going) {
         final normal = going.replaceAll('\r\n', '\n');
         final hiddenNow = hiddenIds();
-        final idInGoing = RegExp(r'^[ \t]*:ID:[ \t]+(\S+)[ \t]*$',
-            multiLine: true, caseSensitive: false);
+        final idInGoing = RegExp(
+          r'^[ \t]*:ID:[ \t]+(\S+)[ \t]*$',
+          multiLine: true,
+          caseSensitive: false,
+        );
         if (idInGoing.allMatches(normal).any((m) => hiddenNow.contains(m[1])) ||
             visibility.filterText(normal, const {}) != normal) {
-          throw const DeleteError('that note has parts hidden from you, so it '
-              'cannot be deleted here. Tell me to delete it myself.');
+          throw const DeleteError(
+            'that note has parts hidden from you, so it '
+            'cannot be deleted here. Tell me to delete it myself.',
+          );
         }
       },
     );
@@ -1305,55 +1484,93 @@ class AgentWriter {
   /// [text] with the line endings of the file of [lines].
   static String _withNewline(String text, NodeLines lines) =>
       lines.newline == '\n'
-          ? text.replaceAll('\r\n', '\n')
-          : text.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n');
+      ? text.replaceAll('\r\n', '\n')
+      : text.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n');
 
-  Future<String> _save(NoteEditor editor, String tool, RoamNode node,
-      NoteVersion base, String after, String done,
-      {String removed = '', bool aliasesMayChange = false}) async {
+  Future<String> _save(
+    NoteEditor editor,
+    String tool,
+    RoamNode node,
+    NoteVersion base,
+    String after,
+    String done, {
+    String removed = '',
+    bool aliasesMayChange = false,
+  }) async {
     // Another folder may have been chosen since the note was read: the
     // same path there is another note.
     final key = _folderKey;
     if (editor.store.historyKey(node.file) != key) {
-      throw const ToolError('another folder was opened in the app; nothing '
-          'was written. Stop here.');
+      throw const ToolError(
+        'another folder was opened in the app; nothing '
+        'was written. Stop here.',
+      );
     }
     if (tool != 'set_language' &&
         tool != 'delete_node' &&
         !sameLanguageLines(base.text, after)) {
-      throw const ToolError('#+language: lines stay as they are; use '
-          'set_language when I ask for a language. Nothing was written.');
+      throw const ToolError(
+        '#+language: lines stay as they are; use '
+        'set_language when I ask for a language. Nothing was written.',
+      );
     }
-    final result = await editor.save(node.file, base, after,
-        removed: removed, aliasesMayChange: aliasesMayChange);
+    final result = await editor.save(
+      node.file,
+      base,
+      after,
+      removed: removed,
+      aliasesMayChange: aliasesMayChange,
+    );
     switch (result) {
       case Saved() || SavedNotIndexed():
-        await _record(tool, node.file, node.id, node.displayTitle, base.text,
-            after, removed: removed, noteKey: key);
+        await _record(
+          tool,
+          node.file,
+          node.id,
+          node.displayTitle,
+          base.text,
+          after,
+          removed: removed,
+          noteKey: key,
+        );
         return result is SavedNotIndexed
             ? '$done The graph shows it after the next scan.'
             : done;
       case NothingToSave():
         return 'Nothing changed: the text is already so.';
       case ChangedMeanwhile():
-        throw ToolError('${node.file} changed since it was read (on the '
-            'laptop or through Syncthing); nothing was written. Read the '
-            'note again and retry.');
+        throw ToolError(
+          '${node.file} changed since it was read (on the '
+          'laptop or through Syncthing); nothing was written. Read the '
+          'note again and retry.',
+        );
       case NoteGone():
         throw ToolError('${node.file} is no longer in the folder.');
       case LockedPartChanged():
-        throw const ToolError('the change would alter an :ID: or a property '
-            'drawer, which stay as they are; nothing was written.');
+        throw const ToolError(
+          'the change would alter an :ID: or a property '
+          'drawer, which stay as they are; nothing was written.',
+        );
       case NoWriteAccessToEdit():
-        throw const ToolError('the app may only read the folder. Tell me to '
-            'choose the folder again in the app to allow writing.');
+        throw const ToolError(
+          'the app may only read the folder. Tell me to '
+          'choose the folder again in the app to allow writing.',
+        );
       case SaveFailed(:final message):
         throw ToolError('the note could not be saved: $message');
     }
   }
 
-  Future<void> _record(String tool, String path, String id, String title,
-      String? before, String? after, {String removed = '', String? noteKey}) async {
+  Future<void> _record(
+    String tool,
+    String path,
+    String id,
+    String title,
+    String? before,
+    String? after, {
+    String removed = '',
+    String? noteKey,
+  }) async {
     int links(String? text) =>
         text == null ? 0 : RegExp(r'\[\[id:').allMatches(text).length;
     final change = AgentChange(
@@ -1371,4 +1588,3 @@ class AgentWriter {
     await log.record(AgentLogEntry.of(changes, change, folder(), _now()));
   }
 }
-

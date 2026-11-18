@@ -1393,7 +1393,8 @@ String _httpError(ProviderConfig config, int status, String message,
 /// OpenRouter ("Gemini blocked this request: it was flagged for
 /// copyrighted or trademarked material."), OpenRouter's moderation (HTTP
 /// 403, "Your input was flagged"), OpenAI's safety system, and codes such
-/// as `PROHIBITED_CONTENT` or `content_policy_violation`. A key that is
+/// as `PROHIBITED_CONTENT`, `content_policy_violation`,
+/// `moderation_blocked` or `INPUT_FLAGGED`. A key that is
 /// refused, a model that is gone or a wrong request is not; nor is a
 /// model ID or a parameter name that has one of the words in it
 /// (`omni-moderation-latest`, `acme/moderation-preview`,
@@ -1403,9 +1404,11 @@ bool _contentRefusal(int status, String message) =>
     _refusalWords.hasMatch(message);
 
 final _refusalWords = RegExp(
-  r'\bflagged\b|blocked this request'
+  r'blocked this request'
   r'|safety[ _]system|content[ _]polic|content[ _]filter'
-  r'|prohibited[ _]content'
+  r'|prohibited[ _]content|moderation[ _]blocked'
+  // flagged also in codes (INPUT_FLAGGED, flagged_content).
+  r'|(?<![a-z0-9/-])flagged(?![a-z0-9-])'
   // Only as words: not inside a model ID or a name.
   r'|(?<![\w/-])(?:moderation|copyright(?:ed|s)?|trademark(?:ed|s)?)'
   r'(?![\w-])',
