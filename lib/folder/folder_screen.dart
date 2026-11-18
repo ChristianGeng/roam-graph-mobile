@@ -1098,6 +1098,7 @@ class _FolderScreenState extends State<FolderScreen>
       folderName: folder.name,
       roamPrefix: prefix,
       desktop: isDesktop,
+      windows: defaultTargetPlatform == TargetPlatform.windows,
     );
     final byPath = {
       for (final file in files) file.path.substring(prefix.length): file,

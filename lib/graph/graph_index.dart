@@ -28,8 +28,8 @@ typedef IndexedFolder = ({String folder, String root});
 ///   from the folder's name: `/notes/<folder name>`, plus `/roam` as
 ///   above; never a path of the device.
 ///
-/// Backslashes become slashes, as in Emacs on Windows, and a slash at the
-/// end goes. A line break in the folder name becomes `_`, as a slash does:
+/// The setting is cleaned as typed ([cleanRoot]); the desktop folder is
+/// kept as it is ([folderRoot]). A line break in the folder name becomes `_`, as a slash does:
 /// the marker ([folderMarker]) keeps the root on one line.
 String databaseRoot({
   required String setting,
@@ -37,12 +37,13 @@ String databaseRoot({
   required String folderName,
   required String roamPrefix,
   required bool desktop,
+  bool windows = false,
 }) {
   final set = cleanRoot(setting);
   if (set != null) return set;
   final roam = roamPrefix.isEmpty ? '' : '/roam';
   if (desktop) {
-    final folder = cleanRoot(folderUri);
+    final folder = folderRoot(folderUri, windows: windows);
     if (folder != null) return '$folder$roam';
   }
   final name = folderName.replaceAll(RegExp(r'[\\/\n\r]'), '_').trim();
@@ -62,6 +63,20 @@ String? cleanRoot(String path) {
     root = root.substring(0, root.length - 1);
   }
   return root.isEmpty ? null : root;
+}
+
+/// The desktop's notes folder [path] as a root, as it is: on Linux and
+/// macOS a folder may be named `a\\b` or ` org `, and its root must stay
+/// its real path. Only a slash at the end goes; on Windows ([windows])
+/// backslashes become slashes, as Emacs writes the path there. Null for
+/// an empty path or one with a line break (see [cleanRoot]).
+String? folderRoot(String path, {required bool windows}) {
+  if (path.contains('\n') || path.contains('\r')) return null;
+  var root = windows ? path.replaceAll('\\', '/') : path;
+  while (root.length > 1 && root.endsWith('/')) {
+    root = root.substring(0, root.length - 1);
+  }
+  return root.isEmpty || root == '/' ? null : root;
 }
 
 /// Keeps the graph's database up to date with the files.
