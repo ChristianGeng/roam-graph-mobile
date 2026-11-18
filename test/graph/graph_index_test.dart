@@ -58,6 +58,27 @@ void main() {
       expect(root('', name: ''), '/notes/notes/roam');
     });
 
+    test('a setting with a line break counts as not set (#306)', () {
+      // As from a view-settings.json edited by hand: the marker keeps the
+      // root on one line.
+      expect(cleanRoot('/emacs/org\n/roam'), isNull);
+      expect(cleanRoot('/emacs/org\r\n/roam'), isNull);
+      expect(cleanRoot('/emacs/org\r'), '/emacs/org');
+      expect(root('/emacs/org\n/roam'), '/notes/org/roam');
+      expect(root('/emacs/org\n/roam', uri: '/data/org', desktop: true),
+          '/data/org/roam');
+    });
+
+    test('a folder name with a line break gives a root on one line (#306)',
+        () {
+      expect(root('', name: 'my\nnotes'), '/notes/my_notes/roam');
+      expect(root('', name: 'my\r\nnotes', prefix: ''), '/notes/my__notes');
+      final marker =
+          folderMarker('content://tree/org', root('', name: 'my\nnotes'));
+      expect(markedFolder(marker),
+          (folder: 'content://tree/org', root: '/notes/my_notes/roam'));
+    });
+
     test('not set on the desktop: the notes folder itself', () {
       expect(root('', uri: '/data/org', desktop: true), '/data/org/roam');
       expect(root('', uri: '/data/roam/', name: 'roam', prefix: '',
@@ -125,6 +146,23 @@ void main() {
           (folder: 'content://tree/org', root: '/emacs/roam'));
       // The graph itself keeps paths relative to roam/.
       expect(graph.nodes['a']!.file, 'a.org');
+    });
+
+    test('a folder name with a line break: no rebuild on the next scan '
+        '(#306)', () async {
+      final root = databaseRoot(
+          setting: '',
+          folderUri: 'content://tree/org',
+          folderName: 'my\nnotes',
+          roamPrefix: 'roam/',
+          desktop: false);
+      final index = SqliteGraphIndex(databasePath: path);
+      await index.update(listing, contents,
+          folder: 'content://tree/org', root: root);
+      // What the folder screen compares to decide on a rebuild.
+      expect(await index.indexedFolder(),
+          (folder: 'content://tree/org', root: root));
+      expect(await index.filesToRead(listing, root: root), isEmpty);
     });
 
     test('an update with another root rebuilds even without replace',

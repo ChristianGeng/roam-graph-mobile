@@ -5074,20 +5074,27 @@ Numbered 160, not 159: another open branch may take 159.
   platform: the full path of `org-roam-directory` on the computer that
   runs Emacs. Stored in `view-settings.json` as `emacsRoamDirectory`;
   missing or empty means not set. Spaces at the ends and a slash at the
-  end are removed, and backslashes become slashes.
+  end are removed, and backslashes become slashes. A value with a line
+  break inside (only a file edited by hand can have one) also counts as
+  not set: the marker below keeps the root on one line.
 - **Not set:** on Linux, Windows and macOS the root is the notes folder
   the app reads, as chosen (plus `/roam` when the chosen folder holds
   `roam/`), so the paths are real paths on that computer. On Android the
   folder has no path, so the root is `/notes/<folder name>` (plus `/roam`
   as above), for example `/notes/org/roam`: readable, and never a path of
-  the device or of a person. `databaseRoot` in `graph_index.dart` decides
+  the device or of a person. A slash or a line break in the folder name
+  becomes `_`. `databaseRoot` in `graph_index.dart` decides
   it.
 - **When it changes:** the index is rebuilt. The marker next to the
   database (`org-roam.db.folder`) now holds the folder, the root and the
   parser, one per line; an index with another root counts as another
   index, so the folder screen reads every file again and replaces the
   index in one transaction, as for another folder. The folder screen
-  indexes again as soon as the setting changes. Rewriting the stored
+  indexes again as soon as the setting changes. A scan that started
+  before the change (also the first one, and one that stopped waiting
+  for slow settings after 1 s) checks the setting again before it stores
+  the index; if it changed, it stores nothing and scans again below the
+  new root. Rewriting the stored
   paths in place was not chosen: the path is also inside the `FILE`
   property of every node's `properties` list, and a rebuild already
   exists and is safe.
@@ -5109,8 +5116,9 @@ Numbered 160, not 159: another open branch may take 159.
 - **Tests:** `test/graph/graph_index_test.dart` (the root for each case,
   the marker, and on a real database file that `files.file` and
   `nodes.file` follow the root and another root rebuilds the index);
-  `test/widget_test.dart` (not set, set from the first index, and a
-  change rebuilds below the new root); `test/settings/settings_screen_test.dart`
+  `test/widget_test.dart` (not set, set from the first index, a change
+  rebuilds below the new root, a change or late-loaded settings during
+  the first scan's listing index once below the new root); `test/settings/settings_screen_test.dart`
   (the row shows, saves and clears the value; the default on the
   desktop; the JSON).
 

@@ -1130,7 +1130,18 @@ class _FolderScreenState extends State<FolderScreen>
     // A newer operation has started and reads the files again; an older
     // scan must not store its contents after the newer one. The index runs
     // its calls in order, so checking here, before the call, is enough.
-    if (generation != _generation) return;
+    if (generation != _generation || !mounted) return;
+    // The setting "Notes folder on the computer with Emacs" changed while
+    // this scan listed or read the files (#303): store nothing below the
+    // old root, but scan again; the new scan reads the new value. Before
+    // the first scan stored the setting it used, the screen ignored the
+    // change; after that, it has already started a scan for it.
+    final latest = ViewSettingsScope.read(context).emacsRoamDirectory;
+    if (latest != setting) {
+      if (_roamDirectorySetting == latest) return;
+      _roamDirectorySetting = latest;
+      return _rescan();
+    }
     // Nothing new, gone or changed since the last scan, and nothing to
     // read again: the graph on show is still right. A new graph object
     // would make every open view read its note and draw it again (#254),

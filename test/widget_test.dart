@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -73,8 +74,16 @@ class FakeFolderAccess implements FolderAccess {
     return picked;
   }
 
+  /// How often the folder was listed.
+  int listCalls = 0;
+
+  /// While set, listing the folder waits for it, as a slow folder does.
+  Completer<void>? listGate;
+
   @override
   Future<List<FolderFile>> listFiles(ChosenFolder folder) async {
+    listCalls++;
+    await listGate?.future;
     final error = listError;
     if (error != null) throw error;
     return files;
@@ -319,6 +328,7 @@ Future<TestGraphIndex> start(
   ApiKeyStore? apiKeys,
   AudioPost? speechPost,
   VoiceWork? voiceWork,
+  bool settle = true,
 }) async {
   final index = TestGraphIndex();
   final nodeMemory = memory ?? MemoryNodeMemory();
@@ -351,7 +361,7 @@ Future<TestGraphIndex> start(
       },
     ),
   );
-  await tester.pumpAndSettle();
+  if (settle) await tester.pumpAndSettle();
   return index;
 }
 
@@ -1879,6 +1889,56 @@ void main() {
       await openFolderSheet(tester);
       expectSomeNotes(tester);
     });
+
+    testWidgets('changed while the first scan lists the files: indexed '
+        'below the new root (#306)', (tester) async {
+      final access = withNotes(saved: org)..listGate = Completer();
+      final store = MemoryViewSettingsStore();
+      final index =
+          await start(tester, access, viewSettings: store, settle: false);
+      await tester.pump();
+      await tester.pump();
+      expect(access.listCalls, 1);
+
+      final context = tester.element(find.byType(FolderScreen));
+      await ViewSettingsScope.change(
+          context, store.settings.copyWith(emacsRoamDirectory: '/emacs/roam'));
+      await tester.pump();
+      access.listGate!.complete();
+      access.listGate = null;
+      await tester.pumpAndSettle();
+
+      // Not first below the old root: one more scan, one index.
+      expect(index.db.root, '/emacs/roam');
+      expect(await index.indexedFolder(),
+          (folder: org.uri, root: '/emacs/roam'));
+      expect(index.rebuilds, 1);
+      expect(access.listCalls, 2);
+      expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+    });
+
+    testWidgets('settings that load after the scan gave up waiting: '
+        'indexed below the loaded root (#306)', (tester) async {
+      final access = withNotes(saved: org)..listGate = Completer();
+      final store = _SlowViewSettingsStore(
+          const ViewSettings(emacsRoamDirectory: '/emacs/org/roam'));
+      final index =
+          await start(tester, access, viewSettings: store, settle: false);
+      // ViewSettingsScope.current gives up after 1 s: the scan goes on
+      // with the defaults and lists the folder.
+      await tester.pump(const Duration(seconds: 2));
+      expect(access.listCalls, 1);
+
+      store.loaded.complete();
+      await tester.pump();
+      access.listGate!.complete();
+      access.listGate = null;
+      await tester.pumpAndSettle();
+
+      expect(index.db.root, '/emacs/org/roam');
+      expect(index.rebuilds, 1);
+      expect(access.listCalls, 2);
+    });
   });
 
   testWidgets('a rebuild keeps a file it cannot read', (tester) async {
@@ -1980,4 +2040,17 @@ void main() {
     await openFolderSheet(tester);
     expectSomeNotes(tester);
   });
+}
+
+/// A [ViewSettingsStore] whose file is read only when [loaded] completes.
+class _SlowViewSettingsStore extends MemoryViewSettingsStore {
+  _SlowViewSettingsStore(super.settings);
+
+  final loaded = Completer<void>();
+
+  @override
+  Future<ViewSettings> load() async {
+    await loaded.future;
+    return settings;
+  }
 }

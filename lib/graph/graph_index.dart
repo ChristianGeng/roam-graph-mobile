@@ -29,7 +29,8 @@ typedef IndexedFolder = ({String folder, String root});
 ///   above; never a path of the device.
 ///
 /// Backslashes become slashes, as in Emacs on Windows, and a slash at the
-/// end goes.
+/// end goes. A line break in the folder name becomes `_`, as a slash does:
+/// the marker ([folderMarker]) keeps the root on one line.
 String databaseRoot({
   required String setting,
   required String folderUri,
@@ -44,15 +45,19 @@ String databaseRoot({
     final folder = cleanRoot(folderUri);
     if (folder != null) return '$folder$roam';
   }
-  final name = folderName.replaceAll(RegExp(r'[\\/]'), '_').trim();
+  final name = folderName.replaceAll(RegExp(r'[\\/\n\r]'), '_').trim();
   return '/notes/${name.isEmpty ? 'notes' : name}$roam';
 }
 
 /// [path] as a root of the database's paths: trimmed, with slashes for
 /// backslashes and without a slash at the end; null when nothing is left
-/// (not set).
+/// (not set). A value with a line break inside, as from a settings file
+/// edited by hand, also counts as not set: the marker ([folderMarker])
+/// keeps the root on one line, and a second line would make every scan
+/// rebuild the index.
 String? cleanRoot(String path) {
   var root = path.trim().replaceAll('\\', '/');
+  if (root.contains('\n') || root.contains('\r')) return null;
   while (root.endsWith('/')) {
     root = root.substring(0, root.length - 1);
   }

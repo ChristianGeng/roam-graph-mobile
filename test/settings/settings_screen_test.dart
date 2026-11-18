@@ -179,6 +179,11 @@ void main() {
       expect(ViewSettings.fromJson({'emacsRoamDirectory': 3})
               .emacsRoamDirectory,
           '');
+      // A line break, as from a file edited by hand, counts as not set
+      // (#306).
+      expect(ViewSettings.fromJson({'emacsRoamDirectory': '/notes\n/roam'})
+              .emacsRoamDirectory,
+          '');
       expect(set, isNot(const ViewSettings()));
     });
 
