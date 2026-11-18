@@ -224,15 +224,20 @@ class FakeShareInbox implements ShareInbox {
 /// A [GraphIndex] on a real org-roam database in memory, without another
 /// isolate, which tests cannot wait for.
 class TestGraphIndex implements GraphIndex {
-  final db = RoamDatabase.inMemory(root: '/roam');
+  /// The database; opened again when the root changes, which rebuilds it.
+  RoamDatabase db = RoamDatabase.inMemory(root: '/notes/org/roam');
   String? folder;
   int rebuilds = 0;
 
   @override
-  Future<String?> indexedFolder() async => folder;
+  Future<IndexedFolder?> indexedFolder() async {
+    final folder = this.folder;
+    return folder == null ? null : (folder: folder, root: db.root);
+  }
 
   @override
-  Future<List<String>> filesToRead(indexer.Listing listing) async =>
+  Future<List<String>> filesToRead(indexer.Listing listing,
+          {required String root}) async =>
       indexer.filesToRead(db, listing);
 
   @override
@@ -240,12 +245,14 @@ class TestGraphIndex implements GraphIndex {
     indexer.Listing listing,
     Map<String, Uint8List?> contents, {
     required String folder,
+    required String root,
     bool replace = false,
   }) async {
-    final sameFolder = this.folder == folder;
-    if (replace || !sameFolder) rebuilds++;
+    final same = this.folder == folder && db.root == root;
+    if (replace || !same) rebuilds++;
+    if (db.root != root) db = RoamDatabase.inMemory(root: root);
     final graph = indexer.updateIndex(db, listing, contents,
-        replace: replace || !sameFolder, keepUnreadable: sameFolder);
+        replace: replace || !same, keepUnreadable: same);
     this.folder = folder;
     return graph;
   }
@@ -1822,6 +1829,56 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+  });
+
+  group('the notes folder on the computer with Emacs (#303)', () {
+    testWidgets('not set: the paths start with /notes/ and the folder name',
+        (tester) async {
+      final index = await start(tester, withNotes(saved: org));
+      expect(index.db.root, '/notes/org/roam');
+      expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+      await openFolderSheet(tester);
+      expectSomeNotes(tester);
+    });
+
+    testWidgets('set: the paths start with it, from the first index',
+        (tester) async {
+      final index = await start(tester, withNotes(saved: org),
+          viewSettings: MemoryViewSettingsStore(
+              const ViewSettings(emacsRoamDirectory: '/emacs/org/roam')));
+      expect(index.db.root, '/emacs/org/roam');
+      // Indexed once, below the setting, not first below the default.
+      expect(index.rebuilds, 1);
+      expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+    });
+
+    testWidgets('changing it rebuilds the index below the new root',
+        (tester) async {
+      final access = withNotes(saved: org);
+      final store = MemoryViewSettingsStore();
+      final index = await start(tester, access, viewSettings: store);
+      expect(index.rebuilds, 1);
+      expect(index.db.root, '/notes/org/roam');
+
+      final context = tester.element(find.byType(FolderScreen));
+      await ViewSettingsScope.change(
+          context, store.settings.copyWith(emacsRoamDirectory: '/emacs/roam'));
+      await tester.pumpAndSettle();
+
+      expect(index.rebuilds, 2);
+      expect(index.db.root, '/emacs/roam');
+      expect(index.db.storedFiles().keys, unorderedEquals(['a.org', 'b.org']));
+      expect(await index.indexedFolder(),
+          (folder: org.uri, root: '/emacs/roam'));
+
+      // The same value again changes nothing.
+      await ViewSettingsScope.change(
+          context, store.settings.copyWith(emacsRoamDirectory: '/emacs/roam'));
+      await tester.pumpAndSettle();
+      expect(index.rebuilds, 2);
+      await openFolderSheet(tester);
+      expectSomeNotes(tester);
+    });
   });
 
   testWidgets('a rebuild keeps a file it cannot read', (tester) async {

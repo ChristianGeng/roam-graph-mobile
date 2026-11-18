@@ -26,7 +26,7 @@ devices through Syncthing.
    own `org-roam.db` from the same files. No Emacs is reached remotely.
 
 3. **The device has no `org-roam.db`.** It lives in the Emacs cache on the
-   laptop (`~/doom-emacs/.local/cache/org-roam.db`), outside the synced
+   laptop (`<org-roam.db>`, in the Emacs cache), outside the synced
    folder, and is a cache only Emacs maintains. So the app must build the
    graph from the files.
 
@@ -226,8 +226,10 @@ devices through Syncthing.
     strings in quotes, lists, property lists). So the org-roam MCP server's
     queries work on the phone's database unchanged. Details:
     - Paths are stored as on the laptop, starting with
-      `/home/cgeng_local/work/cgeng/org/roam/`, so queries and results match
-      the laptop's database.
+      `<notes folder>/`, so queries and results match the laptop's
+      database. Since decision 160 (#303) that folder is the setting
+      "Notes folder on the computer with Emacs"; it was a fixed path in
+      the code before.
     - The database is `org-roam.db` in the app's support folder, not in the
       Syncthing folder, so the app never writes into my notes.
     - Only new and changed files are read: first by modification time, then
@@ -5060,6 +5062,57 @@ and stayed cached. #269 asked to keep the limit for the whole message.
   sections.
 - **Changelog:** not visible to users, so the pull request has the
   `skip-changelog` label (decision 48).
+
+## 160. The notes folder on the computer with Emacs is a setting (#303)
+
+Numbered 160, not 159: another open branch may take 159.
+
+- **What:** the root of the absolute paths in the app's database (decision
+  23) was a constant in `lib/graph/graph_index.dart`: the owner's
+  `org-roam-directory`. It is now the setting "Notes folder on the
+  computer with Emacs" in Settings, under "Note files", on every
+  platform: the full path of `org-roam-directory` on the computer that
+  runs Emacs. Stored in `view-settings.json` as `emacsRoamDirectory`;
+  missing or empty means not set. Spaces at the ends and a slash at the
+  end are removed, and backslashes become slashes.
+- **Not set:** on Linux, Windows and macOS the root is the notes folder
+  the app reads, as chosen (plus `/roam` when the chosen folder holds
+  `roam/`), so the paths are real paths on that computer. On Android the
+  folder has no path, so the root is `/notes/<folder name>` (plus `/roam`
+  as above), for example `/notes/org/roam`: readable, and never a path of
+  the device or of a person. `databaseRoot` in `graph_index.dart` decides
+  it.
+- **When it changes:** the index is rebuilt. The marker next to the
+  database (`org-roam.db.folder`) now holds the folder, the root and the
+  parser, one per line; an index with another root counts as another
+  index, so the folder screen reads every file again and replaces the
+  index in one transaction, as for another folder. The folder screen
+  indexes again as soon as the setting changes. Rewriting the stored
+  paths in place was not chosen: the path is also inside the `FILE`
+  property of every node's `properties` list, and a rebuild already
+  exists and is safe.
+- **For existing installs:** the marker from before has no root, so the
+  first start after the update rebuilds the index once. The owner sets
+  the setting once to the old path to keep the old paths in the
+  database; until then Android stores them below `/notes/...`.
+- **What does not change:** the graph, the AI tools and the full-text
+  search keep paths relative to `roam/`; the AI tools' results are
+  compared with the MCP server by file name (#58). Only queries on the
+  database file itself, such as the MCP server's, see the root.
+- **Why:** the constant was the owner's home folder in a public
+  repository, and gave everyone else wrong paths. The older entries of
+  this file no longer show the owner's paths either (decisions 3 and 23
+  say `<org-roam.db>` and `<notes folder>`), and
+  `test/fixtures/ai_tools_expected.json` no longer holds the path of the
+  owner's checkout: its sample paths start with `/notes/roam`, which
+  `tool/ai_tools_expected.py` now writes. Git history is not rewritten.
+- **Tests:** `test/graph/graph_index_test.dart` (the root for each case,
+  the marker, and on a real database file that `files.file` and
+  `nodes.file` follow the root and another root rebuilds the index);
+  `test/widget_test.dart` (not set, set from the first index, and a
+  change rebuilds below the new root); `test/settings/settings_screen_test.dart`
+  (the row shows, saves and clears the value; the default on the
+  desktop; the JSON).
 
 ## Recommended, not decided
 

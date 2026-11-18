@@ -188,6 +188,27 @@ class _FolderScreenState extends State<FolderScreen>
     }
   }
 
+  /// The setting "Notes folder on the computer with Emacs" that the latest
+  /// scan used (#303); null before the first scan reads it.
+  String? _roamDirectorySetting;
+
+  /// When the setting changes, the folder is indexed again: the index then
+  /// holds another root, so it is rebuilt with every path below the new
+  /// one (decision 160).
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final setting = ViewSettingsScope.of(context).emacsRoamDirectory;
+    final used = _roamDirectorySetting;
+    if (used != null && setting != used) {
+      _roamDirectorySetting = setting;
+      // Not during the build that reported the change.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _rescan();
+      });
+    }
+  }
+
   /// Checks the folder for changed files every [changeCheckInterval] while
   /// the app is in the foreground; null in the background.
   Timer? _changeTimer;
@@ -1041,6 +1062,10 @@ class _FolderScreenState extends State<FolderScreen>
     ChosenFolder folder, {
     bool rebuild = false,
   }) async {
+    if (!mounted) return;
+    // The settings as loaded, not the defaults of the first frame, so a
+    // set root does not first index below the default one.
+    final settings = ViewSettingsScope.current(context);
     // Remember the folder first, so "Try again" works if listing fails.
     if (generation == _generation) {
       // roam/ of another folder must not receive a capture (#11).
@@ -1064,6 +1089,16 @@ class _FolderScreenState extends State<FolderScreen>
     }
     // Paths in the graph are relative to roam/, as in org-roam.
     final prefix = roamPrefix(folder.name, entries)!;
+    // The database stores them below this root, as org-roam does (#303).
+    final setting = (await settings).emacsRoamDirectory;
+    if (generation == _generation) _roamDirectorySetting = setting;
+    final root = databaseRoot(
+      setting: setting,
+      folderUri: folder.uri,
+      folderName: folder.name,
+      roamPrefix: prefix,
+      desktop: isDesktop,
+    );
     final byPath = {
       for (final file in files) file.path.substring(prefix.length): file,
     };
@@ -1074,8 +1109,8 @@ class _FolderScreenState extends State<FolderScreen>
     // Read only what is new or changed since the last time, unless the
     // index is rebuilt or holds another folder's files.
     final index = widget.graphIndex;
-    final replace =
-        rebuild || await index.indexedFolder() != folder.uri;
+    final replace = rebuild ||
+        await index.indexedFolder() != (folder: folder.uri, root: root);
     // Notes saved by an edit (#35), even if their folder reports the same
     // modification time as before. They stay in [_mustRead] until an
     // update has stored them, so a failed or superseded scan keeps them.
@@ -1083,7 +1118,7 @@ class _FolderScreenState extends State<FolderScreen>
     final toRead = replace
         ? listing.keys.toList()
         : {
-            ...await index.filesToRead(listing),
+            ...await index.filesToRead(listing, root: root),
             ...forced.where(listing.containsKey),
           }.toList();
     final bytes = await widget.folderAccess
@@ -1116,7 +1151,7 @@ class _FolderScreenState extends State<FolderScreen>
       graph = shown;
     } else {
       graph = await index.update(listing, contents,
-          folder: folder.uri, replace: replace);
+          folder: folder.uri, root: root, replace: replace);
       _lastUpdate = graph;
     }
     _mustRead.removeAll(forced);

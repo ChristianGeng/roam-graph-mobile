@@ -17,6 +17,10 @@ notes, and it has an AI chat that works on the notes.
   shortest paths.
 - On a tablet held sideways, graph and note side by side, with a divider
   to drag and a graph to fold away.
+- The graph is kept in a database with org-roam's tables; its note paths
+  start with the notes folder on the computer with Emacs (a setting), as
+  in org-roam's own database, so the org-roam MCP server's queries work
+  on it.
 
 **Note view**
 - Notes as formatted Org, with tappable `id:` links (also to a heading),

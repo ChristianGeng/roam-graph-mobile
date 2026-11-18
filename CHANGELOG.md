@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-18: The notes folder on the computer with Emacs is a setting ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Added: Settings, "Note files", has "Notes folder on the computer with Emacs": the `org-roam-directory` there. The paths in the app's database start with it, so they match org-roam's own database and the MCP tools; changing it rebuilds the index. Not set, the desktop uses the notes folder itself and Android uses `/notes/<folder name>`. The index is rebuilt once after the update; to keep the paths as before, set it once to your `org-roam-directory`. Closes #303.
+
 ## 2026-11-16: LaTeX formulas on their own line are drawn on the desktop ([#301](https://github.com/ChristianGeng/roam-graph-mobile/pull/301))
 
 - Added: on Linux, Windows and macOS, display formulas (`\[ \]`, `$$ $$`) and LaTeX environments such as `equation`, `align` and `gather` are drawn by the app instead of showing their source, in the text colour (also in the dark theme); a wide one scrolls sideways. Equation numbers are not shown. A formula that cannot be drawn shows its source. Inline formulas and Android are unchanged. Part of #300.
