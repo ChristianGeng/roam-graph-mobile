@@ -51,6 +51,17 @@ void main() {
       }
     });
 
+    test('a refusal for the content is not transient (#298)', () {
+      // As postJson words it: the same prompt is refused again.
+      const refused = AiError(
+          'OpenRouter refused the request because of its content rules: '
+          'Gemini blocked this request: it was flagged for copyrighted or '
+          'trademarked material. Change the prompt and send it again.',
+          status: 400,
+          contentRefused: true);
+      expect(isTransient(refused), isFalse);
+    });
+
     test('a refused request, a test failure and other errors are not', () {
       expect(isTransient(const AiError('The API key was refused.')), isFalse);
       expect(isTransient(TestFailure('the bytes are no image')), isFalse);
@@ -108,6 +119,23 @@ void main() {
     test('an error that is not transient is thrown at once', () async {
       var calls = 0;
       const refused = AiError('The API key was refused.', status: 401);
+      await expectLater(
+        withOneRetry(() async {
+          calls++;
+          throw refused;
+        }, wait: Duration.zero),
+        throwsA(same(refused)),
+      );
+      expect(calls, 1);
+    });
+
+    test('a refusal for the content is not retried (#298)', () async {
+      var calls = 0;
+      const refused = AiError(
+          'OpenRouter refused the request because of its content rules: '
+          'flagged.',
+          status: 400,
+          contentRefused: true);
       await expectLater(
         withOneRetry(() async {
           calls++;

@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-18: A request refused for its content says so ([#PR](https://github.com/ChristianGeng/roam-graph-mobile/pull/PR))
+
+- Fixed: when an AI provider refuses a chat or image request because of its content rules (for example Gemini through OpenRouter: "flagged for copyrighted or trademarked material"), the app now says "<provider> refused the request because of its content rules: …" and asks to change the prompt, instead of a plain "answered with an error (HTTP 400)", or "refused the API key" for OpenRouter's moderation. Such a refusal is not tried again, and a chat no longer stops sending images to the model after one. Closes #298.
+
 ## 2026-11-16: LaTeX formulas on their own line are drawn on the desktop ([#301](https://github.com/ChristianGeng/roam-graph-mobile/pull/301))
 
 - Added: on Linux, Windows and macOS, display formulas (`\[ \]`, `$$ $$`) and LaTeX environments such as `equation`, `align` and `gather` are drawn by the app instead of showing their source, in the text colour (also in the dark theme); a wide one scrolls sideways. Equation numbers are not shown. A formula that cannot be drawn shows its source. Inline formulas and Android are unchanged. Part of #300.

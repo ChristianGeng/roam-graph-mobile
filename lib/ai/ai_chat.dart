@@ -80,6 +80,7 @@ class AiError implements Exception {
     this.message, {
     this.status,
     this.passing = false,
+    this.contentRefused = false,
     this.provider,
     this.model,
     this.api,
@@ -91,6 +92,11 @@ class AiError implements Exception {
   /// Whether the same request may well work a moment later: the
   /// connection broke, or the provider is overloaded for now.
   final bool passing;
+
+  /// Whether the provider refused the request because of its content
+  /// rules (#298): the prompt was flagged, for example as copyrighted
+  /// material. The same request fails again; a changed prompt may not.
+  final bool contentRefused;
 
   /// The HTTP status the provider answered with, where it refused the
   /// request.
@@ -1198,8 +1204,12 @@ class ChatSession {
     return false;
   }
 
+  /// A refused request, but not one refused for its content (#298): the
+  /// model took the request and its rules said no; sending it without the
+  /// images would not tell whether the model takes images.
   static bool _refusedRequest(AiError e) =>
-      e.status == 400 || e.status == 415 || e.status == 422;
+      !e.contentRefused &&
+      (e.status == 400 || e.status == 415 || e.status == 422);
 
   Future<ApiReply> _request(List<AiTool> offered,
       {List<ChatEntry>? entries, String? system}) async {
@@ -1254,10 +1264,14 @@ Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
     Map<String, String> headers, Object? body, HttpPost post) async {
   // Every error carries where the request went (#180).
   AiError fail(String message,
-          {int? status, bool passing = false, String? answer}) =>
+          {int? status,
+          bool passing = false,
+          bool contentRefused = false,
+          String? answer}) =>
       AiError(redactSecrets(message, secrets: [config.apiKey]),
           status: status,
           passing: passing,
+          contentRefused: contentRefused,
           provider: config.name,
           model: config.model,
           api: config.api.name,
@@ -1294,10 +1308,12 @@ Future<Map<String, Object?>> postJson(ProviderConfig config, Uri url,
         answer: answerOf(reply.body));
   }
   if (reply.status < 200 || reply.status >= 300) {
-    throw fail(_httpError(config, reply.status, _message(json, reply.body)),
+    final message = _message(json, reply.body);
+    throw fail(_httpError(config, reply.status, message),
         status: reply.status,
         // A gateway or an overloaded provider (Anthropic's 529), for now.
         passing: const {502, 503, 504, 529}.contains(reply.status),
+        contentRefused: _contentRefusal(reply.status, message),
         answer: answerOf(reply.body));
   }
   if (json is! Map) {
@@ -1322,6 +1338,10 @@ String _message(Object? json, String body) {
 
 String _httpError(ProviderConfig config, int status, String message) {
   final detail = message.isEmpty ? '' : ' $message';
+  if (_contentRefusal(status, message)) {
+    return '${config.name} refused the request because of its content '
+        'rules: $message Change the prompt and send it again.';
+  }
   return switch (status) {
     401 || 403 => '${config.name} refused the API key (HTTP $status). Check '
         'it in AI settings.$detail',
@@ -1336,6 +1356,20 @@ String _httpError(ProviderConfig config, int status, String message) {
     _ => '${config.name} answered with an error (HTTP $status).$detail',
   };
 }
+
+/// Whether a refused request ([status] 400, 403 or 422) was refused for
+/// what it asks, by the provider's content rules (#298): Gemini through
+/// OpenRouter ("Gemini blocked this request: it was flagged for
+/// copyrighted or trademarked material."), OpenRouter's moderation (HTTP
+/// 403, "Your input was flagged"), OpenAI's safety system. A key that is
+/// refused, a model that is gone or a wrong request is not.
+bool _contentRefusal(int status, String message) =>
+    const {400, 403, 422}.contains(status) &&
+    RegExp(
+      r'\bflagged\b|blocked this request|safety system|content polic'
+      r'|content filter|moderation|copyright|trademark|prohibited content',
+      caseSensitive: false,
+    ).hasMatch(message);
 
 /// Whether a provider's error says that the model cannot use tools, and
 /// not just mentions them (Mistral: "must have either content or
