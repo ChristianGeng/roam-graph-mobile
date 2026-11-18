@@ -10,7 +10,7 @@ each entry.
 
 ## 2026-11-18: A request refused for its content says so ([#305](https://github.com/ChristianGeng/roam-graph-mobile/pull/305))
 
-- Fixed: when an AI provider refuses a chat or image request because of its content rules (for example Gemini through OpenRouter: "flagged for copyrighted or trademarked material"), the app now says "<provider> refused the request because of its content rules: …" and asks to change the prompt, instead of a plain "answered with an error (HTTP 400)", or "refused the API key" for OpenRouter's moderation. Such a refusal is not tried again, and a chat no longer stops sending images to the model after one. Closes #298.
+- Fixed: when an AI provider refuses a chat or image request because of its content rules (for example Gemini through OpenRouter: "flagged for copyrighted or trademarked material"), the app now says "<provider> refused the request because of its content rules: …" and asks to change the prompt, instead of a plain "answered with an error (HTTP 400)", or "refused the API key" for OpenRouter's moderation. The app does not retry such a refusal itself (no automatic retry, no resend without the image), a chat no longer stops sending images to the model after one, and when the AI's image is refused it is told that the same prompt is refused again. Closes #298.
 
 ## 2026-11-16: LaTeX formulas on their own line are drawn on the desktop ([#301](https://github.com/ChristianGeng/roam-graph-mobile/pull/301))
 

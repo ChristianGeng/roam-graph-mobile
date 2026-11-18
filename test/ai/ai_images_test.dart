@@ -917,6 +917,86 @@ void main() {
               contains('refused the request because of its content rules'))));
     });
 
+    test('a code with underscores is a refusal too', () async {
+      for (final message in [
+        'PROHIBITED_CONTENT',
+        'content_policy_violation',
+        'Blocked by safety_system',
+      ]) {
+        await expectLater(
+            makeImage(openRouter(), 'x',
+                post: answer({
+                  'error': {'message': message, 'code': 400},
+                }, status: 400)),
+            throwsA(isA<AiError>()
+                .having((e) => e.contentRefused, 'contentRefused', isTrue)),
+            reason: message);
+      }
+    });
+
+    test('a refusal word inside a model ID or a name is no refusal',
+        () async {
+      for (final message in [
+        'Model acme/moderation-preview does not exist',
+        'omni-moderation-latest is not available',
+        'Unknown parameter: copyright_check',
+      ]) {
+        await expectLater(
+            makeImage(openRouter(), 'x',
+                post: answer({
+                  'error': {'message': message},
+                }, status: 400)),
+            throwsA(isA<AiError>()
+                .having((e) => e.message, 'message',
+                    contains('answered with an error (HTTP 400)'))
+                .having((e) => e.contentRefused, 'contentRefused', isFalse)),
+            reason: message);
+      }
+    });
+
+    test('OpenRouter: the upstream refusal in error.metadata.raw', () async {
+      // OpenRouter's shape for an error of the provider behind it.
+      await expectLater(
+          makeImage(openRouter(), 'x',
+              post: answer({
+                'error': {
+                  'code': 403,
+                  'message': 'Provider returned error',
+                  'metadata': {
+                    'provider_name': 'Google',
+                    'raw': jsonEncode({
+                      'error': {
+                        'message': 'Gemini blocked this request: it was '
+                            'flagged for copyrighted or trademarked '
+                            'material.',
+                      },
+                    }),
+                  },
+                },
+              }, status: 403)),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message',
+                  'OpenRouter refused the request because of its content '
+                  'rules: Provider returned error: Gemini blocked this '
+                  'request: it was flagged for copyrighted or trademarked '
+                  'material. Change the prompt and send it again.')
+              .having((e) => e.contentRefused, 'contentRefused', isTrue)));
+    });
+
+    test('a message without a full stop gets one', () async {
+      await expectLater(
+          makeImage(openRouter(), 'x',
+              post: answer({
+                'error': {'code': 403, 'message': 'Your input was flagged'},
+              }, status: 403)),
+          throwsA(isA<AiError>().having(
+              (e) => e.message,
+              'message',
+              'OpenRouter refused the request because of its content rules: '
+                  'Your input was flagged. Change the prompt and send it '
+                  'again.')));
+    });
+
     test('other refused requests are unchanged', () async {
       for (final (status, message, expected) in [
         (401, 'No auth credentials found', 'refused the API key'),

@@ -162,6 +162,26 @@ void main() {
           contains('Added the image'));
     });
 
+    test('a prompt refused for its content: the AI is told not to repeat '
+        'it (#298)', () async {
+      final agent = make();
+      agent.startMessage();
+      failWith = const AiError(
+          'OpenRouter refused the request because of its content rules: '
+          'Your input was flagged. Change the prompt and send it again.',
+          status: 403,
+          contentRefused: true);
+      final result = await agent.run(call('open', 'A flag'));
+      expect(
+          result,
+          'Error: the image model refused this prompt because of its '
+          'content rules, and it refuses the same prompt again. Do not send '
+          'it again: change the prompt, or make no image. OpenRouter refused '
+          'the request because of its content rules: Your input was '
+          'flagged. Change the prompt and send it again.');
+      expect(store.files['open.org'], start['open.org']);
+    });
+
     test('a prompt too long for the provider is refused', () async {
       final agent = make(maxPrompt: 10);
       agent.startMessage();

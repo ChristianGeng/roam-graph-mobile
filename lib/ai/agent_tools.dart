@@ -1001,6 +1001,14 @@ class AgentWriter {
     try {
       image = await model.make(prompt);
     } on AiError catch (e) {
+      // Refused for its content (#298): the same prompt is refused again,
+      // so the AI must change it or leave the image out.
+      if (e.contentRefused) {
+        throw ToolError('the image model refused this prompt because of '
+            'its content rules, and it refuses the same prompt again. Do '
+            'not send it again: change the prompt, or make no image. '
+            '${e.message}');
+      }
       throw ToolError('the image model failed: ${e.message}');
     }
     // Counted once made: a failed request costs nothing.

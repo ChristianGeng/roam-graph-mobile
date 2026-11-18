@@ -6,6 +6,16 @@ import 'live_retry.dart';
 /// The error `postJson` throws when a provider does not answer in time.
 const timedOut = AiError('openrouter.ai did not answer in time. Try again.');
 
+/// A refusal for the content (#298) whose provider text also says "did not
+/// answer in time", one of [transientTexts]: without the check of
+/// [AiError.contentRefused] in [isTransient] it would be retried.
+const refused = AiError(
+    'OpenRouter refused the request because of its content rules: The '
+    'safety check did not answer in time, so the request was flagged. '
+    'Change the prompt and send it again.',
+    status: 400,
+    contentRefused: true);
+
 void main() {
   group('isTransient (#278)', () {
     test('a timeout and a passing error are transient', () {
@@ -52,13 +62,11 @@ void main() {
     });
 
     test('a refusal for the content is not transient (#298)', () {
-      // As postJson words it: the same prompt is refused again.
-      const refused = AiError(
-          'OpenRouter refused the request because of its content rules: '
-          'Gemini blocked this request: it was flagged for copyrighted or '
-          'trademarked material. Change the prompt and send it again.',
-          status: 400,
-          contentRefused: true);
+      // As postJson words it: the same prompt is refused again. The
+      // provider's text has a transient phrase ([transientTexts]), so only
+      // AiError.contentRefused keeps it from being retried.
+      expect(isTransient(AiError(refused.message)), isTrue,
+          reason: 'the fixture must look transient by its text');
       expect(isTransient(refused), isFalse);
     });
 
@@ -131,11 +139,6 @@ void main() {
 
     test('a refusal for the content is not retried (#298)', () async {
       var calls = 0;
-      const refused = AiError(
-          'OpenRouter refused the request because of its content rules: '
-          'flagged.',
-          status: 400,
-          contentRefused: true);
       await expectLater(
         withOneRetry(() async {
           calls++;
