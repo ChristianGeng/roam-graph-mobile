@@ -162,6 +162,28 @@ void main() {
           contains('Added the image'));
     });
 
+    test('a prompt refused for its content: the AI is told not to repeat '
+        'it (#298)', () async {
+      final agent = make();
+      agent.startMessage();
+      failWith = const AiError(
+          'OpenRouter refused the request because of its content rules: '
+          'Your input was flagged. Change the prompt and send it again.',
+          status: 403,
+          contentRefused: true);
+      final result = await agent.run(call('open', 'A flag'));
+      expect(
+          result,
+          'Error: the image model refused this prompt because of its '
+          'content rules, and it refuses the same prompt again. Do not send '
+          'it again: change the prompt, or make no image. OpenRouter refused '
+          'the request because of its content rules: Your input was '
+          'flagged.');
+      // Not the user's "Change the prompt and send it again.".
+      expect(result, isNot(contains('and send it again')));
+      expect(store.files['open.org'], start['open.org']);
+    });
+
     test('a prompt too long for the provider is refused', () async {
       final agent = make(maxPrompt: 10);
       agent.startMessage();
@@ -571,6 +593,24 @@ void main() {
       expect(messages, hasLength(4));
       expect(messages[3]['content'], contains(imageNotShown));
       expect((chat.transcript.last as AssistantMessage).text, 'Done.');
+    });
+
+    test('a refusal for the content is not sent again without the image '
+        '(#298)', () async {
+      final server = FakeServer([
+        openAiCall(),
+        const HttpReply(400, '{"error": {"message": "Gemini blocked this '
+            'request: it was flagged for copyrighted or trademarked '
+            'material.", "code": 400}}'),
+      ]);
+      await expectLater(
+          session(deepseek, server).send('Make an image'),
+          throwsA(isA<AiError>()
+              .having((e) => e.contentRefused, 'contentRefused', isTrue)
+              .having((e) => e.message, 'message',
+                  startsWith('DeepSeek refused the request because of its '
+                      'content rules: Gemini blocked this request'))));
+      expect(server.requests, hasLength(2));
     });
 
     test('another error is not hidden by the retry', () async {

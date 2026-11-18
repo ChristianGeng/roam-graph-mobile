@@ -29,9 +29,12 @@ const transientTexts = [
 /// Whether [error] is one a user would answer with "Try again": the error
 /// says it may well pass ([AiError.passing]: a broken connection or an
 /// overloaded provider in a chat or image request), or its text is one of
-/// [transientTexts].
+/// [transientTexts]. A refusal for the content
+/// ([AiError.contentRefused], #298) never is: the same prompt is refused
+/// again.
 bool isTransient(Object error) {
   if (error is! AiError) return false;
+  if (error.contentRefused) return false;
   if (error.passing) return true;
   final text = error.message.toLowerCase();
   return transientTexts.any((t) => text.contains(t.toLowerCase()));
