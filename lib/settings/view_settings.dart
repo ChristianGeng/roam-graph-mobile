@@ -485,6 +485,11 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   /// loaded.
   var _saved = false;
 
+  /// Whether the latest change failed to save, so the settings went back
+  /// to [_inFile]; before the file is read, those are the defaults, and
+  /// the file replaces them once it is read (#296).
+  var _rolledBack = false;
+
   /// Completes once the settings are loaded (or a change came first),
   /// for screens that must not start with the defaults (#81).
   final _loaded = Completer<void>();
@@ -501,8 +506,9 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
       }
       if (mounted && !_saved) {
         _inFile = settings;
-        // A choice made while loading is newer than the file.
-        if (_changes == 0) _settings.value = settings;
+        // A choice made while loading is newer than the file, unless its
+        // save failed.
+        if (_changes == 0 || _rolledBack) _settings.value = settings;
       }
       if (!_loaded.isCompleted) _loaded.complete();
     }();
@@ -513,6 +519,7 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   /// shows what the file holds, and the error is thrown.
   Future<void> _change(ViewSettings settings) {
     final change = ++_changes;
+    _rolledBack = false;
     // A change is newer than the file: screens waiting can go on.
     if (!_loaded.isCompleted) _loaded.complete();
     // Used at once, so a second change made while the first is saving
@@ -528,7 +535,12 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
     });
     _saves = saved;
     return saved.then((_) {}, onError: (Object error, StackTrace stack) {
-      if (mounted && change == _changes) _settings.value = _inFile;
+      if (mounted && change == _changes) {
+        // Set first: a listener of the next line may make a new change,
+        // which clears it.
+        _rolledBack = true;
+        _settings.value = _inFile;
+      }
       Error.throwWithStackTrace(error, stack);
     });
   }
@@ -606,11 +618,14 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
   /// older choice. If the latest save fails, the settings go back to what
   /// the file holds, and the error is thrown.
   ///
-  /// Two limits: a change only to fields that [ViewSettings.==] leaves out
+  /// Before the file is read, a failed save goes back to the last save
+  /// that succeeded, or to the defaults if none did; once the file is
+  /// read, the settings are the file's, unless a save succeeded or a
+  /// change is still saving (#296).
+  ///
+  /// A limit: a change only to fields that [ViewSettings.==] leaves out
   /// (`lastUpdateCheckTime`, `lastSeenVersion`) is saved, but [read] keeps
-  /// the earlier object until another field changes; and a failed save
-  /// before the file is read goes back to the last save that succeeded,
-  /// or to the defaults if none did, not to the file (#296).
+  /// the earlier object until another field changes.
   static Future<void> change(BuildContext context, ViewSettings settings) async {
     final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
     if (scope == null) return;

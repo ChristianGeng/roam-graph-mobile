@@ -5166,6 +5166,19 @@ Numbered 160, not 159: another open branch may take 159.
   (the row shows, saves and clears the value; the default on the
   desktop; the JSON).
 
+## 161. A failed save before the settings file is read ends with the file (#296)
+
+- **What:** in `ViewSettingsHost` (`lib/settings/view_settings.dart`),
+  when the latest change's save fails, the settings go back to what the
+  file holds; before the file is read, that is the defaults. Now, when
+  the file is read after such a failed save, and no save has succeeded,
+  its settings are used. A change still saving, or saved, when the file
+  is read keeps winning over the file, as before.
+- **Why:** reading the file updated only the fallback, not the settings
+  shown, once any change was made, so the screen kept the defaults until
+  the next change or restart.
+- **Tests:** `test/settings/view_settings_host_test.dart`.
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept

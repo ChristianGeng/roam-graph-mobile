@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-22: A setting that fails to save right after the start no longer resets the others ([#309](https://github.com/ChristianGeng/roam-graph-mobile/pull/309))
+
+- Fixed: when a view setting was changed in the first moment after the app started and could not be saved, the app showed the default settings instead of those saved before, until the next change or restart. It now shows the saved settings. Closes #296.
+
 ## 2026-11-18: The notes folder on the computer with Emacs is a setting ([#306](https://github.com/ChristianGeng/roam-graph-mobile/pull/306))
 
 - Added: Settings, "Note files", has "Notes folder on the computer with Emacs": the `org-roam-directory` there. The paths in the app's database start with it, so they match org-roam's own database and the MCP tools; changing it rebuilds the index. Not set, the desktop uses the notes folder itself and Android uses `/notes/<folder name>`. The index is rebuilt once after the update; to keep the paths as before, set it once to your `org-roam-directory`. Closes #303.
