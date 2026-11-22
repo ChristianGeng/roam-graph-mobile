@@ -9,9 +9,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:org_flutter/org_flutter.dart';
 
+import 'drawn_latex.dart';
+
 /// org_flutter's [OrgText] with [MonospaceOrgThemes]: [OrgText] makes
 /// its own themes and takes none. The rest is as [OrgText] builds it:
-/// markup hidden, no padding, shrink-wrapped.
+/// markup hidden, no padding, shrink-wrapped. LaTeX formulas are drawn
+/// with katex, as in a note (#308).
 class MonospaceOrgText extends StatefulWidget {
   const MonospaceOrgText(this.text, {this.onLinkTap, super.key});
 
@@ -37,6 +40,8 @@ class _MonospaceOrgTextState extends State<MonospaceOrgText> {
     settings: OrgSettings.hideMarkup,
     child: OrgRootWidget(
       onLinkTap: widget.onLinkTap,
+      loadLatexInline: loadLatexInline,
+      loadLatexBlock: loadLatexBlock,
       lightTheme: MonospaceOrgThemes.lightTight,
       darkTheme: MonospaceOrgThemes.darkTight,
       child: OrgDocumentWidget(_doc, shrinkWrap: true, safeArea: false),

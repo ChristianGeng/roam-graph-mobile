@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-22: LaTeX formulas drawn on the device on every platform, inline ones too ([#311](https://github.com/ChristianGeng/roam-graph-mobile/pull/311))
+
+- Changed: every LaTeX formula is now drawn by the app itself, on Android as on Linux, Windows and macOS, with no WebView: inline formulas (`\( \)`, `$ $`) sit on the line in the colour and size of the text around them (in a heading, the heading's colour), display formulas and environments on their own line. Also in the AI chat. A formula that cannot be drawn shows its source in the code font. Equation numbers are still not shown. Closes #308.
+
 ## 2026-11-18: The notes folder on the computer with Emacs is a setting ([#306](https://github.com/ChristianGeng/roam-graph-mobile/pull/306))
 
 - Added: Settings, "Note files", has "Notes folder on the computer with Emacs": the `org-roam-directory` there. The paths in the app's database start with it, so they match org-roam's own database and the MCP tools; changing it rebuilds the index. Not set, the desktop uses the notes folder itself and Android uses `/notes/<folder name>`. The index is rebuilt once after the update; to keep the paths as before, set it once to your `org-roam-directory`. Closes #303.

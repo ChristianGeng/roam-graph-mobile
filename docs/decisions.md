@@ -4962,6 +4962,9 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 
 ## 157. LaTeX blocks are drawn by the app on the desktop with `katex` (#300)
 
+*Replaced in part by decision 162 (#308): every formula through
+`org_flutter`'s callbacks, on every platform.*
+
 - **What:** on Linux, Windows and macOS, LaTeX blocks are drawn by the
   app with the `katex` package (1.0.0; Flutter widgets on top of
   `katex_dart` 0.1.1, a port of KaTeX to Dart by the same author), in
@@ -5165,6 +5168,82 @@ Numbered 160, not 159: another open branch may take 159.
   the first scan's listing index once below the new root); `test/settings/settings_screen_test.dart`
   (the row shows, saves and clears the value; the default on the
   desktop; the JSON).
+
+## 162. LaTeX through org_flutter's callbacks: `katex` on every platform (#308)
+
+Numbered 162, not 161: the open pull request #309 takes 161.
+
+- **What:** every LaTeX formula, inline and block, is drawn by the app
+  with `katex` (decision 157) on every platform, Android included,
+  through two callbacks that `org_flutter` hands LaTeX to:
+  `loadLatexInline` and `loadLatexBlock`
+  (amake/org_flutter#23, agreed in amake/org_flutter#22).
+  `org_flutter` no longer depends on `flutter_tex_js`, and neither does
+  the app. The callbacks are in `lib/node_view/drawn_latex.dart`; the
+  note view and `MonospaceOrgText` (AI chat answers) pass them to
+  `OrgRootWidget`.
+  - **Inline formulas** (`\( \)`, `$ $`): a `WidgetSpan` aligned to the
+    alphabetic baseline, so the formula's baseline is the line's
+    (`RenderFormula` reports it: the ink margin plus the formula's
+    height above its baseline). `org_flutter` gives the widget the style
+    of the text around it as its `DefaultTextStyle`, so a formula in a
+    headline has the headline's colour. Size: 1.21 times that text size,
+    as KaTeX's style sheet. Where display formulas are still inline (the
+    chat does not run `withDisplayFormulas`), they are laid out in
+    display style.
+  - **Blocks** (environments, and the display formulas that
+    `withDisplayFormulas` turns into blocks, decision 40): as in
+    decision 157 (the environments rewritten, `\label`, `\nonumber` and
+    `\notag` removed, display mode, text colour, 1.21 times the text
+    size). `org_flutter` places the widget in a container that scrolls
+    sideways, so the app's own scroll view and width limit are gone; the
+    widget has the formula's own size.
+  - **A formula `katex_dart` cannot lay out** (an unknown command, a
+    missing brace): the callback returns null, and `org_flutter` shows
+    the source with its delimiters in the code style, as `~code~`. Before,
+    the desktop showed a broken block in the normal text style.
+  - **Text scaling:** `org_flutter` sets the text scaling to 1 inside
+    `OrgRootWidget` and the text there has none, so the app no longer
+    applies the system's scaling to the formula either (it had no effect
+    there); the formula follows the size of the text style.
+  - **The layout cache** stays (256 formulas, the oldest dropped), now
+    keyed by the formula and its mode (inline or display).
+  - **Screen readers** read the formula's source, inline and block.
+- **Removed:** the #301 detour (decision 157): blocks are no longer
+  rewritten into links to `latex-formula.png` (`withDrawnFormulas`,
+  `FormulaLink`, `loadDrawnFormula`), so `loadImage` no longer draws
+  formulas; the split by platform (`flutter_tex_js` on Android and iOS);
+  `flutter_tex_js` itself and the mocks of its channel in the tests.
+  With the links gone, formulas are drawn also in a note with
+  `#+STARTUP: noinlineimages` (`org_flutter` calls the LaTeX callbacks
+  whether inline images are on or not).
+- **Why:** decision 157 left inline formulas out, because through
+  `loadImage` they would sit at the bottom of the line, and on Android
+  `flutter_tex_js` ran KaTeX in a WebView. With the callbacks, one
+  renderer, offline and without a WebView, draws every formula in the
+  same way on every platform, on the baseline, and the app needs no
+  link rewriting.
+- **org_flutter from git, for now:** `pubspec.yaml` pins `org_flutter`
+  to the fork's commit 4920ace87dcbba6cd1a343fd8aae340fcf36a86e
+  (ChristianGeng/org_flutter, the head of amake/org_flutter#23), as
+  decision 152 did for #21. The pull request stays a draft until amake
+  releases the change; then the pin goes back to a version constraint
+  (as in decision 156), and the pull request closes #300 as well.
+- **Limits:** as in decision 157 (small spacing faults, no equation
+  numbers, environments `katex_dart` does not know show their source).
+  On Android, formulas now look like the desktop's, not like KaTeX in a
+  WebView.
+- **Tests:** `test/node_view/drawn_latex_test.dart` with the synthetic
+  `test/fixtures/latex.org` and `test/fixtures/roam/20240112120000-mu.org`:
+  the environment rewrite; the callbacks (an inline formula is a
+  baseline `WidgetSpan`, an inline display formula is in display style,
+  null for a broken formula); in the node view every formula is drawn by
+  `katex` on every platform; a broken formula shows its source in the
+  code font; the colour in both themes and the size; a formula in a
+  headline has the headline's colour; the inline formula's baseline is
+  the line's; screen readers; a wide formula scrolls; the chat draws
+  formulas; the cache. `test/node_view/latex_test.dart` keeps the
+  display formula tests.
 
 ## Recommended, not decided
 

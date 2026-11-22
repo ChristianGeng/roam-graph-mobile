@@ -3,10 +3,10 @@
 :END:
 #+title: Drawn formulas
 
-Synthetic LaTeX for test/node_view/drawn_latex_test.dart (#300). Made up
+Synthetic LaTeX for test/node_view/drawn_latex_test.dart (#300, #308). Made up
 for the tests; not taken from any real note.
 
-Inline stays inline: \(a + b\) in a sentence.
+Inline, on the line: \(a + b\) in a sentence.
 
 Display with brackets:
 \[ \int_0^1 x^2 \, dx = \frac{1}{3} \]

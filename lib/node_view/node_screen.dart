@@ -1839,8 +1839,7 @@ class _NodeScreenState extends State<NodeScreen> {
     // in display mode (#50); mermaid and plantuml blocks without a result
     // image drawn (#49, #283); sub- and superscripts as the mode says
     // (#213); the lines of a paragraph joined, if the setting says so
-    // (#219); LaTeX blocks drawn by the app on the desktop (#300), last, as
-    // the added links are told apart by their class.
+    // (#219).
     final scripted = withScripts(
       withDisplayFormulas(withHighlightLanguages(parseNote(text))),
       scriptMode,
@@ -1852,13 +1851,13 @@ class _NodeScreenState extends State<NodeScreen> {
       return shown;
     }
 
-    final document = withDrawnFormulas(withPlantumlDrawings(
+    final document = withPlantumlDrawings(
       withMermaidDrawings(
         view.joinLines ? withJoinedLines(scripted) : scripted,
         showsImage: showsImage,
       ),
       showsImage: showsImage,
-    ));
+    );
     final version = ++_parsedVersion;
     _parsed = (
       key: key,
@@ -2018,8 +2017,10 @@ class _NodeScreenState extends State<NodeScreen> {
                   _headingMenu(index);
                 }
               },
+        // Every formula drawn by the app with katex (#308).
+        loadLatexInline: loadLatexInline,
+        loadLatexBlock: loadLatexBlock,
         loadImage: (link) =>
-            loadDrawnFormula(link) ??
             loadMermaidDrawing(link) ??
             loadPlantumlDrawing(link) ??
             switch (files) {

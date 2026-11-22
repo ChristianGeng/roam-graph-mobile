@@ -31,8 +31,9 @@ notes, and it has an AI chat that works on the notes.
 - Images from the notes folder at their Org width, SVG too.
 - Mermaid and PlantUML blocks show the image Emacs made; a block without
   one is drawn on the device.
-- LaTeX formulas, display formulas on their own line; on Linux, Windows
-  and macOS the display formulas only (inline ones show their source).
+- LaTeX formulas drawn on the device: inline ones on the line, display
+  formulas and environments on their own line; one that cannot be drawn
+  shows its source.
 - Source blocks coloured as Emacs colours them, code in a monospace font.
 - Search inside a note; tick checkboxes and change TODO states.
 - On Android, a note opens read-only in another app, such as Orgro, and

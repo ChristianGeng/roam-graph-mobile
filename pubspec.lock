@@ -288,38 +288,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_tex_js:
-    dependency: "direct dev"
-    description:
-      name: flutter_tex_js
-      sha256: "56a7a716d617c17797a3ff98458c0039c64db643f67577fe6466b77e03b93e3a"
-      url: "https://pub.dev"
-    source: hosted
-    version: "7.0.0"
-  flutter_tex_js_android:
-    dependency: transitive
-    description:
-      name: flutter_tex_js_android
-      sha256: "7357d171f44068e51271ddf5c3bf8f0bd502df259b8755dba2dfa6fb7481e614"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.0.3"
-  flutter_tex_js_ios:
-    dependency: transitive
-    description:
-      name: flutter_tex_js_ios
-      sha256: "0ae1a241b20d385bade82732a54513500763908cb50602e7b9ab5059e2840612"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.3"
-  flutter_tex_js_platform_interface:
-    dependency: transitive
-    description:
-      name: flutter_tex_js_platform_interface
-      sha256: d6d4055233af0160170cb193b52f450f81e120fdb85045596dfc52f9f9b46e26
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.0"
   flutter_web_plugins:
     dependency: transitive
     description: flutter
@@ -520,10 +488,11 @@ packages:
   org_flutter:
     dependency: "direct main"
     description:
-      name: org_flutter
-      sha256: a487d058484c64ae284deb94a9b55ed9d3215a4a669f5d614ef00ea6f8a46019
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: "4920ace87dcbba6cd1a343fd8aae340fcf36a86e"
+      resolved-ref: "4920ace87dcbba6cd1a343fd8aae340fcf36a86e"
+      url: "https://github.com/ChristianGeng/org_flutter.git"
+    source: git
     version: "13.5.0"
   org_parser:
     dependency: "direct main"
