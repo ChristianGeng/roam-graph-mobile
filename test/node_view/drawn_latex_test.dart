@@ -94,6 +94,10 @@ TextStyle? styleOfText(WidgetTester tester, String text) {
 }
 
 void main() {
+  // The layouts are kept in one cache for the whole app.
+  setUp(forgetLaidOutFormulas);
+  tearDown(forgetLaidOutFormulas);
+
   group('the environment rewrite', () {
     test('a display formula, equation and equation* become the formula', () {
       expect(formulaToDraw(blockOf(r'\[ x^2 \]')), ' x^2 ');
@@ -625,6 +629,20 @@ void main() {
     );
     expect(find.byType(DrawnFormula), findsNWidgets(2));
     expect(tester.takeException(), isNull);
+  });
+
+  test('the cache keeps the formulas used last', () {
+    final boxes = [
+      for (var i = 0; i < maxLaidOutFormulas; i++) layOutFormula('x_{$i}').box,
+    ];
+    expect(laidOutFormulas, maxLaidOutFormulas);
+    // Used again, x_0 is now the newest; one more formula drops x_1.
+    expect(layOutFormula('x_{0}').box, same(boxes[0]));
+    layOutFormula('y');
+    expect(laidOutFormulas, maxLaidOutFormulas);
+    expect(layOutFormula('x_{0}').box, same(boxes[0]));
+    expect(layOutFormula('x_{1}').box, isNot(same(boxes[1])));
+    expect(laidOutFormulas, maxLaidOutFormulas);
   });
 
   test('laid-out formulas are kept by their text and mode', () {

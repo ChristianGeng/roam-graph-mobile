@@ -281,9 +281,18 @@ typedef LaidOutFormula = ({katex.BoxNode? box, Object? error});
 /// Formulas laid out, by their text and mode, so scrolling and showing a
 /// note again do not parse them again. The layout is in em and has no
 /// colour, so one entry serves every theme and text size. The oldest are
-/// dropped beyond [_maxLaidOut].
+/// dropped beyond [maxLaidOutFormulas]: each use moves a formula to the
+/// end, so the ones in use stay.
 final _laidOut = <(String, bool), LaidOutFormula>{};
-const _maxLaidOut = 256;
+const maxLaidOutFormulas = 256;
+
+/// How many formulas are kept laid out.
+@visibleForTesting
+int get laidOutFormulas => _laidOut.length;
+
+/// Forgets every laid-out formula, so each test starts with none.
+@visibleForTesting
+void forgetLaidOutFormulas() => _laidOut.clear();
 
 /// [tex] laid out, in display mode unless [display] is false. An unknown
 /// command or a broken formula is an error here: `katex_dart` then throws,
@@ -304,7 +313,9 @@ LaidOutFormula layOutFormula(String tex, {bool display = true}) {
     laidOut = (box: null, error: error);
   }
   _laidOut[key] = laidOut;
-  if (_laidOut.length > _maxLaidOut) _laidOut.remove(_laidOut.keys.first);
+  if (_laidOut.length > maxLaidOutFormulas) {
+    _laidOut.remove(_laidOut.keys.first);
+  }
   return laidOut;
 }
 

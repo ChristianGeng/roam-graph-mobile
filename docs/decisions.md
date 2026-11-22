@@ -5234,8 +5234,9 @@ Numbered 162, not 161: the open pull request #309 takes 161.
     `OrgRootWidget` and the text there has none, so the app no longer
     applies the system's scaling to the formula either (it had no effect
     there); the formula follows the size of the text style.
-  - **The layout cache** stays (256 formulas, the oldest dropped), now
-    keyed by the formula and its mode (inline or display).
+  - **The layout cache** stays (256 formulas, the one used longest ago
+    dropped), now keyed by the formula and its mode (inline or display).
+    Tests empty it before and after each test.
   - **Screen readers** read the formula's source, inline and block.
 - **Removed:** the #301 detour (decision 157): blocks are no longer
   rewritten into links to `latex-formula.png` (`withDrawnFormulas`,
