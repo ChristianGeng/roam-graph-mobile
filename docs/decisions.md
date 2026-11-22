@@ -5190,7 +5190,11 @@ Numbered 162, not 161: the open pull request #309 takes 161.
     headline has the headline's colour. Size: 1.21 times that text size,
     as KaTeX's style sheet. Where display formulas are still inline (the
     chat does not run `withDisplayFormulas`), they are laid out in
-    display style.
+    display style. A line of text cannot scroll, so an inline formula has
+    its own sideways scroll view, as wide as the line at most (which
+    reports the formula's baseline): one wider than the line can be read
+    to its end, as a block can. A formula given less room than it needs
+    is cut to its box, never painted over the text next to it.
   - **Blocks** (environments, and the display formulas that
     `withDisplayFormulas` turns into blocks, decision 40): as in
     decision 157 (the environments rewritten, `\label`, `\nonumber` and

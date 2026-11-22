@@ -392,6 +392,75 @@ void main() {
       semantics.dispose();
     });
 
+    testWidgets('a wide inline formula scrolls sideways on a narrow screen', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final sum = [for (var i = 1; i <= 30; i++) 'a_{$i}'].join(' + ');
+      await show(
+        tester,
+        text:
+            ':PROPERTIES:\n:ID: $_id\n:END:\n#+title: Narrow\n\n'
+            'Before \\($sum\\) after.\n',
+      );
+      final formula = find.byType(DrawnFormula);
+      final line = find.ancestor(of: formula, matching: find.byType(RichText));
+      final render = drawn(tester).single;
+      // The formula is wider than the line; its scroll view is not.
+      expect(render.size.width, greaterThan(tester.getSize(line.first).width));
+      expect(
+        tester.getSize(formula).width,
+        lessThanOrEqualTo(tester.getSize(line.first).width),
+      );
+      final scroll = find.descendant(
+        of: formula,
+        matching: find.byType(SingleChildScrollView),
+      );
+      expect(
+        tester.widget<SingleChildScrollView>(scroll).scrollDirection,
+        Axis.horizontal,
+      );
+      // Dragging shows the end of the formula.
+      final position = tester
+          .state<ScrollableState>(
+            find.descendant(of: scroll, matching: find.byType(Scrollable)),
+          )
+          .position;
+      expect(position.maxScrollExtent, greaterThan(0));
+      await tester.drag(scroll, const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      expect(position.pixels, greaterThan(0));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a formula given less room than it needs is cut to its box', (
+      tester,
+    ) async {
+      final box = layOutFormula(r'a + b + c + d + e + f').box!;
+      Future<RenderFormula> drawAt(double width) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(
+              child: SizedBox(
+                width: width,
+                child: DrawnFormula(box, source: 'abc'),
+              ),
+            ),
+          ),
+        );
+        return drawn(tester).single;
+      }
+
+      final narrow = await drawAt(20);
+      expect(narrow.size.width, 20);
+      expect(narrow, paints..clipRect(rect: Offset.zero & narrow.size));
+      final wide = await drawAt(400);
+      expect(wide, isNot(paints..clipRect()));
+    });
+
     testWidgets('a wide formula scrolls sideways', (tester) async {
       await show(tester);
       final wide = find

@@ -6,6 +6,7 @@
 /// use of the package is kept in this file.
 library;
 
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:katex/katex.dart';
 import 'package:katex_dart/katex_dart.dart' as katex;
 import 'package:material_ui/material_ui.dart';
@@ -59,7 +60,8 @@ String formulaToDraw(OrgLatexBlock block) {
 /// gives the widget the text's style as its [DefaultTextStyle]. A display
 /// formula that is still inline (`\[ \]` and `$$ $$` where the text is not
 /// passed through `withDisplayFormulas`, as in the AI chat) is drawn in
-/// display style. Null when the formula cannot be drawn.
+/// display style. A formula wider than the line scrolls sideways
+/// ([DrawnFormula.inline]). Null when the formula cannot be drawn.
 InlineSpan? loadLatexInline(OrgLatexInline latex) {
   final display = displayFormulaDelimiters.contains(latex.leadingDecoration);
   final box = layOutFormula(latex.content, display: display).box;
@@ -67,7 +69,7 @@ InlineSpan? loadLatexInline(OrgLatexInline latex) {
   return WidgetSpan(
     alignment: PlaceholderAlignment.baseline,
     baseline: TextBaseline.alphabetic,
-    child: DrawnFormula(box, source: latex.toMarkup()),
+    child: DrawnFormula(box, source: latex.toMarkup(), inline: true),
   );
 }
 
@@ -122,24 +124,88 @@ LaidOutFormula layOutFormula(String tex, {bool display = true}) {
 /// no width from its parent; it reports the formula's baseline, so a
 /// [WidgetSpan] aligned to the baseline sets it on the line. Screen readers
 /// read [source], the formula as written.
+///
+/// An [inline] formula is in a line of text, which `org_flutter` does not
+/// let scroll: it gets its own sideways scroll view, as wide as the line
+/// at most, so a formula wider than the line can be read to its end, as a
+/// block can in `org_flutter`'s. The scroll view reports the formula's
+/// baseline, so the formula stays on the line.
 class DrawnFormula extends StatelessWidget {
-  const DrawnFormula(this.box, {super.key, required this.source});
+  const DrawnFormula(
+    this.box, {
+    super.key,
+    required this.source,
+    this.inline = false,
+  });
 
   final katex.BoxNode box;
   final String source;
+  final bool inline;
 
   @override
   Widget build(BuildContext context) {
     final style = DefaultTextStyle.of(context).style;
-    return Semantics(
+    final fontSize = (style.fontSize ?? kDefaultFontSize) * katexEm;
+    final formula = Semantics(
       label: source,
       child: _FormulaBox(
         box: box,
-        fontSize: (style.fontSize ?? kDefaultFontSize) * katexEm,
+        fontSize: fontSize,
         color: style.color ?? Theme.of(context).colorScheme.onSurface,
       ),
     );
+    if (!inline) return formula;
+    return _WithBaseline(
+      baseline: formulaBaseline(box, fontSize),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: formula,
+      ),
+    );
   }
+}
+
+/// The distance from the top of a drawn formula to its baseline: the ink
+/// margin, then the part of the formula above its baseline.
+double formulaBaseline(katex.BoxNode box, double fontSize) =>
+    (kInkOverflowPadEm + box.height) * fontSize;
+
+/// [child], which reports [baseline] as its own: a scroll view reports
+/// none.
+class _WithBaseline extends SingleChildRenderObjectWidget {
+  const _WithBaseline({required this.baseline, required super.child});
+
+  final double baseline;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderWithBaseline(baseline);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderWithBaseline renderObject,
+  ) => renderObject.baseline = baseline;
+}
+
+class _RenderWithBaseline extends RenderProxyBox {
+  _RenderWithBaseline(this._baseline);
+
+  double _baseline;
+  set baseline(double value) {
+    if (value == _baseline) return;
+    _baseline = value;
+    markNeedsLayout();
+  }
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) => _baseline;
+
+  @override
+  double? computeDryBaseline(
+    BoxConstraints constraints,
+    TextBaseline baseline,
+  ) => _baseline;
 }
 
 /// Paints [box] with `katex`'s [KatexBoxPainter], with its ink margin on
@@ -223,15 +289,30 @@ class RenderFormula extends RenderBox {
   @override
   void performLayout() => size = computeDryLayout(constraints);
 
-  /// The ink margin, then the part of the formula above its baseline.
-  double get _baseline => (kInkOverflowPadEm + _box.height) * _fontSize;
+  double get _baseline => formulaBaseline(_box, _fontSize);
 
   @override
   double? computeDistanceToActualBaseline(TextBaseline baseline) => _baseline;
 
+  /// Painted at its own size; where its parent gave it less room, cut
+  /// to its box, so it never paints over what is next to it.
   @override
   void paint(PaintingContext context, Offset offset) {
-    context.canvas
+    final full = _formulaSize;
+    if (size.width < full.width || size.height < full.height) {
+      context.pushClipRect(
+        needsCompositing,
+        offset,
+        Offset.zero & size,
+        (context, offset) => _paintFormula(context.canvas, offset, full),
+      );
+    } else {
+      _paintFormula(context.canvas, offset, full);
+    }
+  }
+
+  void _paintFormula(Canvas canvas, Offset offset, Size full) {
+    canvas
       ..save()
       ..translate(offset.dx, offset.dy);
     KatexBoxPainter(
@@ -239,7 +320,7 @@ class RenderFormula extends RenderBox {
       fontSize: _fontSize,
       color: _color,
       inkPadEm: kInkOverflowPadEm,
-    ).paint(context.canvas, size);
-    context.canvas.restore();
+    ).paint(canvas, full);
+    canvas.restore();
   }
 }
