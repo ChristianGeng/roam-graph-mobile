@@ -5243,6 +5243,14 @@ Numbered 162, not 161: the open pull request #309 takes 161.
     dropped), now keyed by the formula and its mode (inline or display).
     Tests empty it before and after each test.
   - **Screen readers** read the formula's source, inline and block.
+  - **Search, "Only matching sections":** `org_parser` looks for the
+    pattern in a formula's delimiters and body one at a time, so a
+    search for a whole formula (`\[ a + b \]`) found no match and
+    folded its section away. On the desktop the #301 links matched the
+    whole source; on Android, and for inline formulas everywhere, it
+    never worked. `MatchingSections` now also matches a formula of the
+    section's own heading or body as written. The formula itself is not
+    marked, as before.
 - **Removed:** the #301 detour (decision 157): blocks are no longer
   rewritten into links to `latex-formula.png` (`withDrawnFormulas`,
   `FormulaLink`, `loadDrawnFormula`), so `loadImage` no longer draws

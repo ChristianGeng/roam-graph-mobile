@@ -16,8 +16,9 @@ RegExp? notePattern(String query) => query.isEmpty
     : RegExp(RegExp.escape(query), caseSensitive: false);
 
 /// The sections whose own text (heading and body, not sub-headings)
-/// matches [pattern], for "Only matching sections". [root], the note
-/// shown, always matches, so a heading node itself never folds away.
+/// matches [pattern], for "Only matching sections"; a LaTeX formula
+/// matches as written. [root], the note shown, always matches, so a
+/// heading node itself never folds away.
 class MatchingSections extends OrgQueryMatcher {
   const MatchingSections(this.pattern, this.root);
 
@@ -27,7 +28,26 @@ class MatchingSections extends OrgQueryMatcher {
   @override
   bool matches(OrgSection section) =>
       identical(section, root) ||
-      section.contains(pattern, includeChildren: false);
+      section.contains(pattern, includeChildren: false) ||
+      _inFormula(section);
+
+  /// Whether a LaTeX formula in [section]'s own heading or body matches
+  /// as written, delimiters and all (`\[ a + b \]`): `org_parser` looks
+  /// for the pattern in the delimiters and the body of a formula one at a
+  /// time, so a match across them is not found there.
+  bool _inFormula(OrgSection section) {
+    var found = false;
+    bool check(OrgNode node) {
+      found = pattern.hasMatch(node.toMarkup());
+      return !found;
+    }
+
+    for (final OrgNode part in [section.headline, ?section.content]) {
+      if (!found) part.visit<OrgLatexBlock>(check);
+      if (!found) part.visit<OrgLatexInline>(check);
+    }
+    return found;
+  }
 
   // `OrgController` folds the sections again whenever the matcher is not
   // equal to the one before, so a rebuild with the same search must give
