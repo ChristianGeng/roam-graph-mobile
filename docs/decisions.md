@@ -5202,6 +5202,15 @@ Numbered 162, not 161: the open pull request #309 takes 161.
     size). `org_flutter` places the widget in a container that scrolls
     sideways, so the app's own scroll view and width limit are gone; the
     widget has the formula's own size.
+  - **Tags:** `katex_dart` accepts `\tag{x}` and `\tag*{x}` but draws
+    nothing for them, and fails on some tagged environments (an `align`
+    whose rows have tags); `flutter_tex_js` drew them. `withDrawnTags`
+    replaces each with `\qquad\text{(x)}` (`\text{x}` for the starred
+    one), in blocks and in display formulas that are still inline. KaTeX
+    sets the tag at the right edge of the page; a block here sits in a
+    container that scrolls sideways and has no page width, so the tag
+    follows its formula or its row, 2 em after it. A tag without its
+    closing brace is left to `katex_dart`.
   - **A formula `katex_dart` cannot lay out** (an unknown command, a
     missing brace): the callback returns null, and `org_flutter` shows
     the source with its delimiters in the code style, as `~code~`. Before,
@@ -5233,8 +5242,9 @@ Numbered 162, not 161: the open pull request #309 takes 161.
   decision 152 did for #21. The pull request stays a draft until amake
   releases the change; then the pin goes back to a version constraint
   (as in decision 156), and the pull request closes #300 as well.
-- **Limits:** as in decision 157 (small spacing faults, no equation
-  numbers, environments `katex_dart` does not know show their source).
+- **Limits:** as in decision 157 (small spacing faults, no automatic
+  equation numbers, environments `katex_dart` does not know show their
+  source).
   On Android, formulas now look like the desktop's, not like KaTeX in a
   WebView.
 - **Tests:** `test/node_view/drawn_latex_test.dart` with the synthetic

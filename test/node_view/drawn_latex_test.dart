@@ -17,9 +17,9 @@ import 'node_screen_test.dart' show graphOf;
 final _fixture = File('test/fixtures/latex.org').readAsStringSync();
 const _id = '11111111-1111-4111-8111-000000000300';
 
-/// The LaTeX blocks of the fixture: 13, of which one is broken; and one
+/// The LaTeX blocks of the fixture: 15, of which one is broken; and one
 /// inline formula.
-const _blocks = 13;
+const _blocks = 15;
 const _broken = r'\[ \unknowncommand{x} \]';
 
 /// The block of [text], parsed.
@@ -195,6 +195,46 @@ void main() {
         return true;
       });
       expect(failed, [r'\unknowncommand{x}']);
+    });
+  });
+
+  group('tags', () {
+    test('a tag is drawn after its formula, in text style', () {
+      expect(withDrawnTags(r'x \tag{1}'), r'x \qquad\text{(1)}');
+      expect(withDrawnTags(r'x \tag*{A} '), r'x \qquad\text{A} ');
+      expect(
+        withDrawnTags(r'a \tag{$b_{1}$} \\ c \tag {2}'),
+        r'a \qquad\text{($b_{1}$)} \\ c \qquad\text{(2)}',
+      );
+    });
+
+    test('a row break before tag letters and a tag without its brace stay', () {
+      expect(withDrawnTags(r'a \\tag{1}'), r'a \\tag{1}');
+      expect(withDrawnTags(r'a \tag{1'), r'a \tag{1');
+    });
+
+    test('a tagged block is drawn with its tag', () {
+      double width(String text) =>
+          (loadLatexBlock(blockOf(text))! as DrawnFormula).box.width;
+      for (final environment in ['equation', 'align', 'gather']) {
+        expect(
+          width('\\begin{$environment}\nx = 1 \\tag{7}\n\\end{$environment}\n'),
+          greaterThan(
+            width('\\begin{$environment}\nx = 1\n\\end{$environment}\n'),
+          ),
+          reason: environment,
+        );
+      }
+      expect(width(r'\[ x \tag*{a} \]'), greaterThan(width(r'\[ x \]')));
+    });
+
+    test('an inline display formula is drawn with its tag', () {
+      double width(String text) =>
+          ((loadLatexInline(inlineOf(text))! as WidgetSpan).child
+                  as DrawnFormula)
+              .box
+              .width;
+      expect(width(r'A \[x \tag{1}\] b.'), greaterThan(width(r'A \[x\] b.')));
     });
   });
 

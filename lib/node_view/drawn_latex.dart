@@ -41,9 +41,10 @@ final _numbering = RegExp(
 /// Equation numbers are lost: `katex_dart` numbers nothing, and the
 /// commands that label or number ([_numbering]) are removed, each replaced
 /// by a space so the commands around it stay apart (`\pi\label{a}r` must
-/// not become `\pir`).
+/// not become `\pir`). A tag the formula sets itself is drawn
+/// ([withDrawnTags]).
 String formulaToDraw(OrgLatexBlock block) {
-  final body = block.content.replaceAll(_numbering, ' ');
+  final body = withDrawnTags(block.content.replaceAll(_numbering, ' '));
   return switch (block.environment) {
     '' || 'equation' || 'equation*' => body,
     'align' => '\\begin{aligned}$body\\end{aligned}',
@@ -55,6 +56,46 @@ String formulaToDraw(OrgLatexBlock block) {
   };
 }
 
+/// The start of a `\tag` or `\tag*` command: after an even number of
+/// backslashes, as in [_numbering].
+final _tagStart = RegExp(r'(?<=(?:^|[^\\])(?:\\\\)*)\\tag(\*?)\s*\{');
+
+/// [tex] with each `\tag{x}` replaced by `(x)` and each `\tag*{x}` by `x`,
+/// in text style, a `\qquad` after the formula or its line. `katex_dart`
+/// accepts both commands but draws nothing for them. KaTeX puts the tag
+/// at the right edge of the page; a block here has no page width (it is in
+/// a container that scrolls sideways), so the tag follows the formula. A
+/// tag without its closing brace is left as it is.
+String withDrawnTags(String tex) {
+  final out = StringBuffer();
+  var at = 0;
+  for (final match in _tagStart.allMatches(tex)) {
+    if (match.start < at) continue;
+    final open = match.end;
+    var depth = 1;
+    var i = open;
+    while (i < tex.length && depth > 0) {
+      switch (tex[i]) {
+        case '\\':
+          i++;
+        case '{':
+          depth++;
+        case '}':
+          depth--;
+      }
+      i++;
+    }
+    if (depth > 0) break;
+    final tag = tex.substring(open, i - 1);
+    final text = match.group(1) == '*' ? tag : '($tag)';
+    out
+      ..write(tex.substring(at, match.start))
+      ..write('\\qquad\\text{$text}');
+    at = i;
+  }
+  return (out..write(tex.substring(at))).toString();
+}
+
 /// An inline formula (`\( \)`, `$ $`) drawn on the baseline of the text
 /// around it, in its colour and at [katexEm] times its size: `org_flutter`
 /// gives the widget the text's style as its [DefaultTextStyle]. A display
@@ -64,7 +105,8 @@ String formulaToDraw(OrgLatexBlock block) {
 /// ([DrawnFormula.inline]). Null when the formula cannot be drawn.
 InlineSpan? loadLatexInline(OrgLatexInline latex) {
   final display = displayFormulaDelimiters.contains(latex.leadingDecoration);
-  final box = layOutFormula(latex.content, display: display).box;
+  final tex = display ? withDrawnTags(latex.content) : latex.content;
+  final box = layOutFormula(tex, display: display).box;
   if (box == null) return null;
   return WidgetSpan(
     alignment: PlaceholderAlignment.baseline,

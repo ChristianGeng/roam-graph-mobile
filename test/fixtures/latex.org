@@ -22,6 +22,15 @@ $$\sum_{k=1}^{n} k = \frac{n(n+1)}{2}$$
 e^{i\pi} + 1 = 0
 \end{equation*}
 
+\begin{equation}
+F = m a \tag{N2}
+\end{equation}
+
+\begin{align}
+p &= q \tag*{left} \\
+r &= s \tag{2b}
+\end{align}
+
 \begin{align}
 a &= b + c \\
 d &= e
