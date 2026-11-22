@@ -238,6 +238,95 @@ void main() {
     });
   });
 
+  group('#+ATTR_ORG: :align', () {
+    Map<String, double> alignments(String text) {
+      final document = withDisplayFormulas(OrgDocument.parse(text));
+      return {
+        for (final MapEntry(:key, :value) in latexAlignments(document).entries)
+          key.content.trim(): value,
+      };
+    }
+
+    test('places the block right after it', () {
+      expect(
+        alignments(
+          '#+ATTR_ORG: :align center\n'
+          '\\begin{equation}\na\n\\end{equation}\n\n'
+          '#+ATTR_ORG: :align right\n'
+          '\\[ b \\]\n\n'
+          '#+ATTR_HTML: :center t\n'
+          '\\[ c \\]\n\n'
+          '#+ATTR_ORG: :align left\n'
+          '#+ATTR_HTML: :align right\n'
+          '\\[ d \\]\n\n'
+          '\\[ e \\]\n',
+        ),
+        {'a': 0.5, 'b': 1.0, 'c': 0.5, 'd': 0.0},
+      );
+    });
+
+    test('not a formula inside a sentence', () {
+      expect(
+        alignments('#+ATTR_ORG: :align center\nText \\[ x \\] more.\n'),
+        isEmpty,
+      );
+    });
+
+    testWidgets('a centred and a right-aligned block in the node view', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      const note =
+          ':PROPERTIES:\n:ID: $_id\n:END:\n#+title: Aligned\n\n'
+          '#+ATTR_ORG: :align center\n'
+          '\\begin{equation}\nx = 1\n\\end{equation}\n\n'
+          '#+ATTR_ORG: :align right\n'
+          '\\[ y = 2 \\]\n\n'
+          '\\[ z = 3 \\]\n';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: NodeScreen(
+            graph: ValueNotifier(graphOf({'aligned.org': note})),
+            id: _id,
+            readNote: (path) async => note,
+            nodeMemory: MemoryNodeMemory(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Finder formula(String text) => find.byWidgetPredicate(
+        (widget) => widget is DrawnFormula && widget.source.contains(text),
+      );
+      Rect line(String text) => tester.getRect(
+        find
+            .ancestor(
+              of: formula(text),
+              matching: find.byType(SingleChildScrollView),
+            )
+            .first,
+      );
+      void check() {
+        final centred = tester.getRect(formula('x = 1'));
+        expect(centred.center.dx, closeTo(line('x = 1').center.dx, 1));
+        final right = tester.getRect(formula('y = 2'));
+        expect(right.right, closeTo(line('y = 2').right, 1));
+        final left = tester.getRect(formula('z = 3'));
+        expect(left.left, closeTo(line('z = 3').left, 1));
+      }
+
+      check();
+      // A narrower window: the centre moves with it.
+      final before = tester.getRect(formula('x = 1')).center.dx;
+      tester.view.physicalSize = const Size(500, 900);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(formula('x = 1')).center.dx, lessThan(before));
+      check();
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('the callbacks', () {
     test('an inline formula is a WidgetSpan on the text baseline', () {
       final span = loadLatexInline(inlineOf(r'Text \(x^2\) here.'));

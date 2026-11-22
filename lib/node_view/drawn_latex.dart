@@ -6,7 +6,8 @@
 /// use of the package is kept in this file.
 library;
 
-import 'package:flutter/rendering.dart' show RenderProxyBox;
+import 'package:flutter/rendering.dart'
+    show BoxParentData, RenderProxyBox, RenderShiftedBox;
 import 'package:katex/katex.dart';
 import 'package:katex_dart/katex_dart.dart' as katex;
 import 'package:material_ui/material_ui.dart';
@@ -118,14 +119,160 @@ InlineSpan? loadLatexInline(OrgLatexInline latex) {
 /// A LaTeX block (an environment, or a display formula that
 /// `withDisplayFormulas` made a block) drawn in display mode ([formulaToDraw]).
 /// `org_flutter` places it on its own line, at its start, in a container
-/// that scrolls sideways. Null when the formula cannot be drawn.
-Widget? loadLatexBlock(OrgLatexBlock block) {
+/// that scrolls sideways. With [align] (from [latexAlignments]: 0.5 for
+/// the centre, 1 for the right), it is placed there in the width of the
+/// text instead ([AlignedFormula]). Null when the formula cannot be drawn.
+Widget? loadLatexBlock(OrgLatexBlock block, {double? align}) {
   final box = layOutFormula(formulaToDraw(block)).box;
   if (box == null) return null;
-  return DrawnFormula(
+  final formula = DrawnFormula(
     box,
     source: '${block.begin}${block.content}${block.end}',
   );
+  if (align == null || align <= 0) return formula;
+  return AlignedFormula(align: align, child: formula);
+}
+
+/// The alignments of [document]'s LaTeX blocks, by block (identity), for
+/// the ones that `#+ATTR_ORG: :align center` or `right` (or `:center t`)
+/// places, as `org_flutter` reads them for an image: 0.5 for the centre, 1
+/// for the right. Computed once for each parsed document.
+Map<OrgLatexBlock, double> latexAlignments(OrgDocument document) =>
+    _alignments[document] ??= _findAlignments(document);
+
+final _alignments = Expando<Map<OrgLatexBlock, double>>();
+
+final _attr = RegExp(r'^#\+attr(.*):$', caseSensitive: false);
+
+Map<OrgLatexBlock, double> _findAlignments(OrgDocument document) {
+  final found = Map<OrgLatexBlock, double>.identity();
+  document.visit<OrgLatexBlock>((block) {
+    if (_alignmentOf(document, block) case final align?) found[block] = align;
+    return true;
+  });
+  return found;
+}
+
+/// As `alignmentForNode` in `org_flutter` (`lib/src/util/alignment.dart`),
+/// which it does not export: from [block], up to the first node with
+/// something before it (so a display formula alone in its paragraph
+/// counts, one inside a sentence does not), then back through the
+/// keywords right before it. `#+ATTR_ORG:` wins over the other
+/// `#+ATTR_...:`. Unlike `org_flutter`, which reads every keyword before
+/// the node in its section, the keywords must come right before the block,
+/// as in Org, where they belong to the element that follows them.
+double? _alignmentOf(OrgDocument document, OrgLatexBlock block) {
+  var zipper = document.editNode(block);
+  if (zipper == null) return null;
+  while (!zipper!.canGoLeft()) {
+    if (!zipper.canGoUp()) return null;
+    zipper = zipper.goUp();
+  }
+  double? result;
+  while (zipper!.canGoLeft()) {
+    zipper = zipper.goLeft();
+    final node = zipper.node;
+    if (node is! OrgMeta) break;
+    final match = _attr.firstMatch(node.key);
+    final value = node.value?.toMarkup();
+    if (match == null || value == null) continue;
+    final authoritative = match.group(1)?.toLowerCase() == '_org';
+    final words = value.trim().split(RegExp(r'\s+'));
+    String? get(String key) {
+      final i = words.indexWhere((word) => word.toLowerCase() == key);
+      return i >= 0 && i + 1 < words.length ? words[i + 1] : null;
+    }
+
+    if (get(':center') == 't') {
+      result = 0.5;
+    } else {
+      final align = switch (get(':align')?.toLowerCase()) {
+        'left' => 0.0,
+        'center' => 0.5,
+        'right' => 1.0,
+        _ => null,
+      };
+      if (align == null) continue;
+      result = align;
+    }
+    if (authoritative) break;
+  }
+  return result;
+}
+
+/// [child] placed at [align] (0 the start, 1 the end) in the width of the
+/// text. `org_flutter` puts a block in a container that scrolls sideways,
+/// so the block itself is given no width: the width is that of the
+/// nearest box around it that has one (the scroll view's), read during
+/// layout. It changes with the window, so this widget depends on the
+/// window's size and lays out again when it changes. A formula wider than
+/// the text keeps its width and scrolls, as one that is not aligned.
+class AlignedFormula extends SingleChildRenderObjectWidget {
+  const AlignedFormula({super.key, required this.align, required super.child});
+
+  final double align;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      RenderAlignedFormula(align, MediaQuery.sizeOf(context));
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderAlignedFormula renderObject,
+  ) {
+    renderObject
+      ..align = align
+      ..window = MediaQuery.sizeOf(context);
+  }
+}
+
+/// The render object of [AlignedFormula].
+class RenderAlignedFormula extends RenderShiftedBox {
+  RenderAlignedFormula(this._align, this._window) : super(null);
+
+  double _align;
+  set align(double value) {
+    if (value == _align) return;
+    _align = value;
+    markNeedsLayout();
+  }
+
+  Size _window;
+  set window(Size value) {
+    if (value == _window) return;
+    _window = value;
+    markNeedsLayout();
+  }
+
+  /// The width of the nearest box around this one with a bounded width.
+  double get _textWidth {
+    var node = parent;
+    while (node is RenderBox) {
+      if (node.constraints.hasBoundedWidth) return node.constraints.maxWidth;
+      node = node.parent;
+    }
+    return 0;
+  }
+
+  Size _sizeFor(BoxConstraints constraints, Size child) =>
+      constraints.constrain(
+        Size(child.width > _textWidth ? child.width : _textWidth, child.height),
+      );
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      _sizeFor(constraints, child!.getDryLayout(constraints));
+
+  @override
+  void performLayout() {
+    final child = this.child!..layout(constraints, parentUsesSize: true);
+    size = _sizeFor(constraints, child.size);
+    (child.parentData! as BoxParentData).offset = Offset(
+      (size.width - child.size.width) * _align,
+      0,
+    );
+  }
 }
 
 /// A formula laid out by `katex_dart`, or why it cannot be.

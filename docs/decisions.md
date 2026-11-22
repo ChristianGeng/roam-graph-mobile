@@ -408,7 +408,22 @@ devices through Syncthing.
       order: path order, a title before its aliases. For this the graph
       now carries each file's modification time, which the database
       already stored (`files.mtime`).
-    - **Tags:** chips for every tag, the most used first. A node must have
+    - **`#+ATTR_ORG: :align center` or `right`** (or `:center t`) right
+    before a block, or before a paragraph that holds only a display
+    formula, places the formula there in the note view, as it does an
+    image (and as the #301 links did). `org_flutter` passes the callback
+    only the block, so `latexAlignments` finds the alignment of each
+    block of the parsed document once (the rule of `org_flutter`'s
+    `alignmentForNode`, which it does not export), and the note view
+    passes it on. Unlike `org_flutter` for images, only the keywords
+    right before the block count, as in Org; `org_flutter` reads every
+    keyword before the element in its section. The block sits in a
+    container that scrolls sideways and gets no width, so
+    `AlignedFormula` reads the width of the nearest box around it that
+    has one (the scroll view's) during layout, and lays out again when
+    the window's size changes; a formula wider than the text scrolls as
+    before. Not in the chat, which had no alignment before either.
+  - **Tags:** chips for every tag, the most used first. A node must have
       every selected tag. In Emacs, tags are part of the text that
       completion matches; the app keeps them apart, as #9 asks.
     - **Actions:** a result opens the node view (#8); Enter opens the

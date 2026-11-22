@@ -2019,7 +2019,9 @@ class _NodeScreenState extends State<NodeScreen> {
               },
         // Every formula drawn by the app with katex (#308).
         loadLatexInline: loadLatexInline,
-        loadLatexBlock: loadLatexBlock,
+        // `#+ATTR_ORG: :align` before a block places it, as an image.
+        loadLatexBlock: (block) =>
+            loadLatexBlock(block, align: latexAlignments(document)[block]),
         loadImage: (link) =>
             loadMermaidDrawing(link) ??
             loadPlantumlDrawing(link) ??
