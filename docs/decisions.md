@@ -5212,7 +5212,14 @@ Numbered 162, not 161: the open pull request #309 takes 161.
     its own sideways scroll view, as wide as the line at most (which
     reports the formula's baseline): one wider than the line can be read
     to its end, as a block can. A formula given less room than it needs
-    is cut to its box, never painted over the text next to it.
+    is cut to its box, never painted over the text next to it. The scroll
+    view is there for every inline formula, also one that fits: whether
+    it fits is known only during layout, and choosing the widget then
+    (`LayoutBuilder`) breaks the dry layout and intrinsic sizes the line
+    of text asks of it. The cost is one `Scrollable` per inline formula.
+    One that fits takes no drags (Flutter's scroll physics accept none
+    without anything to scroll), so a sideways swipe on it reaches what
+    is around it, and a mouse drag still selects text; tests check both.
   - **Blocks** (environments, and the display formulas that
     `withDisplayFormulas` turns into blocks, decision 40): as in
     decision 157 (the environments rewritten, `\label`, `\nonumber` and

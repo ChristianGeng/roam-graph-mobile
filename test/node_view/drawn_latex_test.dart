@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/rendering.dart' show RenderParagraph, SelectedContent;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
@@ -749,6 +750,58 @@ void main() {
       );
       expect(tester.takeException(), isNull);
     });
+  });
+
+  group('an inline formula that fits takes no drags', () {
+    // Each inline formula has its own sideways scroll view; one that fits
+    // must not take a sideways drag from what is around it.
+    const text = r'Words \(x^2\) and more words here.';
+
+    testWidgets('a sideways swipe starting on it reaches the page', (
+      tester,
+    ) async {
+      var swiped = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GestureDetector(
+              onHorizontalDragEnd: (_) => swiped++,
+              child: const MonospaceOrgText(text),
+            ),
+          ),
+        ),
+      );
+      await tester.drag(find.byType(DrawnFormula), const Offset(-200, 0));
+      await tester.pumpAndSettle();
+      expect(swiped, 1);
+    });
+
+    testWidgets('a mouse drag starting on it still selects the text', (
+      tester,
+    ) async {
+      SelectedContent? selected;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SelectionArea(
+              onSelectionChanged: (content) => selected = content,
+              child: const MonospaceOrgText(text),
+            ),
+          ),
+        ),
+      );
+      final start = tester.getCenter(find.byType(DrawnFormula));
+      final gesture = await tester.startGesture(
+        start,
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await gesture.moveTo(start + const Offset(250, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(selected?.plainText, contains('more words'));
+    }, variant: TargetPlatformVariant.desktop());
   });
 
   testWidgets('formulas in the AI chat\'s text are drawn too', (tester) async {
