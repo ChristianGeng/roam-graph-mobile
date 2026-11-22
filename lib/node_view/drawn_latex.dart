@@ -7,7 +7,7 @@
 library;
 
 import 'package:flutter/rendering.dart'
-    show BoxParentData, RenderProxyBox, RenderShiftedBox;
+    show BoxParentData, Constraints, RenderProxyBox, RenderShiftedBox;
 import 'package:katex/katex.dart';
 import 'package:katex_dart/katex_dart.dart' as katex;
 import 'package:material_ui/material_ui.dart';
@@ -241,9 +241,8 @@ double? _alignmentOf(OrgDocument document, OrgLatexBlock block) {
 /// text. `org_flutter` puts a block in a container that scrolls sideways,
 /// so the block itself is given no width: the width is that of the
 /// nearest box around it that has one (the scroll view's), read during
-/// layout. It changes with the window, so this widget depends on the
-/// window's size and lays out again when it changes. A formula wider than
-/// the text keeps its width and scrolls, as one that is not aligned.
+/// layout. A formula wider than the text keeps its width and scrolls, as
+/// one that is not aligned.
 class AlignedFormula extends SingleChildRenderObjectWidget {
   const AlignedFormula({super.key, required this.align, required super.child});
 
@@ -251,34 +250,31 @@ class AlignedFormula extends SingleChildRenderObjectWidget {
 
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      RenderAlignedFormula(align, MediaQuery.sizeOf(context));
+      RenderAlignedFormula(align);
 
   @override
   void updateRenderObject(
     BuildContext context,
     RenderAlignedFormula renderObject,
-  ) {
-    renderObject
-      ..align = align
-      ..window = MediaQuery.sizeOf(context);
-  }
+  ) => renderObject.align = align;
 }
 
 /// The render object of [AlignedFormula].
+///
+/// The scroll view gives it the same constraints whatever the text's
+/// width, so Flutter would not lay it out again when only that width
+/// changes (a window, a side panel, a split view). [layout] therefore
+/// raises the minimum width of the constraints to the text's width, read
+/// from the boxes around it each time the scroll view lays it out: a new
+/// width is new constraints, and Flutter lays it out again by its own
+/// rules. Layout and dry layout then use only the constraints.
 class RenderAlignedFormula extends RenderShiftedBox {
-  RenderAlignedFormula(this._align, this._window) : super(null);
+  RenderAlignedFormula(this._align) : super(null);
 
   double _align;
   set align(double value) {
     if (value == _align) return;
     _align = value;
-    markNeedsLayout();
-  }
-
-  Size _window;
-  set window(Size value) {
-    if (value == _window) return;
-    _window = value;
     markNeedsLayout();
   }
 
@@ -292,19 +288,22 @@ class RenderAlignedFormula extends RenderShiftedBox {
     return 0;
   }
 
-  Size _sizeFor(BoxConstraints constraints, Size child) =>
-      constraints.constrain(
-        Size(child.width > _textWidth ? child.width : _textWidth, child.height),
-      );
+  @override
+  void layout(Constraints constraints, {bool parentUsesSize = false}) {
+    final box = constraints as BoxConstraints;
+    final text = _textWidth.clamp(box.minWidth, box.maxWidth);
+    super.layout(box.copyWith(minWidth: text), parentUsesSize: parentUsesSize);
+  }
 
   @override
   Size computeDryLayout(BoxConstraints constraints) =>
-      _sizeFor(constraints, child!.getDryLayout(constraints));
+      constraints.constrain(child!.getDryLayout(constraints.loosen()));
 
   @override
   void performLayout() {
-    final child = this.child!..layout(constraints, parentUsesSize: true);
-    size = _sizeFor(constraints, child.size);
+    final child = this.child!
+      ..layout(constraints.loosen(), parentUsesSize: true);
+    size = constraints.constrain(child.size);
     (child.parentData! as BoxParentData).offset = Offset(
       (size.width - child.size.width) * _align,
       0,

@@ -316,6 +316,50 @@ void main() {
       );
     });
 
+    testWidgets('follows a text column that gets narrower in the same window', (
+      tester,
+    ) async {
+      final box = layOutFormula('x = 1').box!;
+      Future<void> pumpAt(double width) => tester.pumpWidget(
+        MaterialApp(
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: width,
+              // As org_flutter places a block.
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: AlignedFormula(
+                  align: 0.5,
+                  child: DrawnFormula(box, source: 'x = 1'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      for (final width in [400.0, 200.0, 300.0]) {
+        await pumpAt(width);
+        expect(
+          tester.getRect(find.byType(DrawnFormula)).center.dx,
+          closeTo(width / 2, 0.5),
+          reason: '$width',
+        );
+      }
+      // Dry layout uses only the constraints given: the formula's own size
+      // without them, the room they ask for with them.
+      final aligned = tester.renderObject<RenderAlignedFormula>(
+        find.byType(AlignedFormula),
+      );
+      final own = tester.getSize(find.byType(DrawnFormula));
+      expect(aligned.getDryLayout(const BoxConstraints()), own);
+      expect(
+        aligned.getDryLayout(const BoxConstraints(minWidth: 500)).width,
+        500,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     test('not a formula inside a sentence', () {
       expect(
         alignments('#+ATTR_ORG: :align center\nText \\[ x \\] more.\n'),

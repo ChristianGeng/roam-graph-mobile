@@ -420,9 +420,12 @@ devices through Syncthing.
     `org_flutter` reads every keyword before the element in its section. The block sits in a
     container that scrolls sideways and gets no width, so
     `AlignedFormula` reads the width of the nearest box around it that
-    has one (the scroll view's) during layout, and lays out again when
-    the window's size changes; a formula wider than the text scrolls as
-    before. Not in the chat, which had no alignment before either.
+    has one (the scroll view's) each time the scroll view lays it out,
+    and raises the minimum width of its own constraints to it. A new text
+    width is then new constraints, so it is laid out again whenever the
+    text column's width changes (window, side panel, split view), and
+    its layout and dry layout use only their constraints. A formula wider
+    than the text scrolls as before. Not in the chat, which had no alignment before either.
   - **Tags:** chips for every tag, the most used first. A node must have
       every selected tag. In Emacs, tags are part of the text that
       completion matches; the app keeps them apart, as #9 asks.
