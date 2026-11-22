@@ -5230,10 +5230,15 @@ Numbered 162, not 161: the open pull request #309 takes 161.
     missing brace): the callback returns null, and `org_flutter` shows
     the source with its delimiters in the code style, as `~code~`. Before,
     the desktop showed a broken block in the normal text style.
-  - **Text scaling:** `org_flutter` sets the text scaling to 1 inside
-    `OrgRootWidget` and the text there has none, so the app no longer
-    applies the system's scaling to the formula either (it had no effect
-    there); the formula follows the size of the text style.
+  - **Text scaling:** the app has no text size setting of its own; the
+    system's text size reaches it as `MediaQuery`'s `textScaler`.
+    `org_flutter` sets that scaling to 1 inside `OrgRootWidget`, so a
+    note's text keeps its size when the system's text is larger, and so
+    does a formula (it takes the size of the text style; the scaling
+    the #301 code applied was 1 there). A test sets the system's text
+    size to 2 and checks that text and formulas keep their sizes
+    together. Larger note text with the system setting would be a change
+    in `org_flutter` (decision 40, "Not done").
   - **The layout cache** stays (256 formulas, the one used longest ago
     dropped), now keyed by the formula and its mode (inline or display).
     Tests empty it before and after each test.

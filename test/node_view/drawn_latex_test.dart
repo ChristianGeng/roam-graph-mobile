@@ -469,6 +469,47 @@ void main() {
       expect(dark.computeLuminance(), greaterThan(0.5));
     });
 
+    testWidgets('formula and text keep their sizes together '
+        'when the system text size is larger', (tester) async {
+      // The system's text size, as Android and the desktops pass it to
+      // the app (MediaQuery's textScaler); the app has no setting of its
+      // own. org_flutter sets the scaling to 1 inside its root, so note
+      // text keeps its size, and the formulas must keep theirs with it.
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      Future<(double, double, double)> sizes(double scale) async {
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        await show(tester);
+        final formula = find.byWidgetPredicate(
+          (widget) => widget is DrawnFormula && widget.source == r'\(a + b\)',
+        );
+        final text = find.byWidgetPredicate(
+          (widget) =>
+              widget is RichText &&
+              widget.text.toPlainText().startsWith('Synthetic LaTeX for'),
+        );
+        expect(text, findsOneWidget);
+        expect(
+          MediaQuery.textScalerOf(
+            tester.element(find.byType(NodeScreen)),
+          ).scale(10),
+          10 * scale,
+        );
+        return (
+          drawn(tester, formula).single.fontSize,
+          tester.getSize(text).height,
+          tester.getSize(formula).height,
+        );
+      }
+
+      final (formula1, text1, height1) = await sizes(1);
+      final (formula2, text2, height2) = await sizes(2);
+      expect(formula2 / text2, closeTo(formula1 / text1, 0.01));
+      expect(height2 / text2, closeTo(height1 / text1, 0.01));
+      // What org_flutter does today: neither grows.
+      expect(text2, text1);
+      expect(formula2, formula1);
+    });
+
     testWidgets('an inline formula takes the style of the text around it', (
       tester,
     ) async {
