@@ -536,8 +536,10 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
     _saves = saved;
     return saved.then((_) {}, onError: (Object error, StackTrace stack) {
       if (mounted && change == _changes) {
-        _settings.value = _inFile;
+        // Set first: a listener of the next line may make a new change,
+        // which clears it.
         _rolledBack = true;
+        _settings.value = _inFile;
       }
       Error.throwWithStackTrace(error, stack);
     });

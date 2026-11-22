@@ -132,9 +132,66 @@ void main() {
       await expectLater(change, throwsA(isA<FileSystemException>()));
       await tester.pump();
 
+      // The read error is caught: an uncaught one fails the test.
       store.finishLoad();
       await tester.pump();
       expect(ViewSettingsScope.read(context), ViewSettings.withDefaults());
+    });
+
+    testWidgets('a saved change, a failed one, then a file that cannot be '
+        'read: the saved change', (tester) async {
+      final store = _GatedStore(inFile)..loadFails = true;
+      final context = await _host(tester, store);
+
+      final first = ViewSettingsScope.change(context, chosen);
+      await tester.pump();
+      store.finishSave();
+      await first;
+      final second = ViewSettingsScope.change(context, newer);
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(second, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+
+      // The read error is caught: an uncaught one fails the test.
+      store.finishLoad();
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), chosen);
+    });
+
+    testWidgets('a change made while the failed save is undone is kept '
+        'when the file is read', (tester) async {
+      final store = _GatedStore(inFile);
+      final context = await _host(tester, store);
+      final settings = context
+          .getInheritedWidgetOfExactType<ViewSettingsScope>()!
+          .notifier!;
+      Future<void>? second;
+      var changedAgain = false;
+      // Changes the settings again, once, from inside the notification
+      // that undoes the failed save.
+      void again() {
+        if (changedAgain || settings.value == chosen) return;
+        changedAgain = true;
+        second = ViewSettingsScope.change(context, newer);
+      }
+
+      settings.addListener(again);
+      final first = ViewSettingsScope.change(context, chosen);
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(first, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+      settings.removeListener(again);
+      expect(second, isNotNull);
+      expect(ViewSettingsScope.read(context), newer);
+
+      store.finishLoad();
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), newer);
+      store.finishSave();
+      await second;
+      expect(store.settings, newer);
     });
 
     testWidgets('still saving when the file is read, then failing: '
