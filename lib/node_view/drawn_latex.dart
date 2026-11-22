@@ -61,28 +61,15 @@ String formulaToDraw(OrgLatexBlock block) {
 /// backslashes, as in [_numbering].
 final _tagStart = RegExp(r'(?<=(?:^|[^\\])(?:\\\\)*)\\tag(\*?)\s*\{');
 
-/// How [withDrawnTags] draws a tag.
-enum TagStyle {
-  /// `\tag{x}` as `(x)`, `\tag*{x}` as `x`, in math, as most tags are
-  /// written (`\tag{a_1}`, `\tag{\alpha}`).
-  math,
-
-  /// The same in text style, `\text{(x)}`, for a tag that holds text
-  /// with its own math (`\tag{$b_1$}`), as amsmath reads a tag.
-  text,
-
-  /// Not drawn: the formula without its tag.
-  none,
-}
-
-/// [tex] with each `\tag{x}` and `\tag*{x}` replaced as [style] says, a
-/// `\qquad` after the formula or its line. `katex_dart` accepts both
+/// [tex] with each `\tag{x}` replaced by `(x)` and each `\tag*{x}` by
+/// `x`, a `\qquad` after the formula or its line, each as [drawTag]
+/// draws it; with [drop], the tags are left out. `katex_dart` accepts both
 /// commands but draws nothing for them, and fails on an `align` whose
 /// rows have tags. KaTeX puts the tag at the right edge of the page; a
 /// block here has no page width (it is in a container that scrolls
 /// sideways), so the tag follows the formula. A tag without its closing
 /// brace is left as it is.
-String withDrawnTags(String tex, [TagStyle style = TagStyle.math]) {
+String withDrawnTags(String tex, {bool drop = false}) {
   final out = StringBuffer();
   var at = 0;
   for (final match in _tagStart.allMatches(tex)) {
@@ -106,28 +93,32 @@ String withDrawnTags(String tex, [TagStyle style = TagStyle.math]) {
     final shown = match.group(1) == '*' ? tag : '($tag)';
     out
       ..write(tex.substring(at, match.start))
-      ..write(switch (style) {
-        TagStyle.math => '\\qquad{$shown}',
-        TagStyle.text => '\\qquad\\text{$shown}',
-        TagStyle.none => ' ',
-      });
+      ..write(drop ? ' ' : drawTag(shown) ?? ' ');
     at = i;
   }
   return (out..write(tex.substring(at))).toString();
 }
 
+/// How one tag, [shown] with its parentheses, is drawn: as text, upright,
+/// as amsmath and KaTeX set a tag (`\tag{N2}`, `\tag{$b_1$}`); if
+/// `katex_dart` cannot lay that out (`\tag{a_b}`, `\tag{2^{n}}`), as math;
+/// null if neither can be.
+String? drawTag(String shown) {
+  for (final drawn in ['\\text{$shown}', '{$shown}']) {
+    if (layOutFormula(drawn).box != null) return '\\qquad$drawn';
+  }
+  return null;
+}
+
 /// [tex] laid out in display mode, or in text mode if [display] is false,
-/// with its tags drawn: in math ([TagStyle.math]); if that cannot be laid
-/// out, in text style; if that cannot either, without them, so a tag
-/// never makes the whole formula fall back to its source.
+/// with its tags drawn ([withDrawnTags]); if the formula cannot be laid
+/// out with them, without them, so a tag never makes the whole formula
+/// show its source.
 LaidOutFormula layOutTagged(String tex, {bool display = true}) {
   if (!_tagStart.hasMatch(tex)) return layOutFormula(tex, display: display);
-  late LaidOutFormula laidOut;
-  for (final style in TagStyle.values) {
-    laidOut = layOutFormula(withDrawnTags(tex, style), display: display);
-    if (laidOut.box != null) return laidOut;
-  }
-  return laidOut;
+  final tagged = layOutFormula(withDrawnTags(tex), display: display);
+  if (tagged.box != null) return tagged;
+  return layOutFormula(withDrawnTags(tex, drop: true), display: display);
 }
 
 /// An inline formula (`\( \)`, `$ $`) drawn on the baseline of the text

@@ -204,14 +204,15 @@ void main() {
   });
 
   group('tags', () {
-    test('a tag is drawn after its formula, in math or text style', () {
-      expect(withDrawnTags(r'x \tag{1}'), r'x \qquad{(1)}');
-      expect(withDrawnTags(r'x \tag*{A} '), r'x \qquad{A} ');
+    test('a tag is drawn after its formula, as text, else as math', () {
+      expect(withDrawnTags(r'x \tag{N2}'), r'x \qquad\text{(N2)}');
+      expect(withDrawnTags(r'x \tag*{A} '), r'x \qquad\text{A} ');
+      expect(withDrawnTags(r'x \tag{a_b}'), r'x \qquad{(a_b)}');
       expect(
-        withDrawnTags(r'a \tag{$b_{1}$} \\ c \tag {2}', TagStyle.text),
-        r'a \qquad\text{($b_{1}$)} \\ c \qquad\text{(2)}',
+        withDrawnTags(r'a \tag{$b_{1}$} \\ c \tag {2^{n}}'),
+        r'a \qquad\text{($b_{1}$)} \\ c \qquad{(2^{n})}',
       );
-      expect(withDrawnTags(r'x \tag{1} = y', TagStyle.none), 'x   = y');
+      expect(withDrawnTags(r'x \tag{1} = y', drop: true), 'x   = y');
     });
 
     test(
@@ -228,6 +229,7 @@ void main() {
           r'\tag{\text{a}}',
           r'\tag{1{.}2}',
           r'\tag*{a_b}',
+          r'\tag*{$\alpha$}',
         ]) {
           expect(layOutTagged('x = 1 $tag').box, isNotNull, reason: tag);
           expect(width('x = 1 $tag'), greaterThan(plain), reason: tag);
@@ -235,12 +237,30 @@ void main() {
       },
     );
 
+    test('each tag of an align is drawn its own way', () {
+      final tagged = layOutTagged(
+        r'\begin{aligned}p &= q \tag{a_b} \\ r &= s \tag*{$\alpha$}'
+        r'\end{aligned}',
+      ).box;
+      final plain = layOutFormula(
+        r'\begin{aligned}p &= q \\ r &= s\end{aligned}',
+      ).box!;
+      expect(tagged!.width, greaterThan(plain.width));
+    });
+
     test('a tag that cannot be drawn leaves the formula drawn without it', () {
-      // \qquad inside \text, and $ inside math, cannot be laid out; the
-      // formula still is.
-      for (final tex in [r'\text{see \tag{1}}', r'x \tag{$\frac{1}$}']) {
-        expect(layOutTagged(tex).box, isNotNull, reason: tex);
-      }
+      // A tag that cannot be laid out alone is left out; the formula and
+      // its other tags are drawn.
+      final one = layOutTagged(r'x \tag{$\frac{1}$} = y \tag*{B}').box;
+      expect(one, isNotNull);
+      expect(one!.width, greaterThan(layOutFormula(r'x = y').box!.width));
+      expect(layOutTagged(r'\text{see \tag{1}}').box, isNotNull);
+      // A tag where no tag can stand (an array's column spec): the formula
+      // without its tags.
+      expect(
+        layOutTagged(r'\begin{array}{c\tag{1}} x \end{array}').box,
+        isNotNull,
+      );
       // Not a tag at all: an error stays an error.
       expect(layOutTagged(r'\frac{1}{').box, isNull);
     });
