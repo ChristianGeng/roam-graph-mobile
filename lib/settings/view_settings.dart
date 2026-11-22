@@ -618,7 +618,8 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
   ///
   /// Before the file is read, a failed save goes back to the last save
   /// that succeeded, or to the defaults if none did; once the file is
-  /// read, the settings are the file's, unless a save succeeded (#296).
+  /// read, the settings are the file's, unless a save succeeded or a
+  /// change is still saving (#296).
   ///
   /// A limit: a change only to fields that [ViewSettings.==] leaves out
   /// (`lastUpdateCheckTime`, `lastSeenVersion`) is saved, but [read] keeps

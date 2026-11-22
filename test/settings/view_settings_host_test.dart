@@ -9,6 +9,7 @@ void main() {
   group('a change made before the file is read (#296)', () {
     const inFile = ViewSettings(theme: AppTheme.dark);
     const chosen = ViewSettings(theme: AppTheme.light);
+    const newer = ViewSettings(theme: AppTheme.light, joinLines: false);
 
     testWidgets('whose save fails: the file is used once it is read', (
       tester,
@@ -41,6 +42,99 @@ void main() {
       await tester.pump();
       expect(ViewSettingsScope.read(context), chosen);
       expect(store.settings, chosen);
+
+      // The file read is older than the save: a later failed save goes
+      // back to the saved change, not to it.
+      final failing = ViewSettingsScope.change(
+        context,
+        const ViewSettings(theme: AppTheme.system),
+      );
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(failing, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), chosen);
+    });
+
+    testWidgets('an older save fails while a newer change is saving: '
+        'the newer change is kept', (tester) async {
+      final store = _GatedStore(inFile);
+      final context = await _host(tester, store);
+
+      final first = ViewSettingsScope.change(context, chosen);
+      final second = ViewSettingsScope.change(context, newer);
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(first, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), newer);
+
+      store.finishLoad();
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), newer);
+      store.finishSave();
+      await second;
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), newer);
+      expect(store.settings, newer);
+    });
+
+    testWidgets('a failed save, then a newer change that fails after the '
+        'file is read: back to the file', (tester) async {
+      final store = _GatedStore(inFile);
+      final context = await _host(tester, store);
+
+      final first = ViewSettingsScope.change(context, chosen);
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(first, throwsA(isA<FileSystemException>()));
+      final second = ViewSettingsScope.change(context, newer);
+      await tester.pump();
+      store.finishLoad();
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), newer);
+
+      store.finishSave(fail: true);
+      await expectLater(second, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), inFile);
+    });
+
+    testWidgets('a saved change, then a failed one: the saved change, '
+        'also after the file is read', (tester) async {
+      final store = _GatedStore(inFile);
+      final context = await _host(tester, store);
+
+      final first = ViewSettingsScope.change(context, chosen);
+      await tester.pump();
+      store.finishSave();
+      await first;
+      final second = ViewSettingsScope.change(context, newer);
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(second, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), chosen);
+
+      store.finishLoad();
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), chosen);
+    });
+
+    testWidgets('a failed save, then a file that cannot be read: '
+        'the defaults', (tester) async {
+      final store = _GatedStore(inFile)..loadFails = true;
+      final context = await _host(tester, store);
+
+      final change = ViewSettingsScope.change(context, chosen);
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(change, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+
+      store.finishLoad();
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), ViewSettings.withDefaults());
     });
 
     testWidgets('still saving when the file is read, then failing: '
@@ -64,7 +158,6 @@ void main() {
         'the newer change is kept', (tester) async {
       final store = _GatedStore(inFile);
       final context = await _host(tester, store);
-      const newer = ViewSettings(theme: AppTheme.light, joinLines: false);
 
       final first = ViewSettingsScope.change(context, chosen);
       await tester.pump();
@@ -123,12 +216,15 @@ Future<BuildContext> _host(WidgetTester tester, ViewSettingsStore store) async {
 }
 
 /// A store whose load finishes only on [finishLoad], and whose saves
-/// finish only on [finishSave], one at a time.
+/// finish only on [finishSave], one at a time. The load gives the
+/// settings as they were when it was called, as a file read at the start
+/// would; with [loadFails], it throws.
 class _GatedStore extends MemoryViewSettingsStore {
   _GatedStore(super.settings);
 
   final _load = Completer<void>();
   final _saves = <Completer<void>>[];
+  var loadFails = false;
 
   void finishLoad() => _load.complete();
 
@@ -139,8 +235,10 @@ class _GatedStore extends MemoryViewSettingsStore {
 
   @override
   Future<ViewSettings> load() async {
+    final atStart = settings;
     await _load.future;
-    return settings;
+    if (loadFails) throw const FileSystemException('unreadable');
+    return atStart;
   }
 
   @override
