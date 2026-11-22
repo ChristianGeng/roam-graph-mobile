@@ -416,8 +416,8 @@ devices through Syncthing.
     block of the parsed document once (the rule of `org_flutter`'s
     `alignmentForNode`, which it does not export), and the note view
     passes it on. Unlike `org_flutter` for images, only the keywords
-    right before the block count, as in Org; `org_flutter` reads every
-    keyword before the element in its section. The block sits in a
+    right before the block count, with no blank line between, as in Org;
+    `org_flutter` reads every keyword before the element in its section. The block sits in a
     container that scrolls sideways and gets no width, so
     `AlignedFormula` reads the width of the nearest box around it that
     has one (the scroll view's) during layout, and lays out again when

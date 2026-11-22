@@ -194,7 +194,8 @@ Map<OrgLatexBlock, double> _findAlignments(OrgDocument document) {
 /// keywords right before it. `#+ATTR_ORG:` wins over the other
 /// `#+ATTR_...:`. Unlike `org_flutter`, which reads every keyword before
 /// the node in its section, the keywords must come right before the block,
-/// as in Org, where they belong to the element that follows them.
+/// with no blank line between, as in Org, where they belong to the element
+/// that follows them.
 double? _alignmentOf(OrgDocument document, OrgLatexBlock block) {
   var zipper = document.editNode(block);
   if (zipper == null) return null;
@@ -206,7 +207,9 @@ double? _alignmentOf(OrgDocument document, OrgLatexBlock block) {
   while (zipper!.canGoLeft()) {
     zipper = zipper.goLeft();
     final node = zipper.node;
-    if (node is! OrgMeta) break;
+    // A blank line after a keyword ends it: it no longer belongs to the
+    // element after it (Org's affiliated keywords).
+    if (node is! OrgMeta || '\n'.allMatches(node.trailing).length > 1) break;
     final match = _attr.firstMatch(node.key);
     final value = node.value?.toMarkup();
     if (match == null || value == null) continue;

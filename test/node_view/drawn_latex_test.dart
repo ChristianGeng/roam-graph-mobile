@@ -301,6 +301,21 @@ void main() {
       );
     });
 
+    test('not after a blank line', () {
+      expect(
+        alignments(
+          '#+ATTR_ORG: :align center\n\n'
+          '\\begin{equation}\na\n\\end{equation}\n\n'
+          '#+ATTR_ORG: :align right\n\n'
+          '\\[ b \\]\n\n'
+          '#+ATTR_ORG: :align right\n\n'
+          '#+ATTR_HTML: :center t\n'
+          '\\[ c \\]\n',
+        ),
+        {'c': 0.5},
+      );
+    });
+
     test('not a formula inside a sentence', () {
       expect(
         alignments('#+ATTR_ORG: :align center\nText \\[ x \\] more.\n'),
