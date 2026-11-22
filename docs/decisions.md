@@ -5219,13 +5219,17 @@ Numbered 162, not 161: the open pull request #309 takes 161.
     widget has the formula's own size.
   - **Tags:** `katex_dart` accepts `\tag{x}` and `\tag*{x}` but draws
     nothing for them, and fails on some tagged environments (an `align`
-    whose rows have tags); `flutter_tex_js` drew them. `withDrawnTags`
-    replaces each with `\qquad\text{(x)}` (`\text{x}` for the starred
-    one), in blocks and in display formulas that are still inline. KaTeX
-    sets the tag at the right edge of the page; a block here sits in a
-    container that scrolls sideways and has no page width, so the tag
-    follows its formula or its row, 2 em after it. A tag without its
-    closing brace is left to `katex_dart`.
+    whose rows have tags); `flutter_tex_js` drew them. `layOutTagged`
+    draws each tag 2 em after its formula or row: first in math,
+    `\qquad{(x)}` (`\qquad{x}` for the starred one), as most tags are
+    written (`\tag{a_b}`, `\tag{\alpha}`); if that cannot be laid out,
+    in text style, `\qquad\text{(x)}`, for a tag with its own math
+    (`\tag{$b_1$}`); if that cannot either, without the tag, so a tag
+    never makes the whole formula show its source. This applies to
+    blocks and to display formulas that are still inline. KaTeX sets the
+    tag at the right edge of the page; a block here sits in a container
+    that scrolls sideways and has no page width, so the tag follows its
+    formula. A tag without its closing brace is left to `katex_dart`.
   - **A formula `katex_dart` cannot lay out** (an unknown command, a
     missing brace): the callback returns null, and `org_flutter` shows
     the source with its delimiters in the code style, as `~code~`. Before,

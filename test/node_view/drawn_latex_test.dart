@@ -195,7 +195,7 @@ void main() {
       final failed = <String>[];
       document.visit<OrgLatexBlock>((block) {
         final tex = formulaToDraw(block);
-        if (layOutFormula(tex).box == null) failed.add(tex.trim());
+        if (layOutTagged(tex).box == null) failed.add(tex.trim());
         return true;
       });
       expect(failed, [r'\unknowncommand{x}']);
@@ -203,13 +203,45 @@ void main() {
   });
 
   group('tags', () {
-    test('a tag is drawn after its formula, in text style', () {
-      expect(withDrawnTags(r'x \tag{1}'), r'x \qquad\text{(1)}');
-      expect(withDrawnTags(r'x \tag*{A} '), r'x \qquad\text{A} ');
+    test('a tag is drawn after its formula, in math or text style', () {
+      expect(withDrawnTags(r'x \tag{1}'), r'x \qquad{(1)}');
+      expect(withDrawnTags(r'x \tag*{A} '), r'x \qquad{A} ');
       expect(
-        withDrawnTags(r'a \tag{$b_{1}$} \\ c \tag {2}'),
+        withDrawnTags(r'a \tag{$b_{1}$} \\ c \tag {2}', TagStyle.text),
         r'a \qquad\text{($b_{1}$)} \\ c \qquad\text{(2)}',
       );
+      expect(withDrawnTags(r'x \tag{1} = y', TagStyle.none), 'x   = y');
+    });
+
+    test(
+      'tags in math, in text and odd ones are laid out with the formula',
+      () {
+        double width(String tex) => layOutTagged(tex).box!.width;
+        final plain = width('x = 1');
+        for (final tag in [
+          r'\tag{7}',
+          r'\tag{a_b}',
+          r'\tag{2^{n}}',
+          r'\tag{\alpha}',
+          r'\tag{$b_{1}$}',
+          r'\tag{\text{a}}',
+          r'\tag{1{.}2}',
+          r'\tag*{a_b}',
+        ]) {
+          expect(layOutTagged('x = 1 $tag').box, isNotNull, reason: tag);
+          expect(width('x = 1 $tag'), greaterThan(plain), reason: tag);
+        }
+      },
+    );
+
+    test('a tag that cannot be drawn leaves the formula drawn without it', () {
+      // \qquad inside \text, and $ inside math, cannot be laid out; the
+      // formula still is.
+      for (final tex in [r'\text{see \tag{1}}', r'x \tag{$\frac{1}$}']) {
+        expect(layOutTagged(tex).box, isNotNull, reason: tex);
+      }
+      // Not a tag at all: an error stays an error.
+      expect(layOutTagged(r'\frac{1}{').box, isNull);
     });
 
     test('a row break before tag letters and a tag without its brace stay', () {

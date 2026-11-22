@@ -42,10 +42,10 @@ final _numbering = RegExp(
 /// Equation numbers are lost: `katex_dart` numbers nothing, and the
 /// commands that label or number ([_numbering]) are removed, each replaced
 /// by a space so the commands around it stay apart (`\pi\label{a}r` must
-/// not become `\pir`). A tag the formula sets itself is drawn
-/// ([withDrawnTags]).
+/// not become `\pir`). A tag the formula sets itself is drawn when it is
+/// laid out ([layOutTagged]).
 String formulaToDraw(OrgLatexBlock block) {
-  final body = withDrawnTags(block.content.replaceAll(_numbering, ' '));
+  final body = block.content.replaceAll(_numbering, ' ');
   return switch (block.environment) {
     '' || 'equation' || 'equation*' => body,
     'align' => '\\begin{aligned}$body\\end{aligned}',
@@ -61,13 +61,28 @@ String formulaToDraw(OrgLatexBlock block) {
 /// backslashes, as in [_numbering].
 final _tagStart = RegExp(r'(?<=(?:^|[^\\])(?:\\\\)*)\\tag(\*?)\s*\{');
 
-/// [tex] with each `\tag{x}` replaced by `(x)` and each `\tag*{x}` by `x`,
-/// in text style, a `\qquad` after the formula or its line. `katex_dart`
-/// accepts both commands but draws nothing for them. KaTeX puts the tag
-/// at the right edge of the page; a block here has no page width (it is in
-/// a container that scrolls sideways), so the tag follows the formula. A
-/// tag without its closing brace is left as it is.
-String withDrawnTags(String tex) {
+/// How [withDrawnTags] draws a tag.
+enum TagStyle {
+  /// `\tag{x}` as `(x)`, `\tag*{x}` as `x`, in math, as most tags are
+  /// written (`\tag{a_1}`, `\tag{\alpha}`).
+  math,
+
+  /// The same in text style, `\text{(x)}`, for a tag that holds text
+  /// with its own math (`\tag{$b_1$}`), as amsmath reads a tag.
+  text,
+
+  /// Not drawn: the formula without its tag.
+  none,
+}
+
+/// [tex] with each `\tag{x}` and `\tag*{x}` replaced as [style] says, a
+/// `\qquad` after the formula or its line. `katex_dart` accepts both
+/// commands but draws nothing for them, and fails on an `align` whose
+/// rows have tags. KaTeX puts the tag at the right edge of the page; a
+/// block here has no page width (it is in a container that scrolls
+/// sideways), so the tag follows the formula. A tag without its closing
+/// brace is left as it is.
+String withDrawnTags(String tex, [TagStyle style = TagStyle.math]) {
   final out = StringBuffer();
   var at = 0;
   for (final match in _tagStart.allMatches(tex)) {
@@ -88,13 +103,31 @@ String withDrawnTags(String tex) {
     }
     if (depth > 0) break;
     final tag = tex.substring(open, i - 1);
-    final text = match.group(1) == '*' ? tag : '($tag)';
+    final shown = match.group(1) == '*' ? tag : '($tag)';
     out
       ..write(tex.substring(at, match.start))
-      ..write('\\qquad\\text{$text}');
+      ..write(switch (style) {
+        TagStyle.math => '\\qquad{$shown}',
+        TagStyle.text => '\\qquad\\text{$shown}',
+        TagStyle.none => ' ',
+      });
     at = i;
   }
   return (out..write(tex.substring(at))).toString();
+}
+
+/// [tex] laid out in display mode, or in text mode if [display] is false,
+/// with its tags drawn: in math ([TagStyle.math]); if that cannot be laid
+/// out, in text style; if that cannot either, without them, so a tag
+/// never makes the whole formula fall back to its source.
+LaidOutFormula layOutTagged(String tex, {bool display = true}) {
+  if (!_tagStart.hasMatch(tex)) return layOutFormula(tex, display: display);
+  late LaidOutFormula laidOut;
+  for (final style in TagStyle.values) {
+    laidOut = layOutFormula(withDrawnTags(tex, style), display: display);
+    if (laidOut.box != null) return laidOut;
+  }
+  return laidOut;
 }
 
 /// An inline formula (`\( \)`, `$ $`) drawn on the baseline of the text
@@ -106,8 +139,9 @@ String withDrawnTags(String tex) {
 /// ([DrawnFormula.inline]). Null when the formula cannot be drawn.
 InlineSpan? loadLatexInline(OrgLatexInline latex) {
   final display = displayFormulaDelimiters.contains(latex.leadingDecoration);
-  final tex = display ? withDrawnTags(latex.content) : latex.content;
-  final box = layOutFormula(tex, display: display).box;
+  final box = display
+      ? layOutTagged(latex.content).box
+      : layOutFormula(latex.content, display: false).box;
   if (box == null) return null;
   return WidgetSpan(
     alignment: PlaceholderAlignment.baseline,
@@ -123,7 +157,7 @@ InlineSpan? loadLatexInline(OrgLatexInline latex) {
 /// the centre, 1 for the right), it is placed there in the width of the
 /// text instead ([AlignedFormula]). Null when the formula cannot be drawn.
 Widget? loadLatexBlock(OrgLatexBlock block, {double? align}) {
-  final box = layOutFormula(formulaToDraw(block)).box;
+  final box = layOutTagged(formulaToDraw(block)).box;
   if (box == null) return null;
   final formula = DrawnFormula(
     box,
