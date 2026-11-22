@@ -10,7 +10,7 @@ each entry.
 
 ## 2026-11-22: LaTeX formulas drawn on the device on every platform, inline ones too ([#311](https://github.com/ChristianGeng/roam-graph-mobile/pull/311))
 
-- Changed: every LaTeX formula is now drawn by the app itself, on Android as on Linux, Windows and macOS, with no WebView: inline formulas (`\( \)`, `$ $`) sit on the line in the colour and size of the text around them (in a heading, the heading's colour), display formulas and environments on their own line. Also in the AI chat. A formula that cannot be drawn shows its source in the code font; a wide inline formula scrolls sideways. Automatic equation numbers are still not shown; a `\tag{...}` is shown after its formula. Closes #308.
+- Changed: every LaTeX formula is now drawn by the app itself, on Android as on Linux, Windows and macOS, with no WebView: inline formulas (`\( \)`, `$ $`) sit on the line in the colour and size of the text around them (in a heading, the heading's colour), display formulas and environments on their own line. Also in the AI chat. A formula that cannot be drawn shows its source in the code font; a wide inline formula scrolls sideways. Automatic equation numbers are still not shown; a `\tag{...}` is shown after its formula. Closes #308 and #300.
 
 ## 2026-11-22: A setting that fails to save right after the start no longer resets the others ([#309](https://github.com/ChristianGeng/roam-graph-mobile/pull/309))
 
