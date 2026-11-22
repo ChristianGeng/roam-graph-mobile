@@ -20,13 +20,9 @@ dependencies:
   # SQLite into the APK.
   sqlite3: ^2.7.0
   sqlite3_flutter_libs: ^0.5.32
-  # Temporary (#308, decision 162): the fork's commit of
-  # amake/org_flutter#23, which adds the LaTeX callbacks and drops
-  # flutter_tex_js. Back to a version constraint once amake releases it.
-  org_flutter:
-    git:
-      url: https://github.com/ChristianGeng/org_flutter.git
-      ref: 4920ace87dcbba6cd1a343fd8aae340fcf36a86e
+  # 14.0.0 brings the LaTeX callbacks loadLatexInline and loadLatexBlock
+  # and drops flutter_tex_js (amake/org_flutter#23, for #308).
+  org_flutter: ^14.0.0
   # Finds a heading node's text by its ID, for sharing it (#41); the parser
   # behind org_flutter.
   org_parser: ^12.0.1

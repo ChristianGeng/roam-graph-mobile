@@ -5279,12 +5279,14 @@ Numbered 162, not 161: the open pull request #309 takes 161.
   renderer, offline and without a WebView, draws every formula in the
   same way on every platform, on the baseline, and the app needs no
   link rewriting.
-- **org_flutter from git, for now:** `pubspec.yaml` pins `org_flutter`
-  to the fork's commit 4920ace87dcbba6cd1a343fd8aae340fcf36a86e
-  (ChristianGeng/org_flutter, the head of amake/org_flutter#23), as
-  decision 152 did for #21. The pull request stays a draft until amake
-  releases the change; then the pin goes back to a version constraint
-  (as in decision 156), and the pull request closes #300 as well.
+- **org_flutter 14.0.0:** `pubspec.yaml` takes `org_flutter: ^14.0.0`
+  from pub.dev. While amake/org_flutter#23 was open, the branch pinned
+  the fork's commit 4920ace87dcbba6cd1a343fd8aae340fcf36a86e
+  (ChristianGeng/org_flutter), as decision 152 did for #21; amake merged
+  it as a7856ec and released it as 14.0.0, whose LaTeX code is the same
+  as the commit's (only the doc comments of the two callbacks are
+  shorter). The lock file changes only org_flutter. This closes #300
+  as well.
 - **Limits:** as in decision 157 (small spacing faults, no automatic
   equation numbers, environments `katex_dart` does not know show their
   source).
