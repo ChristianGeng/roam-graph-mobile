@@ -5327,9 +5327,72 @@ Numbered 162, not 161: #309 took 161.
   formulas; the cache. `test/node_view/latex_test.dart` keeps the
   display formula tests.
 
+## 163. A change made before the settings file is read keeps the file's other settings (#310)
+
+Numbered 163, not 162: #311 took 162.
+
+- **What:** in `ViewSettingsHost` (`lib/settings/view_settings.dart`),
+  a change made before the file is read counts only with the fields it
+  chose: the fields given to `ViewSettings.copyWith` (also one set to
+  the value it already had, such as the default split of a double tap
+  on the divider), and the fields that differ from the settings shown
+  then, compared as JSON (so also `lastUpdateCheckTime` and
+  `lastSeenVersion`, which `ViewSettings.==` leaves out). `copyWith`
+  remembers the fields it was given, outside `==` and the JSON. The
+  keys are compared key by key: a changed key keeps the file's other
+  keys; another key set replaces them all, as choosing a set on the
+  Keyboard screen does after the read (`KeyBindings.withSet`).
+  Once the file is read, the changes are made on the file's settings,
+  in order, and shown. A change whose save failed is undone and left out
+  (decision 161). A file that cannot be read gives the defaults with the
+  changes.
+- **The second write:** if a save made before the read already wrote
+  the file, the host writes it again with the file's settings and the
+  changes that saved. This write waits for the saves already started
+  and comes before any later change. If it fails, the screen is not
+  told; an `Error` (a mistake in the code, not a full disk) is caught
+  too, and logged with `debugPrint`.
+- **Reading before writing:** `FileViewSettingsStore` finds its file
+  once and shares it between load and save, so a load reads the file
+  before a save called after it writes it. Before, each looked up the
+  support folder; on Linux that takes other steps when the folder is
+  created, so the save could have written first.
+- **Settings shown:** the host keeps every new settings object, also one
+  that `==` calls equal, and notifies when anything saved (the JSON)
+  differs, so screens rebuild and their callbacks copy the new
+  settings. Before,
+  `ValueNotifier` kept the older object, so a change to
+  `lastUpdateCheckTime` alone, or the file's value of it, was lost at
+  the next change.
+- **Why:** before the file is read, `ViewSettingsScope.read` gives the
+  defaults, so a screen that changes one field saved the defaults plus
+  that field. That save replaced the whole file, and the file read later
+  was ignored, so the file's other settings were lost.
+- **Not chosen:** a change as a function on the settings
+  (`(s) => s.copyWith(...)`) states exactly what a screen changes, but
+  every caller of `ViewSettingsScope.change` would change (about 20, in
+  six files). Holding back saves until the file is read avoids the
+  window below, but still needs the fields above, and a read that is
+  slow or hangs would hold back every save and its error message.
+  Making every screen wait for `whenLoaded` (#81): the host is one
+  place, the screens are many.
+- **Limits:**
+  - Between the early save and the second write, the file holds the
+    change without the other settings; closing the app in that moment
+    leaves it so.
+  - A key reset to the set's default before the read is not seen as a
+    change (the defaults shown have no other key for it), so a key the
+    file changed stays.
+  - After a failed second write, the file holds the early change alone.
+    The screen keeps showing all settings, and the next change that
+    saves writes them all; but a change that fails first goes back to
+    what the file holds, so the screen drops the file's other settings,
+    and they are lost.
+- **Tests:** `test/settings/view_settings_host_test.dart`.
+
 ## 164. katex, katex_dart and puml_canvas from the user's forks
 
-Numbered 164, not 163: #314 adds 163 and is not merged yet.
+Numbered 164: #314 took 163.
 
 - **What:** `pubspec.yaml` takes `katex` and `katex_dart` from the
   owner's fork of the katex monorepo,
@@ -5361,9 +5424,9 @@ Numbered 164, not 163: #314 adds 163 and is not merged yet.
   app also lists `katex_dart` under `dependency_overrides`, with the same
   URL, path and commit. The lock file changes only these three packages
   (hosted to git; the versions stay 1.0.0, 0.1.1 and 0.13.0).
-- **Why:** both upstreams have been quiet for months (orestesgaolin/katex
-  has no commit since July 2026, battlecook/puml_canvas none since May
-  2026), and the owner wants the fixes in the app now.
+- **Why:** both upstreams have been quiet for months (as of
+  2026-11-24, orestesgaolin/katex has no commit since July 2026,
+  battlecook/puml_canvas none since May 2026), and the owner wants the fixes in the app now.
 - **Back to pub.dev** once upstream releases these fixes: then
   `katex: ^<that version>`, `katex_dart: ^<that version>` and
   `puml_canvas: ^<that version>`, the override removed and the comments

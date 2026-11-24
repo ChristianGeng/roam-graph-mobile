@@ -48,9 +48,9 @@ dependencies:
   # laid out and drawn in Dart; no server, no WebView. Young package: its
   # use is kept in lib/node_view/plantuml.dart, easy to update or remove.
   # From the owner's fork, pinned to a commit (decision 164): upstream
-  # (battlecook/puml_canvas) has had no commit since May 2026. On top
-  # of 0.13.0 the fork draws the edges of activity `while` loops
-  # (ChristianGeng/puml_canvas#12), places notes in class and sequence
+  # (battlecook/puml_canvas) has had no commit since May 2026 (as of
+  # 2026-11-24). On top of 0.13.0 the fork draws the edges of activity
+  # `while` loops (ChristianGeng/puml_canvas#12), places notes in class and sequence
   # diagrams (ChristianGeng/puml_canvas#13) and takes an optional
   # fontFamily (ChristianGeng/puml_canvas#1, upstream battlecook/puml_canvas#3).
   # Back to pub.dev once upstream releases these fixes.
@@ -66,10 +66,11 @@ dependencies:
   # packages: their use is kept in lib/node_view/drawn_latex.dart.
   # Both from the owner's fork of the katex monorepo, pinned to a commit
   # (decision 164): upstream (orestesgaolin/katex) has had no commit
-  # since July 2026. On top of katex 1.0.0 and katex_dart 0.1.1 the fork sets
+  # since July 2026 (as of 2026-11-24). On top of katex 1.0.0 and
+  # katex_dart 0.1.1 the fork sets
   # nested superscripts and subscripts at the script size
   # (ChristianGeng/katex#3, upstream PR orestesgaolin/katex#9) and aligns
-  # the columns of array and align (ChristianGeng/katex#5, from upstream
+  # the columns of array, matrix and align (ChristianGeng/katex#5, from upstream
   # PR orestesgaolin/katex#7). Back to pub.dev once upstream releases
   # these fixes.
   katex:
