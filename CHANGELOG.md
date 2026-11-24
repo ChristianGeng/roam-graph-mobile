@@ -8,6 +8,11 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-24: Nested formula scripts, matrix columns and PlantUML loops and notes drawn right ([#316](https://github.com/ChristianGeng/roam-graph-mobile/pull/316))
+
+- Fixed: in LaTeX formulas, a superscript or subscript inside another one (`e^{-x^2/2}`, `x_{y_i}`) is now drawn at the smaller script size, and the columns of matrices, `array` and `align` are aligned as written (centred in a `pmatrix`, at the `=` in an `align`).
+- Fixed: in PlantUML diagrams, an activity `while` loop is drawn with its loop-back and exit edges, and a note (`note right of`) in a class or sequence diagram sits next to its element.
+
 ## 2026-11-22: LaTeX formulas drawn on the device on every platform, inline ones too ([#311](https://github.com/ChristianGeng/roam-graph-mobile/pull/311))
 
 - Changed: every LaTeX formula is now drawn by the app itself, on Android as on Linux, Windows and macOS, with no WebView: inline formulas (`\( \)`, `$ $`) sit on the line in the colour and size of the text around them (in a heading, the heading's colour), display formulas and environments on their own line. Also in the AI chat. A formula that cannot be drawn shows its source in the code font; a wide inline formula scrolls sideways. Automatic equation numbers are still not shown; a `\tag{...}` is shown after its formula. Closes #308 and #300.

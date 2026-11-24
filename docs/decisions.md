@@ -5327,6 +5327,60 @@ Numbered 162, not 161: #309 took 161.
   formulas; the cache. `test/node_view/latex_test.dart` keeps the
   display formula tests.
 
+## 164. katex, katex_dart and puml_canvas from the user's forks
+
+Numbered 164, not 163: #314 adds 163 and is not merged yet.
+
+- **What:** `pubspec.yaml` takes `katex` and `katex_dart` from the
+  owner's fork of the katex monorepo,
+  `https://github.com/ChristianGeng/katex.git` (paths
+  `packages/katex` and `packages/katex_dart`), and `puml_canvas` from
+  `https://github.com/ChristianGeng/puml_canvas.git`, each pinned to a
+  full commit, as decision 152 did for org_flutter: a commit, not a
+  branch, so a build does not change when the branch moves.
+  - katex and katex_dart: `128bec1171db0a6c1e5816de6a2a01a82fb4d8d2`.
+    On top of katex 1.0.0 and katex_dart 0.1.1 it sets nested
+    superscripts and subscripts (`e^{-x^2/2}`, `x_{y_i}`) at the script
+    size, as KaTeX does (ChristianGeng/katex#3, PR
+    ChristianGeng/katex#6, offered upstream as orestesgaolin/katex#9),
+    and aligns the columns of `array`, `matrix` and `align` (centred,
+    right and left as the column spec says;
+    ChristianGeng/katex#5, cherry-picked from upstream PR
+    orestesgaolin/katex#7 by MELLATI Fatah).
+  - puml_canvas: `b1634775327be0222a7b3e161cd68a01396c0ba8`. On top of
+    0.13.0 it draws the loop-back and exit edges of activity `while`
+    loops (ChristianGeng/puml_canvas#12), places notes in class and
+    sequence diagrams (`note right of`, ChristianGeng/puml_canvas#13),
+    and takes an optional `fontFamily` on `PumlView`, the measurer and
+    the renderer (ChristianGeng/puml_canvas#1, offered upstream as
+    battlecook/puml_canvas#3).
+- **katex_dart twice:** `katex` asks for `katex_dart: ^0.1.0` from
+  pub.dev. The fork's `packages/katex/pubspec_overrides.yaml` points it
+  at the sibling folder, but a dependency's overrides do not apply in
+  the app, and pub does not accept one package from two sources. So the
+  app also lists `katex_dart` under `dependency_overrides`, with the same
+  URL, path and commit. The lock file changes only these three packages
+  (hosted to git; the versions stay 1.0.0, 0.1.1 and 0.13.0).
+- **Why:** both upstreams have been quiet for months (orestesgaolin/katex
+  has no commit since July 2026, battlecook/puml_canvas none since May
+  2026), and the owner wants the fixes in the app now.
+- **Back to pub.dev** once upstream releases these fixes: then
+  `katex: ^<that version>`, `katex_dart: ^<that version>` and
+  `puml_canvas: ^<that version>`, the override removed and the comments
+  shortened. A new fix in a fork moves its pin; run the tests after.
+- **What stays:** the app's own LaTeX workarounds (decisions 157 and
+  162: `gather` and `equation` rewritten, `\label`, `\nonumber` and
+  `\notag` removed, tags drawn by `layOutTagged`); the forks do not
+  change those. `lib/node_view/plantuml.dart` does not pass a
+  `fontFamily`: without one, puml_canvas draws as before. Giving
+  diagrams a font of the app's own is a possible follow-up.
+- **Tests:** none changed; all of `flutter test --exclude-tags live`
+  passes with the forks. A check of the Linux app under `xvfb-run`
+  with a synthetic note showed the nested scripts at script size, the
+  columns of a `pmatrix` centred, an `align` aligned at its `=`, a
+  `while` loop with both its edges and a class diagram's note to the
+  right of its class.
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept
