@@ -191,10 +191,13 @@ Map<OrgLatexBlock, double> _findAlignments(OrgDocument document) {
 double? _alignmentOf(OrgDocument document, OrgLatexBlock block) {
   var zipper = document.editNode(block);
   if (zipper == null) return null;
-  while (!zipper!.canGoLeft()) {
-    if (!zipper.canGoUp()) return null;
-    // Going up out of a paragraph: the formula must be all of it, so
-    // nothing but white space may follow it either.
+  // A display formula stands in a line of text (a paragraph, a list
+  // item's text): to count as the element, it must be all of that text, so
+  // nothing but white space may follow it either. Checked only among its
+  // own siblings: above them are elements (a list's next item, a quote's
+  // next paragraph), which do not matter. An environment is an element
+  // itself; what follows it is the next element.
+  if (block.environment.isEmpty) {
     for (var right = zipper; right.canGoRight();) {
       right = right.goRight();
       final node = right.node;
@@ -202,6 +205,9 @@ double? _alignmentOf(OrgDocument document, OrgLatexBlock block) {
         return null;
       }
     }
+  }
+  while (!zipper!.canGoLeft()) {
+    if (!zipper.canGoUp()) return null;
     zipper = zipper.goUp();
   }
   double? result;
@@ -331,22 +337,43 @@ int get laidOutFormulas => _laidOut.length;
 @visibleForTesting
 void forgetLaidOutFormulas() => _laidOut.clear();
 
+/// The longest formula source that is laid out: 4000 characters, far
+/// more than a formula in a note (a long `align` is a few hundred), but a
+/// limit for one that an AI answer or a paste makes huge. `katex_dart`
+/// lays out on the UI thread, and a huge or deeply nested formula would
+/// stop the app; a longer one shows its source.
+const maxFormulaLength = 4000;
+
+/// How `katex_dart` lays out a formula; tests replace it to make it fail
+/// in other ways than a broken formula.
+@visibleForTesting
+katex.BoxNode Function(String tex, {katex.KatexOptions? options})
+formulaRenderer = katex.renderToBox;
+
 /// [tex] laid out, in display mode unless [display] is false. An unknown
 /// command or a broken formula is an error here: `katex_dart` then throws,
 /// where the `katex` widgets would draw it in red.
 LaidOutFormula layOutFormula(String tex, {bool display = true}) {
   final key = (tex, display);
   if (_laidOut.remove(key) case final laidOut?) return _laidOut[key] = laidOut;
+  if (tex.length > maxFormulaLength) {
+    return (box: null, error: 'longer than $maxFormulaLength characters');
+  }
   LaidOutFormula laidOut;
   try {
     laidOut = (
-      box: katex.renderToBox(
+      box: formulaRenderer(
         tex,
         options: katex.KatexOptions(displayMode: display, throwOnError: true),
       ),
       error: null,
     );
-  } on Object catch (error) {
+  } on katex.ParseError catch (error) {
+    laidOut = (box: null, error: error);
+  } on Object catch (error, stack) {
+    // Not a broken formula but a fault of the renderer: shown as source
+    // too, and logged, so it is seen.
+    debugPrint('katex could not lay out $tex: $error\n$stack');
     laidOut = (box: null, error: error);
   }
   _laidOut[key] = laidOut;

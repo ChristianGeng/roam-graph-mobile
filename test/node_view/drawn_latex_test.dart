@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/rendering.dart' show RenderParagraph, SelectedContent;
+import 'package:flutter/foundation.dart' show DebugPrintCallback;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:katex_dart/katex_dart.dart' as katex;
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
 import 'package:roam_graph_mobile/node_view/drawn_latex.dart';
@@ -390,6 +392,22 @@ void main() {
           '\\begin{equation}\nc\n\\end{equation}\n',
         ),
         {'b': 1.0, 'c': 0.5},
+      );
+    });
+
+    test('a formula-only first part of a list or quote keeps it', () {
+      // The next item, or the next paragraph, follows the formula's own
+      // line; it does not undo the keyword before the list or block.
+      expect(
+        alignments(
+          '#+ATTR_ORG: :align center\n- \\[ a \\]\n- second item\n\n'
+          '#+ATTR_ORG: :align right\n'
+          '#+begin_quote\n\\[ b \\]\n\nsecond paragraph\n#+end_quote\n\n'
+          '#+ATTR_ORG: :align center\n'
+          '#+begin_quote\n\\begin{equation}\nc\n\\end{equation}\n'
+          'second paragraph\n#+end_quote\n',
+        ),
+        {'a': 0.5, 'b': 1.0, 'c': 0.5},
       );
     });
 
@@ -860,6 +878,45 @@ void main() {
     expect(layOutFormula('x_{0}').box, same(boxes[0]));
     expect(layOutFormula('x_{1}').box, isNot(same(boxes[1])));
     expect(laidOutFormulas, maxLaidOutFormulas);
+  });
+
+  test('a formula longer than the limit is not laid out', () {
+    String sum(int terms) => [for (var i = 0; i < terms; i++) 'x'].join('+');
+    final short = sum(maxFormulaLength ~/ 2);
+    expect(short.length, lessThanOrEqualTo(maxFormulaLength));
+    expect(layOutFormula(short).box, isNotNull);
+    final long = sum(maxFormulaLength ~/ 2 + 1);
+    expect(long.length, greaterThan(maxFormulaLength));
+    expect(layOutFormula(long).box, isNull);
+    expect(loadLatexInline(inlineOf('A \\($long\\) b.')), isNull);
+  });
+
+  group('a fault of the renderer', () {
+    late List<String?> logged;
+    late DebugPrintCallback print;
+    setUp(() {
+      logged = [];
+      print = debugPrint;
+      debugPrint = (message, {wrapWidth}) => logged.add(message);
+    });
+    tearDown(() {
+      debugPrint = print;
+      formulaRenderer = katex.renderToBox;
+    });
+
+    test('is logged, and the source is shown', () {
+      formulaRenderer = (tex, {options}) => throw StateError('broken glyph');
+      expect(layOutFormula('x').box, isNull);
+      expect(loadLatexInline(inlineOf(r'A \(y\) b.')), isNull);
+      expect(logged, hasLength(2));
+      expect(logged.first, contains('broken glyph'));
+    });
+
+    test('a broken formula is not logged', () {
+      expect(layOutFormula(r'\frac{1}{').box, isNull);
+      expect(layOutFormula(r'\unknowncommand{x}').box, isNull);
+      expect(logged, isEmpty);
+    });
   });
 
   test('laid-out formulas are kept by their text and mode', () {

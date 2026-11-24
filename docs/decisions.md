@@ -410,7 +410,8 @@ devices through Syncthing.
       already stored (`files.mtime`).
     - **`#+ATTR_ORG: :align center` or `right`** (or `:center t`) right
     before a block, or before a paragraph that holds only a display
-    formula (no text before or after it), places the formula there in the note view, as it does an
+    formula (no text before or after it; a list item's or a quote's
+    first line counts, whatever follows it), places the formula there in the note view, as it does an
     image (and as the #301 links did). `org_flutter` passes the callback
     only the block, so `latexAlignments` finds the alignment of each
     block of the parsed document once (the rule of `org_flutter`'s
@@ -5272,6 +5273,13 @@ Numbered 162, not 161: #309 took 161.
     dropped), now keyed by the formula and its mode (inline or display).
     Tests empty it before and after each test.
   - **Screen readers** read the formula's source, inline and block.
+  - **A limit and a log:** `katex_dart` lays out on the UI thread, so a
+    formula longer than 4000 characters (`maxFormulaLength`; a long
+    `align` in a note is a few hundred) is not laid out and shows its
+    source, so that a huge one from an AI answer or a paste cannot stop
+    the app. A broken formula (`katex_dart`'s `ParseError`) shows its
+    source silently; any other error of the renderer shows the source
+    too and is logged with `debugPrint`.
   - **Search, "Only matching sections":** `org_parser` looks for the
     pattern in a formula's delimiters and body one at a time, so a
     search for a whole formula (`\[ a + b \]`) found no match and

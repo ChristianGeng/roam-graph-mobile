@@ -72,6 +72,7 @@ notes, and it has an AI chat that works on the notes.
 - "Edit with AI" changes a note, or also its linked notes, by an
   instruction.
 - Images, infographics and charts made by the AI and added to a note.
+- LaTeX formulas in answers are drawn, as in a note.
 - Optional web access; chats are kept on the device and can run in
   parallel and in the background.
 - Notes with a tag such as `:private:` are never sent to an AI.
