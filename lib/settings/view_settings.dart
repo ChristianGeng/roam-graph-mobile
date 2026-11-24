@@ -746,7 +746,9 @@ class _KeysPatch {
 
 /// A [ValueNotifier] that keeps every new settings object, also one that
 /// [ViewSettings.==] calls equal, such as one with another
-/// `lastUpdateCheckTime` (#310); it notifies only when they differ.
+/// `lastUpdateCheckTime` (#310). It notifies when anything saved differs
+/// (the JSON), also in those fields, so screens rebuild and their
+/// callbacks copy the new settings; not when nothing saved changed.
 class _SettingsNotifier extends ValueNotifier<ViewSettings> {
   _SettingsNotifier(super.value) : _current = value;
 
@@ -761,7 +763,8 @@ class _SettingsNotifier extends ValueNotifier<ViewSettings> {
   @override
   set value(ViewSettings settings) {
     if (identical(settings, _current)) return;
-    final differs = settings != _current;
+    final differs = settings != _current ||
+        jsonEncode(settings.toJson()) != jsonEncode(_current.toJson());
     _current = settings;
     if (differs) notifyListeners();
   }

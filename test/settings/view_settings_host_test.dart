@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/node_view/scripts.dart';
 import 'package:roam_graph_mobile/settings/keys.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
@@ -456,6 +456,46 @@ void main() {
       await tester.pump();
       store.finishSave();
       await later;
+      expect(
+        store.settings.toJson(),
+        file.copyWith(theme: AppTheme.light, joinLines: false).toJson(),
+      );
+    });
+
+    testWidgets('the read changes only fields that == leaves out: the '
+        "View screen's switches keep them (#310)", (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final checked = DateTime.utc(2026, 11, 1);
+      final file = ViewSettings.withDefaults().copyWith(
+        lastUpdateCheckTime: checked,
+        lastSeenVersion: '0.3.0',
+      );
+      final store = _GatedStore(file);
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) =>
+              ViewSettingsHost(store: store, child: child!),
+          home: const ViewSettingsScreen(),
+        ),
+      );
+
+      await tester.tap(find.text('Light'));
+      await tester.pump();
+      store.finishSave();
+      await tester.pump();
+      // The settings read differ from those shown only in the update
+      // check; the second write gives the file them back.
+      store.finishLoad();
+      await tester.pump();
+      store.finishSave();
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('settings-join-lines')));
+      await tester.pump();
+      store.finishSave();
+      await tester.pumpAndSettle();
       expect(
         store.settings.toJson(),
         file.copyWith(theme: AppTheme.light, joinLines: false).toJson(),

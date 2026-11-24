@@ -5358,7 +5358,9 @@ Numbered 163, not 162: #311 took 162.
   support folder; on Linux that takes other steps when the folder is
   created, so the save could have written first.
 - **Settings shown:** the host keeps every new settings object, also one
-  that `==` calls equal (it notifies only when they differ). Before,
+  that `==` calls equal, and notifies when anything saved (the JSON)
+  differs, so screens rebuild and their callbacks copy the new
+  settings. Before,
   `ValueNotifier` kept the older object, so a change to
   `lastUpdateCheckTime` alone, or the file's value of it, was lost at
   the next change.
