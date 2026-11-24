@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-24: A setting changed right after the start no longer resets the others ([#314](https://github.com/ChristianGeng/roam-graph-mobile/pull/314))
+
+- Fixed: when a view setting was changed in the first moment after the app started, before the saved settings were read, the saved settings other than that one were replaced by the defaults. The change is now added to the saved settings. Closes #310.
+
 ## 2026-11-22: A setting that fails to save right after the start no longer resets the others ([#309](https://github.com/ChristianGeng/roam-graph-mobile/pull/309))
 
 - Fixed: when a view setting was changed in the first moment after the app started and could not be saved, the app showed the default settings instead of those saved before, until the next change or restart. It now shows the saved settings. Closes #296.

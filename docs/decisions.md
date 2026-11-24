@@ -5179,6 +5179,38 @@ Numbered 160, not 159: another open branch may take 159.
   the next change or restart.
 - **Tests:** `test/settings/view_settings_host_test.dart`.
 
+## 163. A change made before the settings file is read keeps the file's other settings (#310)
+
+Numbered 163, not 162: the open pull request #311 takes 162.
+
+- **What:** in `ViewSettingsHost` (`lib/settings/view_settings.dart`),
+  a change made before the file is read counts only with the fields in
+  which it differs from the settings shown then (compared as JSON, so
+  also `lastUpdateCheckTime` and `lastSeenVersion`, which
+  `ViewSettings.==` leaves out). Several such changes add up, field by
+  field. Once the file is read, those fields are applied to the file's
+  settings, which are then shown. If a save made before that already
+  wrote the file, the host writes it again, after the saves already
+  queued, with the file's settings plus the fields of the latest change
+  that saved. A change whose save failed is undone and its fields are
+  dropped (decision 161). A file that cannot be read gives the defaults
+  plus the fields.
+- **Why:** before the file is read, `ViewSettingsScope.read` gives the
+  defaults, so a screen that changes one field saves the defaults plus
+  that field. That save replaced the whole file, and the file read later
+  was ignored, so the file's other settings were lost.
+- **Not chosen:** holding back saves until the file is read. It would
+  avoid the short window below, but it still needs the fields above (the
+  screen sent the defaults plus its field), and a read that is slow or
+  hangs would then hold back every save and its error message. Changing every screen to wait for `whenLoaded` (#81) was not chosen
+  either: the host is one place, the screens are many, and a new screen
+  could forget it.
+- **Limit:** between the early save and the second write, the file holds
+  the change without the other settings; the app being closed in that
+  moment, or a failed second write, leaves it so. The second write is not
+  reported; the next change writes all settings.
+- **Tests:** `test/settings/view_settings_host_test.dart`.
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept

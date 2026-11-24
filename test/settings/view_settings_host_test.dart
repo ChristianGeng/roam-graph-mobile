@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roam_graph_mobile/node_view/scripts.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 void main() {
@@ -29,31 +30,149 @@ void main() {
       expect(ViewSettingsScope.read(context), inFile);
     });
 
-    testWidgets('whose save succeeds: the change is kept', (tester) async {
-      final store = _GatedStore(inFile);
+    testWidgets('whose save succeeds: the change is kept, with the '
+        "file's other settings (#310)", (tester) async {
+      final store = _GatedStore(_richFile);
       final context = await _host(tester, store);
 
-      final change = ViewSettingsScope.change(context, chosen);
+      // Built from the defaults, as a screen does before the file is read.
+      final change = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
+      );
       await tester.pump();
       store.finishSave();
       await change;
 
       store.finishLoad();
       await tester.pump();
-      expect(ViewSettingsScope.read(context), chosen);
-      expect(store.settings, chosen);
+      final kept = _richFile.copyWith(theme: AppTheme.light);
+      expect(ViewSettingsScope.read(context), kept);
+      // The file is written again with its other settings.
+      store.finishSave();
+      await tester.pump();
+      expect(store.settings.toJson(), kept.toJson());
 
-      // The file read is older than the save: a later failed save goes
-      // back to the saved change, not to it.
+      // A later failed save goes back to the merged settings.
       final failing = ViewSettingsScope.change(
         context,
-        const ViewSettings(theme: AppTheme.system),
+        ViewSettingsScope.read(context).copyWith(theme: AppTheme.system),
       );
       await tester.pump();
       store.finishSave(fail: true);
       await expectLater(failing, throwsA(isA<FileSystemException>()));
       await tester.pump();
-      expect(ViewSettingsScope.read(context), chosen);
+      expect(ViewSettingsScope.read(context), kept);
+    });
+
+    testWidgets('several changes saved before the file is read: all are '
+        "kept, with the file's other settings (#310)", (tester) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+
+      final first = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
+      );
+      final second = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(scripts: ScriptMode.never),
+      );
+      await tester.pump();
+      store.finishSave();
+      await first;
+      await tester.pump();
+      store.finishSave();
+      await second;
+
+      store.finishLoad();
+      await tester.pump();
+      final kept = _richFile.copyWith(
+        theme: AppTheme.light,
+        scripts: ScriptMode.never,
+      );
+      expect(ViewSettingsScope.read(context), kept);
+      store.finishSave();
+      await tester.pump();
+      expect(store.settings.toJson(), kept.toJson());
+    });
+
+    testWidgets('still saving when the file is read, then saved: the '
+        "file's other settings are kept (#310)", (tester) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+
+      final change = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
+      );
+      await tester.pump();
+      store.finishLoad();
+      await tester.pump();
+      final kept = _richFile.copyWith(theme: AppTheme.light);
+      expect(ViewSettingsScope.read(context), kept);
+
+      store.finishSave();
+      await change;
+      await tester.pump();
+      store.finishSave();
+      await tester.pump();
+      expect(store.settings.toJson(), kept.toJson());
+      expect(ViewSettingsScope.read(context), kept);
+    });
+
+    testWidgets('a saved change, then a failed one: the file gets the '
+        "saved change and keeps its other settings (#310)", (tester) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+
+      final first = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
+      );
+      await tester.pump();
+      store.finishSave();
+      await first;
+      final second = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(scripts: ScriptMode.never),
+      );
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(second, throwsA(isA<FileSystemException>()));
+
+      store.finishLoad();
+      await tester.pump();
+      final kept = _richFile.copyWith(theme: AppTheme.light);
+      expect(ViewSettingsScope.read(context), kept);
+      store.finishSave();
+      await tester.pump();
+      expect(store.settings.toJson(), kept.toJson());
+    });
+
+    testWidgets('only the last update check saved before the file is read: '
+        "the file's settings are kept (#310)", (tester) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+
+      final checked = DateTime.utc(2026, 11, 24, 8);
+      final change = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(lastUpdateCheckTime: checked),
+      );
+      await tester.pump();
+      store.finishSave();
+      await change;
+
+      store.finishLoad();
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), _richFile);
+      store.finishSave();
+      await tester.pump();
+      expect(
+        store.settings.toJson(),
+        _richFile.copyWith(lastUpdateCheckTime: checked).toJson(),
+      );
     });
 
     testWidgets('an older save fails while a newer change is saving: '
@@ -253,6 +372,16 @@ void main() {
     expect(ViewSettingsScope.read(context), inFile);
   });
 }
+
+/// A file with settings other than the defaults, also in fields that
+/// [ViewSettings.==] leaves out.
+final _richFile = ViewSettings(
+  theme: AppTheme.dark,
+  joinLines: false,
+  emacsClient: 'emacsclient -n',
+  lastUpdateCheckTime: DateTime.utc(2026, 11, 1),
+  lastSeenVersion: '0.3.0',
+);
 
 /// Puts a [ViewSettingsHost] with [store] on screen and gives a context
 /// below it.

@@ -481,14 +481,25 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   /// one saved. Used when the latest save fails.
   late ViewSettings _inFile = ViewSettings.withDefaults();
 
-  /// Whether a save succeeded; then the file is newer than what was
-  /// loaded.
-  var _saved = false;
+  /// The settings read from the file (the defaults if it cannot be read);
+  /// null until then.
+  ViewSettings? _fromFile;
 
-  /// Whether the latest change failed to save, so the settings went back
-  /// to [_inFile]; before the file is read, those are the defaults, and
-  /// the file replaces them once it is read (#296).
-  var _rolledBack = false;
+  /// The fields changed before the file was read, as JSON values (#310).
+  /// A screen builds such a change from the defaults, so only these
+  /// fields are its choice; once the file is read, they are applied to
+  /// the file's settings.
+  var _early = <String, Object?>{};
+
+  /// [_early] as it was at the latest change before the file was read
+  /// whose save succeeded; [_early] goes back to it when the latest change
+  /// fails.
+  var _earlySaved = <String, Object?>{};
+
+  /// The settings saved by a change made before the file was read, while
+  /// the file may hold them without its other settings; [_repair] then
+  /// writes the file's settings with [_earlySaved].
+  ViewSettings? _unmerged;
 
   /// Completes once the settings are loaded (or a change came first),
   /// for screens that must not start with the defaults (#81).
@@ -504,14 +515,36 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
       } on Exception {
         settings = ViewSettings.withDefaults();
       }
-      if (mounted && !_saved) {
-        _inFile = settings;
-        // A choice made while loading is newer than the file, unless its
-        // save failed.
-        if (_changes == 0 || _rolledBack) _settings.value = settings;
+      if (mounted) {
+        _fromFile = settings;
+        // A change made before is applied to the file's settings, field by
+        // field, so the file's other settings stay (#310); a change whose
+        // save failed is no longer in [_early] (#296).
+        _inFile = _withFields(settings, _earlySaved);
+        _settings.value = _withFields(settings, _early);
+        // After the saves of those changes, which may have written the
+        // file without its other settings.
+        _saves = _saves.catchError((Object _) {}).then((_) => _repair());
       }
       if (!_loaded.isCompleted) _loaded.complete();
     }();
+  }
+
+  /// Writes the file's settings with the changes saved before it was
+  /// read, if those saves wrote the file without them (#310). If this
+  /// fails, the file keeps the saved changes alone until the next change,
+  /// which writes all settings.
+  Future<void> _repair() async {
+    final unmerged = _unmerged;
+    _unmerged = null;
+    if (unmerged == null) return;
+    final merged = _withFields(_fromFile!, _earlySaved);
+    if (jsonEncode(merged.toJson()) == jsonEncode(unmerged.toJson())) return;
+    try {
+      await widget.store.save(merged);
+    } on Exception {
+      // Nobody waits for this write; see above.
+    }
   }
 
   /// Saves [settings] after any earlier save, then uses them, unless a
@@ -519,7 +552,13 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   /// shows what the file holds, and the error is thrown.
   Future<void> _change(ViewSettings settings) {
     final change = ++_changes;
-    _rolledBack = false;
+    // Before the file is read, the fields this change makes differ from
+    // the settings shown (#310).
+    Map<String, Object?>? early;
+    if (_fromFile == null) {
+      _early = {..._early, ..._changedFields(_settings.value, settings)};
+      early = _early;
+    }
     // A change is newer than the file: screens waiting can go on.
     if (!_loaded.isCompleted) _loaded.complete();
     // Used at once, so a second change made while the first is saving
@@ -530,15 +569,22 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
         .catchError((Object _) {})
         .then((_) => widget.store.save(settings))
         .then((_) {
-      _saved = true;
-      _inFile = settings;
+      if (early == null) {
+        _unmerged = null;
+        _inFile = settings;
+        return;
+      }
+      _earlySaved = early;
+      _unmerged = settings;
+      final fromFile = _fromFile;
+      _inFile = fromFile == null ? settings : _withFields(fromFile, early);
     });
     _saves = saved;
     return saved.then((_) {}, onError: (Object error, StackTrace stack) {
       if (mounted && change == _changes) {
         // Set first: a listener of the next line may make a new change,
-        // which clears it.
-        _rolledBack = true;
+        // which builds on them.
+        _early = _earlySaved;
         _settings.value = _inFile;
       }
       Error.throwWithStackTrace(error, stack);
@@ -559,6 +605,24 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
         child: widget.child,
       );
 }
+
+/// The fields in which [settings] differs from [base], as JSON values.
+Map<String, Object?> _changedFields(ViewSettings base, ViewSettings settings) {
+  final before = base.toJson();
+  final after = settings.toJson();
+  return {
+    for (final key in {...before.keys, ...after.keys})
+      if (jsonEncode(before[key]) != jsonEncode(after[key])) key: after[key],
+  };
+}
+
+/// [settings] with [fields] (JSON values, as [_changedFields] gives them)
+/// set.
+ViewSettings _withFields(ViewSettings settings, Map<String, Object?> fields) =>
+    fields.isEmpty
+        ? settings
+        : ViewSettings.fromJson(
+            jsonDecode(jsonEncode({...settings.toJson(), ...fields})));
 
 /// The view settings for the screens below it.
 class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
@@ -605,7 +669,9 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
   /// The settings in use, without rebuilding [context] when they change:
   /// for code outside build. Until the file is read, these are the
   /// defaults, or a change made before that; [current] waits for the file
-  /// (but not past a change, nor longer than its limit).
+  /// (but not past a change, nor longer than its limit). A change built
+  /// from them before the file is read keeps the file's other settings
+  /// (#310).
   static ViewSettings read(BuildContext context) =>
       context
           .getInheritedWidgetOfExactType<ViewSettingsScope>()
@@ -618,10 +684,12 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
   /// older choice. If the latest save fails, the settings go back to what
   /// the file holds, and the error is thrown.
   ///
-  /// Before the file is read, a failed save goes back to the last save
-  /// that succeeded, or to the defaults if none did; once the file is
-  /// read, the settings are the file's, unless a save succeeded or a
-  /// change is still saving (#296).
+  /// Before the file is read, a change counts only with the fields in
+  /// which it differs from the settings shown then: once the file is read,
+  /// those fields are applied to the file's settings, which are written
+  /// again if a save already replaced them (#310). A failed save goes back
+  /// to the last save that succeeded, or to the defaults if none did; its
+  /// fields are then not applied to the file's settings (#296).
   ///
   /// A limit: a change only to fields that [ViewSettings.==] leaves out
   /// (`lastUpdateCheckTime`, `lastSeenVersion`) is saved, but [read] keeps
