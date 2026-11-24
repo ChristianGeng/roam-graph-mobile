@@ -368,18 +368,20 @@ packages:
   katex:
     dependency: "direct main"
     description:
-      name: katex
-      sha256: dd9e043367ddf668b915db10005e101049f0f767db58bb2dd594c40c3a412892
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/katex"
+      ref: "128bec1171db0a6c1e5816de6a2a01a82fb4d8d2"
+      resolved-ref: "128bec1171db0a6c1e5816de6a2a01a82fb4d8d2"
+      url: "https://github.com/ChristianGeng/katex.git"
+    source: git
     version: "1.0.0"
   katex_dart:
     dependency: "direct main"
     description:
-      name: katex_dart
-      sha256: "9ffb18e394a3817f4cdfa04fd497ca30d3e3b45661e3e17f7705b8ae68dd5be9"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/katex_dart"
+      ref: "128bec1171db0a6c1e5816de6a2a01a82fb4d8d2"
+      resolved-ref: "128bec1171db0a6c1e5816de6a2a01a82fb4d8d2"
+      url: "https://github.com/ChristianGeng/katex.git"
+    source: git
     version: "0.1.1"
   leak_tracker:
     dependency: transitive
@@ -616,10 +618,11 @@ packages:
   puml_canvas:
     dependency: "direct main"
     description:
-      name: puml_canvas
-      sha256: "82e4cc4fec63342717484df9ca51e611bce6b1bc10e680478de17ba705e589ca"
-      url: "https://pub.dev"
-    source: hosted
+      path: "."
+      ref: b1634775327be0222a7b3e161cd68a01396c0ba8
+      resolved-ref: b1634775327be0222a7b3e161cd68a01396c0ba8
+      url: "https://github.com/ChristianGeng/puml_canvas.git"
+    source: git
     version: "0.13.0"
   record_use:
     dependency: transitive

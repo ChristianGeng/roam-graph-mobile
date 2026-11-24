@@ -8,6 +8,11 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-24: Nested formula scripts, matrix columns and PlantUML loops and notes drawn right ([#316](https://github.com/ChristianGeng/roam-graph-mobile/pull/316))
+
+- Fixed: in LaTeX formulas, a superscript or subscript inside another one (`e^{-x^2/2}`, `x_{y_i}`) is now drawn at the smaller script size, and the columns of matrices, `array` and `align` are aligned as written (centred in a `pmatrix`, at the `=` in an `align`).
+- Fixed: in PlantUML diagrams, an activity `while` loop is drawn with its loop-back and exit edges, a note in a class diagram (`note right of`) sits beside its class, joined by a dashed line, and in a sequence diagram a labelled message after a note moves down so the note no longer covers its label. Closes #317.
+
 ## 2026-11-24: A setting changed right after the start no longer resets the others ([#314](https://github.com/ChristianGeng/roam-graph-mobile/pull/314))
 
 - Fixed: when a view setting was changed in the first moment after the app started, before the saved settings were read, the saved settings other than that one were replaced by the defaults. The change is now added to the saved settings. Closes #310.
