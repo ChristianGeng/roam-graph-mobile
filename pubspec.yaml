@@ -20,9 +20,9 @@ dependencies:
   # SQLite into the APK.
   sqlite3: ^2.7.0
   sqlite3_flutter_libs: ^0.5.32
-  # 13.5.0 brings the code, verbatim and block text styles of the theme
-  # (amake/org_flutter#21, for #239).
-  org_flutter: ^13.5.0
+  # 14.0.0 brings the LaTeX callbacks loadLatexInline and loadLatexBlock
+  # and drops flutter_tex_js (amake/org_flutter#23, for #308).
+  org_flutter: ^14.0.0
   # Finds a heading node's text by its ID, for sharing it (#41); the parser
   # behind org_flutter.
   org_parser: ^12.0.1
@@ -48,19 +48,18 @@ dependencies:
   # laid out and drawn in Dart; no server, no WebView. Young package: its
   # use is kept in lib/node_view/plantuml.dart, easy to update or remove.
   puml_canvas: ^0.13.0
-  # LaTeX blocks drawn by the app on the desktop (#300, decision 157);
-  # Android keeps flutter_tex_js through org_flutter. katex draws the box
-  # tree of katex_dart (a port of KaTeX to Dart, which mermaid_core uses
-  # too); the app calls katex_dart itself to check a formula and keep its
-  # layout. Young packages: their use is kept in
-  # lib/node_view/drawn_latex.dart.
+  # Every LaTeX formula, inline and block, drawn by the app on every
+  # platform through org_flutter's loadLatexInline and loadLatexBlock
+  # (#308, decisions 157 and 162). katex draws the box tree of katex_dart
+  # (a port of KaTeX to Dart, which mermaid_core uses too); the app calls
+  # katex_dart itself to check a formula and keep its layout. Young
+  # packages: their use is kept in lib/node_view/drawn_latex.dart.
   katex: ^1.0.0
   katex_dart: ^0.1.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  flutter_tex_js: ^7.0.0
 
 flutter:
   uses-material-design: true

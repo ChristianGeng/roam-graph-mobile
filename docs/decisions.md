@@ -408,7 +408,26 @@ devices through Syncthing.
       order: path order, a title before its aliases. For this the graph
       now carries each file's modification time, which the database
       already stored (`files.mtime`).
-    - **Tags:** chips for every tag, the most used first. A node must have
+    - **`#+ATTR_ORG: :align center` or `right`** (or `:center t`) right
+    before a block, or before a paragraph that holds only a display
+    formula (no text before or after it; a list item's or a quote's
+    first line counts, whatever follows it), places the formula there in the note view, as it does an
+    image (and as the #301 links did). `org_flutter` passes the callback
+    only the block, so `latexAlignments` finds the alignment of each
+    block of the parsed document once (the rule of `org_flutter`'s
+    `alignmentForNode`, which it does not export), and the note view
+    passes it on. Unlike `org_flutter` for images, only the keywords
+    right before the block count, with no blank line between, as in Org;
+    `org_flutter` reads every keyword before the element in its section. The block sits in a
+    container that scrolls sideways and gets no width, so
+    `AlignedFormula` reads the width of the nearest box around it that
+    has one (the scroll view's) each time the scroll view lays it out,
+    and raises the minimum width of its own constraints to it. A new text
+    width is then new constraints, so it is laid out again whenever the
+    text column's width changes (window, side panel, split view), and
+    its layout and dry layout use only their constraints. A formula wider
+    than the text scrolls as before. Not in the chat, which had no alignment before either.
+  - **Tags:** chips for every tag, the most used first. A node must have
       every selected tag. In Emacs, tags are part of the text that
       completion matches; the app keeps them apart, as #9 asks.
     - **Actions:** a result opens the node view (#8); Enter opens the
@@ -4962,6 +4981,9 @@ and stayed cached. #269 asked to keep the limit for the whole message.
 
 ## 157. LaTeX blocks are drawn by the app on the desktop with `katex` (#300)
 
+*Replaced in part by decision 162 (#308): every formula through
+`org_flutter`'s callbacks, on every platform.*
+
 - **What:** on Linux, Windows and macOS, LaTeX blocks are drawn by the
   app with the `katex` package (1.0.0; Flutter widgets on top of
   `katex_dart` 0.1.1, a port of KaTeX to Dart by the same author), in
@@ -5178,6 +5200,132 @@ Numbered 160, not 159: another open branch may take 159.
   shown, once any change was made, so the screen kept the defaults until
   the next change or restart.
 - **Tests:** `test/settings/view_settings_host_test.dart`.
+
+## 162. LaTeX through org_flutter's callbacks: `katex` on every platform (#308)
+
+Numbered 162, not 161: #309 took 161.
+
+- **What:** every LaTeX formula, inline and block, is drawn by the app
+  with `katex` (decision 157) on every platform, Android included,
+  through two callbacks that `org_flutter` hands LaTeX to:
+  `loadLatexInline` and `loadLatexBlock`
+  (amake/org_flutter#23, agreed in amake/org_flutter#22).
+  `org_flutter` no longer depends on `flutter_tex_js`, and neither does
+  the app. The callbacks are in `lib/node_view/drawn_latex.dart`; the
+  note view and `MonospaceOrgText` (AI chat answers) pass them to
+  `OrgRootWidget`.
+  - **Inline formulas** (`\( \)`, `$ $`): a `WidgetSpan` aligned to the
+    alphabetic baseline, so the formula's baseline is the line's
+    (`RenderFormula` reports it: the ink margin plus the formula's
+    height above its baseline). `org_flutter` gives the widget the style
+    of the text around it as its `DefaultTextStyle`, so a formula in a
+    headline has the headline's colour. Size: 1.21 times that text size,
+    as KaTeX's style sheet. Where display formulas are still inline (the
+    chat does not run `withDisplayFormulas`), they are laid out in
+    display style. A line of text cannot scroll, so an inline formula has
+    its own sideways scroll view, as wide as the line at most (which
+    reports the formula's baseline): one wider than the line can be read
+    to its end, as a block can. A formula given less room than it needs
+    is cut to its box, never painted over the text next to it. The scroll
+    view is there for every inline formula, also one that fits: whether
+    it fits is known only during layout, and choosing the widget then
+    (`LayoutBuilder`) breaks the dry layout and intrinsic sizes the line
+    of text asks of it. The cost is one `Scrollable` per inline formula.
+    One that fits takes no drags (Flutter's scroll physics accept none
+    without anything to scroll), so a sideways swipe on it reaches what
+    is around it, and a mouse drag still selects text; tests check both.
+  - **Blocks** (environments, and the display formulas that
+    `withDisplayFormulas` turns into blocks, decision 40): as in
+    decision 157 (the environments rewritten, `\label`, `\nonumber` and
+    `\notag` removed, display mode, text colour, 1.21 times the text
+    size). `org_flutter` places the widget in a container that scrolls
+    sideways, so the app's own scroll view and width limit are gone; the
+    widget has the formula's own size.
+  - **Tags:** `katex_dart` accepts `\tag{x}` and `\tag*{x}` but draws
+    nothing for them, and fails on some tagged environments (an `align`
+    whose rows have tags); `flutter_tex_js` drew them. `layOutTagged`
+    draws each tag 2 em after its formula or row, `(x)` (`x` for the
+    starred one), each tag on its own: as text, upright, as amsmath and
+    KaTeX set it (`\tag{N2}`, `\tag{$b_1$}`); where `katex_dart` cannot
+    lay that out (`\tag{a_b}`, `\tag{2^{n}}`), as math; where neither
+    can be laid out, that tag is left out. If the formula still cannot
+    be laid out with its tags (a tag in an array's column spec), it is
+    drawn without them, so a tag never makes the whole formula show its
+    source. This applies to blocks and to display formulas that are
+    still inline. KaTeX sets the tag at the right edge of the page; a
+    block here sits in a container that scrolls sideways and has no page
+    width, so the tag follows its formula. A tag without its closing
+    brace is left to `katex_dart`.
+  - **A formula `katex_dart` cannot lay out** (an unknown command, a
+    missing brace): the callback returns null, and `org_flutter` shows
+    the source with its delimiters in the code style, as `~code~`. Before,
+    the desktop showed a broken block in the normal text style.
+  - **Text scaling:** the app has no text size setting of its own; the
+    system's text size reaches it as `MediaQuery`'s `textScaler`.
+    `org_flutter` sets that scaling to 1 inside `OrgRootWidget`, so a
+    note's text keeps its size when the system's text is larger, and so
+    does a formula (it takes the size of the text style; the scaling
+    the #301 code applied was 1 there). A test sets the system's text
+    size to 2 and checks that text and formulas keep their sizes
+    together. Larger note text with the system setting would be a change
+    in `org_flutter` (decision 40, "Not done").
+  - **The layout cache** stays (256 formulas, the one used longest ago
+    dropped), now keyed by the formula and its mode (inline or display).
+    Tests empty it before and after each test.
+  - **Screen readers** read the formula's source, inline and block.
+  - **A limit and a log:** `katex_dart` lays out on the UI thread, so a
+    formula longer than 4000 characters (`maxFormulaLength`; a long
+    `align` in a note is a few hundred) is not laid out and shows its
+    source, so that a huge one from an AI answer or a paste cannot stop
+    the app. A broken formula (`katex_dart`'s `ParseError`) shows its
+    source silently; any other error of the renderer shows the source
+    too and is logged with `debugPrint`.
+  - **Search, "Only matching sections":** `org_parser` looks for the
+    pattern in a formula's delimiters and body one at a time, so a
+    search for a whole formula (`\[ a + b \]`) found no match and
+    folded its section away. On the desktop the #301 links matched the
+    whole source; on Android, and for inline formulas everywhere, it
+    never worked. `MatchingSections` now also matches a formula of the
+    section's own heading or body as written. The formula itself is not
+    marked, as before.
+- **Removed:** the #301 detour (decision 157): blocks are no longer
+  rewritten into links to `latex-formula.png` (`withDrawnFormulas`,
+  `FormulaLink`, `loadDrawnFormula`), so `loadImage` no longer draws
+  formulas; the split by platform (`flutter_tex_js` on Android and iOS);
+  `flutter_tex_js` itself and the mocks of its channel in the tests.
+  With the links gone, formulas are drawn also in a note with
+  `#+STARTUP: noinlineimages` (`org_flutter` calls the LaTeX callbacks
+  whether inline images are on or not).
+- **Why:** decision 157 left inline formulas out, because through
+  `loadImage` they would sit at the bottom of the line, and on Android
+  `flutter_tex_js` ran KaTeX in a WebView. With the callbacks, one
+  renderer, offline and without a WebView, draws every formula in the
+  same way on every platform, on the baseline, and the app needs no
+  link rewriting.
+- **org_flutter 14.0.0:** `pubspec.yaml` takes `org_flutter: ^14.0.0`
+  from pub.dev. While amake/org_flutter#23 was open, the branch pinned
+  the fork's commit 4920ace87dcbba6cd1a343fd8aae340fcf36a86e
+  (ChristianGeng/org_flutter), as decision 152 did for #21; amake merged
+  it as a7856ec and released it as 14.0.0, whose LaTeX code is the same
+  as the commit's (only the doc comments of the two callbacks are
+  shorter). The lock file changes only org_flutter. This closes #300
+  as well.
+- **Limits:** as in decision 157 (small spacing faults, no automatic
+  equation numbers, environments `katex_dart` does not know show their
+  source).
+  On Android, formulas now look like the desktop's, not like KaTeX in a
+  WebView.
+- **Tests:** `test/node_view/drawn_latex_test.dart` with the synthetic
+  `test/fixtures/latex.org` and `test/fixtures/roam/20240112120000-mu.org`:
+  the environment rewrite; the callbacks (an inline formula is a
+  baseline `WidgetSpan`, an inline display formula is in display style,
+  null for a broken formula); in the node view every formula is drawn by
+  `katex` on every platform; a broken formula shows its source in the
+  code font; the colour in both themes and the size; a formula in a
+  headline has the headline's colour; the inline formula's baseline is
+  the line's; screen readers; a wide formula scrolls; the chat draws
+  formulas; the cache. `test/node_view/latex_test.dart` keeps the
+  display formula tests.
 
 ## Recommended, not decided
 

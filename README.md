@@ -31,8 +31,9 @@ notes, and it has an AI chat that works on the notes.
 - Images from the notes folder at their Org width, SVG too.
 - Mermaid and PlantUML blocks show the image Emacs made; a block without
   one is drawn on the device.
-- LaTeX formulas, display formulas on their own line; on Linux, Windows
-  and macOS the display formulas only (inline ones show their source).
+- LaTeX formulas drawn on the device: inline ones on the line, display
+  formulas and environments on their own line; one that cannot be drawn
+  shows its source.
 - Source blocks coloured as Emacs colours them, code in a monospace font.
 - Search inside a note; tick checkboxes and change TODO states.
 - On Android, a note opens read-only in another app, such as Orgro, and
@@ -71,6 +72,7 @@ notes, and it has an AI chat that works on the notes.
 - "Edit with AI" changes a note, or also its linked notes, by an
   instruction.
 - Images, infographics and charts made by the AI and added to a note.
+- LaTeX formulas in answers are drawn, as in a note.
 - Optional web access; chats are kept on the device and can run in
   parallel and in the background.
 - Notes with a tag such as `:private:` are never sent to an AI.

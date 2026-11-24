@@ -1,7 +1,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:org_flutter/org_flutter.dart' show SearchResultKey;
+import 'package:org_flutter/org_flutter.dart'
+    show OrgDocument, OrgSection, SearchResultKey;
 import 'package:roam_graph_mobile/node_view/note_search.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
@@ -39,6 +40,23 @@ void main() {
     final pattern = notePattern('a.b')!;
     expect(pattern.hasMatch('A.B'), isTrue);
     expect(pattern.hasMatch('axb'), isFalse);
+  });
+
+  test('a section matches a whole formula, delimiters and all', () {
+    final document = OrgDocument.parse(
+      '* One\nText \\(c^2\\) here.\n'
+      '* Two\n\\[ a + b \\]\n'
+      '* Three\n\\begin{equation}\nd = e\n\\end{equation}\n'
+      '* Four \\(f\\)\n',
+    );
+    final sections = [for (final section in document.sections) section];
+    bool matches(String query, OrgSection section) =>
+        MatchingSections(notePattern(query)!, document).matches(section);
+    expect(matches(r'\(c^2\)', sections[0]), isTrue);
+    expect(matches(r'\[ a + b \]', sections[1]), isTrue);
+    expect(matches('\\begin{equation}\nd = e', sections[2]), isTrue);
+    expect(matches(r'\(f\)', sections[3]), isTrue);
+    expect(matches(r'\[ a + b \]', sections[0]), isFalse);
   });
 
   test('the count', () {
