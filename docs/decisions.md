@@ -5184,31 +5184,53 @@ Numbered 160, not 159: another open branch may take 159.
 Numbered 163, not 162: the open pull request #311 takes 162.
 
 - **What:** in `ViewSettingsHost` (`lib/settings/view_settings.dart`),
-  a change made before the file is read counts only with the fields in
-  which it differs from the settings shown then (compared as JSON, so
-  also `lastUpdateCheckTime` and `lastSeenVersion`, which
-  `ViewSettings.==` leaves out). Several such changes add up, field by
-  field. Once the file is read, those fields are applied to the file's
-  settings, which are then shown. If a save made before that already
-  wrote the file, the host writes it again, after the saves already
-  queued, with the file's settings plus the fields of the latest change
-  that saved. A change whose save failed is undone and its fields are
-  dropped (decision 161). A file that cannot be read gives the defaults
-  plus the fields.
+  a change made before the file is read counts only with the fields it
+  chose: the fields given to `ViewSettings.copyWith` (also one set to
+  the value it already had, such as the default split of a double tap
+  on the divider), and the fields that differ from the settings shown
+  then, compared as JSON (so also `lastUpdateCheckTime` and
+  `lastSeenVersion`, which `ViewSettings.==` leaves out). `copyWith`
+  remembers the fields it was given, outside `==` and the JSON. The
+  keys are compared key by key: a changed key keeps the file's other
+  keys; another key set replaces them all, as choosing a set does.
+  Once the file is read, the changes are made on the file's settings,
+  in order, and shown. A change whose save failed is undone and left out
+  (decision 161). A file that cannot be read gives the defaults with the
+  changes.
+- **The second write:** if a save made before the read already wrote
+  the file, the host writes it again with the file's settings and the
+  changes that saved. This write waits for the saves already started
+  and comes before any later change. If it fails (also with an `Error`),
+  nobody is told: the file keeps the early change alone, a later failed
+  change goes back to that, and the next change that saves writes all
+  settings.
+- **Reading before writing:** `FileViewSettingsStore` finds its file
+  once and shares it between load and save, so a load reads the file
+  before a save called after it writes it. Before, each looked up the
+  support folder; on Linux that takes other steps when the folder is
+  created, so the save could have written first.
+- **Settings shown:** the host keeps every new settings object, also one
+  that `==` calls equal (it notifies only when they differ). Before,
+  `ValueNotifier` kept the older object, so a change to
+  `lastUpdateCheckTime` alone, or the file's value of it, was lost at
+  the next change.
 - **Why:** before the file is read, `ViewSettingsScope.read` gives the
-  defaults, so a screen that changes one field saves the defaults plus
+  defaults, so a screen that changes one field saved the defaults plus
   that field. That save replaced the whole file, and the file read later
   was ignored, so the file's other settings were lost.
-- **Not chosen:** holding back saves until the file is read. It would
-  avoid the short window below, but it still needs the fields above (the
-  screen sent the defaults plus its field), and a read that is slow or
-  hangs would then hold back every save and its error message. Changing every screen to wait for `whenLoaded` (#81) was not chosen
-  either: the host is one place, the screens are many, and a new screen
-  could forget it.
-- **Limit:** between the early save and the second write, the file holds
-  the change without the other settings; the app being closed in that
-  moment, or a failed second write, leaves it so. The second write is not
-  reported; the next change writes all settings.
+- **Not chosen:** a change as a function on the settings
+  (`(s) => s.copyWith(...)`) states exactly what a screen changes, but
+  every caller of `ViewSettingsScope.change` would change (about 20, in
+  six files). Holding back saves until the file is read avoids the
+  window below, but still needs the fields above, and a read that is
+  slow or hangs would hold back every save and its error message.
+  Making every screen wait for `whenLoaded` (#81): the host is one
+  place, the screens are many.
+- **Limits:** between the early save and the second write, the file
+  holds the change without the other settings; closing the app in that
+  moment leaves it so. A key reset to the set's default before the read
+  is not seen as a change when the defaults shown had no other key for
+  it, so a key the file changed stays.
 - **Tests:** `test/settings/view_settings_host_test.dart`.
 
 ## Recommended, not decided

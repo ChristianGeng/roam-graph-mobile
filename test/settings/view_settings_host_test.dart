@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roam_graph_mobile/node_view/scripts.dart';
+import 'package:roam_graph_mobile/settings/keys.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 void main() {
@@ -173,6 +175,253 @@ void main() {
         store.settings.toJson(),
         _richFile.copyWith(lastUpdateCheckTime: checked).toJson(),
       );
+    });
+
+    testWidgets('a field set early to the value shown is kept, not the '
+        "file's (#310)", (tester) async {
+      final file = _richFile.copyWith(graphShare: 0.6, graphCollapsed: true);
+      final store = _GatedStore(file);
+      final context = await _host(tester, store);
+
+      // As a double tap on the divider: the default split, unfolded.
+      final change = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(
+          graphShare: ViewSettings.defaultGraphShare,
+          graphCollapsed: false,
+        ),
+      );
+      await tester.pump();
+      store.finishSave();
+      await change;
+
+      store.finishLoad();
+      await tester.pump();
+      final kept = file.copyWith(
+        graphShare: ViewSettings.defaultGraphShare,
+        graphCollapsed: false,
+      );
+      expect(ViewSettingsScope.read(context), kept);
+      store.finishSave();
+      await tester.pump();
+      expect(store.settings.toJson(), kept.toJson());
+    });
+
+    testWidgets('a field set early, then back to its default: the default, '
+        "not the file's value (#310)", (tester) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+
+      for (final theme in [AppTheme.light, AppTheme.system]) {
+        final change = ViewSettingsScope.change(
+          context,
+          ViewSettingsScope.read(context).copyWith(theme: theme),
+        );
+        await tester.pump();
+        store.finishSave();
+        await change;
+      }
+
+      store.finishLoad();
+      await tester.pump();
+      final kept = _richFile.copyWith(theme: AppTheme.system);
+      expect(ViewSettingsScope.read(context), kept);
+      store.finishSave();
+      await tester.pump();
+      expect(store.settings.toJson(), kept.toJson());
+    });
+
+    testWidgets("a key changed early keeps the file's other keys (#310)", (
+      tester,
+    ) async {
+      const f5 = KeyChord(LogicalKeyboardKey.f5);
+      const f6 = KeyChord(LogicalKeyboardKey.f6);
+      final file = _richFile.copyWith(
+        keys: const KeyBindings().withKey(KeyAction.undo, f5),
+      );
+      final store = _GatedStore(file);
+      final context = await _host(tester, store);
+
+      final shown = ViewSettingsScope.read(context);
+      final change = ViewSettingsScope.change(
+        context,
+        shown.copyWith(keys: shown.keys.withKey(KeyAction.searchInNote, f6)),
+      );
+      await tester.pump();
+      store.finishSave();
+      await change;
+
+      store.finishLoad();
+      await tester.pump();
+      final keys = ViewSettingsScope.read(context).keys;
+      expect(keys.of(KeyAction.undo), f5);
+      expect(keys.of(KeyAction.searchInNote), f6);
+      expect(ViewSettingsScope.read(context).theme, AppTheme.dark);
+      store.finishSave();
+      await tester.pump();
+      expect(store.settings.keys, keys);
+    });
+
+    testWidgets('another key set chosen early replaces all keys, as it '
+        'does after the read (#310)', (tester) async {
+      final file = _richFile.copyWith(
+        keys: const KeyBindings().withKey(
+          KeyAction.undo,
+          const KeyChord(LogicalKeyboardKey.f5),
+        ),
+      );
+      final store = _GatedStore(file);
+      final context = await _host(tester, store);
+
+      final shown = ViewSettingsScope.read(context);
+      final change = ViewSettingsScope.change(
+        context,
+        shown.copyWith(keys: shown.keys.withSet(KeyScheme.emacs)),
+      );
+      await tester.pump();
+      store.finishSave();
+      await change;
+
+      store.finishLoad();
+      await tester.pump();
+      final kept = _richFile.copyWith(
+        keys: const KeyBindings(set: KeyScheme.emacs),
+      );
+      expect(ViewSettingsScope.read(context), kept);
+      store.finishSave();
+      await tester.pump();
+      expect(store.settings.toJson(), kept.toJson());
+    });
+
+    testWidgets('fields that == leaves out, restored from the file, are '
+        'kept by the next change (#310)', (tester) async {
+      final file = ViewSettings.withDefaults().copyWith(
+        lastSeenVersion: '0.3.0',
+        lastUpdateCheckTime: DateTime.utc(2026, 11, 1),
+      );
+      final store = _GatedStore(file);
+      final context = await _host(tester, store);
+
+      final checked = DateTime.utc(2026, 11, 24, 8);
+      final early = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(lastUpdateCheckTime: checked),
+      );
+      await tester.pump();
+      store.finishSave();
+      await early;
+      store.finishLoad();
+      await tester.pump();
+      store.finishSave();
+      await tester.pump();
+      expect(ViewSettingsScope.read(context).lastSeenVersion, '0.3.0');
+      expect(ViewSettingsScope.read(context).lastUpdateCheckTime, checked);
+
+      final later = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
+      );
+      await tester.pump();
+      store.finishSave();
+      await later;
+      expect(
+        store.settings.toJson(),
+        file
+            .copyWith(lastUpdateCheckTime: checked, theme: AppTheme.light)
+            .toJson(),
+      );
+    });
+
+    testWidgets('the second write fails: a later failed change goes back to '
+        'what the file holds (#310)', (tester) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+
+      final early = ViewSettings.withDefaults().copyWith(theme: AppTheme.light);
+      final change = ViewSettingsScope.change(context, early);
+      await tester.pump();
+      store.finishSave();
+      await change;
+      store.finishLoad();
+      await tester.pump();
+      store.finishSave(fail: true);
+      await tester.pump();
+      expect(store.settings.toJson(), early.toJson());
+
+      final failing = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(scripts: ScriptMode.never),
+      );
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(failing, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), early);
+    });
+
+    testWidgets('the second write throws an Error: nothing is uncaught, and '
+        'the next change writes all settings (#310)', (tester) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+
+      final change = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
+      );
+      await tester.pump();
+      store.finishSave();
+      await change;
+      store.finishLoad();
+      await tester.pump();
+      store.finishSave(error: StateError('broken'));
+      await tester.pump();
+
+      final next = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(scripts: ScriptMode.never),
+      );
+      await tester.pump();
+      store.finishSave();
+      await next;
+      expect(
+        store.settings.toJson(),
+        _richFile
+            .copyWith(theme: AppTheme.light, scripts: ScriptMode.never)
+            .toJson(),
+      );
+    });
+
+    testWidgets('a change made after the read, before the second write: it '
+        'is written last (#310)', (tester) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+
+      final early = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
+      );
+      await tester.pump();
+      store.finishLoad();
+      await tester.pump();
+      final later = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(scripts: ScriptMode.never),
+      );
+      await tester.pump();
+
+      store.finishSave();
+      await early;
+      await tester.pump();
+      store.finishSave();
+      await tester.pump();
+      store.finishSave();
+      await later;
+      final kept = _richFile.copyWith(
+        theme: AppTheme.light,
+        scripts: ScriptMode.never,
+      );
+      expect(store.settings.toJson(), kept.toJson());
+      expect(ViewSettingsScope.read(context), kept);
     });
 
     testWidgets('an older save fails while a newer change is saving: '
@@ -351,6 +600,40 @@ void main() {
     });
   });
 
+  test('the file store reads the file before a save called after the '
+      'load writes it, also when finding the folder is slow (#310)', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final dir = Directory.systemTemp.createTempSync('view-settings');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final direct = FileViewSettingsStore(
+      path: '${dir.path}/view-settings.json',
+    );
+    await direct.save(_richFile);
+    // Only the first lookup of the folder is slow.
+    final slow = Completer<void>();
+    var lookups = 0;
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      if (++lookups == 1) await slow.future;
+      return dir.path;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    const store = FileViewSettingsStore();
+    final chosen = ViewSettings.withDefaults().copyWith(theme: AppTheme.light);
+    final loading = store.load();
+    final saving = store.save(chosen);
+    await pumpEventQueue();
+    slow.complete();
+    final loaded = await loading;
+    await saving;
+
+    expect(loaded.toJson(), _richFile.toJson());
+    expect((await direct.load()).toJson(), chosen.toJson());
+  });
+
   testWidgets('a failed save after the file is read goes back to the file', (
     tester,
   ) async {
@@ -403,8 +686,9 @@ Future<BuildContext> _host(WidgetTester tester, ViewSettingsStore store) async {
 
 /// A store whose load finishes only on [finishLoad], and whose saves
 /// finish only on [finishSave], one at a time. The load gives the
-/// settings as they were when it was called, as a file read at the start
-/// would; with [loadFails], it throws.
+/// settings as they were when it was called, as [FileViewSettingsStore]
+/// does: it reads the file before a save called later writes it; with
+/// [loadFails], it throws.
 class _GatedStore extends MemoryViewSettingsStore {
   _GatedStore(super.settings);
 
@@ -414,9 +698,12 @@ class _GatedStore extends MemoryViewSettingsStore {
 
   void finishLoad() => _load.complete();
 
-  /// Finishes the oldest save; with [fail], it throws.
-  void finishSave({bool fail = false}) => fail
-      ? _saves.removeAt(0).completeError(const FileSystemException('full'))
+  /// Finishes the oldest save; with [fail], it throws a
+  /// [FileSystemException], with [error], that.
+  void finishSave({bool fail = false, Object? error}) => fail || error != null
+      ? _saves
+            .removeAt(0)
+            .completeError(error ?? const FileSystemException('full'))
       : _saves.removeAt(0).complete();
 
   @override
