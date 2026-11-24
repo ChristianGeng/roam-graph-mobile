@@ -424,6 +424,69 @@ void main() {
       expect(ViewSettingsScope.read(context), kept);
     });
 
+    testWidgets('the read changes only fields that == leaves out: they '
+        'are kept by the next change (#310)', (tester) async {
+      final checked = DateTime.utc(2026, 11, 1);
+      final file = ViewSettings.withDefaults().copyWith(
+        lastUpdateCheckTime: checked,
+        lastSeenVersion: '0.3.0',
+      );
+      final store = _GatedStore(file);
+      final context = await _host(tester, store);
+
+      final early = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
+      );
+      await tester.pump();
+      store.finishSave();
+      await early;
+      // The settings read differ from those shown only in the update
+      // check; the second write gives the file them back.
+      store.finishLoad();
+      await tester.pump();
+      store.finishSave();
+      await tester.pump();
+      expect(store.settings.lastUpdateCheckTime, checked);
+
+      final later = ViewSettingsScope.change(
+        context,
+        ViewSettingsScope.read(context).copyWith(joinLines: false),
+      );
+      await tester.pump();
+      store.finishSave();
+      await later;
+      expect(
+        store.settings.toJson(),
+        file.copyWith(theme: AppTheme.light, joinLines: false).toJson(),
+      );
+    });
+
+    testWidgets('another key set chosen after the read also replaces all '
+        'keys, as early (#310)', (tester) async {
+      final file = _richFile.copyWith(
+        keys: const KeyBindings().withKey(
+          KeyAction.undo,
+          const KeyChord(LogicalKeyboardKey.f5),
+        ),
+      );
+      final store = _GatedStore(file);
+      final context = await _host(tester, store);
+      store.finishLoad();
+      await tester.pump();
+
+      // As the Keyboard screen chooses a set.
+      final shown = ViewSettingsScope.read(context);
+      final change = ViewSettingsScope.change(
+        context,
+        shown.copyWith(keys: shown.keys.withSet(KeyScheme.emacs)),
+      );
+      await tester.pump();
+      store.finishSave();
+      await change;
+      expect(store.settings.keys, const KeyBindings(set: KeyScheme.emacs));
+    });
+
     testWidgets('an older save fails while a newer change is saving: '
         'the newer change is kept', (tester) async {
       final store = _GatedStore(inFile);

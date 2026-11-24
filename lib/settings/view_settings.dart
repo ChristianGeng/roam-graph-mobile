@@ -405,6 +405,12 @@ class ViewSettings {
 /// The fields given to [ViewSettings.copyWith] for a settings object
 /// (the JSON names), together with those given for the object it was
 /// made from; not part of `==` or the JSON.
+///
+/// Carrying the fields of the objects a copy was made from is intended:
+/// in `read(context).copyWith(a: x).copyWith(b: y)`, `a` may equal the
+/// value shown, so only this tells that it was chosen. Fields carried from
+/// an earlier change are made again with the value they have, which
+/// changes nothing.
 final _setByCopyWith = Expando<Set<String>>('fields set by copyWith');
 
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
@@ -583,9 +589,10 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
 
   /// Writes the file's settings with the changes saved before it was
   /// read, if those saves wrote the file without them (#310). If this
-  /// fails, nobody is told: the file keeps the saved changes alone, a
-  /// later failed change goes back to them, and the next change that
-  /// saves writes all settings.
+  /// fails, the screen is not told: the file keeps the saved changes
+  /// alone. The next change that saves writes all settings; a change that
+  /// fails first goes back to what the file holds, without the file's
+  /// other settings.
   Future<void> _repair() async {
     final unmerged = _unmerged;
     _unmerged = null;
@@ -594,8 +601,12 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
     if (jsonEncode(merged.toJson()) == jsonEncode(unmerged.toJson())) return;
     try {
       await widget.store.save(merged);
-    } catch (_) {
-      // Also an Error: it must not become an uncaught error.
+    } catch (error, stack) {
+      // Also an Error, which must not become an uncaught error; it is a
+      // mistake in the code, so it is logged.
+      if (error is! Exception) {
+        debugPrint('Writing the view settings failed: $error\n$stack');
+      }
       _inFile = unmerged;
     }
   }
@@ -739,6 +750,9 @@ class _KeysPatch {
 class _SettingsNotifier extends ValueNotifier<ViewSettings> {
   _SettingsNotifier(super.value) : _current = value;
 
+  /// The settings, kept here: [ValueNotifier]'s own field can only be set
+  /// through its setter, which skips a value `==` calls equal. That field
+  /// keeps the first settings and is not read.
   ViewSettings _current;
 
   @override

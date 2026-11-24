@@ -5192,7 +5192,8 @@ Numbered 163, not 162: the open pull request #311 takes 162.
   `lastSeenVersion`, which `ViewSettings.==` leaves out). `copyWith`
   remembers the fields it was given, outside `==` and the JSON. The
   keys are compared key by key: a changed key keeps the file's other
-  keys; another key set replaces them all, as choosing a set does.
+  keys; another key set replaces them all, as choosing a set on the
+  Keyboard screen does after the read (`KeyBindings.withSet`).
   Once the file is read, the changes are made on the file's settings,
   in order, and shown. A change whose save failed is undone and left out
   (decision 161). A file that cannot be read gives the defaults with the
@@ -5200,10 +5201,9 @@ Numbered 163, not 162: the open pull request #311 takes 162.
 - **The second write:** if a save made before the read already wrote
   the file, the host writes it again with the file's settings and the
   changes that saved. This write waits for the saves already started
-  and comes before any later change. If it fails (also with an `Error`),
-  nobody is told: the file keeps the early change alone, a later failed
-  change goes back to that, and the next change that saves writes all
-  settings.
+  and comes before any later change. If it fails, the screen is not
+  told; an `Error` (a mistake in the code, not a full disk) is caught
+  too, and logged with `debugPrint`.
 - **Reading before writing:** `FileViewSettingsStore` finds its file
   once and shares it between load and save, so a load reads the file
   before a save called after it writes it. Before, each looked up the
@@ -5226,11 +5226,18 @@ Numbered 163, not 162: the open pull request #311 takes 162.
   slow or hangs would hold back every save and its error message.
   Making every screen wait for `whenLoaded` (#81): the host is one
   place, the screens are many.
-- **Limits:** between the early save and the second write, the file
-  holds the change without the other settings; closing the app in that
-  moment leaves it so. A key reset to the set's default before the read
-  is not seen as a change when the defaults shown had no other key for
-  it, so a key the file changed stays.
+- **Limits:**
+  - Between the early save and the second write, the file holds the
+    change without the other settings; closing the app in that moment
+    leaves it so.
+  - A key reset to the set's default before the read is not seen as a
+    change (the defaults shown have no other key for it), so a key the
+    file changed stays.
+  - After a failed second write, the file holds the early change alone.
+    The screen keeps showing all settings, and the next change that
+    saves writes them all; but a change that fails first goes back to
+    what the file holds, so the screen drops the file's other settings,
+    and they are lost.
 - **Tests:** `test/settings/view_settings_host_test.dart`.
 
 ## Recommended, not decided
