@@ -410,7 +410,7 @@ devices through Syncthing.
       already stored (`files.mtime`).
     - **`#+ATTR_ORG: :align center` or `right`** (or `:center t`) right
     before a block, or before a paragraph that holds only a display
-    formula, places the formula there in the note view, as it does an
+    formula (no text before or after it), places the formula there in the note view, as it does an
     image (and as the #301 links did). `org_flutter` passes the callback
     only the block, so `latexAlignments` finds the alignment of each
     block of the parsed document once (the rule of `org_flutter`'s

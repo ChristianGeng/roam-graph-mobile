@@ -181,7 +181,8 @@ Map<OrgLatexBlock, double> _findAlignments(OrgDocument document) {
 /// As `alignmentForNode` in `org_flutter` (`lib/src/util/alignment.dart`),
 /// which it does not export: from [block], up to the first node with
 /// something before it (so a display formula alone in its paragraph
-/// counts, one inside a sentence does not), then back through the
+/// counts, one inside a sentence does not; unlike `org_flutter`, neither
+/// does one with text after it in its paragraph), then back through the
 /// keywords right before it. `#+ATTR_ORG:` wins over the other
 /// `#+ATTR_...:`. Unlike `org_flutter`, which reads every keyword before
 /// the node in its section, the keywords must come right before the block,
@@ -192,6 +193,15 @@ double? _alignmentOf(OrgDocument document, OrgLatexBlock block) {
   if (zipper == null) return null;
   while (!zipper!.canGoLeft()) {
     if (!zipper.canGoUp()) return null;
+    // Going up out of a paragraph: the formula must be all of it, so
+    // nothing but white space may follow it either.
+    for (var right = zipper; right.canGoRight();) {
+      right = right.goRight();
+      final node = right.node;
+      if (node is! OrgPlainText || node.content.trim().isNotEmpty) {
+        return null;
+      }
+    }
     zipper = zipper.goUp();
   }
   double? result;

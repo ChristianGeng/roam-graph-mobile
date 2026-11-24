@@ -381,6 +381,18 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    test('not a formula with text after it in its paragraph', () {
+      expect(
+        alignments(
+          '#+ATTR_ORG: :align center\n\\[ a \\] and more text.\n\n'
+          '#+ATTR_ORG: :align right\n\\[ b \\]  \n\n'
+          '#+ATTR_ORG: :align center\n'
+          '\\begin{equation}\nc\n\\end{equation}\n',
+        ),
+        {'b': 1.0, 'c': 0.5},
+      );
+    });
+
     test('not a formula inside a sentence', () {
       expect(
         alignments('#+ATTR_ORG: :align center\nText \\[ x \\] more.\n'),
