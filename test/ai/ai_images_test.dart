@@ -1259,6 +1259,22 @@ void main() {
         chatText(finish: 'content_filter'),
         chatText(native: 'IMAGE_SAFETY'),
         chatText(finish: 'length'),
+        // An image the app cannot read is no answer without an image.
+        {
+          'choices': [
+            {
+              'finish_reason': 'stop',
+              'message': {
+                'images': [
+                  {
+                    'type': 'image_url',
+                    'image_url': {'url': 'https://images.example/fox.png'},
+                  },
+                ],
+              },
+            },
+          ],
+        },
       ]) {
         sent = [];
         await expectLater(

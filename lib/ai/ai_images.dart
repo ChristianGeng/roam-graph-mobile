@@ -426,8 +426,8 @@ bool _stoppedWithoutImage(AiError e, String? body) {
 
 /// Whether a chat answer without an image ended normally (#320):
 /// `finish_reason` "stop", OpenRouter's `native_finish_reason` "STOP"
-/// where it is given, and no `refusal`. Gemini Image through the chat API
-/// answers so when it sends only text.
+/// where it is given, no `refusal` and no image the app cannot read.
+/// Gemini Image through the chat API answers so when it sends only text.
 bool _chatStopped(Map<String, Object?> json) {
   final choices = json['choices'];
   if (choices is! List || choices.isEmpty || choices.first is! Map) {
@@ -438,7 +438,9 @@ bool _chatStopped(Map<String, Object?> json) {
   final native = choice['native_finish_reason'];
   if (native != null && '$native'.toUpperCase() != 'STOP') return false;
   final message = choice['message'];
-  return !(message is Map && message['refusal'] != null);
+  if (message is! Map) return true;
+  final images = message['images'];
+  return message['refusal'] == null && !(images is List && images.isNotEmpty);
 }
 
 /// The provider's answer [json] as text for an error, without keys and cut
