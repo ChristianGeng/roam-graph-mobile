@@ -1215,6 +1215,20 @@ void main() {
       ],
     };
 
+    test('STOP, then an answer without image data: the plain message',
+        () async {
+      await expectLater(
+          makeImage(openRouter(), 'A red fox',
+              post: replies([
+                (400, stop()),
+                (200, {'data': <Object>[]}),
+              ])),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message', answeredWithoutImage)
+              .having((e) => e.status, 'status', 200)));
+      expect(sent, hasLength(2));
+    });
+
     test('the chat API: text only, then an image', () async {
       final made = await makeImage(openRouter(api: ImageApi.chat), 'A fox',
           post: replies([(200, chatText(native: 'STOP')), (200, chatImage)]));
