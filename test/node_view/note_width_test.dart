@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:org_flutter/org_flutter.dart';
@@ -51,16 +54,93 @@ const _table =
 String _note(String body) =>
     ':PROPERTIES:\n:ID: $_id\n:END:\n#+title: Wide note\n\n$body';
 
+/// A note like the one in #318: sections under headings, a list whose
+/// items have inline formulas, `*bold*` and a link in the long paragraph
+/// under the third heading, and the wide table in the last section.
+final _sectionsNote = _note(
+  'The loggers need to cut the number of samples before they send them on. '
+  'Raw readings from the front-end arrive every 10 ms; a pipeline of 31 '
+  'stages cannot handle 100 readings per second of signal.\n'
+  '\n'
+  '* What it is\n'
+  '\n'
+  '*Sample stacking* (or block stacking) is the simplest form of reduction: '
+  r'join $n$ consecutive samples into one wider record, then advance by $n$ '
+  'samples (stride = stack size, no overlap). It is purely a reshape — no '
+  'learned values, no filters.\n'
+  '\n'
+  '* Example\n'
+  '\n'
+  'For a 10 ms stride at the front-end:\n'
+  '- 8 samples → 1 stacked record\n'
+  r'- Each step covers $8 \times 10\text{ ms} = 80\text{ ms}$ of time' '\n'
+  r'- The length is reduced by $8\times$' '\n'
+  '\n'
+  '* Why stacking instead of filters?\n'
+  '\n'
+  'Filter reduction (for example two low-pass filters with stride 2) is '
+  'common in logger front-ends and mixes information across neighbouring '
+  'samples. In a *streaming* setting with a sample cache (chunked reading '
+  'with a carry-over buffer, as in '
+  '[[id:11111111-1111-4111-8111-000000000999][logger-three]]), those '
+  'filters can create seams: the filter kernel straddles a chunk boundary '
+  'and leaks information from one chunk into another, where the cache '
+  'logic does not expect it.\n'
+  '\n'
+  '* Trade-offs\n'
+  '\n'
+  '- Simplicity: no learned values, easy to build, safe for the cache.\n'
+  '- Fixed reduction factor: the factor must divide the record step.\n'
+  '\n'
+  '* In practice\n'
+  '\n'
+  '$_table'
+  '\n'
+  'All three reach the same 80 ms record step, but the plain pipeline with '
+  'stacking cut memory use by 2.8× and reading time by 2.2× on 64× test '
+  'boards.\n',
+);
+
+/// Loads Roboto (Material's font on Android) and the KaTeX fonts, so that
+/// text and formulas are measured with the fonts of the phone, not the
+/// square test font.
+Future<void> _loadRealFonts(WidgetTester tester) => tester.runAsync(() async {
+      // flutter_tester is in <flutter>/bin/cache/artifacts/engine/<host>/.
+      final cache = File(Platform.resolvedExecutable).parent.parent.parent;
+      final roboto = FontLoader('Roboto');
+      for (final style in ['Regular', 'Medium', 'Bold', 'Italic']) {
+        final file = File('${cache.path}/material_fonts/Roboto-$style.ttf');
+        roboto.addFont(file.readAsBytes().then(ByteData.sublistView));
+      }
+      await roboto.load();
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      for (final asset in manifest.listAssets()) {
+        final name = RegExp(r'^packages/katex/fonts/(KaTeX_[\w-]+)\.ttf$')
+            .firstMatch(asset)
+            ?.group(1);
+        if (name == null) continue;
+        await (FontLoader('packages/katex/$name')
+              ..addFont(rootBundle.load(asset)))
+            .load();
+      }
+    });
+
 /// [note] in the node view on a phone, with "Join lines of a paragraph"
 /// on.
-Future<void> _show(WidgetTester tester, String note) async {
+Future<void> _show(
+  WidgetTester tester,
+  String note, {
+  SectionsOnOpen sections = SectionsOnOpen.collapsed,
+}) async {
   tester.view.physicalSize = _phone;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     MaterialApp(
       builder: (context, child) => ViewSettingsHost(
-        store: MemoryViewSettingsStore(const ViewSettings(joinLines: true)),
+        store: MemoryViewSettingsStore(
+          ViewSettings(joinLines: true, sectionsOnOpen: sections),
+        ),
         child: child!,
       ),
       home: NodeScreen(
@@ -180,5 +260,21 @@ void main() {
       expect(find.byType(DrawnFormula), findsNWidgets(2));
       _expectFits(tester);
     });
+    for (final folded in [false, true]) {
+      testWidgets(
+          '(d) sections, formulas in a list, bold and a link, and the table '
+          'in the last section ${folded ? 'folded' : 'unfolded'}, with the '
+          'real fonts', (tester) async {
+        await _loadRealFonts(tester);
+        await _show(tester, _sectionsNote, sections: SectionsOnOpen.expanded);
+        if (folded) {
+          await tester.tap(find.textContaining('In practice'));
+          await tester.pumpAndSettle();
+        }
+        expect(find.byType(OrgTableWidget), findsNWidgets(folded ? 0 : 1));
+        expect(find.byType(DrawnFormula), findsNWidgets(4));
+        _expectFits(tester);
+      });
+    }
   });
 }
