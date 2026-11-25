@@ -1234,6 +1234,7 @@ void main() {
               post: replies([(200, chatText()), (200, chatText())])),
           throwsA(isA<AiError>()
               .having((e) => e.message, 'message', answeredWithoutImage)
+              .having((e) => e.status, 'status', 200)
               .having((e) => e.answer, 'answer', contains('A fox is red.'))));
       expect(sent, hasLength(2));
     });
