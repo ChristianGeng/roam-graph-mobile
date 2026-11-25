@@ -5463,13 +5463,17 @@ Numbered 164: #314 took 163.
   same answer is handled the same way. (2) The chat API (Gemini Image
   through Vercel with "EU only", or set by hand) answers HTTP 200 with
   text and no image, with `finish_reason` "stop", OpenRouter's
-  `native_finish_reason` "STOP" where it is given, and no `refusal`:
-  the same case, without an error status.
+  `native_finish_reason` "STOP" where it is given, no `refusal` and no
+  image entry: the same case, without an error status. When the second
+  answer is HTTP 200 without image data, on either API, the plain
+  message is shown too.
 - **Not retried:** a content refusal (#298, decision 159): the
   existing refusal message, one request. Also a `block_reason`, a finish
   reason other than STOP (SAFETY, IMAGE_SAFETY, PROHIBITED_CONTENT and
-  the others), a message with such a word, a chat answer that ended with
-  `content_filter` or `length`, and any other HTTP 400. Mistral keeps its
+  the others), a message with such a word (also with STOP), a chat
+  answer that ended with `content_filter` or `length` or that has an
+  image the app cannot read, a request that got no HTTP answer, and any
+  other HTTP 400. Mistral keeps its
   own retry (#181); DashScope (Qwen) is unchanged, because its answers
   without an image have not been seen.
 - **Why:** with finish reason STOP and no block reason the model was
