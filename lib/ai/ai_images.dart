@@ -309,6 +309,7 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
   Map<String, Object?>? json;
   for (var retry = false; json == null; retry = true) {
     final asked = retry ? '$imageRetryInstruction $prompt' : prompt;
+    reply = null;
     try {
       json = await ask(asked);
     } on AiError catch (e) {
