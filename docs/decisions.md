@@ -5474,8 +5474,8 @@ Numbered 164: #314 took 163.
   without an image have not been seen.
 - **Why:** with finish reason STOP and no block reason the model was
   not refused; it answered with text or nothing. The same prompt with a
-  plain instruction to draw often gives the image, and a second request
-  costs only when it makes one. A raw "HTTP 400" read like a fault of
+  plain instruction to draw often gives the image. A second request can
+  cost tokens even when it sends only text, so there is one at most. A raw "HTTP 400" read like a fault of
   the app or a refusal.
 - **For the chat's `create_image`:** the retry happens inside
   `makeImage`, so the AI gets the plain message as the tool's error
