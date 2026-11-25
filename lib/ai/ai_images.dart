@@ -176,6 +176,16 @@ const mistralAgentVersion = 2;
 /// (#181).
 const mistralRetryInput = 'Use the image generation tool now.';
 
+/// What the app puts before the prompt when the image model answered
+/// without an image the first time (#320).
+const imageRetryInstruction =
+    'Generate an image. Do not answer with text only.';
+
+/// What the app says when the image model answered twice without an
+/// image (#320).
+const answeredWithoutImage = 'The model answered without an image. Try '
+    "asking more directly, e.g. 'Create an image of …'.";
+
 /// The error when "EU only" is on and the image model has no EU route;
 /// "Create image" then offers to make this one image outside the EU
 /// (#127).
@@ -235,55 +245,87 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
     return _mistralImage(provider, prompt, Uri.parse('$base/agents'), url,
         headers, post, download, agents ?? MemoryImageAgents());
   }
-  final body = <String, Object?>{
-    'model': provider.model,
-    if (dashscope) ...{
-      'input': {
-        'messages': [
-          {
-            'role': 'user',
-            'content': [
-              {'text': prompt},
+  Map<String, Object?> bodyFor(String prompt) => {
+        'model': provider.model,
+        if (dashscope) ...{
+          'input': {
+            'messages': [
+              {
+                'role': 'user',
+                'content': [
+                  {'text': prompt},
+                ],
+              },
             ],
           },
-        ],
-      },
-      'parameters': {
-        'size': '1024*1024',
-        'n': 1,
-        'watermark': false,
-      },
-    } else if (chat) ...{
-      'messages': [
-        {'role': 'user', 'content': prompt},
-      ],
-      'modalities': ['image', 'text'],
-      'stream': false,
-    } else ...{
-      'prompt': prompt,
-      'n': 1,
-    },
-    // Vercel AI Gateway: inference and stored data in the EU.
-    if (provider.euOnly)
-      'providerOptions': {
-        'gateway': {
-          'inferenceRegion': {'scope': 'zone', 'geoRegion': 'eu'},
+          'parameters': {
+            'size': '1024*1024',
+            'n': 1,
+            'watermark': false,
+          },
+        } else if (chat) ...{
+          'messages': [
+            {'role': 'user', 'content': prompt},
+          ],
+          'modalities': ['image', 'text'],
+          'stream': false,
+        } else ...{
+          'prompt': prompt,
+          'n': 1,
         },
-      },
-  };
-  final Map<String, Object?> json;
-  try {
-    json = await postJson(provider, url, headers, body, post);
-  } on AiError catch (e) {
-    // Vercel with "EU only": the model has no route in the EU.
-    if (provider.euOnly &&
-        e.message.toLowerCase().contains('inference region')) {
-      throw NoEuRouteError('"${provider.model}" has no EU route, and "EU only" is '
-          'on for ${provider.name}. Choose an image model that runs in the '
-          'EU ("Choose model" marks the others), or turn "EU only" off in AI '
-          'settings.');
+        // Vercel AI Gateway: inference and stored data in the EU.
+        if (provider.euOnly)
+          'providerOptions': {
+            'gateway': {
+              'inferenceRegion': {'scope': 'zone', 'geoRegion': 'eu'},
+            },
+          },
+      };
+  // The last answer, for the details of an error that [postJson] reads
+  // only as text (#320).
+  HttpReply? reply;
+  Future<HttpReply> watched(Uri url, Map<String, String> headers,
+          String body) async =>
+      reply = await post(url, headers, body);
+  Future<Map<String, Object?>> ask(String prompt) async {
+    try {
+      return await postJson(provider, url, headers, bodyFor(prompt), watched);
+    } on AiError catch (e) {
+      // Vercel with "EU only": the model has no route in the EU.
+      if (provider.euOnly &&
+          e.message.toLowerCase().contains('inference region')) {
+        throw NoEuRouteError('"${provider.model}" has no EU route, and "EU only" is '
+            'on for ${provider.name}. Choose an image model that runs in the '
+            'EU ("Choose model" marks the others), or turn "EU only" off in AI '
+            'settings.');
+      }
+      rethrow;
     }
-    rethrow;
+  }
+
+  // The model finished normally but sent no image (#320): asked once
+  // more, with the prompt after [imageRetryInstruction]. A refusal is
+  // not asked again.
+  Map<String, Object?>? json;
+  for (var retry = false; json == null; retry = true) {
+    final asked = retry ? '$imageRetryInstruction $prompt' : prompt;
+    try {
+      json = await ask(asked);
+    } on AiError catch (e) {
+      if (dashscope || !_stoppedWithoutImage(e, reply?.body)) rethrow;
+      if (retry) throw _answeredWithoutImage(e);
+      continue;
+    }
+    if (chat && _fromChat(json) == null && _chatStopped(json)) {
+      if (retry) {
+        throw _answeredWithoutImage(AiError('',
+            provider: provider.name,
+            model: provider.model,
+            api: provider.api.name,
+            answer: _answerOf(json, provider)));
+      }
+      json = null;
+    }
   }
   if (dashscope) {
     final link = _fromDashscope(json);
@@ -329,6 +371,70 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
         'WebP image; nothing is saved.');
   }
   return MadeImage(bytes, extension);
+}
+
+/// [answeredWithoutImage], with the details of [e] (#320).
+AiError _answeredWithoutImage(AiError e) => AiError(answeredWithoutImage,
+    status: e.status,
+    provider: e.provider,
+    model: e.model,
+    api: e.api,
+    answer: e.answer);
+
+/// Words of a refusal in the reason of an answer without an image: Gemini's
+/// `SAFETY`, `IMAGE_SAFETY`, `PROHIBITED_CONTENT`, `BLOCKLIST`, `SPII`,
+/// `RECITATION` and the like (#320).
+final _refusalReason = RegExp(
+    r'safety|prohibited|block|spii|recitation|polic|filter|flagged',
+    caseSensitive: false);
+
+/// Whether [e], an error with the answer [body], says that the model
+/// finished normally without an image (#320): HTTP 400 with
+/// `error.metadata.finish_reason` "STOP", or without a finish reason
+/// with a message that the model could not generate an image; and no
+/// `block_reason`. OpenRouter answers so for Gemini (`Gemini could not
+/// generate an image (STOP)`). A content refusal (#298) is not.
+bool _stoppedWithoutImage(AiError e, String? body) {
+  if (e.status != 400 || e.contentRefused || body == null) return false;
+  Object? json;
+  try {
+    json = jsonDecode(body);
+  } on FormatException {
+    return false;
+  }
+  final error = json is Map ? json['error'] : null;
+  if (error is! Map) return false;
+  final metadata = error['metadata'];
+  final meta = metadata is Map ? metadata : const {};
+  final block = meta['block_reason'];
+  if (block != null && '$block'.trim().isNotEmpty) return false;
+  final finish = meta['finish_reason'];
+  if (finish != null && '$finish'.trim().isNotEmpty) {
+    return '$finish'.trim().toUpperCase() == 'STOP';
+  }
+  final message = error['message'];
+  return message is String &&
+      RegExp(r'(could|did) not (generate|create|make) an? image',
+              caseSensitive: false)
+          .hasMatch(message) &&
+      !_refusalReason.hasMatch(message);
+}
+
+/// Whether a chat answer without an image ended normally (#320):
+/// `finish_reason` "stop", OpenRouter's `native_finish_reason` "STOP"
+/// where it is given, and no `refusal`. Gemini Image through the chat API
+/// answers so when it sends only text.
+bool _chatStopped(Map<String, Object?> json) {
+  final choices = json['choices'];
+  if (choices is! List || choices.isEmpty || choices.first is! Map) {
+    return false;
+  }
+  final choice = choices.first as Map;
+  if ('${choice['finish_reason']}'.toLowerCase() != 'stop') return false;
+  final native = choice['native_finish_reason'];
+  if (native != null && '$native'.toUpperCase() != 'STOP') return false;
+  final message = choice['message'];
+  return !(message is Map && message['refusal'] != null);
 }
 
 /// The provider's answer [json] as text for an error, without keys and cut
