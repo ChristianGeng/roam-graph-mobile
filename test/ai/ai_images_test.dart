@@ -1132,6 +1132,14 @@ void main() {
             'code': 400,
           },
         },
+        // STOP, but the message names a refusal reason.
+        {
+          'error': {
+            'message': 'Gemini could not generate an image (IMAGE_SAFETY)',
+            'code': 400,
+            'metadata': {'finish_reason': 'STOP', 'block_reason': null},
+          },
+        },
       ]) {
         sent = [];
         await expectLater(

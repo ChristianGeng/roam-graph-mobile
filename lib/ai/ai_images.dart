@@ -408,16 +408,16 @@ bool _stoppedWithoutImage(AiError e, String? body) {
   final meta = metadata is Map ? metadata : const {};
   final block = meta['block_reason'];
   if (block != null && '$block'.trim().isNotEmpty) return false;
+  final message = error['message'];
+  final text = message is String ? message : '';
+  if (_refusalReason.hasMatch(text)) return false;
   final finish = meta['finish_reason'];
   if (finish != null && '$finish'.trim().isNotEmpty) {
     return '$finish'.trim().toUpperCase() == 'STOP';
   }
-  final message = error['message'];
-  return message is String &&
-      RegExp(r'(could|did) not (generate|create|make) an? image',
-              caseSensitive: false)
-          .hasMatch(message) &&
-      !_refusalReason.hasMatch(message);
+  return RegExp(r'(could|did) not (generate|create|make) an? image',
+          caseSensitive: false)
+      .hasMatch(text);
 }
 
 /// Whether a chat answer without an image ended normally (#320):
