@@ -5480,6 +5480,11 @@ Numbered 164: #314 took 163.
 - **For the chat's `create_image`:** the retry happens inside
   `makeImage`, so the AI gets the plain message as the tool's error
   only after both requests.
+- **Prompt length:** the instruction and a space take 49 characters. So
+  that the second request is not longer than the first could be,
+  `maxImagePrompt` for the Images and the chat API is 4000 less these
+  characters (3951); DashScope (800) and Mistral (4000) are not
+  retried this way and keep their limits.
 - **Tests:** `test/ai/ai_images_test.dart` (STOP then an image: two
   requests, the second with the instruction; STOP twice: two requests,
   the plain message; a refusal with `block_reason`: one request, the
