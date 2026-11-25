@@ -1229,6 +1229,26 @@ void main() {
       expect(sent, hasLength(2));
     });
 
+    test('STOP, then a link the app does not follow: the existing error',
+        () async {
+      await expectLater(
+          makeImage(openRouter(), 'A red fox',
+              post: replies([
+                (400, stop()),
+                (
+                  200,
+                  {
+                    'data': [
+                      {'url': 'https://images.example/fox.png'},
+                    ],
+                  }
+                ),
+              ])),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message', contains('sent no image'))));
+      expect(sent, hasLength(2));
+    });
+
     test('the chat API: text only, then an image', () async {
       final made = await makeImage(openRouter(api: ImageApi.chat), 'A fox',
           post: replies([(200, chatText(native: 'STOP')), (200, chatImage)]));

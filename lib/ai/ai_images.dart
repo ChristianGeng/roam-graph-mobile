@@ -327,7 +327,11 @@ Future<MadeImage> makeImage(ImageConfig config, String prompt,
     if (chat && _fromChat(json) == null && _chatStopped(json)) {
       if (retry) throw noImage(json);
       json = null;
-    } else if (retry && !chat && !dashscope && _fromImages(json) == null) {
+    } else if (retry &&
+        !chat &&
+        !dashscope &&
+        _fromImages(json) == null &&
+        !(json['data'] is List && (json['data'] as List).isNotEmpty)) {
       throw noImage(json);
     }
   }
