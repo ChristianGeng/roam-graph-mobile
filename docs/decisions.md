@@ -5496,6 +5496,60 @@ Numbered 164: #314 took 163.
   API cases), and a widget test in `test/edit/image_screen_test.dart`
   (the plain message shown, the answer in the copied details).
 
+## 166. A change to the view settings is a function of the current settings; nothing is saved before the file is read (#315)
+
+- **What:** in `lib/settings/view_settings.dart`,
+  `ViewSettingsScope.change` takes a `ViewSettingsChange`, a function
+  from the settings to the changed settings
+  (`change(context, (s) => s.copyWith(theme: theme))`), and the host
+  makes it on the settings as they are then. Every caller passes only
+  what it sets; the form that took a whole `ViewSettings` is removed.
+  The Keyboard screen makes `withKey`, `withSet` and `reset` on the
+  keys in use then, so a key another action got meanwhile is refused
+  (`KeyTaken`) and shown, as in its dialog.
+- **Before the file is read:** a change is shown at once, made on the
+  defaults and the changes before it, but nothing is written. When the
+  file is read, the changes are made again, in order, on its settings,
+  which are then shown and saved. Saves wait for the read and for each
+  other. So a change may be called twice and must use only its argument
+  and values taken before. A change that throws on the file's settings
+  (a key that another action has there) is left out and handled as a
+  failed save: the error is thrown to its caller.
+- **Replaces parts of 161 and 163:** the second write after an early
+  save is gone, because no save writes the file without its other
+  settings any more; so is the window in which closing the app left it
+  so, and the case of a failed second write. The record of the fields
+  given to `copyWith`, and the comparison of the settings and keys field
+  by field, are removed: the function says what changes. A key reset
+  before the read now resets the file's key too. What stays: a failed
+  latest save shows what the file holds (#296), and
+  `FileViewSettingsStore` finds its file once for load and save.
+- **Why:** a screen that built its settings from `read(context)`,
+  waited (for a dialog) and then saved them overwrote what was loaded or
+  changed meanwhile with its old copy; field by field merging helped
+  only before the read. The second write (#314) was not retried.
+- **Not chosen:** keeping the early save and retrying the second write
+  at the next start. The file has already lost its other settings by
+  then, so they would have to be stored a second time until the write
+  succeeds. Decision 163 did not choose holding saves back because it
+  still needed the fields and would delay saves and their errors; the
+  fields are no longer needed, and a save of `FileViewSettingsStore`
+  already waits for the same folder lookup as the read.
+- **Limits:**
+  - If the app closes before the file is read, an early change is not
+    saved; the file stays as it was.
+  - A read that never ends holds back every save and its error message.
+  - A dialog's Save sets the value the dialog shows, also when the user
+    did not edit it (Emacs command, image folder), over a value read or
+    changed while it was open; only that field.
+- **Tests:** `test/settings/view_settings_host_test.dart` (a screen that
+  waits and then sets one field keeps the others; a dialog opened before
+  the read; no save before the read; a refused key), and
+  `test/settings/settings_screen_test.dart` (a key dialog open while
+  another key changes). The older tests that finished a save before the
+  read now finish it after the read; those of the second write are
+  removed with it, and a few that now test the same order are merged.
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept
