@@ -266,8 +266,16 @@ class ImageMaker {
 }
 
 /// The longest prompt for images asked in [api]: DashScope takes about
-/// 800 characters; the others far more.
-int maxImagePrompt(ImageApi api) => api == ImageApi.dashscope ? 800 : 4000;
+/// 800 characters; the others far more. For the Images and the chat API,
+/// less the [imageRetryInstruction] that a second request puts before the
+/// prompt (#320), so that request is not too long either.
+int maxImagePrompt(ImageApi api) => switch (api) {
+      ImageApi.dashscope => 800,
+      ImageApi.mistral => 4000,
+      ImageApi.images ||
+      ImageApi.chat =>
+        4000 - imageRetryInstruction.length - 1,
+    };
 
 /// `create_image` (#129), described with the image models in use, so the
 /// model knows what it asks: one for illustrations and one for

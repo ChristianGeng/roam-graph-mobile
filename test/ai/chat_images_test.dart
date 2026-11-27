@@ -200,6 +200,14 @@ void main() {
           contains('mistral-medium-latest at Mistral, in the EU'));
       expect(tool.description, contains('At most 2 images'));
       expect(maxImagePrompt(ImageApi.dashscope), 800);
+      expect(maxImagePrompt(ImageApi.mistral), 4000);
+      // The prompt of a second request, with the instruction before it,
+      // is at most 4000 characters (#320).
+      for (final api in [ImageApi.images, ImageApi.chat]) {
+        expect(
+            '$imageRetryInstruction ${'x' * maxImagePrompt(api)}'.length,
+            4000);
+      }
       // Without an image model, no such tool.
       final none = AgentWriter(
         writer: agent.writer,

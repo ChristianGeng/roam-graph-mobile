@@ -1019,6 +1019,295 @@ void main() {
     });
   });
 
+  group('an answer without an image is asked once more (#320)', () {
+    ImageConfig openRouter({ImageApi api = ImageApi.images}) => ImageConfig(
+          const ProviderConfig(
+            name: 'OpenRouter',
+            api: ApiKind.openAi,
+            baseUrl: 'https://openrouter.ai/api/v1',
+            model: 'google/gemini-2.5-flash-image',
+            apiKey: 'or-key',
+          ),
+          api: api,
+          imagesPath: '/images',
+        );
+    // OpenRouter's answer when Gemini sent no image (synthetic, in the
+    // shape of the issue).
+    Map<String, Object?> stop({Object? blockReason, String finish = 'STOP'}) =>
+        {
+          'error': {
+            'message': 'Gemini could not generate an image ($finish)',
+            'code': 400,
+            'metadata': {
+              'provider_name': 'Google',
+              'finish_reason': finish,
+              'candidate_count': 1,
+              'block_reason': blockReason,
+            },
+          },
+        };
+    const image = {
+      'data': [
+        {'b64_json': png},
+      ],
+    };
+    HttpPost replies(List<(int, Object)> list) {
+      var next = 0;
+      return (url, headers, body) async {
+        sent.add((url, headers, jsonDecode(body) as Map<String, Object?>));
+        final (status, reply) = list[next++];
+        return HttpReply(status, jsonEncode(reply));
+      };
+    }
+
+    test('STOP without block_reason, then an image: two requests', () async {
+      final made = await makeImage(openRouter(), 'A red fox in snow',
+          post: replies([(400, stop()), (200, image)]));
+      expect(made.bytes, base64.decode(png));
+      expect(sent, hasLength(2));
+      expect(sent[0].$3['prompt'], 'A red fox in snow');
+      expect(sent[1].$3['prompt'],
+          'Generate an image. Do not answer with text only. A red fox in snow');
+      expect(sent[1].$3['model'], 'google/gemini-2.5-flash-image');
+    });
+
+    test('STOP twice: two requests, then the plain message', () async {
+      await expectLater(
+          makeImage(openRouter(), 'A red fox',
+              post: replies([(400, stop()), (400, stop())])),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message',
+                  'The model answered without an image. Try asking more '
+                  "directly, e.g. 'Create an image of …'.")
+              .having((e) => e.contentRefused, 'contentRefused', isFalse)
+              .having((e) => e.status, 'status', 400)
+              .having((e) => e.provider, 'provider', 'OpenRouter')
+              // The details keep the provider's answer.
+              .having((e) => e.answer, 'answer',
+                  contains('Gemini could not generate an image (STOP)'))));
+      expect(sent, hasLength(2));
+    });
+
+    test('a refusal (block_reason set): one request, the refusal message',
+        () async {
+      await expectLater(
+          makeImage(openRouter(), 'x',
+              post: replies([
+                (
+                  400,
+                  {
+                    'error': {
+                      'message': 'Gemini blocked this request: it was '
+                          'flagged for copyrighted or trademarked material.',
+                      'code': 400,
+                      'metadata': {
+                        'provider_name': 'Google',
+                        'finish_reason': null,
+                        'block_reason': 'PROHIBITED_CONTENT',
+                      },
+                    },
+                  }
+                ),
+                (200, image),
+              ])),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message',
+                  'OpenRouter refused the request because of its content '
+                  'rules: Gemini blocked this request: it was flagged for '
+                  'copyrighted or trademarked material. Change the prompt '
+                  'and send it again.')
+              .having((e) => e.contentRefused, 'contentRefused', isTrue)));
+      expect(sent, hasLength(1));
+    });
+
+    test('no retry for a block_reason or a safety finish reason', () async {
+      for (final reply in [
+        stop(blockReason: 'OTHER'),
+        stop(finish: 'IMAGE_SAFETY'),
+        stop(finish: 'SAFETY'),
+        stop(finish: 'PROHIBITED_CONTENT'),
+        {
+          'error': {
+            'message': 'Gemini could not generate an image (IMAGE_SAFETY)',
+            'code': 400,
+          },
+        },
+        // STOP, but the message names a refusal reason.
+        {
+          'error': {
+            'message': 'Gemini could not generate an image (IMAGE_SAFETY)',
+            'code': 400,
+            'metadata': {'finish_reason': 'STOP', 'block_reason': null},
+          },
+        },
+      ]) {
+        sent = [];
+        await expectLater(
+            makeImage(openRouter(), 'x',
+                post: replies([(400, reply), (200, image)])),
+            throwsA(isA<AiError>().having((e) => e.message, 'message',
+                isNot(contains('answered without an image')))),
+            reason: jsonEncode(reply));
+        expect(sent, hasLength(1), reason: jsonEncode(reply));
+      }
+    });
+
+    test('without metadata, the message alone is enough', () async {
+      final made = await makeImage(openRouter(), 'x',
+          post: replies([
+            (
+              400,
+              {
+                'error': {
+                  'message': 'Gemini could not generate an image',
+                  'code': 400,
+                },
+              }
+            ),
+            (200, image),
+          ]));
+      expect(made.extension, 'png');
+      expect(sent, hasLength(2));
+    });
+
+    test('another HTTP 400 is not asked again', () async {
+      await expectLater(
+          makeImage(openRouter(), 'x',
+              post: replies([
+                (
+                  400,
+                  {
+                    'error': {'message': 'model is not a valid model ID'},
+                  }
+                ),
+                (200, image),
+              ])),
+          throwsA(isA<AiError>().having((e) => e.message, 'message',
+              contains('answered with an error (HTTP 400)'))));
+      expect(sent, hasLength(1));
+    });
+
+    // Gemini Image through the chat API (Vercel with "EU only", or set
+    // by hand) answers HTTP 200 with only text when it makes no image.
+    Map<String, Object?> chatText({String finish = 'stop', String? native}) =>
+        {
+          'choices': [
+            {
+              'finish_reason': finish,
+              'native_finish_reason': ?native,
+              'message': {'role': 'assistant', 'content': 'A fox is red.'},
+            },
+          ],
+        };
+    const chatImage = {
+      'choices': [
+        {
+          'finish_reason': 'stop',
+          'message': {
+            'images': [
+              {
+                'type': 'image_url',
+                'image_url': {'url': 'data:image/png;base64,$png'},
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    test('STOP, then an answer without image data: the plain message',
+        () async {
+      await expectLater(
+          makeImage(openRouter(), 'A red fox',
+              post: replies([
+                (400, stop()),
+                (200, {'data': <Object>[]}),
+              ])),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message', answeredWithoutImage)
+              .having((e) => e.status, 'status', 200)));
+      expect(sent, hasLength(2));
+    });
+
+    test('STOP, then a link the app does not follow: the existing error',
+        () async {
+      await expectLater(
+          makeImage(openRouter(), 'A red fox',
+              post: replies([
+                (400, stop()),
+                (
+                  200,
+                  {
+                    'data': [
+                      {'url': 'https://images.example/fox.png'},
+                    ],
+                  }
+                ),
+              ])),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message', contains('sent no image'))));
+      expect(sent, hasLength(2));
+    });
+
+    test('the chat API: text only, then an image', () async {
+      final made = await makeImage(openRouter(api: ImageApi.chat), 'A fox',
+          post: replies([(200, chatText(native: 'STOP')), (200, chatImage)]));
+      expect(made.extension, 'png');
+      expect(sent, hasLength(2));
+      expect(sent[1].$3['messages'], [
+        {
+          'role': 'user',
+          'content': 'Generate an image. Do not answer with text only. A fox',
+        },
+      ]);
+    });
+
+    test('the chat API: text only twice, then the plain message', () async {
+      await expectLater(
+          makeImage(openRouter(api: ImageApi.chat), 'A fox',
+              post: replies([(200, chatText()), (200, chatText())])),
+          throwsA(isA<AiError>()
+              .having((e) => e.message, 'message', answeredWithoutImage)
+              .having((e) => e.status, 'status', 200)
+              .having((e) => e.answer, 'answer', contains('A fox is red.'))));
+      expect(sent, hasLength(2));
+    });
+
+    test('the chat API: a refusal or another end is not asked again',
+        () async {
+      for (final reply in [
+        chatText(finish: 'content_filter'),
+        chatText(native: 'IMAGE_SAFETY'),
+        chatText(finish: 'length'),
+        // An image the app cannot read is no answer without an image.
+        {
+          'choices': [
+            {
+              'finish_reason': 'stop',
+              'message': {
+                'images': [
+                  {
+                    'type': 'image_url',
+                    'image_url': {'url': 'https://images.example/fox.png'},
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ]) {
+        sent = [];
+        await expectLater(
+            makeImage(openRouter(api: ImageApi.chat), 'x',
+                post: replies([(200, reply), (200, chatImage)])),
+            throwsA(isA<AiError>()
+                .having((e) => e.message, 'message', contains('sent no image'))),
+            reason: jsonEncode(reply));
+        expect(sent, hasLength(1), reason: jsonEncode(reply));
+      }
+    });
+  });
+
   test('"EU only" and a model without an EU route: said plainly', () async {
     await expectLater(
         makeImage(config(euOnly: true), 'x',

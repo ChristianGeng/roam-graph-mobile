@@ -218,6 +218,55 @@ void main() {
     expect(find.text('Copied'), findsOneWidget);
   });
 
+  testWidgets('an answer without an image twice: the plain message, the '
+      'details behind the copy button (#320)', (tester) async {
+    final copied = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied.add((call.arguments as Map)['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null));
+    final prompts = <String>[];
+    await open(tester, 'fox',
+        post: (url, headers, body) async {
+          prompts.add((jsonDecode(body) as Map)['prompt'] as String);
+          return HttpReply(
+              400,
+              jsonEncode({
+                'error': {
+                  'message': 'Gemini could not generate an image (STOP)',
+                  'code': 400,
+                  'metadata': {
+                    'provider_name': 'Google',
+                    'finish_reason': 'STOP',
+                    'block_reason': null,
+                  },
+                },
+              }));
+        });
+    await tester.enterText(find.byKey(const ValueKey('image-prompt')), 'x');
+    await tester.tap(find.byKey(const ValueKey('image-make')));
+    await tester.pumpAndSettle();
+    expect(prompts, hasLength(2));
+    expect(
+        tester
+            .widget<SelectableText>(find.byKey(const ValueKey('image-error')))
+            .data,
+        'The model answered without an image. Try asking more directly, '
+        "e.g. 'Create an image of …'.");
+    expect(find.textContaining('HTTP 400'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('image-error-copy')));
+    await tester.pumpAndSettle();
+    final text = copied.single;
+    expect(text, contains('HTTP status: 400'));
+    expect(text, contains('Gemini could not generate an image (STOP)'));
+  });
+
   final openScreen = open;
   String where(WidgetTester tester) =>
       tester.widget<Text>(find.byKey(const ValueKey('image-where'))).data!;

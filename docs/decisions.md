@@ -5444,6 +5444,58 @@ Numbered 164: #314 took 163.
   `while` loop with both its edges and a class diagram's note to the
   right of its class.
 
+## 165. An image model that answered without an image is asked once more (#320)
+
+- **What:** `makeImage` (`lib/ai/ai_images.dart`) asks once more when
+  the image model finished normally but sent no image, with
+  `imageRetryInstruction` ("Generate an image. Do not answer with text
+  only.") before the prompt. If the second answer has no image either,
+  the error is `answeredWithoutImage`: "The model answered without an
+  image. Try asking more directly, e.g. 'Create an image of …'." The
+  provider's answer, the HTTP status, provider, model and API stay in
+  the error's details (copy button, #180). Never more than one retry.
+- **When:** (1) the Images API (also the chat API) answers HTTP 400
+  with `error.metadata.finish_reason` "STOP", or, without a finish
+  reason, with a message that the model could not generate an image;
+  `block_reason` null or missing. OpenRouter answers so for Gemini:
+  `Gemini could not generate an image (STOP)`. The check reads the JSON
+  of the answer, not the provider's name, so another gateway with the
+  same answer is handled the same way. (2) The chat API (Gemini Image
+  through Vercel with "EU only", or set by hand) answers HTTP 200 with
+  text and no image, with `finish_reason` "stop", OpenRouter's
+  `native_finish_reason` "STOP" where it is given, no `refusal` and no
+  image entry: the same case, without an error status. When the second
+  answer is HTTP 200 without image data, on either API, the plain
+  message is shown too.
+- **Not retried:** a content refusal (#298, decision 159): the
+  existing refusal message, one request. Also a `block_reason`, a finish
+  reason other than STOP (SAFETY, IMAGE_SAFETY, PROHIBITED_CONTENT and
+  the others), a message with such a word (also with STOP), a chat
+  answer that ended with `content_filter` or `length` or that has an
+  image the app cannot read, a request that got no HTTP answer, and any
+  other HTTP 400. Mistral keeps its
+  own retry (#181); DashScope (Qwen) is unchanged, because its answers
+  without an image have not been seen.
+- **Why:** with finish reason STOP and no block reason the model was
+  not refused; it answered with text or nothing. The same prompt with a
+  plain instruction to draw often gives the image. A second request can
+  cost tokens even when it sends only text, so there is one at most. A raw "HTTP 400" read like a fault of
+  the app or a refusal.
+- **For the chat's `create_image`:** the retry happens inside
+  `makeImage`, so the AI gets the plain message as the tool's error
+  only after both requests.
+- **Prompt length:** the instruction and a space take 49 characters. So
+  that the second request is not longer than the first could be,
+  `maxImagePrompt` for the Images and the chat API is 4000 less these
+  characters (3951); DashScope (800) and Mistral (4000) are not
+  retried this way and keep their limits.
+- **Tests:** `test/ai/ai_images_test.dart` (STOP then an image: two
+  requests, the second with the instruction; STOP twice: two requests,
+  the plain message; a refusal with `block_reason`: one request, the
+  refusal message; no retry for safety reasons or other 400s; the chat
+  API cases), and a widget test in `test/edit/image_screen_test.dart`
+  (the plain message shown, the answer in the copied details).
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept

@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-25: An image model that answers without an image is asked once more ([#321](https://github.com/ChristianGeng/roam-graph-mobile/pull/321))
+
+- Fixed: when the image model finished without an image (Gemini through OpenRouter: "Gemini could not generate an image (STOP)", HTTP 400), the app showed the raw error. It now asks once more, with "Generate an image. Do not answer with text only." before the prompt. If that also gives no image, it says: "The model answered without an image. Try asking more directly, e.g. 'Create an image of …'."; the provider's answer stays in the details. A refusal for the content is not asked again. Closes #320.
+
 ## 2026-11-24: Nested formula scripts, matrix columns and PlantUML loops and notes drawn right ([#316](https://github.com/ChristianGeng/roam-graph-mobile/pull/316))
 
 - Fixed: in LaTeX formulas, a superscript or subscript inside another one (`e^{-x^2/2}`, `x_{y_i}`) is now drawn at the smaller script size, and the columns of matrices, `array` and `align` are aligned as written (centred in a `pmatrix`, at the `=` in an `align`).
