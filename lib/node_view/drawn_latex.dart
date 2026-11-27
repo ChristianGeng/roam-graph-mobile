@@ -72,8 +72,24 @@ final _tagStart = RegExp(r'(?<=(?:^|[^\\])(?:\\\\)*)\\tag(\*?)\s*\{');
 String withDrawnTags(String tex, {bool drop = false}) {
   final out = StringBuffer();
   var at = 0;
+  // Tags that stand before the end of their row, drawn after the row's
+  // mathematical content as amsmath and KaTeX place them, and where that
+  // row ends. A tag with only white space after it in its row is drawn
+  // where it stands, which is the same place.
+  final pending = StringBuffer();
+  var pendingEnd = 0;
+  void flush() {
+    if (pending.isEmpty) return;
+    out
+      ..write(tex.substring(at, pendingEnd))
+      ..write(pending);
+    at = pendingEnd;
+    pending.clear();
+  }
+
   for (final match in _tagStart.allMatches(tex)) {
     if (match.start < at) continue;
+    if (pending.isNotEmpty && match.start >= pendingEnd) flush();
     final open = match.end;
     var depth = 1;
     var i = open;
@@ -91,12 +107,59 @@ String withDrawnTags(String tex, {bool drop = false}) {
     if (depth > 0) break;
     final tag = tex.substring(open, i - 1);
     final shown = match.group(1) == '*' ? tag : '($tag)';
-    out
-      ..write(tex.substring(at, match.start))
-      ..write(drop ? ' ' : drawTag(shown) ?? ' ');
+    final drawn = drop ? ' ' : drawTag(shown) ?? ' ';
+    out.write(tex.substring(at, match.start));
     at = i;
+    if (drop) {
+      out.write(drawn);
+      continue;
+    }
+    if (pending.isEmpty) {
+      final end = _rowEnd(tex, i);
+      if (tex.substring(i, end).trim().isEmpty) {
+        out.write(drawn);
+        continue;
+      }
+      pendingEnd = end;
+    }
+    pending.write(drawn);
   }
+  flush();
   return (out..write(tex.substring(at))).toString();
+}
+
+/// Where the row that [from] is in ends: at the next row break (`\\`) or
+/// `\end` that closes an environment [from] is in, or the end of [tex].
+/// Row breaks inside braces or inside an environment that begins after
+/// [from] (a `cases` in a row) do not end it.
+int _rowEnd(String tex, int from) {
+  var braces = 0;
+  var environments = 0;
+  for (var i = from; i < tex.length; i++) {
+    switch (tex[i]) {
+      case '{':
+        braces++;
+      case '}':
+        if (braces > 0) braces--;
+      case '\\':
+        if (braces > 0) {
+          i++;
+        } else if (tex.startsWith(r'\\', i)) {
+          if (environments == 0) return i;
+          i++;
+        } else if (tex.startsWith(r'\begin', i)) {
+          environments++;
+          i += 5;
+        } else if (tex.startsWith(r'\end', i)) {
+          if (environments == 0) return i;
+          environments--;
+          i += 3;
+        } else {
+          i++;
+        }
+    }
+  }
+  return tex.length;
 }
 
 /// How one tag, [shown] with its parentheses, is drawn: as text, upright,

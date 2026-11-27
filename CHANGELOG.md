@@ -8,6 +8,10 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-27: A LaTeX tag in the middle of an align row is drawn at the row's end ([#313](https://github.com/ChristianGeng/roam-graph-mobile/issues/313))
+
+- Fixed: a `\tag{...}` that stands before the last term of a formula row (`a &= b \tag{1} + c`) is now drawn after the row, as amsmath and KaTeX place it, not in the middle. Tags at the end of a row are drawn as before. Closes #313.
+
 ## 2026-11-25: An image model that answers without an image is asked once more ([#321](https://github.com/ChristianGeng/roam-graph-mobile/pull/321))
 
 - Fixed: when the image model finished without an image (Gemini through OpenRouter: "Gemini could not generate an image (STOP)", HTTP 400), the app showed the raw error. It now asks once more, with "Generate an image. Do not answer with text only." before the prompt. If that also gives no image, it says: "The model answered without an image. Try asking more directly, e.g. 'Create an image of …'."; the provider's answer stays in the details. A refusal for the content is not asked again. Closes #320.

@@ -267,6 +267,44 @@ void main() {
       expect(layOutTagged(r'\frac{1}{').box, isNull);
     });
 
+    test('a tag before the end of its row is drawn after the row (#313)', () {
+      expect(
+        withDrawnTags(r'a &= b \tag{N1} + c'),
+        r'a &= b  + c\qquad\text{(N1)}',
+      );
+      // Row by row; a row break inside a nested environment does not end
+      // the row; several tags of one row keep their order.
+      expect(
+        withDrawnTags(r'a &= b \tag{N1} + c \\ d &= e \tag*{N2} + f'),
+        r'a &= b  + c \qquad\text{(N1)}\\ d &= e  + f\qquad\text{N2}',
+      );
+      expect(
+        withDrawnTags(r'a &= \tag{N1} \begin{cases} 1 \\ 2 \end{cases} + c'),
+        r'a &=  \begin{cases} 1 \\ 2 \end{cases} + c\qquad\text{(N1)}',
+      );
+      expect(
+        withDrawnTags(r'\begin{aligned}a &= b \tag{N1} + c\end{aligned}'),
+        r'\begin{aligned}a &= b  + c\qquad\text{(N1)}\end{aligned}',
+      );
+      expect(
+        withDrawnTags(r'a \tag{N1} + b \tag{N2} + c'),
+        r'a  + b  + c\qquad\text{(N1)}\qquad\text{(N2)}',
+      );
+      // Dropped tags stay where they were.
+      expect(withDrawnTags(r'a \tag{N1} + c', drop: true), 'a   + c');
+    });
+
+    test('a tag before the last term of an align row is laid out', () {
+      final box = layOutTagged(
+        r'\begin{aligned}a &= b \tag{N1} + c \\ d &= e\end{aligned}',
+      ).box;
+      expect(box, isNotNull);
+      final plain = layOutFormula(
+        r'\begin{aligned}a &= b + c \\ d &= e\end{aligned}',
+      ).box!;
+      expect(box!.width, greaterThan(plain.width));
+    });
+
     test('a row break before tag letters and a tag without its brace stay', () {
       expect(withDrawnTags(r'a \\tag{1}'), r'a \\tag{1}');
       expect(withDrawnTags(r'a \tag{1'), r'a \tag{1');
