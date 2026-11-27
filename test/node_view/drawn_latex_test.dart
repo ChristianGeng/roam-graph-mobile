@@ -294,6 +294,44 @@ void main() {
       expect(withDrawnTags(r'a \tag{N1} + c', drop: true), 'a   + c');
     });
 
+    test('only a tag at row level moves; the others stay (#313)', () {
+      // In braces.
+      expect(
+        withDrawnTags(r'\text{a \tag{N1} b} + c'),
+        r'\text{a \qquad\text{(N1)} b} + c',
+      );
+      // In a nested environment that began before the tag.
+      expect(
+        withDrawnTags(r'\begin{cases} 1 \tag{N1} & x \\ 2 \end{cases} + c'),
+        r'\begin{cases} 1 \qquad\text{(N1)} & x \\ 2 \end{cases} + c',
+      );
+      // In an array's column spec.
+      expect(
+        withDrawnTags(r'\begin{array}{c\tag{N1}} x \end{array}'),
+        r'\begin{array}{c\qquad\text{(N1)}} x \end{array}',
+      );
+    });
+
+    test('comments do not end a row and a tag stays out of them (#313)', () {
+      // A row that ends in a comment without a line break.
+      expect(
+        withDrawnTags(r'a \tag{N1} + c % note'),
+        r'a  + c \qquad\text{(N1)}% note',
+      );
+      // A comment with a row break in it.
+      expect(
+        withDrawnTags('a \\tag{N1} + c % x \\\\ y\n\\\\ d'),
+        'a  + c % x \\\\ y\n\\qquad\\text{(N1)}\\\\ d',
+      );
+      // Only a comment after the tag: it is already at the row's end.
+      expect(withDrawnTags(r'a \tag{N1} % x'), r'a \qquad\text{(N1)} % x');
+      // An escaped percent sign is not a comment.
+      expect(
+        withDrawnTags(r'a \tag{N1} \% + c \\ d'),
+        r'a  \% + c \qquad\text{(N1)}\\ d',
+      );
+    });
+
     test('a tag before the last term of an align row is laid out', () {
       final box = layOutTagged(
         r'\begin{aligned}a &= b \tag{N1} + c \\ d &= e\end{aligned}',

@@ -87,6 +87,7 @@ String withDrawnTags(String tex, {bool drop = false}) {
     pending.clear();
   }
 
+  final scan = _Scan(tex);
   for (final match in _tagStart.allMatches(tex)) {
     if (match.start < at) continue;
     if (pending.isNotEmpty && match.start >= pendingEnd) flush();
@@ -110,12 +111,17 @@ String withDrawnTags(String tex, {bool drop = false}) {
     final drawn = drop ? ' ' : drawTag(shown) ?? ' ';
     out.write(tex.substring(at, match.start));
     at = i;
-    if (drop) {
+    // Only a tag at the level of a row moves to the row's end; one in
+    // braces, in a nested environment (a `cases`), in an argument or in a
+    // comment is drawn where it stands.
+    final rowLevel = scan.advance(match.start) && scan.atRowLevel;
+    if (i > scan.pos) scan.pos = i;
+    if (drop || !rowLevel) {
       out.write(drawn);
       continue;
     }
     if (pending.isEmpty) {
-      final end = _rowEnd(tex, i);
+      final end = scan.rowEnd(i);
       if (tex.substring(i, end).trim().isEmpty) {
         out.write(drawn);
         continue;
@@ -128,38 +134,125 @@ String withDrawnTags(String tex, {bool drop = false}) {
   return (out..write(tex.substring(at))).toString();
 }
 
-/// Where the row that [from] is in ends: at the next row break (`\\`) or
-/// `\end` that closes an environment [from] is in, or the end of [tex].
-/// Row breaks inside braces or inside an environment that begins after
-/// [from] (a `cases` in a row) do not end it.
-int _rowEnd(String tex, int from) {
-  var braces = 0;
-  var environments = 0;
-  for (var i = from; i < tex.length; i++) {
-    switch (tex[i]) {
-      case '{':
-        braces++;
-      case '}':
-        if (braces > 0) braces--;
-      case '\\':
-        if (braces > 0) {
-          i++;
-        } else if (tex.startsWith(r'\\', i)) {
-          if (environments == 0) return i;
-          i++;
-        } else if (tex.startsWith(r'\begin', i)) {
-          environments++;
-          i += 5;
-        } else if (tex.startsWith(r'\end', i)) {
-          if (environments == 0) return i;
-          environments--;
-          i += 3;
-        } else {
-          i++;
-        }
+/// The environments whose rows a tag can end: the formula itself (no
+/// environment) and these, as [formulaToDraw] writes them.
+const _rowEnvironments = {
+  'align',
+  'align*',
+  'aligned',
+  'alignat',
+  'alignat*',
+  'alignedat',
+  'gather',
+  'gather*',
+  'gathered',
+  'multline',
+  'multline*',
+  'split',
+  'equation',
+  'equation*',
+  'darray',
+};
+
+final _beginEnd = RegExp(r'\\(begin|end)\s*\{([^{}]*)\}');
+
+/// A walk through a formula that keeps the braces and environments it is
+/// in, and skips comments (`%` up to the end of the line, not `\%`).
+class _Scan {
+  _Scan(this.tex);
+
+  final String tex;
+  int pos = 0;
+  int braces = 0;
+  final List<String> environments = [];
+
+  /// Whether the walk is outside braces and directly in the formula or in
+  /// an environment of [_rowEnvironments].
+  bool get atRowLevel =>
+      braces == 0 &&
+      (environments.isEmpty || _rowEnvironments.contains(environments.last));
+
+  /// Walks to [to]. False if [to] is inside a comment (the walk then stands
+  /// at the comment's end).
+  bool advance(int to) {
+    while (pos < to) {
+      switch (tex[pos]) {
+        case '%':
+          var end = tex.indexOf('\n', pos);
+          if (end < 0) end = tex.length;
+          pos = end;
+          if (end >= to) return false;
+        case '{':
+          braces++;
+          pos++;
+        case '}':
+          if (braces > 0) braces--;
+          pos++;
+        case '\\':
+          final match = _beginEnd.matchAsPrefix(tex, pos);
+          if (match == null) {
+            pos += 2;
+          } else {
+            if (match.group(1) == 'begin') {
+              environments.add(match.group(2)!);
+            } else if (environments.isNotEmpty) {
+              environments.removeLast();
+            }
+            pos = match.end;
+          }
+        default:
+          pos++;
+      }
     }
+    return true;
   }
-  return tex.length;
+
+  /// Where the row that the walk is in ends, looking from [from] on: at the
+  /// next row break (`\\`) or `\end` that closes the environment the walk is
+  /// in, or the end of the text. A row that ends in a comment without a line
+  /// break ends where the comment starts. Row breaks inside braces or inside
+  /// an environment that begins after [from] (a `cases` in a row) do not
+  /// end it.
+  int rowEnd(int from) {
+    var depth = 0;
+    var open = 0;
+    var i = from;
+    while (i < tex.length) {
+      switch (tex[i]) {
+        case '%':
+          final end = tex.indexOf('\n', i);
+          if (end < 0) return i;
+          i = end;
+        case '{':
+          open++;
+          i++;
+        case '}':
+          if (open > 0) open--;
+          i++;
+        case '\\':
+          if (open > 0) {
+            i += 2;
+          } else if (tex.startsWith(r'\\', i)) {
+            if (depth == 0) return i;
+            i += 2;
+          } else if (_beginEnd.matchAsPrefix(tex, i) case final match?) {
+            if (match.group(1) == 'begin') {
+              depth++;
+            } else if (depth == 0) {
+              return i;
+            } else {
+              depth--;
+            }
+            i = match.end;
+          } else {
+            i += 2;
+          }
+        default:
+          i++;
+      }
+    }
+    return tex.length;
+  }
 }
 
 /// How one tag, [shown] with its parentheses, is drawn: as text, upright,

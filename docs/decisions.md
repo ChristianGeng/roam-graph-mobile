@@ -5496,6 +5496,33 @@ Numbered 164: #314 took 163.
   API cases), and a widget test in `test/edit/image_screen_test.dart`
   (the plain message shown, the answer in the copied details).
 
+## 166. A LaTeX tag in the middle of a row is drawn at the row's end (#313)
+
+- **What:** `withDrawnTags` (`lib/node_view/drawn_latex.dart`) draws a
+  `\tag` or `\tag*` that stands before the end of its row after the row's
+  mathematical content (`a &= b \tag{1} + c` is drawn as `a &= b + c (1)`).
+  The row ends at the next `\\` or `\end` of the same level, or at the end
+  of the formula; a row that ends in a `%` comment ends where the comment
+  starts, so the tag is never inside the comment. Several tags of one row
+  keep their order.
+- **Why:** amsmath and KaTeX put the tag at the end of the row, whatever
+  stands after it. A tag in the middle of a row was drawn in the middle,
+  which no TeX renderer does.
+- **Which tags stay where they stand:** only a tag at row level moves:
+  outside braces, and directly in the formula or in `align`, `aligned`,
+  `gather`, `multline`, `split`, `equation` (and their starred forms). Every
+  other tag is drawn where it stands, as before: a tag in braces (`\text{}`
+  or another argument), in a nested environment that began before it
+  (`cases`, `array`, matrices), in an array's column spec, or in a comment.
+  A tag with only white space after it in its row is not moved (it is
+  already at the end). With `drop`, no tag is moved.
+- **How:** one walk through the formula (`_Scan`) keeps the brace depth and
+  the open environments from its start and skips comments (`%` up to the end
+  of the line; `\%` is not one). Row breaks and `\end` inside braces, inside
+  a comment or inside an environment that begins after the tag do not end
+  its row.
+- **Tests:** `test/node_view/drawn_latex_test.dart`.
+
 ## Recommended, not decided
 
 No recommendation is waiting for a decision. The comparison below is kept
