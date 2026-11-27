@@ -17,29 +17,24 @@ class KeyboardSettingsScreen extends StatelessWidget {
         MaterialPageRoute<void>(builder: (_) => const KeyboardSettingsScreen()),
       );
 
-  Future<void> _save(BuildContext context, KeyBindings keys) async {
-    final settings = ViewSettingsScope.read(context);
+  /// Makes [update] on the keys in use then (#315) and saves them, or says
+  /// why not.
+  Future<void> _save(BuildContext context,
+      KeyBindings Function(KeyBindings keys) update) async {
     try {
-      await ViewSettingsScope.change(context, settings.copyWith(keys: keys));
+      await ViewSettingsScope.change(
+          context, (s) => s.copyWith(keys: update(s.keys)));
+    } on KeyTaken catch (taken) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(taken.message)));
+      }
     } on Exception catch (e) {
       if (context.mounted) {
         showErrorSnackBar(
             ScaffoldMessenger.of(context), 'Could not save the setting: $e');
       }
     }
-  }
-
-  /// Sets [keys] from [change], or says why not.
-  Future<void> _try(BuildContext context, KeyBindings Function() change) async {
-    final KeyBindings next;
-    try {
-      next = change();
-    } on KeyTaken catch (taken) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(taken.message)));
-      return;
-    }
-    await _save(context, next);
   }
 
   Future<void> _change(
@@ -49,7 +44,7 @@ class KeyboardSettingsScreen extends StatelessWidget {
       builder: (_) => _KeyDialog(keys: keys, action: action),
     );
     if (chosen == null || !context.mounted) return;
-    await _try(context, () => keys.withKey(action, chosen.chord));
+    await _save(context, (keys) => keys.withKey(action, chosen.chord));
   }
 
   @override
@@ -67,7 +62,7 @@ class KeyboardSettingsScreen extends StatelessWidget {
             groupValue: keys.set,
             onChanged: (set) {
               if (set != null && set != keys.set) {
-                _save(context, keys.withSet(set));
+                _save(context, (keys) => keys.withSet(set));
               }
             },
             child: Column(
@@ -107,7 +102,7 @@ class KeyboardSettingsScreen extends StatelessWidget {
                   TextButton(
                     key: ValueKey('key-reset-${action.name}'),
                     onPressed: keys.isChanged(action)
-                        ? () => _try(context, () => keys.reset(action))
+                        ? () => _save(context, (keys) => keys.reset(action))
                         : null,
                     child: const Text('Reset'),
                   ),

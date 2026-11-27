@@ -195,8 +195,8 @@ class ViewSettingsUpdateSettings implements UpdateSettings {
   /// The app's settings; read on every access, so a change applies at once.
   final ValueNotifier<ViewSettings> notifier;
 
-  /// Saves changed settings.
-  final Future<void> Function(ViewSettings) onSave;
+  /// Makes a change to the settings and saves it.
+  final Future<void> Function(ViewSettingsChange) onSave;
 
   ViewSettings get _settings => notifier.value;
 
@@ -211,7 +211,7 @@ class ViewSettingsUpdateSettings implements UpdateSettings {
 
   @override
   Future<void> saveLastCheckTime(DateTime time) =>
-      onSave(_settings.copyWith(lastUpdateCheckTime: time));
+      onSave((settings) => settings.copyWith(lastUpdateCheckTime: time));
 }
 
 /// Fetches releases from GitHub.

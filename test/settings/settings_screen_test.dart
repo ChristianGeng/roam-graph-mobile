@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:roam_graph_mobile/ai/ai_settings.dart';
 import 'package:roam_graph_mobile/node_view/web_links.dart';
+import 'package:roam_graph_mobile/settings/keyboard_screen.dart';
 import 'package:roam_graph_mobile/settings/keys.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
@@ -378,6 +379,45 @@ void main() {
       expect(store.settings.keys.changed, isEmpty);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
+      expect(label(tester, KeyAction.searchInNote), 'Ctrl+F');
+    });
+
+    /// Gives "Undo" the key [chord] while the screen is open.
+    Future<void> setUndo(WidgetTester tester, KeyChord chord) async {
+      await ViewSettingsScope.change(
+          tester.element(find.byType(KeyboardSettingsScreen)),
+          (s) => s.copyWith(keys: s.keys.withKey(KeyAction.undo, chord)));
+      await tester.pumpAndSettle();
+    }
+
+    onLinux('a key set in the dialog keeps a key changed while it was open '
+        '(#315)', (tester) async {
+      final store = await openKeys(tester);
+      await tester.tap(find.byKey(const ValueKey('key-searchInNote')));
+      await tester.pumpAndSettle();
+      const f5 = KeyChord(LogicalKeyboardKey.f5);
+      await setUndo(tester, f5);
+      await pressChord(tester, LogicalKeyboardKey.keyJ,
+          held: LogicalKeyboardKey.controlLeft);
+      expect(store.settings.keys.changed, {
+        KeyAction.undo: f5,
+        KeyAction.searchInNote:
+            const KeyChord(LogicalKeyboardKey.keyJ, control: true),
+      });
+    });
+
+    onLinux('a key that another action got while the dialog was open is '
+        'refused (#315)', (tester) async {
+      final store = await openKeys(tester);
+      await tester.tap(find.byKey(const ValueKey('key-searchInNote')));
+      await tester.pumpAndSettle();
+      const ctrlJ = KeyChord(LogicalKeyboardKey.keyJ, control: true);
+      await setUndo(tester, ctrlJ);
+      await pressChord(tester, LogicalKeyboardKey.keyJ,
+          held: LogicalKeyboardKey.controlLeft);
+      expect(find.text('Ctrl+J is already "Undo the last quick edit".'),
+          findsOneWidget);
+      expect(store.settings.keys.changed, {KeyAction.undo: ctrlJ});
       expect(label(tester, KeyAction.searchInNote), 'Ctrl+F');
     });
 

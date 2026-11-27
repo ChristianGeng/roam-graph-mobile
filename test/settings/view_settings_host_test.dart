@@ -9,57 +9,35 @@ import 'package:roam_graph_mobile/settings/keys.dart';
 import 'package:roam_graph_mobile/settings/view_settings.dart';
 
 void main() {
-  group('a change made before the file is read (#296)', () {
+  group('a change made before the file is read (#296, #310, #315)', () {
     const inFile = ViewSettings(theme: AppTheme.dark);
-    const chosen = ViewSettings(theme: AppTheme.light);
-    const newer = ViewSettings(theme: AppTheme.light, joinLines: false);
 
-    testWidgets('whose save fails: the file is used once it is read', (
-      tester,
-    ) async {
-      final store = _GatedStore(inFile);
-      final context = await _host(tester, store);
-
-      final change = ViewSettingsScope.change(context, chosen);
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), chosen);
-      store.finishSave(fail: true);
-      await expectLater(change, throwsA(isA<FileSystemException>()));
-      await tester.pump();
-
-      store.finishLoad();
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), inFile);
-    });
-
-    testWidgets('whose save succeeds: the change is kept, with the '
-        "file's other settings (#310)", (tester) async {
+    testWidgets("is saved only once the file is read, with the "
+        "file's other settings", (tester) async {
       final store = _GatedStore(_richFile);
       final context = await _host(tester, store);
 
-      // Built from the defaults, as a screen does before the file is read.
-      final change = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
-      );
+      final change = ViewSettingsScope.change(context, _light);
       await tester.pump();
-      store.finishSave();
-      await change;
+      // Used at once, on the defaults; the file is not written yet.
+      expect(
+        ViewSettingsScope.read(context),
+        _light(ViewSettings.withDefaults()),
+      );
+      expect(store.waiting, 0);
 
       store.finishLoad();
       await tester.pump();
-      final kept = _richFile.copyWith(theme: AppTheme.light);
+      final kept = _light(_richFile);
       expect(ViewSettingsScope.read(context), kept);
-      // The file is written again with its other settings.
+      expect(store.settings.toJson(), _richFile.toJson());
       store.finishSave();
-      await tester.pump();
+      await change;
       expect(store.settings.toJson(), kept.toJson());
 
-      // A later failed save goes back to the merged settings.
-      final failing = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(theme: AppTheme.system),
-      );
+      // A later failed save goes back to these settings.
+      await tester.pump();
+      final failing = ViewSettingsScope.change(context, _neverScripts);
       await tester.pump();
       store.finishSave(fail: true);
       await expectLater(failing, throwsA(isA<FileSystemException>()));
@@ -67,234 +45,256 @@ void main() {
       expect(ViewSettingsScope.read(context), kept);
     });
 
-    testWidgets('several changes saved before the file is read: all are '
-        "kept, with the file's other settings (#310)", (tester) async {
+    testWidgets('whose save fails: the file is shown, and left as it was', (
+      tester,
+    ) async {
+      final store = _GatedStore(inFile);
+      final context = await _host(tester, store);
+
+      final change = ViewSettingsScope.change(context, _light);
+      await tester.pump();
+      store.finishLoad();
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(change, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), inFile);
+      expect(store.settings, inFile);
+    });
+
+    testWidgets("several changes: all are made on the file's settings, "
+        "saved in order", (tester) async {
       final store = _GatedStore(_richFile);
       final context = await _host(tester, store);
 
-      final first = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
-      );
-      final second = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(scripts: ScriptMode.never),
-      );
+      final first = ViewSettingsScope.change(context, _light);
+      final second = ViewSettingsScope.change(context, _neverScripts);
       await tester.pump();
+      store.finishLoad();
+      await tester.pump();
+      final kept = _neverScripts(_light(_richFile));
+      expect(ViewSettingsScope.read(context), kept);
       store.finishSave();
       await first;
+      expect(store.settings.toJson(), _light(_richFile).toJson());
       await tester.pump();
       store.finishSave();
       await second;
-
-      store.finishLoad();
-      await tester.pump();
-      final kept = _richFile.copyWith(
-        theme: AppTheme.light,
-        scripts: ScriptMode.never,
-      );
-      expect(ViewSettingsScope.read(context), kept);
-      store.finishSave();
-      await tester.pump();
       expect(store.settings.toJson(), kept.toJson());
-    });
-
-    testWidgets('still saving when the file is read, then saved: the '
-        "file's other settings are kept (#310)", (tester) async {
-      final store = _GatedStore(_richFile);
-      final context = await _host(tester, store);
-
-      final change = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
-      );
-      await tester.pump();
-      store.finishLoad();
-      await tester.pump();
-      final kept = _richFile.copyWith(theme: AppTheme.light);
-      expect(ViewSettingsScope.read(context), kept);
-
-      store.finishSave();
-      await change;
-      await tester.pump();
-      store.finishSave();
-      await tester.pump();
-      expect(store.settings.toJson(), kept.toJson());
-      expect(ViewSettingsScope.read(context), kept);
     });
 
     testWidgets('a saved change, then a failed one: the file gets the '
-        "saved change and keeps its other settings (#310)", (tester) async {
+        'saved change and keeps its other settings', (tester) async {
       final store = _GatedStore(_richFile);
       final context = await _host(tester, store);
 
-      final first = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
-      );
+      final first = ViewSettingsScope.change(context, _light);
+      final second = ViewSettingsScope.change(context, _neverScripts);
+      await tester.pump();
+      store.finishLoad();
       await tester.pump();
       store.finishSave();
       await first;
-      final second = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(scripts: ScriptMode.never),
-      );
       await tester.pump();
       store.finishSave(fail: true);
       await expectLater(second, throwsA(isA<FileSystemException>()));
+      await tester.pump();
 
-      store.finishLoad();
-      await tester.pump();
-      final kept = _richFile.copyWith(theme: AppTheme.light);
+      final kept = _light(_richFile);
       expect(ViewSettingsScope.read(context), kept);
-      store.finishSave();
-      await tester.pump();
       expect(store.settings.toJson(), kept.toJson());
     });
 
-    testWidgets('only the last update check saved before the file is read: '
-        "the file's settings are kept (#310)", (tester) async {
+    testWidgets("only the last update check: the file's settings are kept", (
+      tester,
+    ) async {
       final store = _GatedStore(_richFile);
       final context = await _host(tester, store);
 
       final checked = DateTime.utc(2026, 11, 24, 8);
       final change = ViewSettingsScope.change(
         context,
-        ViewSettingsScope.read(context).copyWith(lastUpdateCheckTime: checked),
+        (s) => s.copyWith(lastUpdateCheckTime: checked),
       );
       await tester.pump();
-      store.finishSave();
-      await change;
-
       store.finishLoad();
       await tester.pump();
       expect(ViewSettingsScope.read(context), _richFile);
       store.finishSave();
-      await tester.pump();
+      await change;
       expect(
         store.settings.toJson(),
         _richFile.copyWith(lastUpdateCheckTime: checked).toJson(),
       );
     });
 
-    testWidgets('a field set early to the value shown is kept, not the '
-        "file's (#310)", (tester) async {
+    testWidgets("a field set to the value shown is kept, not the file's", (
+      tester,
+    ) async {
       final file = _richFile.copyWith(graphShare: 0.6, graphCollapsed: true);
       final store = _GatedStore(file);
       final context = await _host(tester, store);
 
       // As a double tap on the divider: the default split, unfolded.
-      final change = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(
-          graphShare: ViewSettings.defaultGraphShare,
-          graphCollapsed: false,
-        ),
-      );
-      await tester.pump();
-      store.finishSave();
-      await change;
-
-      store.finishLoad();
-      await tester.pump();
-      final kept = file.copyWith(
+      ViewSettings reset(ViewSettings s) => s.copyWith(
         graphShare: ViewSettings.defaultGraphShare,
         graphCollapsed: false,
       );
-      expect(ViewSettingsScope.read(context), kept);
-      store.finishSave();
+      final change = ViewSettingsScope.change(context, reset);
       await tester.pump();
-      expect(store.settings.toJson(), kept.toJson());
+      store.finishLoad();
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), reset(file));
+      store.finishSave();
+      await change;
+      expect(store.settings.toJson(), reset(file).toJson());
     });
 
-    testWidgets('a field set early, then back to its default: the default, '
-        "not the file's value (#310)", (tester) async {
+    testWidgets("a field set, then back to its default: the default, "
+        "not the file's value", (tester) async {
       final store = _GatedStore(_richFile);
       final context = await _host(tester, store);
 
-      for (final theme in [AppTheme.light, AppTheme.system]) {
-        final change = ViewSettingsScope.change(
-          context,
-          ViewSettingsScope.read(context).copyWith(theme: theme),
-        );
-        await tester.pump();
-        store.finishSave();
-        await change;
-      }
-
+      final first = ViewSettingsScope.change(context, _light);
+      final second = ViewSettingsScope.change(
+        context,
+        (s) => s.copyWith(theme: AppTheme.system),
+      );
+      await tester.pump();
       store.finishLoad();
       await tester.pump();
       final kept = _richFile.copyWith(theme: AppTheme.system);
       expect(ViewSettingsScope.read(context), kept);
       store.finishSave();
+      await first;
       await tester.pump();
+      store.finishSave();
+      await second;
       expect(store.settings.toJson(), kept.toJson());
     });
 
-    testWidgets("a key changed early keeps the file's other keys (#310)", (
-      tester,
-    ) async {
-      const f5 = KeyChord(LogicalKeyboardKey.f5);
-      const f6 = KeyChord(LogicalKeyboardKey.f6);
+    testWidgets("a key changed keeps the file's other keys", (tester) async {
       final file = _richFile.copyWith(
-        keys: const KeyBindings().withKey(KeyAction.undo, f5),
+        keys: const KeyBindings().withKey(KeyAction.undo, _f5),
       );
       final store = _GatedStore(file);
       final context = await _host(tester, store);
 
-      final shown = ViewSettingsScope.read(context);
       final change = ViewSettingsScope.change(
         context,
-        shown.copyWith(keys: shown.keys.withKey(KeyAction.searchInNote, f6)),
+        (s) => s.copyWith(
+          keys: s.keys.withKey(KeyAction.searchInNote, _f6),
+        ),
       );
       await tester.pump();
-      store.finishSave();
-      await change;
-
       store.finishLoad();
       await tester.pump();
       final keys = ViewSettingsScope.read(context).keys;
-      expect(keys.of(KeyAction.undo), f5);
-      expect(keys.of(KeyAction.searchInNote), f6);
+      expect(keys.of(KeyAction.undo), _f5);
+      expect(keys.of(KeyAction.searchInNote), _f6);
       expect(ViewSettingsScope.read(context).theme, AppTheme.dark);
       store.finishSave();
-      await tester.pump();
+      await change;
       expect(store.settings.keys, keys);
     });
 
-    testWidgets('another key set chosen early replaces all keys, as it '
-        'does after the read (#310)', (tester) async {
+    testWidgets("a key reset is reset in the file's keys too (#315)", (
+      tester,
+    ) async {
       final file = _richFile.copyWith(
-        keys: const KeyBindings().withKey(
-          KeyAction.undo,
-          const KeyChord(LogicalKeyboardKey.f5),
-        ),
+        keys: const KeyBindings().withKey(KeyAction.undo, _f5),
       );
       final store = _GatedStore(file);
       final context = await _host(tester, store);
 
-      final shown = ViewSettingsScope.read(context);
       final change = ViewSettingsScope.change(
         context,
-        shown.copyWith(keys: shown.keys.withSet(KeyScheme.emacs)),
+        (s) => s.copyWith(keys: s.keys.reset(KeyAction.undo)),
       );
+      await tester.pump();
+      store.finishLoad();
       await tester.pump();
       store.finishSave();
       await change;
+      expect(store.settings.toJson(), _richFile.toJson());
+    });
 
+    testWidgets('a key that another action has in the file: refused; a '
+        'later change is saved without it (#315)', (tester) async {
+      final file = _richFile.copyWith(
+        keys: const KeyBindings().withKey(KeyAction.undo, _f5),
+      );
+      final store = _GatedStore(file);
+      final context = await _host(tester, store);
+
+      // Free in the defaults shown, taken in the file.
+      final refused = ViewSettingsScope.change(
+        context,
+        (s) => s.copyWith(
+          keys: s.keys.withKey(KeyAction.searchInNote, _f5),
+        ),
+      );
+      final later = ViewSettingsScope.change(context, _light);
+      // Listened to before the read, which fails it.
+      final failed = _errorOf(refused);
+      await tester.pump();
       store.finishLoad();
       await tester.pump();
-      final kept = _richFile.copyWith(
-        keys: const KeyBindings(set: KeyScheme.emacs),
+      expect(await failed, isA<KeyTaken>());
+      expect(ViewSettingsScope.read(context), _light(file));
+      // Only the later change is saved.
+      expect(store.waiting, 1);
+      store.finishSave();
+      await later;
+      expect(store.settings.toJson(), _light(file).toJson());
+    });
+
+    testWidgets('only a key that another action has in the file: nothing is '
+        'saved, and the file is shown (#315)', (tester) async {
+      final file = _richFile.copyWith(
+        keys: const KeyBindings().withKey(KeyAction.undo, _f5),
       );
+      final store = _GatedStore(file);
+      final context = await _host(tester, store);
+
+      final refused = ViewSettingsScope.change(
+        context,
+        (s) => s.copyWith(
+          keys: s.keys.withKey(KeyAction.searchInNote, _f5),
+        ),
+      );
+      final failed = _errorOf(refused);
+      await tester.pump();
+      store.finishLoad();
+      await tester.pump();
+      expect(await failed, isA<KeyTaken>());
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), file);
+      expect(store.waiting, 0);
+      expect(store.settings.toJson(), file.toJson());
+    });
+
+    testWidgets('another key set chosen replaces all keys, as it does after '
+        'the read', (tester) async {
+      final file = _richFile.copyWith(
+        keys: const KeyBindings().withKey(KeyAction.undo, _f5),
+      );
+      final store = _GatedStore(file);
+      final context = await _host(tester, store);
+
+      final change = ViewSettingsScope.change(context, _emacsKeys);
+      await tester.pump();
+      store.finishLoad();
+      await tester.pump();
+      final kept = _emacsKeys(_richFile);
       expect(ViewSettingsScope.read(context), kept);
       store.finishSave();
-      await tester.pump();
+      await change;
       expect(store.settings.toJson(), kept.toJson());
     });
 
     testWidgets('fields that == leaves out, restored from the file, are '
-        'kept by the next change (#310)', (tester) async {
+        'kept by the next change', (tester) async {
       final file = ViewSettings.withDefaults().copyWith(
         lastSeenVersion: '0.3.0',
         lastUpdateCheckTime: DateTime.utc(2026, 11, 1),
@@ -305,127 +305,29 @@ void main() {
       final checked = DateTime.utc(2026, 11, 24, 8);
       final early = ViewSettingsScope.change(
         context,
-        ViewSettingsScope.read(context).copyWith(lastUpdateCheckTime: checked),
+        (s) => s.copyWith(lastUpdateCheckTime: checked),
       );
       await tester.pump();
-      store.finishSave();
-      await early;
       store.finishLoad();
       await tester.pump();
       store.finishSave();
+      await early;
       await tester.pump();
       expect(ViewSettingsScope.read(context).lastSeenVersion, '0.3.0');
       expect(ViewSettingsScope.read(context).lastUpdateCheckTime, checked);
 
-      final later = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
-      );
+      final later = ViewSettingsScope.change(context, _light);
       await tester.pump();
       store.finishSave();
       await later;
       expect(
         store.settings.toJson(),
-        file
-            .copyWith(lastUpdateCheckTime: checked, theme: AppTheme.light)
-            .toJson(),
+        _light(file.copyWith(lastUpdateCheckTime: checked)).toJson(),
       );
-    });
-
-    testWidgets('the second write fails: a later failed change goes back to '
-        'what the file holds (#310)', (tester) async {
-      final store = _GatedStore(_richFile);
-      final context = await _host(tester, store);
-
-      final early = ViewSettings.withDefaults().copyWith(theme: AppTheme.light);
-      final change = ViewSettingsScope.change(context, early);
-      await tester.pump();
-      store.finishSave();
-      await change;
-      store.finishLoad();
-      await tester.pump();
-      store.finishSave(fail: true);
-      await tester.pump();
-      expect(store.settings.toJson(), early.toJson());
-
-      final failing = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(scripts: ScriptMode.never),
-      );
-      await tester.pump();
-      store.finishSave(fail: true);
-      await expectLater(failing, throwsA(isA<FileSystemException>()));
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), early);
-    });
-
-    testWidgets('the second write throws an Error: nothing is uncaught, and '
-        'the next change writes all settings (#310)', (tester) async {
-      final store = _GatedStore(_richFile);
-      final context = await _host(tester, store);
-
-      final change = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
-      );
-      await tester.pump();
-      store.finishSave();
-      await change;
-      store.finishLoad();
-      await tester.pump();
-      store.finishSave(error: StateError('broken'));
-      await tester.pump();
-
-      final next = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(scripts: ScriptMode.never),
-      );
-      await tester.pump();
-      store.finishSave();
-      await next;
-      expect(
-        store.settings.toJson(),
-        _richFile
-            .copyWith(theme: AppTheme.light, scripts: ScriptMode.never)
-            .toJson(),
-      );
-    });
-
-    testWidgets('a change made after the read, before the second write: it '
-        'is written last (#310)', (tester) async {
-      final store = _GatedStore(_richFile);
-      final context = await _host(tester, store);
-
-      final early = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
-      );
-      await tester.pump();
-      store.finishLoad();
-      await tester.pump();
-      final later = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(scripts: ScriptMode.never),
-      );
-      await tester.pump();
-
-      store.finishSave();
-      await early;
-      await tester.pump();
-      store.finishSave();
-      await tester.pump();
-      store.finishSave();
-      await later;
-      final kept = _richFile.copyWith(
-        theme: AppTheme.light,
-        scripts: ScriptMode.never,
-      );
-      expect(store.settings.toJson(), kept.toJson());
-      expect(ViewSettingsScope.read(context), kept);
     });
 
     testWidgets('the read changes only fields that == leaves out: they '
-        'are kept by the next change (#310)', (tester) async {
+        'are kept by the next change', (tester) async {
       final checked = DateTime.utc(2026, 11, 1);
       final file = ViewSettings.withDefaults().copyWith(
         lastUpdateCheckTime: checked,
@@ -434,36 +336,29 @@ void main() {
       final store = _GatedStore(file);
       final context = await _host(tester, store);
 
-      final early = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(theme: AppTheme.light),
-      );
+      final early = ViewSettingsScope.change(context, _light);
       await tester.pump();
-      store.finishSave();
-      await early;
       // The settings read differ from those shown only in the update
-      // check; the second write gives the file them back.
+      // check.
       store.finishLoad();
       await tester.pump();
       store.finishSave();
-      await tester.pump();
+      await early;
       expect(store.settings.lastUpdateCheckTime, checked);
 
-      final later = ViewSettingsScope.change(
-        context,
-        ViewSettingsScope.read(context).copyWith(joinLines: false),
-      );
+      await tester.pump();
+      final later = ViewSettingsScope.change(context, _unjoined);
       await tester.pump();
       store.finishSave();
       await later;
       expect(
         store.settings.toJson(),
-        file.copyWith(theme: AppTheme.light, joinLines: false).toJson(),
+        _unjoined(_light(file)).toJson(),
       );
     });
 
-    testWidgets('the read changes only fields that == leaves out: the '
-        "View screen's switches keep them (#310)", (tester) async {
+    testWidgets("the read changes only fields that == leaves out: the "
+        "View screen's switches keep them", (tester) async {
       tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -483,10 +378,8 @@ void main() {
 
       await tester.tap(find.text('Light'));
       await tester.pump();
-      store.finishSave();
-      await tester.pump();
       // The settings read differ from those shown only in the update
-      // check; the second write gives the file them back.
+      // check.
       store.finishLoad();
       await tester.pump();
       store.finishSave();
@@ -498,98 +391,111 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         store.settings.toJson(),
-        file.copyWith(theme: AppTheme.light, joinLines: false).toJson(),
+        _unjoined(_light(file)).toJson(),
       );
     });
 
-    testWidgets('another key set chosen after the read also replaces all '
-        'keys, as early (#310)', (tester) async {
-      final file = _richFile.copyWith(
-        keys: const KeyBindings().withKey(
-          KeyAction.undo,
-          const KeyChord(LogicalKeyboardKey.f5),
-        ),
-      );
-      final store = _GatedStore(file);
+    testWidgets("and the host gone before the read: it is still saved on "
+        "the file's settings (#315)", (tester) async {
+      final store = _GatedStore(_richFile);
       final context = await _host(tester, store);
-      store.finishLoad();
-      await tester.pump();
 
-      // As the Keyboard screen chooses a set.
-      final shown = ViewSettingsScope.read(context);
-      final change = ViewSettingsScope.change(
-        context,
-        shown.copyWith(keys: shown.keys.withSet(KeyScheme.emacs)),
-      );
+      final change = ViewSettingsScope.change(context, _light);
+      await tester.pumpWidget(const SizedBox());
+      expect(store.waiting, 0);
+      store.finishLoad();
       await tester.pump();
       store.finishSave();
       await change;
-      expect(store.settings.keys, const KeyBindings(set: KeyScheme.emacs));
+      expect(store.settings.toJson(), _light(_richFile).toJson());
+    });
+
+    testWidgets('a change made while it is saving is written last', (
+      tester,
+    ) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+
+      final early = ViewSettingsScope.change(context, _light);
+      await tester.pump();
+      store.finishLoad();
+      await tester.pump();
+      final later = ViewSettingsScope.change(context, _neverScripts);
+      await tester.pump();
+
+      store.finishSave();
+      await early;
+      await tester.pump();
+      store.finishSave();
+      await later;
+      final kept = _neverScripts(_light(_richFile));
+      expect(store.settings.toJson(), kept.toJson());
+      expect(ViewSettingsScope.read(context), kept);
     });
 
     testWidgets('an older save fails while a newer change is saving: '
-        'the newer change is kept', (tester) async {
+        'the newer change is saved, with the older one', (tester) async {
       final store = _GatedStore(inFile);
       final context = await _host(tester, store);
 
-      final first = ViewSettingsScope.change(context, chosen);
-      final second = ViewSettingsScope.change(context, newer);
+      final first = ViewSettingsScope.change(context, _light);
+      final second = ViewSettingsScope.change(context, _unjoined);
+      await tester.pump();
+      store.finishLoad();
       await tester.pump();
       store.finishSave(fail: true);
       await expectLater(first, throwsA(isA<FileSystemException>()));
       await tester.pump();
-      expect(ViewSettingsScope.read(context), newer);
+      final both = _unjoined(_light(inFile));
+      expect(ViewSettingsScope.read(context), both);
 
-      store.finishLoad();
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), newer);
       store.finishSave();
       await second;
       await tester.pump();
-      expect(ViewSettingsScope.read(context), newer);
-      expect(store.settings, newer);
+      expect(ViewSettingsScope.read(context), both);
+      expect(store.settings, both);
     });
 
-    testWidgets('a failed save, then a newer change that fails after the '
-        'file is read: back to the file', (tester) async {
+    testWidgets('a failed save, then a newer change that is saved: the '
+        'newer change is kept', (tester) async {
       final store = _GatedStore(inFile);
       final context = await _host(tester, store);
 
-      final first = ViewSettingsScope.change(context, chosen);
-      await tester.pump();
-      store.finishSave(fail: true);
-      await expectLater(first, throwsA(isA<FileSystemException>()));
-      final second = ViewSettingsScope.change(context, newer);
+      final first = ViewSettingsScope.change(context, _light);
       await tester.pump();
       store.finishLoad();
       await tester.pump();
-      expect(ViewSettingsScope.read(context), newer);
+      store.finishSave(fail: true);
+      await expectLater(first, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+      final second = ViewSettingsScope.change(context, _unjoined);
+      await tester.pump();
+      store.finishSave();
+      await second;
+      expect(ViewSettingsScope.read(context), _unjoined(inFile));
+      expect(store.settings, _unjoined(inFile));
+    });
+
+    testWidgets('a failed save, then a newer change that fails too: back '
+        'to the file', (tester) async {
+      final store = _GatedStore(inFile);
+      final context = await _host(tester, store);
+
+      final first = ViewSettingsScope.change(context, _light);
+      await tester.pump();
+      store.finishLoad();
+      await tester.pump();
+      store.finishSave(fail: true);
+      await expectLater(first, throwsA(isA<FileSystemException>()));
+      await tester.pump();
+      final second = ViewSettingsScope.change(context, _unjoined);
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), _unjoined(inFile));
 
       store.finishSave(fail: true);
       await expectLater(second, throwsA(isA<FileSystemException>()));
       await tester.pump();
       expect(ViewSettingsScope.read(context), inFile);
-    });
-
-    testWidgets('a saved change, then a failed one: the saved change, '
-        'also after the file is read', (tester) async {
-      final store = _GatedStore(inFile);
-      final context = await _host(tester, store);
-
-      final first = ViewSettingsScope.change(context, chosen);
-      await tester.pump();
-      store.finishSave();
-      await first;
-      final second = ViewSettingsScope.change(context, newer);
-      await tester.pump();
-      store.finishSave(fail: true);
-      await expectLater(second, throwsA(isA<FileSystemException>()));
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), chosen);
-
-      store.finishLoad();
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), chosen);
     });
 
     testWidgets('a failed save, then a file that cannot be read: '
@@ -597,109 +503,256 @@ void main() {
       final store = _GatedStore(inFile)..loadFails = true;
       final context = await _host(tester, store);
 
-      final change = ViewSettingsScope.change(context, chosen);
+      final change = ViewSettingsScope.change(context, _light);
+      await tester.pump();
+      // The read error is caught: an uncaught one fails the test.
+      store.finishLoad();
       await tester.pump();
       store.finishSave(fail: true);
       await expectLater(change, throwsA(isA<FileSystemException>()));
       await tester.pump();
-
-      // The read error is caught: an uncaught one fails the test.
-      store.finishLoad();
-      await tester.pump();
       expect(ViewSettingsScope.read(context), ViewSettings.withDefaults());
     });
 
-    testWidgets('a saved change, a failed one, then a file that cannot be '
+    testWidgets('a saved change, a failed one, and a file that cannot be '
         'read: the saved change', (tester) async {
       final store = _GatedStore(inFile)..loadFails = true;
       final context = await _host(tester, store);
 
-      final first = ViewSettingsScope.change(context, chosen);
+      final first = ViewSettingsScope.change(context, _light);
+      final second = ViewSettingsScope.change(context, _unjoined);
+      await tester.pump();
+      store.finishLoad();
       await tester.pump();
       store.finishSave();
       await first;
-      final second = ViewSettingsScope.change(context, newer);
       await tester.pump();
       store.finishSave(fail: true);
       await expectLater(second, throwsA(isA<FileSystemException>()));
       await tester.pump();
-
-      // The read error is caught: an uncaught one fails the test.
-      store.finishLoad();
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), chosen);
+      expect(
+        ViewSettingsScope.read(context),
+        _light(ViewSettings.withDefaults()),
+      );
     });
 
-    testWidgets('a change made while the failed save is undone is kept '
-        'when the file is read', (tester) async {
-      final store = _GatedStore(inFile);
+    testWidgets('a read that throws an Error does not hold the save back', (
+      tester,
+    ) async {
+      final store = _GatedStore(inFile)..loadError = StateError('broken');
       final context = await _host(tester, store);
+
+      final change = ViewSettingsScope.change(context, _light);
+      await tester.pump();
+      store.finishLoad();
+      await tester.pump();
+      store.finishSave();
+      await change;
+      expect(store.settings, _light(ViewSettings.withDefaults()));
+    });
+  });
+
+  group('a change as a function of the current settings (#315)', () {
+    testWidgets('a screen that awaits something, then changes one field, '
+        'keeps the fields changed meanwhile', (tester) async {
+      final store = MemoryViewSettingsStore(_richFile);
+      final context = await _host(tester, store);
+      await tester.pump();
+
+      // As a screen with a dialog: it has read the settings, waits, then
+      // sets one field.
+      final dialog = Completer<String>();
+      Future<void> screen() async {
+        final shown = ViewSettingsScope.read(context);
+        expect(shown, _richFile);
+        final folder = await dialog.future;
+        await ViewSettingsScope.change(
+          context,
+          (s) => s.copyWith(imageFolder: folder),
+        );
+      }
+
+      final done = screen();
+      await ViewSettingsScope.change(context, _light);
+      final checked = DateTime.utc(2026, 11, 27, 8);
+      await ViewSettingsScope.change(
+        context,
+        (s) => s.copyWith(lastUpdateCheckTime: checked),
+      );
+      dialog.complete('pictures');
+      await tester.pump();
+      await done;
+
+      final kept = _light(_richFile)
+          .copyWith(imageFolder: 'pictures', lastUpdateCheckTime: checked);
+      expect(ViewSettingsScope.read(context).toJson(), kept.toJson());
+      expect(store.settings.toJson(), kept.toJson());
+    });
+
+    testWidgets("a dialog opened before the file is read and saved after it "
+        "keeps the file's settings and the changes made meanwhile", (
+      tester,
+    ) async {
+      final store = _GatedStore(_richFile);
+      await _openFolderDialog(tester, store);
+      await tester.enterText(
+        find.byKey(const ValueKey('roam-directory-field')),
+        '/emacs/roam',
+      );
+      store.finishLoad();
+      await tester.pump();
+      final meanwhile = ViewSettingsScope.change(
+        tester.element(find.byType(SettingsScreen)),
+        _light,
+      );
+      await tester.pump();
+      store.finishSave();
+      await meanwhile;
+
+      await tester.tap(find.byKey(const ValueKey('roam-directory-save')));
+      await tester.pumpAndSettle();
+      store.finishSave();
+      await tester.pumpAndSettle();
+      expect(
+        store.settings.toJson(),
+        _light(_richFile)
+            .copyWith(emacsRoamDirectory: '/emacs/roam')
+            .toJson(),
+      );
+    });
+
+    testWidgets("Save without an edit, in a dialog opened before the file is "
+        "read, keeps the file's value", (tester) async {
+      final file = _richFile.copyWith(emacsRoamDirectory: '/notes/roam');
+      final store = _GatedStore(file);
+      await _openFolderDialog(tester, store);
+      store.finishLoad();
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('roam-directory-save')));
+      await tester.pumpAndSettle();
+      expect(store.waiting, 0);
+      expect(store.settings.toJson(), file.toJson());
+    });
+
+    testWidgets('"Not set", in a dialog opened before the file is read, '
+        "clears the file's value", (tester) async {
+      final file = _richFile.copyWith(emacsRoamDirectory: '/notes/roam');
+      final store = _GatedStore(file);
+      await _openFolderDialog(tester, store);
+      store.finishLoad();
+      await tester.pump();
+
+      // The dialog shows nothing set, as it did when it opened.
+      await tester.tap(find.byKey(const ValueKey('roam-directory-clear')));
+      await tester.pumpAndSettle();
+      store.finishSave();
+      await tester.pumpAndSettle();
+      expect(store.settings.toJson(), _richFile.toJson());
+    });
+
+    testWidgets('what the change throws is thrown, and nothing changes', (
+      tester,
+    ) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+      store.finishLoad();
+      await tester.pump();
+
+      const taken = KeyTaken(_f5, KeyAction.undo);
+      await expectLater(
+        ViewSettingsScope.change(context, (_) => throw taken),
+        throwsA(same(taken)),
+      );
+      await tester.pump();
+      expect(ViewSettingsScope.read(context), _richFile);
+      expect(store.waiting, 0);
+    });
+
+    testWidgets('a change made by a listener while one is applied is saved '
+        'after it', (tester) async {
+      final store = _GatedStore(_richFile);
+      final context = await _host(tester, store);
+      store.finishLoad();
+      await tester.pump();
       final settings = context
           .getInheritedWidgetOfExactType<ViewSettingsScope>()!
           .notifier!;
       Future<void>? second;
-      var changedAgain = false;
+      var changed = false;
+      void again() {
+        if (changed) return;
+        changed = true;
+        second = ViewSettingsScope.change(context, _neverScripts);
+      }
+
+      // The theme in the file is dark, so this notifies.
+      settings.addListener(again);
+      final first = ViewSettingsScope.change(context, _light);
+      settings.removeListener(again);
+      await tester.pump();
+      store.finishSave();
+      await first;
+      expect(store.settings.toJson(), _light(_richFile).toJson());
+      await tester.pump();
+      store.finishSave();
+      await second;
+      expect(
+        store.settings.toJson(),
+        _neverScripts(_light(_richFile)).toJson(),
+      );
+    });
+
+    testWidgets('another key set chosen after the read also replaces all '
+        'keys', (tester) async {
+      final file = _richFile.copyWith(
+        keys: const KeyBindings().withKey(KeyAction.undo, _f5),
+      );
+      final store = _GatedStore(file);
+      final context = await _host(tester, store);
+      store.finishLoad();
+      await tester.pump();
+
+      // As the Keyboard screen chooses a set.
+      final change = ViewSettingsScope.change(context, _emacsKeys);
+      await tester.pump();
+      store.finishSave();
+      await change;
+      expect(store.settings.keys, const KeyBindings(set: KeyScheme.emacs));
+    });
+
+    testWidgets('a change made while the failed save is undone is kept', (
+      tester,
+    ) async {
+      const inFile = ViewSettings(theme: AppTheme.dark);
+      final store = _GatedStore(inFile);
+      final context = await _host(tester, store);
+      store.finishLoad();
+      await tester.pump();
+      final settings = context
+          .getInheritedWidgetOfExactType<ViewSettingsScope>()!
+          .notifier!;
+      Future<void>? second;
       // Changes the settings again, once, from inside the notification
       // that undoes the failed save.
       void again() {
-        if (changedAgain || settings.value == chosen) return;
-        changedAgain = true;
-        second = ViewSettingsScope.change(context, newer);
+        if (second != null || settings.value != inFile) return;
+        second = ViewSettingsScope.change(context, _unjoined);
       }
 
       settings.addListener(again);
-      final first = ViewSettingsScope.change(context, chosen);
+      final first = ViewSettingsScope.change(context, _light);
       await tester.pump();
       store.finishSave(fail: true);
       await expectLater(first, throwsA(isA<FileSystemException>()));
       await tester.pump();
       settings.removeListener(again);
       expect(second, isNotNull);
-      expect(ViewSettingsScope.read(context), newer);
+      expect(ViewSettingsScope.read(context), _unjoined(inFile));
 
-      store.finishLoad();
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), newer);
       store.finishSave();
       await second;
-      expect(store.settings, newer);
-    });
-
-    testWidgets('still saving when the file is read, then failing: '
-        'back to the file', (tester) async {
-      final store = _GatedStore(inFile);
-      final context = await _host(tester, store);
-
-      final change = ViewSettingsScope.change(context, chosen);
-      await tester.pump();
-      store.finishLoad();
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), chosen);
-
-      store.finishSave(fail: true);
-      await expectLater(change, throwsA(isA<FileSystemException>()));
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), inFile);
-    });
-
-    testWidgets('a failed save, then a newer change still saving: '
-        'the newer change is kept', (tester) async {
-      final store = _GatedStore(inFile);
-      final context = await _host(tester, store);
-
-      final first = ViewSettingsScope.change(context, chosen);
-      await tester.pump();
-      store.finishSave(fail: true);
-      await expectLater(first, throwsA(isA<FileSystemException>()));
-      final second = ViewSettingsScope.change(context, newer);
-      await tester.pump();
-
-      store.finishLoad();
-      await tester.pump();
-      expect(ViewSettingsScope.read(context), newer);
-      store.finishSave();
-      await second;
-      expect(ViewSettingsScope.read(context), newer);
+      expect(store.settings, _unjoined(inFile));
     });
   });
 
@@ -747,10 +800,7 @@ void main() {
     await tester.pump();
     expect(ViewSettingsScope.read(context), inFile);
 
-    final change = ViewSettingsScope.change(
-      context,
-      const ViewSettings(theme: AppTheme.light),
-    );
+    final change = ViewSettingsScope.change(context, _light);
     await tester.pump();
     store.finishSave(fail: true);
     await expectLater(change, throwsA(isA<FileSystemException>()));
@@ -758,6 +808,26 @@ void main() {
     expect(ViewSettingsScope.read(context), inFile);
   });
 }
+
+/// Changes as screens make them: each sets one thing.
+ViewSettings _light(ViewSettings s) => s.copyWith(theme: AppTheme.light);
+
+ViewSettings _unjoined(ViewSettings s) => s.copyWith(joinLines: false);
+
+ViewSettings _neverScripts(ViewSettings s) =>
+    s.copyWith(scripts: ScriptMode.never);
+
+ViewSettings _emacsKeys(ViewSettings s) =>
+    s.copyWith(keys: s.keys.withSet(KeyScheme.emacs));
+
+/// What [change] fails with, or null; it listens at once.
+Future<Object?> _errorOf(Future<void> change) => change.then<Object?>(
+  (_) => null,
+  onError: (Object error) => error,
+);
+
+const _f5 = KeyChord(LogicalKeyboardKey.f5);
+const _f6 = KeyChord(LogicalKeyboardKey.f6);
 
 /// A file with settings other than the defaults, also in fields that
 /// [ViewSettings.==] leaves out.
@@ -787,26 +857,47 @@ Future<BuildContext> _host(WidgetTester tester, ViewSettingsStore store) async {
   return below;
 }
 
+/// Shows the Settings page with [store] and opens the dialog "Notes folder
+/// on the computer with Emacs".
+Future<void> _openFolderDialog(
+  WidgetTester tester,
+  ViewSettingsStore store,
+) async {
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    MaterialApp(
+      builder: (context, child) =>
+          ViewSettingsHost(store: store, child: child!),
+      home: const SettingsScreen(),
+    ),
+  );
+  await tester.tap(find.byKey(const ValueKey('settings-roam-directory')));
+  await tester.pumpAndSettle();
+}
+
 /// A store whose load finishes only on [finishLoad], and whose saves
 /// finish only on [finishSave], one at a time. The load gives the
-/// settings as they were when it was called, as [FileViewSettingsStore]
-/// does: it reads the file before a save called later writes it; with
-/// [loadFails], it throws.
+/// settings as they were when it was called; with [loadFails] or
+/// [loadError], it throws.
 class _GatedStore extends MemoryViewSettingsStore {
   _GatedStore(super.settings);
 
   final _load = Completer<void>();
   final _saves = <Completer<void>>[];
   var loadFails = false;
+  Error? loadError;
+
+  /// The saves called and not finished.
+  int get waiting => _saves.length;
 
   void finishLoad() => _load.complete();
 
   /// Finishes the oldest save; with [fail], it throws a
-  /// [FileSystemException], with [error], that.
-  void finishSave({bool fail = false, Object? error}) => fail || error != null
-      ? _saves
-            .removeAt(0)
-            .completeError(error ?? const FileSystemException('full'))
+  /// [FileSystemException].
+  void finishSave({bool fail = false}) => fail
+      ? _saves.removeAt(0).completeError(const FileSystemException('full'))
       : _saves.removeAt(0).complete();
 
   @override
@@ -814,6 +905,7 @@ class _GatedStore extends MemoryViewSettingsStore {
     final atStart = settings;
     await _load.future;
     if (loadFails) throw const FileSystemException('unreadable');
+    if (loadError case final error?) throw error;
     return atStart;
   }
 
