@@ -50,9 +50,6 @@ class _TwoPanesState extends State<TwoPanes> {
   double _downX = 0;
   double _downWidth = 0;
 
-  /// What a drag or a button chose, until the settings have it.
-  ViewSettings? _pending;
-
   @override
   void dispose() {
     // Removed during a drag, as when the tablet turns: the drag is over.
@@ -60,23 +57,20 @@ class _TwoPanesState extends State<TwoPanes> {
     super.dispose();
   }
 
-  Future<void> _save(ViewSettings settings) async {
-    setState(() => _pending = settings);
+  Future<void> _save(ViewSettingsChange update) async {
     try {
-      await ViewSettingsScope.change(context, settings);
+      await ViewSettingsScope.change(context, update);
     } on Exception catch (e) {
       if (mounted) {
         showErrorSnackBar(
             ScaffoldMessenger.of(context), 'Could not save the layout: $e');
       }
-    } finally {
-      if (mounted) setState(() => _pending = null);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final settings = _pending ?? ViewSettingsScope.of(context);
+    final settings = ViewSettingsScope.of(context);
     return LayoutBuilder(
       builder: (context, box) {
         final width = box.maxWidth;
@@ -100,9 +94,9 @@ class _TwoPanesState extends State<TwoPanes> {
             ? dragging.clamp(narrowest, widest).toDouble()
             : shown(settings.graphShare);
 
-        void unfold(ViewSettings next) {
+        void unfold(ViewSettingsChange update) {
           if (settings.graphCollapsed) widget.onUnfold?.call();
-          _save(next);
+          _save(update);
         }
 
         void end() {
@@ -112,13 +106,11 @@ class _TwoPanesState extends State<TwoPanes> {
           widget.onDragging?.call(false);
           // Dragged all the way to the left: fold the graph, keeping its share.
           if (raw < narrowest / 2) {
-            _save(settings.copyWith(graphCollapsed: true));
+            _save((s) => s.copyWith(graphCollapsed: true));
           } else {
+            final share = shown(raw / width) / width;
             unfold(
-              settings.copyWith(
-                graphShare: shown(raw / width) / width,
-                graphCollapsed: false,
-              ),
+              (s) => s.copyWith(graphShare: share, graphCollapsed: false),
             );
           }
         }
@@ -137,7 +129,7 @@ class _TwoPanesState extends State<TwoPanes> {
                             tooltip: 'Show graph',
                             icon: const Icon(Icons.chevron_right),
                             onPressed: () => unfold(
-                              settings.copyWith(graphCollapsed: false),
+                              (s) => s.copyWith(graphCollapsed: false),
                             ),
                           ),
                           Expanded(
@@ -163,8 +155,8 @@ class _TwoPanesState extends State<TwoPanes> {
                           child: IconButton.filledTonal(
                             tooltip: 'Fold graph',
                             icon: const Icon(Icons.chevron_left),
-                            onPressed: () =>
-                                _save(settings.copyWith(graphCollapsed: true)),
+                            onPressed: () => _save(
+                                (s) => s.copyWith(graphCollapsed: true)),
                           ),
                         ),
                       ],
@@ -184,7 +176,7 @@ class _TwoPanesState extends State<TwoPanes> {
               onEnd: end,
               // The default split, unfolded.
               onDoubleTap: () => unfold(
-                settings.copyWith(
+                (s) => s.copyWith(
                   graphShare: ViewSettings.defaultGraphShare,
                   graphCollapsed: false,
                 ),

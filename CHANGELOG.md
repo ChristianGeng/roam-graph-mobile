@@ -8,6 +8,11 @@ text on GitHub repeats the entries it contains, with its version. For the
 entries before the changelog existed, the version is given at the end of
 each entry.
 
+## 2026-11-27: A setting saved from an older screen no longer undoes other settings ([#326](https://github.com/ChristianGeng/roam-graph-mobile/pull/326))
+
+- Fixed: a choice made in a dialog or screen that was open while other settings were read or changed now changes only what you chose, so it no longer brings older values back.
+- Changed: a setting chosen right after the start is saved once the saved settings are read, so the file is never left with the other settings reset. If the app closes before that, only this choice is lost. Closes #315.
+
 ## 2026-11-25: An image model that answers without an image is asked once more ([#321](https://github.com/ChristianGeng/roam-graph-mobile/pull/321))
 
 - Fixed: when the image model finished without an image (Gemini through OpenRouter: "Gemini could not generate an image (STOP)", HTTP 400), the app showed the raw error. It now asks once more, with "Generate an image. Do not answer with text only." before the prompt. If that also gives no image, it says: "The model answered without an image. Try asking more directly, e.g. 'Create an image of …'."; the provider's answer stays in the details. A refusal for the content is not asked again. Closes #320.
