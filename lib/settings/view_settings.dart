@@ -858,9 +858,7 @@ class SettingsScreen extends StatelessWidget {
       builder: (context) =>
           _RoamDirectoryDialog(initial: settings.emacsRoamDirectory),
     );
-    if (chosen != null &&
-        chosen != settings.emacsRoamDirectory &&
-        context.mounted) {
+    if (chosen != null && context.mounted) {
       await _saveSettings(
           context, (s) => s.copyWith(emacsRoamDirectory: chosen));
     }
@@ -1059,7 +1057,8 @@ class SettingsScreen extends StatelessWidget {
 
 /// The dialog of "Notes folder on the computer with Emacs" (#303). It owns
 /// its text field's controller, so the controller lives as long as the
-/// dialog, also while it closes. Pops the new value, empty for not set.
+/// dialog, also while it closes. Pops the value chosen, empty for not set;
+/// null when nothing is chosen: Cancel, or Save without an edit.
 class _RoamDirectoryDialog extends StatefulWidget {
   const _RoamDirectoryDialog({required this.initial});
 
@@ -1106,8 +1105,13 @@ class _RoamDirectoryDialogState extends State<_RoamDirectoryDialog> {
           ),
           FilledButton(
             key: const ValueKey('roam-directory-save'),
-            onPressed: () =>
-                Navigator.pop(context, cleanRoot(_field.text) ?? ''),
+            // Without an edit nothing is chosen: the value shown may be
+            // older than the one in use by now (#315).
+            onPressed: () => Navigator.pop(
+                context,
+                _field.text == widget.initial
+                    ? null
+                    : cleanRoot(_field.text) ?? ''),
             child: const Text('Save'),
           ),
         ],

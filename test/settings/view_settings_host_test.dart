@@ -593,20 +593,8 @@ void main() {
         "keeps the file's settings and the changes made meanwhile", (
       tester,
     ) async {
-      tester.view.physicalSize = const Size(800, 2400);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
       final store = _GatedStore(_richFile);
-      await tester.pumpWidget(
-        MaterialApp(
-          builder: (context, child) =>
-              ViewSettingsHost(store: store, child: child!),
-          home: const SettingsScreen(),
-        ),
-      );
-
-      await tester.tap(find.byKey(const ValueKey('settings-roam-directory')));
-      await tester.pumpAndSettle();
+      await _openFolderDialog(tester, store);
       await tester.enterText(
         find.byKey(const ValueKey('roam-directory-field')),
         '/emacs/roam',
@@ -631,6 +619,36 @@ void main() {
             .copyWith(emacsRoamDirectory: '/emacs/roam')
             .toJson(),
       );
+    });
+
+    testWidgets("Save without an edit, in a dialog opened before the file is "
+        "read, keeps the file's value", (tester) async {
+      final file = _richFile.copyWith(emacsRoamDirectory: '/notes/roam');
+      final store = _GatedStore(file);
+      await _openFolderDialog(tester, store);
+      store.finishLoad();
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('roam-directory-save')));
+      await tester.pumpAndSettle();
+      expect(store.waiting, 0);
+      expect(store.settings.toJson(), file.toJson());
+    });
+
+    testWidgets('"Not set", in a dialog opened before the file is read, '
+        "clears the file's value", (tester) async {
+      final file = _richFile.copyWith(emacsRoamDirectory: '/notes/roam');
+      final store = _GatedStore(file);
+      await _openFolderDialog(tester, store);
+      store.finishLoad();
+      await tester.pump();
+
+      // The dialog shows nothing set, as it did when it opened.
+      await tester.tap(find.byKey(const ValueKey('roam-directory-clear')));
+      await tester.pumpAndSettle();
+      store.finishSave();
+      await tester.pumpAndSettle();
+      expect(store.settings.toJson(), _richFile.toJson());
     });
 
     testWidgets('what the change throws is thrown, and nothing changes', (
@@ -837,6 +855,26 @@ Future<BuildContext> _host(WidgetTester tester, ViewSettingsStore store) async {
     ),
   );
   return below;
+}
+
+/// Shows the Settings page with [store] and opens the dialog "Notes folder
+/// on the computer with Emacs".
+Future<void> _openFolderDialog(
+  WidgetTester tester,
+  ViewSettingsStore store,
+) async {
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(
+    MaterialApp(
+      builder: (context, child) =>
+          ViewSettingsHost(store: store, child: child!),
+      home: const SettingsScreen(),
+    ),
+  );
+  await tester.tap(find.byKey(const ValueKey('settings-roam-directory')));
+  await tester.pumpAndSettle();
 }
 
 /// A store whose load finishes only on [finishLoad], and whose saves

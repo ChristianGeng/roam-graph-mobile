@@ -5506,7 +5506,11 @@ Numbered 164: #314 took 163.
   what it sets; the form that took a whole `ViewSettings` is removed.
   The Keyboard screen makes `withKey`, `withSet` and `reset` on the
   keys in use then, so a key another action got meanwhile is refused
-  (`KeyTaken`) and shown, as in its dialog.
+  (`KeyTaken`) and shown, as in its dialog. The dialog "Notes folder on
+  the computer with Emacs" sets nothing on a Save without an edit. Its
+  "Not set" is always saved, also when the dialog opened with nothing
+  set: before, it was skipped then, and a folder read while the dialog
+  was open stayed.
 - **Before the file is read:** a change is shown at once, made on the
   defaults and the changes before it, but nothing is written. When the
   file is read, the changes are made again, in order, on its settings,
@@ -5539,9 +5543,9 @@ Numbered 164: #314 took 163.
   - If the app closes before the file is read, an early change is not
     saved; the file stays as it was.
   - A read that never ends holds back every save and its error message.
-  - A dialog's Save sets the value the dialog shows, also when the user
-    did not edit it (Emacs command, image folder), over a value read or
-    changed while it was open; only that field.
+  - In the dialogs "Emacs command" and "Folder for new images", Save
+    sets the value the dialog shows, also when the user did not edit it,
+    over a value read or changed while it was open; only that field.
 - **Tests:** `test/settings/view_settings_host_test.dart` (a screen that
   waits and then sets one field keeps the others; a dialog opened before
   the read; no save before the read; a refused key), and
