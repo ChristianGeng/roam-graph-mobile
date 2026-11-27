@@ -207,8 +207,7 @@ class ViewSettings {
         StartLayout.lastUsed => lastLayout,
       };
 
-  /// These settings with the given fields changed. The result remembers
-  /// which fields were given (see [_setByCopyWith]).
+  /// These settings with the given fields changed.
   ViewSettings copyWith({
     SectionsOnOpen? sectionsOnOpen,
     double? graphShare,
@@ -228,52 +227,27 @@ class ViewSettings {
     DateTime? lastUpdateCheckTime,
     String? lastSeenVersion,
     KeyBindings? keys,
-  }) {
-    final next = ViewSettings(
-      sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
-      graphShare: graphShare ?? this.graphShare,
-      graphCollapsed: graphCollapsed ?? this.graphCollapsed,
-      startLayout: startLayout ?? this.startLayout,
-      lastLayout: lastLayout ?? this.lastLayout,
-      theme: theme ?? this.theme,
-      scripts: scripts ?? this.scripts,
-      joinLines: joinLines ?? this.joinLines,
-      swipeHeadings: swipeHeadings ?? _swipeHeadings,
-      imageFolder: imageFolder ?? this.imageFolder,
-      emacsClient: emacsClient ?? this.emacsClient,
-      emacsRoamDirectory: emacsRoamDirectory ?? this.emacsRoamDirectory,
-      followEmacs: followEmacs ?? this.followEmacs,
-      checkForUpdates: checkForUpdates ?? this.checkForUpdates,
-      includePreReleases: includePreReleases ?? this.includePreReleases,
-      lastUpdateCheckTime: lastUpdateCheckTime ?? this.lastUpdateCheckTime,
-      lastSeenVersion: lastSeenVersion ?? this.lastSeenVersion,
-      keys: keys ?? this.keys,
-    );
-    // Before the file is read, the host needs the fields a screen chose,
-    // also one set to the value it already had (#310).
-    _setByCopyWith[next] = {
-      ...?_setByCopyWith[this],
-      if (sectionsOnOpen != null) 'sectionsOnOpen',
-      if (graphShare != null) 'graphShare',
-      if (graphCollapsed != null) 'graphCollapsed',
-      if (startLayout != null) 'startLayout',
-      if (lastLayout != null) 'lastLayout',
-      if (theme != null) 'theme',
-      if (scripts != null) 'scripts',
-      if (joinLines != null) 'joinLines',
-      if (swipeHeadings != null) 'swipeHeadings',
-      if (imageFolder != null) 'imageFolder',
-      if (emacsClient != null) 'emacsClient',
-      if (emacsRoamDirectory != null) 'emacsRoamDirectory',
-      if (followEmacs != null) 'followEmacs',
-      if (checkForUpdates != null) 'checkForUpdates',
-      if (includePreReleases != null) 'includePreReleases',
-      if (lastUpdateCheckTime != null) 'lastUpdateCheckTime',
-      if (lastSeenVersion != null) 'lastSeenVersion',
-      if (keys != null) 'keys',
-    };
-    return next;
-  }
+  }) =>
+      ViewSettings(
+        sectionsOnOpen: sectionsOnOpen ?? this.sectionsOnOpen,
+        graphShare: graphShare ?? this.graphShare,
+        graphCollapsed: graphCollapsed ?? this.graphCollapsed,
+        startLayout: startLayout ?? this.startLayout,
+        lastLayout: lastLayout ?? this.lastLayout,
+        theme: theme ?? this.theme,
+        scripts: scripts ?? this.scripts,
+        joinLines: joinLines ?? this.joinLines,
+        swipeHeadings: swipeHeadings ?? _swipeHeadings,
+        imageFolder: imageFolder ?? this.imageFolder,
+        emacsClient: emacsClient ?? this.emacsClient,
+        emacsRoamDirectory: emacsRoamDirectory ?? this.emacsRoamDirectory,
+        followEmacs: followEmacs ?? this.followEmacs,
+        checkForUpdates: checkForUpdates ?? this.checkForUpdates,
+        includePreReleases: includePreReleases ?? this.includePreReleases,
+        lastUpdateCheckTime: lastUpdateCheckTime ?? this.lastUpdateCheckTime,
+        lastSeenVersion: lastSeenVersion ?? this.lastSeenVersion,
+        keys: keys ?? this.keys,
+      );
 
   Map<String, Object?> toJson() => {
         'sectionsOnOpen': sectionsOnOpen.name,
@@ -402,17 +376,6 @@ class ViewSettings {
       checkForUpdates, includePreReleases, keys);
 }
 
-/// The fields given to [ViewSettings.copyWith] for a settings object
-/// (the JSON names), together with those given for the object it was
-/// made from; not part of `==` or the JSON.
-///
-/// Carrying the fields of the objects a copy was made from is intended:
-/// in `read(context).copyWith(a: x).copyWith(b: y)`, `a` may equal the
-/// value shown, so only this tells that it was chosen. Fields carried from
-/// an earlier change are made again with the value they have, which
-/// changes nothing.
-final _setByCopyWith = Expando<Set<String>>('fields set by copyWith');
-
 /// [folder] as a folder inside `roam/`: slashes at the ends and doubled
 /// ones go, `.` parts go; null for an empty folder, one that leaves
 /// `roam/` (`..`), or a part Android cannot name (`\`, `:`, …). `roam/`
@@ -433,6 +396,11 @@ String? cleanImageFolder(String folder) {
   }
   return parts.join('/');
 }
+
+/// A change to the view settings, for [ViewSettingsScope.change]: gets the
+/// settings it is made on and gives them back with what it sets changed,
+/// usually with [ViewSettings.copyWith].
+typedef ViewSettingsChange = ViewSettings Function(ViewSettings settings);
 
 /// Loads and saves [ViewSettings]. An interface so screens can be tested
 /// without files.
@@ -527,36 +495,21 @@ class ViewSettingsHost extends StatefulWidget {
 class _ViewSettingsHostState extends State<ViewSettingsHost> {
   late final _settings = _SettingsNotifier(ViewSettings.withDefaults());
 
-  /// The saves so far, one after the other, so the file ends with the
+  /// The reading of the file, then the saves, one after the other: nothing
+  /// is written before the file is read (#315), and the file ends with the
   /// latest choice.
-  Future<void> _saves = Future.value();
+  late Future<void> _saves;
 
-  /// Counts the changes; only the latest one is applied.
+  /// Counts the changes; a failed save is undone only for the latest one.
   var _changes = 0;
 
-  /// What the file holds as far as known: the settings loaded, then each
-  /// one saved. Used when the latest save fails.
+  /// What the file holds as far as known: the settings read, then each one
+  /// saved. Shown when the latest save fails.
   late ViewSettings _inFile = ViewSettings.withDefaults();
 
-  /// The settings read from the file (the defaults if it cannot be read);
-  /// null until then.
-  ViewSettings? _fromFile;
-
-  /// The changes made before the file was read, in order, each as what
-  /// it changes (#310). A screen builds such a change from the defaults,
-  /// so only the fields it chose are its choice; once the file is read,
-  /// they are made on the file's settings.
-  var _early = <_Patch>[];
-
-  /// [_early] as it was at the latest change before the file was read
-  /// whose save succeeded; [_early] goes back to it when the latest change
-  /// fails (#296).
-  var _earlySaved = <_Patch>[];
-
-  /// The settings saved by a change made before the file was read: the
-  /// file holds them without its other settings until [_repair] writes
-  /// them.
-  ViewSettings? _unmerged;
+  /// The changes made before the file was read, in order; null once it is
+  /// read.
+  List<_EarlyChange>? _early = [];
 
   /// Completes once the settings are loaded (or a change came first),
   /// for screens that must not start with the defaults (#81).
@@ -565,94 +518,64 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
   @override
   void initState() {
     super.initState();
-    () async {
-      ViewSettings settings;
-      try {
-        settings = await widget.store.load();
-      } on Exception {
-        settings = ViewSettings.withDefaults();
-      }
-      if (mounted) {
-        _fromFile = settings;
-        // The changes made before are made on the file's settings, so its
-        // other settings stay (#310); a change whose save failed is no
-        // longer in [_early] (#296).
-        _inFile = _made(settings, _earlySaved);
-        _settings.value = _made(settings, _early);
-        // After the saves of those changes, which may have written the
-        // file without its other settings, and before any later change.
-        _saves = _saves.catchError((Object _) {}).then((_) => _repair());
-      }
-      if (!_loaded.isCompleted) _loaded.complete();
-    }();
+    _saves = _read();
   }
 
-  /// Writes the file's settings with the changes saved before it was
-  /// read, if those saves wrote the file without them (#310). If this
-  /// fails, the screen is not told: the file keeps the saved changes
-  /// alone. The next change that saves writes all settings; a change that
-  /// fails first goes back to what the file holds, without the file's
-  /// other settings.
-  Future<void> _repair() async {
-    final unmerged = _unmerged;
-    _unmerged = null;
-    if (unmerged == null) return;
-    final merged = _made(_fromFile!, _earlySaved);
-    if (jsonEncode(merged.toJson()) == jsonEncode(unmerged.toJson())) return;
+  /// Reads the file, then makes the changes made meanwhile on its
+  /// settings, so its other settings stay (#310). A file that cannot be
+  /// read gives the defaults.
+  Future<void> _read() async {
+    ViewSettings settings;
     try {
-      await widget.store.save(merged);
+      settings = await widget.store.load();
     } catch (error, stack) {
-      // Also an Error, which must not become an uncaught error; it is a
-      // mistake in the code, so it is logged.
+      // Also an Error, since the saves wait for this read; it is a mistake
+      // in the code, so it is logged.
       if (error is! Exception) {
-        debugPrint('Writing the view settings failed: $error\n$stack');
+        debugPrint('Reading the view settings failed: $error\n$stack');
       }
-      _inFile = unmerged;
+      settings = ViewSettings.withDefaults();
     }
+    _inFile = settings;
+    // Also when the screens are gone: the changes are still to be saved.
+    for (final early in _early!) {
+      settings = early.makeOn(settings);
+    }
+    _early = null;
+    if (mounted) _settings.value = settings;
+    if (!_loaded.isCompleted) _loaded.complete();
   }
 
-  /// Saves [settings] after any earlier save, then uses them, unless a
-  /// newer change came meanwhile. If the latest save fails, the screen
-  /// shows what the file holds, and the error is thrown.
-  Future<void> _change(ViewSettings settings) {
+  /// Makes [update] on the settings shown and uses the result at once, then
+  /// saves it, after the read and any earlier save. If the latest save
+  /// fails, the screen shows what the file holds, and the error is thrown.
+  Future<void> _change(ViewSettingsChange update) async {
+    // First: a change that throws changes nothing.
+    final settings = update(_settings.value);
     final change = ++_changes;
-    // Before the file is read, what this change changes in the settings
-    // shown (#310).
-    List<_Patch>? early;
-    if (_fromFile == null) {
-      _early = [..._early, _Patch(_settings.value, settings)];
-      early = _early;
-    }
+    // Before the file is read, [settings] are built on the defaults: what
+    // is saved is [update] made on the file's settings (#315).
+    final early = _early == null ? null : _EarlyChange(update);
+    if (early != null) _early!.add(early);
     // A change is newer than the file: screens waiting can go on.
     if (!_loaded.isCompleted) _loaded.complete();
-    // Used at once, so a second change made while the first is saving
-    // builds on it instead of on the file (#72 review); undone if saving
-    // fails.
-    if (mounted) _settings.value = settings;
-    final saved = _saves
-        .catchError((Object _) {})
-        .then((_) => widget.store.save(settings))
-        .then((_) {
-      if (early == null) {
-        _unmerged = null;
-        _inFile = settings;
-        return;
-      }
-      _earlySaved = early;
-      _unmerged = settings;
-      final fromFile = _fromFile;
-      _inFile = fromFile == null ? settings : _made(fromFile, early);
+    final saved = _saves.catchError((Object _) {}).then((_) async {
+      final next = early == null ? settings : early.toSave();
+      await widget.store.save(next);
+      _inFile = next;
     });
     _saves = saved;
-    return saved.then((_) {}, onError: (Object error, StackTrace stack) {
-      if (mounted && change == _changes) {
-        // Set first: a listener of the next line may make a new change,
-        // which builds on them.
-        _early = _earlySaved;
-        _settings.value = _inFile;
-      }
-      Error.throwWithStackTrace(error, stack);
-    });
+    // Used at once, so a second change made while the first is saving
+    // builds on it instead of on the file (#72 review); undone if saving
+    // fails. After the save is queued: a change made by a listener is then
+    // saved after this one.
+    if (mounted) _settings.value = settings;
+    try {
+      await saved;
+    } catch (_) {
+      if (mounted && change == _changes) _settings.value = _inFile;
+      rethrow;
+    }
   }
 
   @override
@@ -670,77 +593,27 @@ class _ViewSettingsHostState extends State<ViewSettingsHost> {
       );
 }
 
-/// [file] with [changes] made on it, in order.
-ViewSettings _made(ViewSettings file, List<_Patch> changes) =>
-    changes.fold(file, (settings, change) => change.on(settings));
+/// A change made before the settings file was read (#315).
+class _EarlyChange {
+  _EarlyChange(this._update);
 
-/// What a change made before the settings file was read changes (#310):
-/// the fields given to [ViewSettings.copyWith], also one set to the value
-/// it had, and the fields that differ from the settings shown then
-/// (compared as JSON, so also those that [ViewSettings.==] leaves out).
-/// The keys are compared key by key.
-class _Patch {
-  _Patch(ViewSettings shown, ViewSettings settings)
-      : _keys = _KeysPatch(shown.keys, settings.keys) {
-    final before = shown.toJson();
-    final after = settings.toJson();
-    final given = _setByCopyWith[settings] ?? const <String>{};
-    _fields = {
-      for (final key in {...before.keys, ...after.keys, ...given})
-        if (key != 'keys' &&
-            (given.contains(key) ||
-                jsonEncode(before[key]) != jsonEncode(after[key])))
-          key: after[key],
-    };
-  }
+  final ViewSettingsChange _update;
 
-  late final Map<String, Object?> _fields;
-  final _KeysPatch _keys;
+  /// Gives the settings to save for this change, or throws what the change
+  /// threw on the file's settings. Set by [makeOn].
+  late final ViewSettings Function() toSave;
 
-  /// [settings] with this change made.
-  ViewSettings on(ViewSettings settings) =>
-      ViewSettings.fromJson(jsonDecode(jsonEncode({
-        ...settings.toJson(),
-        ..._fields,
-        'keys': _keys.on(settings.keys).toJson(),
-      })));
-}
-
-/// What a change made before the settings file was read changes in the
-/// keys (#310): another set replaces them all, as choosing a set does;
-/// otherwise each action whose key changed.
-class _KeysPatch {
-  _KeysPatch(KeyBindings shown, KeyBindings keys)
-      : _set = keys.set == shown.set ? null : keys,
-        _actions = {
-          for (final action in KeyAction.values)
-            if (keys.changed.containsKey(action) !=
-                    shown.changed.containsKey(action) ||
-                keys.changed[action] != shown.changed[action])
-              action: keys.changed,
-        };
-
-  /// All the keys, when the change chose another set.
-  final KeyBindings? _set;
-
-  /// Each action whose key changed, with the changed keys after it.
-  final Map<KeyAction, Map<KeyAction, KeyChord?>> _actions;
-
-  KeyBindings on(KeyBindings keys) {
-    if (_set case final all?) return all;
-    if (_actions.isEmpty) return keys;
-    final changed = {...keys.changed};
-    for (final MapEntry(key: action, value: after) in _actions.entries) {
-      if (after.containsKey(action)) {
-        changed[action] = after[action];
-      } else {
-        changed.remove(action);
-      }
+  /// [file] with this change made; [file] as it is when the change throws
+  /// on it, as a key does that another action has in the file.
+  ViewSettings makeOn(ViewSettings file) {
+    try {
+      final made = _update(file);
+      toSave = () => made;
+      return made;
+    } catch (error, stack) {
+      toSave = () => Error.throwWithStackTrace(error, stack);
+      return file;
     }
-    // As read from a file: a key equal to the set's default is not kept,
-    // and two actions with one key both go back to the defaults.
-    return KeyBindings.fromJson(
-        KeyBindings(set: keys.set, changed: changed).toJson());
   }
 }
 
@@ -799,8 +672,8 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
     return scope?.notifier?.value ?? ViewSettings.withDefaults();
   }
 
-  /// Saves and applies new settings; see [change].
-  final Future<void> Function(ViewSettings) onChange;
+  /// Applies and saves a change; see [change].
+  final Future<void> Function(ViewSettingsChange) onChange;
 
   /// The settings as they are now, or the defaults where there is no
   /// scope, as in tests of a single screen. Rebuilds [context] when they
@@ -814,10 +687,9 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
 
   /// The settings in use, without rebuilding [context] when they change:
   /// for code outside build. Until the file is read, these are the
-  /// defaults, or a change made before that; [current] waits for the file
-  /// (but not past a change, nor longer than its limit). A change built
-  /// from them before the file is read keeps the file's other settings
-  /// (#310).
+  /// defaults, with the changes made meanwhile; [current] waits for the
+  /// file (but not past a change, nor longer than its limit). To change
+  /// settings, give [change] a function; do not build them from these.
   static ViewSettings read(BuildContext context) =>
       context
           .getInheritedWidgetOfExactType<ViewSettingsScope>()
@@ -825,22 +697,28 @@ class ViewSettingsScope extends InheritedNotifier<ValueNotifier<ViewSettings>> {
           ?.value ??
       ViewSettings.withDefaults();
 
-  /// Uses [settings] at once, then saves them. Changes are saved in the
-  /// order they are made, so a slow earlier save cannot bring back an
-  /// older choice. If the latest save fails, the settings go back to what
-  /// the file holds, and the error is thrown.
+  /// Makes [update] on the settings as they are now, uses the result at
+  /// once, then saves it. [update] sets only what the caller chose, as
+  /// `change(context, (s) => s.copyWith(theme: theme))`, so a screen that
+  /// waited for something, such as a dialog, keeps what changed meanwhile
+  /// (#315). Changes are saved in the order they are made, so a slow
+  /// earlier save cannot bring back an older choice. If the latest save
+  /// fails, the settings go back to what the file holds, and the error is
+  /// thrown.
   ///
-  /// Before the file is read, a change counts only with the fields it
-  /// chose: those given to [ViewSettings.copyWith] and those that differ
-  /// from the settings shown then, the keys key by key. Once the file is
-  /// read, they are made on the file's settings, which are written again
-  /// if a save already replaced them (#310). A failed save goes back to
-  /// the last save that succeeded, or to the defaults if none did; its
-  /// fields are then not made on the file's settings (#296).
-  static Future<void> change(BuildContext context, ViewSettings settings) async {
+  /// Before the file is read, nothing is written. [update] is made on the
+  /// settings shown (the defaults, with earlier changes), and once more on
+  /// the file's settings when they are read; those are then shown and
+  /// saved, so the file's other settings stay (#310). So [update] may be
+  /// called twice, and must use only its argument and values taken before.
+  /// What it throws, such as [KeyTaken], is thrown here and nothing is
+  /// saved; thrown only on the file's settings, it is handled as a failed
+  /// save.
+  static Future<void> change(
+      BuildContext context, ViewSettingsChange update) async {
     final scope = context.getInheritedWidgetOfExactType<ViewSettingsScope>();
     if (scope == null) return;
-    await scope.onChange(settings);
+    await scope.onChange(update);
   }
 }
 
@@ -873,10 +751,11 @@ class _AiSubtitle extends StatelessWidget {
   }
 }
 
-/// Saves [settings]; a failure shows in a snack bar.
-Future<void> _saveSettings(BuildContext context, ViewSettings settings) async {
+/// Makes [update] and saves it; a failure shows in a snack bar.
+Future<void> _saveSettings(
+    BuildContext context, ViewSettingsChange update) async {
   try {
-    await ViewSettingsScope.change(context, settings);
+    await ViewSettingsScope.change(context, update);
   } on Exception catch (e) {
     if (context.mounted) {
       showErrorSnackBar(ScaffoldMessenger.of(context),
@@ -959,7 +838,7 @@ class SettingsScreen extends StatelessWidget {
     );
     field.dispose();
     if (chosen != null && context.mounted) {
-      await _saveSettings(context, settings.copyWith(emacsClient: chosen));
+      await _saveSettings(context, (s) => s.copyWith(emacsClient: chosen));
     }
   }
 
@@ -983,7 +862,7 @@ class SettingsScreen extends StatelessWidget {
         chosen != settings.emacsRoamDirectory &&
         context.mounted) {
       await _saveSettings(
-          context, settings.copyWith(emacsRoamDirectory: chosen));
+          context, (s) => s.copyWith(emacsRoamDirectory: chosen));
     }
   }
 
@@ -1033,7 +912,7 @@ class SettingsScreen extends StatelessWidget {
     );
     field.dispose();
     if (chosen != null && context.mounted) {
-      await _saveSettings(context, settings.copyWith(imageFolder: chosen));
+      await _saveSettings(context, (s) => s.copyWith(imageFolder: chosen));
     }
   }
 
@@ -1121,8 +1000,8 @@ class SettingsScreen extends StatelessWidget {
                   'Emacs, with roam-graph-follow-mode on there. See Help, '
                   '"The desktop app".'),
               value: settings.followEmacs,
-              onChanged: (value) =>
-                  _saveSettings(context, settings.copyWith(followEmacs: value)),
+              onChanged: (value) => _saveSettings(
+                  context, (s) => s.copyWith(followEmacs: value)),
             ),
           // On Android the default is off (Obtainium is the updater
           // there), but the user can turn it on (#247).
@@ -1136,8 +1015,8 @@ class SettingsScreen extends StatelessWidget {
                 : 'Off by default here; Obtainium updates the app. When on, '
                     'a notice links to the release page on GitHub.'),
             value: settings.checkForUpdates,
-            onChanged: (value) =>
-                _saveSettings(context, settings.copyWith(checkForUpdates: value)),
+            onChanged: (value) => _saveSettings(
+                context, (s) => s.copyWith(checkForUpdates: value)),
           ),
           SwitchListTile(
             key: const ValueKey('settings-include-pre-releases'),
@@ -1146,8 +1025,8 @@ class SettingsScreen extends StatelessWidget {
             subtitle: const Text('Also check for pre-release versions when '
                 'checking for updates.'),
             value: settings.includePreReleases,
-            onChanged: (value) =>
-                _saveSettings(context, settings.copyWith(includePreReleases: value)),
+            onChanged: (value) => _saveSettings(
+                context, (s) => s.copyWith(includePreReleases: value)),
           ),
           if (isDesktop)
             ListTile(
@@ -1257,7 +1136,7 @@ class ViewSettingsScreen extends StatelessWidget {
             groupValue: settings.theme,
             onChanged: (value) {
               if (value != null) {
-                _saveSettings(context, settings.copyWith(theme: value));
+                _saveSettings(context, (s) => s.copyWith(theme: value));
               }
             },
             child: Column(
@@ -1283,7 +1162,7 @@ class ViewSettingsScreen extends StatelessWidget {
             onChanged: (value) {
               if (value != null) {
                 _saveSettings(
-                    context, settings.copyWith(sectionsOnOpen: value));
+                    context, (s) => s.copyWith(sectionsOnOpen: value));
               }
             },
             child: Column(
@@ -1308,7 +1187,7 @@ class ViewSettingsScreen extends StatelessWidget {
             groupValue: settings.scripts,
             onChanged: (value) {
               if (value != null) {
-                _saveSettings(context, settings.copyWith(scripts: value));
+                _saveSettings(context, (s) => s.copyWith(scripts: value));
               }
             },
             child: Column(
@@ -1332,7 +1211,7 @@ class ViewSettingsScreen extends StatelessWidget {
                 'The file keeps its line breaks.'),
             value: settings.joinLines,
             onChanged: (value) =>
-                _saveSettings(context, settings.copyWith(joinLines: value)),
+                _saveSettings(context, (s) => s.copyWith(joinLines: value)),
           ),
           SwitchListTile(
             key: const ValueKey('settings-swipe-headings'),
@@ -1342,7 +1221,7 @@ class ViewSettingsScreen extends StatelessWidget {
                 'on Android, off on the desktop.'),
             value: settings.swipeHeadings,
             onChanged: (value) => _saveSettings(
-                context, settings.copyWith(swipeHeadings: value)),
+                context, (s) => s.copyWith(swipeHeadings: value)),
           ),
           const Divider(),
           const ListTile(
@@ -1354,7 +1233,7 @@ class ViewSettingsScreen extends StatelessWidget {
             groupValue: settings.startLayout,
             onChanged: (value) {
               if (value != null) {
-                _saveSettings(context, settings.copyWith(startLayout: value));
+                _saveSettings(context, (s) => s.copyWith(startLayout: value));
               }
             },
             child: Column(
@@ -1389,7 +1268,7 @@ class ViewSettingsScreen extends StatelessWidget {
                   ? null
                   : () => _saveSettings(
                         context,
-                        settings.copyWith(
+                        (s) => s.copyWith(
                           graphShare: ViewSettings.defaultGraphShare,
                           graphCollapsed: false,
                         ),

@@ -852,7 +852,8 @@ class _GraphScreenState extends State<GraphScreen> {
     // A graph folded away beside the note unfolds (#69).
     final view = ViewSettingsScope.of(context);
     if (view.graphCollapsed && isTwoPane(MediaQuery.sizeOf(context))) {
-      ViewSettingsScope.change(context, view.copyWith(graphCollapsed: false))
+      ViewSettingsScope.change(
+              context, (s) => s.copyWith(graphCollapsed: false))
           .catchError((Object _) {});
     }
     if (_choice == _ScopeChoice.whole) {
@@ -920,12 +921,11 @@ class _GraphScreenState extends State<GraphScreen> {
     _layoutChosen = true;
     _kind = kind;
     _update();
-    // Remembered for "Last used" (#71), on top of the settings as
-    // loaded, so a choice made while the file is read does not save
-    // the defaults over it (#81).
+    // Remembered for "Last used" (#71), once the settings are loaded, so
+    // a layout the file already has is not saved again (#81).
     ViewSettingsScope.current(context).then((view) {
       if (!mounted || view.lastLayout == kind) return;
-      ViewSettingsScope.change(context, view.copyWith(lastLayout: kind))
+      ViewSettingsScope.change(context, (s) => s.copyWith(lastLayout: kind))
           .catchError((Object _) {});
     });
   }

@@ -1872,7 +1872,7 @@ void main() {
 
       final context = tester.element(find.byType(FolderScreen));
       await ViewSettingsScope.change(
-          context, store.settings.copyWith(emacsRoamDirectory: '/emacs/roam'));
+          context, (s) => s.copyWith(emacsRoamDirectory: '/emacs/roam'));
       await tester.pumpAndSettle();
 
       expect(index.rebuilds, 2);
@@ -1883,7 +1883,7 @@ void main() {
 
       // The same value again changes nothing.
       await ViewSettingsScope.change(
-          context, store.settings.copyWith(emacsRoamDirectory: '/emacs/roam'));
+          context, (s) => s.copyWith(emacsRoamDirectory: '/emacs/roam'));
       await tester.pumpAndSettle();
       expect(index.rebuilds, 2);
       await openFolderSheet(tester);
@@ -1902,7 +1902,7 @@ void main() {
 
       final context = tester.element(find.byType(FolderScreen));
       await ViewSettingsScope.change(
-          context, store.settings.copyWith(emacsRoamDirectory: '/emacs/roam'));
+          context, (s) => s.copyWith(emacsRoamDirectory: '/emacs/roam'));
       await tester.pump();
       access.listGate!.complete();
       access.listGate = null;
