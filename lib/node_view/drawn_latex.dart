@@ -69,7 +69,21 @@ final _tagStart = RegExp(r'(?<=(?:^|[^\\])(?:\\\\)*)\\tag(\*?)\s*\{');
 /// block here has no page width (it is in a container that scrolls
 /// sideways), so the tag follows the formula. A tag without its closing
 /// brace is left as it is.
+///
+/// A tag before the end of its row is drawn at the row's end (decision
+/// 167). Should that move fail on a formula it does not foresee, the tags
+/// are drawn where they stand instead, so the formula is still drawn.
 String withDrawnTags(String tex, {bool drop = false}) {
+  try {
+    return _withDrawnTags(tex, drop: drop, move: !drop);
+  } catch (_) {
+    return _withDrawnTags(tex, drop: drop, move: false);
+  }
+}
+
+/// [withDrawnTags]; with [move], a tag before the end of its row is drawn
+/// at the row's end.
+String _withDrawnTags(String tex, {required bool drop, required bool move}) {
   final out = StringBuffer();
   var at = 0;
   // Tags that stand before the end of their row, drawn after the row's
@@ -92,20 +106,8 @@ String withDrawnTags(String tex, {bool drop = false}) {
     if (match.start < at) continue;
     if (pending.isNotEmpty && match.start >= pendingEnd) flush();
     final open = match.end;
-    var depth = 1;
-    var i = open;
-    while (i < tex.length && depth > 0) {
-      switch (tex[i]) {
-        case '\\':
-          i++;
-        case '{':
-          depth++;
-        case '}':
-          depth--;
-      }
-      i++;
-    }
-    if (depth > 0) break;
+    final i = _argumentEnd(tex, open);
+    if (i < 0) break;
     final tag = tex.substring(open, i - 1);
     final shown = match.group(1) == '*' ? tag : '($tag)';
     final drawn = drop ? ' ' : drawTag(shown) ?? ' ';
@@ -116,7 +118,7 @@ String withDrawnTags(String tex, {bool drop = false}) {
     // comment is drawn where it stands.
     final rowLevel = scan.advance(match.start) && scan.atRowLevel;
     if (i > scan.pos) scan.pos = i;
-    if (drop || !rowLevel) {
+    if (!move || !rowLevel) {
       out.write(drawn);
       continue;
     }
@@ -128,10 +130,33 @@ String withDrawnTags(String tex, {bool drop = false}) {
       }
       pendingEnd = end;
     }
+    // A space where the tag stood keeps the commands around it apart
+    // (`\sin\tag{1}h` must not become `\sinh`), as in [formulaToDraw].
+    out.write(' ');
     pending.write(drawn);
   }
   flush();
   return (out..write(tex.substring(at))).toString();
+}
+
+/// Where the argument of a tag that opens at [open] (after its `{`) ends,
+/// after its closing brace; -1 if it is not closed. A `%` in it is taken as
+/// it stands, not as a comment.
+int _argumentEnd(String tex, int open) {
+  var depth = 1;
+  var i = open;
+  while (i < tex.length && depth > 0) {
+    switch (tex[i]) {
+      case '\\':
+        i++;
+      case '{':
+        depth++;
+      case '}':
+        depth--;
+    }
+    i++;
+  }
+  return depth > 0 ? -1 : i;
 }
 
 /// The environments whose rows a tag can end: the formula itself (no
@@ -154,6 +179,9 @@ const _rowEnvironments = {
   'darray',
 };
 
+/// A row break: `\\`, or `\cr`, which KaTeX takes as one too.
+final _rowBreak = RegExp(r'\\\\|\\cr(?![a-zA-Z])');
+
 final _beginEnd = RegExp(r'\\(begin|end)\s*\{([^{}]*)\}');
 
 /// A walk through a formula that keeps the braces and environments it is
@@ -166,20 +194,31 @@ class _Scan {
   int braces = 0;
   final List<String> environments = [];
 
+  /// The last comment the walk skipped, from its `%` to its end.
+  int _commentStart = -1;
+  int _commentEnd = -1;
+
   /// Whether the walk is outside braces and directly in the formula or in
-  /// an environment of [_rowEnvironments].
+  /// the formula's own environment, one of [_rowEnvironments]. An
+  /// environment nested in it (an `aligned` in an `aligned`) has rows of
+  /// its own.
   bool get atRowLevel =>
       braces == 0 &&
-      (environments.isEmpty || _rowEnvironments.contains(environments.last));
+      (environments.isEmpty ||
+          environments.length == 1 &&
+              _rowEnvironments.contains(environments.single));
 
   /// Walks to [to]. False if [to] is inside a comment (the walk then stands
-  /// at the comment's end).
+  /// at the comment's end), also when the walk is already past [to].
   bool advance(int to) {
+    if (pos > to) return to < _commentStart || to >= _commentEnd;
     while (pos < to) {
       switch (tex[pos]) {
         case '%':
           var end = tex.indexOf('\n', pos);
           if (end < 0) end = tex.length;
+          _commentStart = pos;
+          _commentEnd = end;
           pos = end;
           if (end >= to) return false;
         case '{':
@@ -189,7 +228,8 @@ class _Scan {
           if (braces > 0) braces--;
           pos++;
         case '\\':
-          final match = _beginEnd.matchAsPrefix(tex, pos);
+          // `\begin` and `\end` in braces are left alone, as in [rowEnd].
+          final match = braces > 0 ? null : _beginEnd.matchAsPrefix(tex, pos);
           if (match == null) {
             pos += 2;
           } else {
@@ -208,11 +248,11 @@ class _Scan {
   }
 
   /// Where the row that the walk is in ends, looking from [from] on: at the
-  /// next row break (`\\`) or `\end` that closes the environment the walk is
-  /// in, or the end of the text. A row that ends in a comment without a line
-  /// break ends where the comment starts. Row breaks inside braces or inside
-  /// an environment that begins after [from] (a `cases` in a row) do not
-  /// end it.
+  /// next row break (`\\` or `\cr`) or `\end` that closes the environment
+  /// the walk is in, or the end of the text. A row that ends in a comment
+  /// without a line break ends where the comment starts. A tag's argument
+  /// is passed whole. Row breaks inside braces or inside an environment
+  /// that begins after [from] (a `cases` in a row) do not end it.
   int rowEnd(int from) {
     var depth = 0;
     var open = 0;
@@ -230,11 +270,16 @@ class _Scan {
           if (open > 0) open--;
           i++;
         case '\\':
-          if (open > 0) {
+          // A later tag is passed whole, read as [withDrawnTags] reads it:
+          // a `%` in its argument must not end the row inside it.
+          if (_tagStart.matchAsPrefix(tex, i) case final match?) {
+            final end = _argumentEnd(tex, match.end);
+            i = end < 0 ? tex.length : end;
+          } else if (open > 0) {
             i += 2;
-          } else if (tex.startsWith(r'\\', i)) {
+          } else if (_rowBreak.matchAsPrefix(tex, i) case final match?) {
             if (depth == 0) return i;
-            i += 2;
+            i = match.end;
           } else if (_beginEnd.matchAsPrefix(tex, i) case final match?) {
             if (match.group(1) == 'begin') {
               depth++;

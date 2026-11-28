@@ -5559,26 +5559,34 @@ Numbered 164: #314 took 163.
 - **What:** `withDrawnTags` (`lib/node_view/drawn_latex.dart`) draws a
   `\tag` or `\tag*` that stands before the end of its row after the row's
   mathematical content (`a &= b \tag{1} + c` is drawn as `a &= b + c (1)`).
-  The row ends at the next `\\` or `\end` of the same level, or at the end
-  of the formula; a row that ends in a `%` comment ends where the comment
-  starts, so the tag is never inside the comment. Several tags of one row
-  keep their order.
+  The row ends at the next `\\`, `\cr` or `\end` of the same level, or at
+  the end of the formula; a row that ends in a `%` comment ends where the
+  comment starts, so the tag is never inside the comment. Several tags of
+  one row keep their order. A space is left where a moved tag stood, so
+  the commands around it stay apart (`\sin\tag{1}h` is not `\sinh`).
 - **Why:** amsmath and KaTeX put the tag at the end of the row, whatever
   stands after it. A tag in the middle of a row was drawn in the middle,
   which no TeX renderer does.
 - **Which tags stay where they stand:** only a tag at row level moves:
-  outside braces, and directly in the formula or in `align`, `aligned`,
-  `gather`, `multline`, `split`, `equation` (and their starred forms). Every
-  other tag is drawn where it stands, as before: a tag in braces (`\text{}`
-  or another argument), in a nested environment that began before it
-  (`cases`, `array`, matrices), in an array's column spec, or in a comment.
+  outside braces, and directly in the formula or in the formula's own
+  environment, one of `align`, `aligned`, `gather`, `multline`, `split`,
+  `equation` (and their starred forms). Every other tag is drawn where it
+  stands, as before: a tag in braces (`\text{}` or another argument), in a
+  nested environment that began before it (`cases`, `array`, matrices, or
+  an `aligned` inside the formula's `aligned`), in an array's column spec,
+  or in a comment.
   A tag with only white space after it in its row is not moved (it is
   already at the end). With `drop`, no tag is moved.
 - **How:** one walk through the formula (`_Scan`) keeps the brace depth and
   the open environments from its start and skips comments (`%` up to the end
   of the line; `\%` is not one). Row breaks and `\end` inside braces, inside
   a comment or inside an environment that begins after the tag do not end
-  its row.
+  its row; `\begin` and `\end` inside braces open and close nothing. A
+  later tag's argument is read whole, as the tag itself is read, so a `%`
+  in it does not end the row inside it.
+- **Safety net:** should the move fail on a formula it does not foresee,
+  `withDrawnTags` draws every tag where it stands, as before #313, so the
+  formula is still drawn rather than shown as source.
 - **Tests:** `test/node_view/drawn_latex_test.dart`.
 
 ## Recommended, not decided
