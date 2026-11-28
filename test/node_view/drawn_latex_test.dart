@@ -267,6 +267,171 @@ void main() {
       expect(layOutTagged(r'\frac{1}{').box, isNull);
     });
 
+    test('a tag before the end of its row is drawn after the row (#313)', () {
+      expect(
+        withDrawnTags(r'a &= b \tag{N1} + c'),
+        r'a &= b   + c\qquad\text{(N1)}',
+      );
+      // Row by row; a row break inside a nested environment does not end
+      // the row; several tags of one row keep their order.
+      expect(
+        withDrawnTags(r'a &= b \tag{N1} + c \\ d &= e \tag*{N2} + f'),
+        r'a &= b   + c \qquad\text{(N1)}\\ d &= e   + f\qquad\text{N2}',
+      );
+      expect(
+        withDrawnTags(r'a &= \tag{N1} \begin{cases} 1 \\ 2 \end{cases} + c'),
+        r'a &=   \begin{cases} 1 \\ 2 \end{cases} + c\qquad\text{(N1)}',
+      );
+      expect(
+        withDrawnTags(r'\begin{aligned}a &= b \tag{N1} + c\end{aligned}'),
+        r'\begin{aligned}a &= b   + c\qquad\text{(N1)}\end{aligned}',
+      );
+      expect(
+        withDrawnTags(r'a \tag{N1} + b \tag{N2} + c'),
+        r'a   + b   + c\qquad\text{(N1)}\qquad\text{(N2)}',
+      );
+      // Dropped tags stay where they were.
+      expect(withDrawnTags(r'a \tag{N1} + c', drop: true), 'a   + c');
+    });
+
+    test('only a tag at row level moves; the others stay (#313)', () {
+      // In braces.
+      expect(
+        withDrawnTags(r'\text{a \tag{N1} b} + c'),
+        r'\text{a \qquad\text{(N1)} b} + c',
+      );
+      // In a nested environment that began before the tag.
+      expect(
+        withDrawnTags(r'\begin{cases} 1 \tag{N1} & x \\ 2 \end{cases} + c'),
+        r'\begin{cases} 1 \qquad\text{(N1)} & x \\ 2 \end{cases} + c',
+      );
+      // In an array's column spec.
+      expect(
+        withDrawnTags(r'\begin{array}{c\tag{N1}} x \end{array}'),
+        r'\begin{array}{c\qquad\text{(N1)}} x \end{array}',
+      );
+    });
+
+    test('comments do not end a row and a tag stays out of them (#313)', () {
+      // A row that ends in a comment without a line break.
+      expect(
+        withDrawnTags(r'a \tag{N1} + c % note'),
+        r'a   + c \qquad\text{(N1)}% note',
+      );
+      // A comment with a row break in it.
+      expect(
+        withDrawnTags('a \\tag{N1} + c % x \\\\ y\n\\\\ d'),
+        'a   + c % x \\\\ y\n\\qquad\\text{(N1)}\\\\ d',
+      );
+      // Only a comment after the tag: it is already at the row's end.
+      expect(withDrawnTags(r'a \tag{N1} % x'), r'a \qquad\text{(N1)} % x');
+      // An escaped percent sign is not a comment.
+      expect(
+        withDrawnTags(r'a \tag{N1} \% + c \\ d'),
+        r'a   \% + c \qquad\text{(N1)}\\ d',
+      );
+    });
+
+    test('a tag whose argument holds a % falls back, never throws (#313)', () {
+      // The `%` ends the first tag's row inside the second tag's argument.
+      // A `%` in a tag's argument does not end the row inside it. Neither
+      // KaTeX nor the tag's text layout can set `(N2%)`, so it is left out.
+      expect(
+        withDrawnTags(r'a \tag{N1} + b \tag{N2%}'),
+        r'a   + b  \qquad\text{(N1)} ',
+      );
+      expect(
+        withDrawnTags(r'a \tag{N1} + b \text{\tag{N2%}}'),
+        r'a   + b \text{ }\qquad\text{(N1)}',
+      );
+    });
+
+    test('a second tag in one comment stays in the comment (#313)', () {
+      expect(
+        withDrawnTags('a % x \\tag{P} \\tag{Q}\n + b'),
+        'a % x \\qquad\\text{(P)} \\qquad\\text{(Q)}\n + b',
+      );
+      expect(
+        withDrawnTags('a % x \\tag{P}\n + b'),
+        'a % x \\qquad\\text{(P)}\n + b',
+      );
+    });
+
+    test('a moved tag leaves a space between the commands (#313)', () {
+      expect(withDrawnTags(r'\sin\tag{1}h'), r'\sin h\qquad\text{(1)}');
+    });
+
+    test(r'\cr ends a row like \\ (#313)', () {
+      expect(
+        withDrawnTags(r'a \tag{1} + b \cr c'),
+        r'a   + b \qquad\text{(1)}\cr c',
+      );
+      // `\cramped` is not a row break.
+      expect(
+        withDrawnTags(r'a \tag{1} + \cramped{b}'),
+        r'a   + \cramped{b}\qquad\text{(1)}',
+      );
+    });
+
+    test('a tag in a row environment nested in another stays (#313)', () {
+      expect(
+        withDrawnTags(
+          r'\begin{aligned}x &= \begin{aligned} a \tag{1} + b \\ c'
+          r'\end{aligned} + d\end{aligned}',
+        ),
+        r'\begin{aligned}x &= \begin{aligned} a \qquad\text{(1)} + b \\ c'
+        r'\end{aligned} + d\end{aligned}',
+      );
+    });
+
+    test(r'\begin and \end in braces do not open or close (#313)', () {
+      // The `\begin{cases}` in the text opens nothing, so the tag after it
+      // is still at row level.
+      expect(
+        withDrawnTags(r'\text{\begin{cases}} a \tag{1} + b'),
+        r'\text{\begin{cases}} a   + b\qquad\text{(1)}',
+      );
+    });
+
+    test('more rows and comments (#313)', () {
+      // After a nested environment closed in the same row.
+      expect(
+        withDrawnTags(r'\begin{cases} 1 \\ 2 \end{cases} \tag{1} + c'),
+        r'\begin{cases} 1 \\ 2 \end{cases}   + c\qquad\text{(1)}',
+      );
+      // A gather or multline body, as formulaToDraw writes it.
+      expect(
+        withDrawnTags(r'\begin{darray}{c}a \tag{1} + b \\ c\end{darray}'),
+        r'\begin{darray}{c}a   + b \qquad\text{(1)}\\ c\end{darray}',
+      );
+      // A tag in a comment stays there.
+      expect(
+        withDrawnTags('a % x \\tag{1} y\n + b'),
+        'a % x \\qquad\\text{(1)} y\n + b',
+      );
+      // A tag in braces after a row-level tag of the same row stays.
+      expect(
+        withDrawnTags(r'a \tag{1} + \text{b \tag{2}} + c \\ d'),
+        r'a   + \text{b \qquad\text{(2)}} + c \qquad\text{(1)}\\ d',
+      );
+      // A comment between the tag and the next row break.
+      expect(
+        withDrawnTags('a \\tag{1} + c % x\n \\\\ d'),
+        'a   + c % x\n \\qquad\\text{(1)}\\\\ d',
+      );
+    });
+
+    test('a tag before the last term of an align row is laid out', () {
+      final box = layOutTagged(
+        r'\begin{aligned}a &= b \tag{N1} + c \\ d &= e\end{aligned}',
+      ).box;
+      expect(box, isNotNull);
+      final plain = layOutFormula(
+        r'\begin{aligned}a &= b + c \\ d &= e\end{aligned}',
+      ).box!;
+      expect(box!.width, greaterThan(plain.width));
+    });
+
     test('a row break before tag letters and a tag without its brace stay', () {
       expect(withDrawnTags(r'a \\tag{1}'), r'a \\tag{1}');
       expect(withDrawnTags(r'a \tag{1'), r'a \tag{1');
